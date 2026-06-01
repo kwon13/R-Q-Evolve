@@ -1,0 +1,171 @@
+PARENT_PROGRAM_EXAMPLE_1:
+```python
+import random
+import sympy
+
+def generate(seed):
+    rng = random.Random(seed)
+    while True:
+        a1 = rng.randint(2, 20)
+        d = rng.randint(2, 12)
+        n = rng.randint(8, 25)
+        answer = a1 + (n - 1) * d
+        if answer < 50:
+            continue
+        break
+    problem = (
+        f"An arithmetic sequence has first term {a1} and common "
+        f"difference {d}. Compute its {n}-th term."
+    )
+    return problem, str(sympy.Integer(answer))
+
+CONCEPT_GROUP = "sequence"
+CONCEPT_TYPE = "sequence.arithmetic_nth_term"
+```
+
+MUTATED_PROGRAM_EXAMPLE_1:
+```python
+"""In-breadth mutation generator.
+
+Crosses domains from arithmetic_nth_term (a linear step in a
+discrete progression) to chord geometry — no shared object,
+move, or vocabulary with the parent.
+
+To solve, given only radius r and the chord's centre-distance
+d, the reader must:
+  (1) drop the radius to a chord endpoint,
+  (2) see that radius, centre-perpendicular, and half-chord
+      form a right triangle,
+  (3) apply Pythagoras: half-chord = sqrt(r^2 - d^2),
+  (4) double it for the full chord, in exact surd form.
+Coordinate geometry also works but runs several times longer.
+
+Guards keep the task honest: r^2 - d^2 not a perfect square
+(else the chord is an integer, guessable), radicand <= 30 (not
+artificial), gcd(r, d) = 1 (not a rescaled smaller case). The
+problem text states only r and d — never Pythagoras or the
+bisection.
+"""
+
+import random
+import sympy
+
+def generate(seed):
+    rng = random.Random(seed)
+    while True:
+        r = rng.randint(5, 15)
+        d = rng.randint(1, r - 1)
+
+        diff = r * r - d * d
+        m, k = diff, 1
+        for q in sympy.primerange(2, 20):
+            while m % (q * q) == 0:
+                m //= q * q
+                k *= q
+
+        if m == 1:
+            continue
+        if m > 30:
+            continue
+        if sympy.gcd(r, d) > 1:
+            continue
+
+        coef = 2 * k
+        answer = f"{coef}*sqrt({m})"
+        break
+
+    problem = (
+        f"A circle has radius {r}. A chord of the circle lies at "
+        f"perpendicular distance {d} from the centre. Compute "
+        f"the length of the chord in exact form."
+    )
+    return problem, answer
+
+CONCEPT_REASON = "To solve, the reader must decompose the chord into a right triangle of radius, centre-perpendicular, and half-chord, then apply Pythagoras — that decomposition is the problem's reasoning core."
+CONCEPT_GROUP = "geometry"
+CONCEPT_TYPE = "geometry.chord_length_from_center"
+```
+
+PARENT_PROGRAM_EXAMPLE_2:
+```python
+import random
+import sympy
+
+def generate(seed):
+    rng = random.Random(seed)
+    while True:
+        a = rng.randint(3, 15)
+        b = rng.randint(3, 15)
+        if a == b:
+            continue
+        area = a * b
+        if area < 20:
+            continue
+        break
+    problem = (
+        f"A rectangle has side lengths {a} and {b}. "
+        f"Compute its area."
+    )
+    return problem, str(sympy.Integer(area))
+
+CONCEPT_GROUP = "geometry"
+CONCEPT_TYPE = "geometry.rectangle_area"
+```
+
+MUTATED_PROGRAM_EXAMPLE_2:
+```python
+"""In-breadth mutation generator.
+
+Crosses domains from rectangle_area (one multiplication of two
+side lengths) to divisor counting — no shared object, move, or
+vocabulary with the parent.
+
+To solve, given only an integer N, the reader must:
+  (1) factor N into primes N = p1^e1 * p2^e2 * ... * pk^ek,
+  (2) recall the multiplicative formula
+      d(N) = (e1+1)(e2+1)...(ek+1),
+  (3) evaluate that product.
+Trial division up to sqrt(N) also works but grows with N, while
+the formula collapses the count to a small product of
+exponents-plus-one.
+
+Guards keep the task honest: N not prime or a prime power (else
+the formula degenerates to one factor), N with at least three
+distinct prime factors (so the product is a real chain), answer
+not in {1, 2, 3, 4} (guessable). The problem text states only N
+— never the factorisation or the exponent formula.
+"""
+
+import random
+import sympy
+
+def generate(seed):
+    rng = random.Random(seed)
+    while True:
+        N = rng.randint(200, 5000)
+        factors = sympy.factorint(N)
+
+        if len(factors) < 3:
+            continue
+
+        count = 1
+        for e in factors.values():
+            count *= (e + 1)
+
+        if count <= 4:
+            continue
+        if count > 36:
+            continue
+
+        break
+
+    problem = (
+        f"Let N = {N}. Compute the number of positive integers "
+        f"that divide N (including 1 and N itself)."
+    )
+    return problem, str(sympy.Integer(count))
+
+CONCEPT_REASON = "To solve, the reader must factor N into prime powers and apply the multiplicative divisor formula d(N) = prod(e_i + 1) — that factor-and-count is the problem's reasoning core."
+CONCEPT_GROUP = "number_theory"
+CONCEPT_TYPE = "number_theory.divisor_count"
+```

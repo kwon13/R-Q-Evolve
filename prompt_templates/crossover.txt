@@ -1,0 +1,31 @@
+Task: merge Parent A and Parent B into one hybrid generator.
+
+The hybrid should use one mathematical object where both parents' core ideas
+matter. Avoid simply concatenating two unrelated subproblems.
+
+$few_shot_examples
+
+Parent A:
+- CONCEPT_GROUP: $parent_concept_group
+- CONCEPT_TYPE: $parent_concept_type
+- p_hat: $parent_p_hat
+- uncertainty/H: $parent_h_score
+- R_Q: $parent_rq_score
+
+```python
+$parent_source
+```
+
+Parent B:
+- CONCEPT_GROUP: $parent_b_concept_group
+- CONCEPT_TYPE: $parent_b_concept_type
+- p_hat: $parent_b_p_hat
+- uncertainty/H: $parent_b_h_score
+- R_Q: $parent_b_rq_score
+
+```python
+$parent_b_source
+```
+
+Return one complete Python source file only.
+It must define generate(seed) and end with CONCEPT_GROUP and CONCEPT_TYPE.

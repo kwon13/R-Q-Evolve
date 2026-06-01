@@ -1,0 +1,100 @@
+# verl GRPO/PPO override file for R-Q-Evolve.
+#
+# Set the model path either by editing actor_rollout_ref.model.path below or by:
+#   export RQ_MODEL_PATH=/path/to/your/hf_model
+
+data:
+  max_prompt_length: 4096
+  max_response_length: 4096
+  train_batch_size: 8
+  val_batch_size: 8
+  shuffle: true
+  truncation: left
+  dataloader_num_workers: 0
+  filter_overlong_prompts: false
+  trust_remote_code: true
+
+actor_rollout_ref:
+  model:
+    path: ${oc.env:RQ_MODEL_PATH,/path/to/your/hf_model}
+    trust_remote_code: true
+    use_remove_padding: false
+    enable_gradient_checkpointing: true
+
+  actor:
+    strategy: fsdp
+    ppo_mini_batch_size: 8
+    ppo_micro_batch_size: null
+    ppo_micro_batch_size_per_gpu: 1
+    use_dynamic_bsz: false
+    use_kl_loss: true
+    kl_loss_coef: 1.0e-3
+    kl_loss_type: low_var_kl
+    use_torch_compile: false
+    optim:
+      lr: 1.0e-6
+      weight_decay: 1.0e-2
+      lr_warmup_steps_ratio: 0.0
+
+  ref:
+    log_prob_micro_batch_size: null
+    log_prob_micro_batch_size_per_gpu: 1
+
+  rollout:
+    name: vllm
+    mode: async
+    temperature: 0.7
+    top_p: 1.0
+    n: 4
+    tensor_model_parallel_size: 1
+    gpu_memory_utilization: 0.5
+    max_model_len: 8192
+    max_num_batched_tokens: 8192
+    log_prob_micro_batch_size: null
+    log_prob_micro_batch_size_per_gpu: 1
+    enable_chunked_prefill: false
+    enforce_eager: true
+    free_cache_engine: true
+
+critic:
+  ppo_mini_batch_size: 8
+  ppo_micro_batch_size: null
+  ppo_micro_batch_size_per_gpu: 1
+
+reward_model:
+  enable: false
+  reward_manager: naive
+
+reward:
+  custom_reward_function:
+    path: ./src/rq_evolve/reward.py
+    name: compute_score
+  reward_manager:
+    source: register
+    name: naive
+  reward_model:
+    enable: false
+
+algorithm:
+  adv_estimator: grpo
+  use_kl_in_reward: false
+  kl_penalty: low_var_kl
+  norm_adv_by_std_in_grpo: true
+
+trainer:
+  total_epochs: 10
+  total_training_steps: null
+  project_name: rq_evolve
+  experiment_name: rq_evolve_verl
+  logger:
+    - console
+  nnodes: 1
+  n_gpus_per_node: 1
+  val_before_train: false
+  test_freq: -1
+  save_freq: -1
+  default_local_dir: ./rq_output/verl_ckpt
+  device: cuda
+
+ray_init:
+  num_cpus: null

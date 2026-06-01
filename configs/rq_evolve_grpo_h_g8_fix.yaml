@@ -1,0 +1,88 @@
+# R-Q-Evolve top-level config, ported from the rq: / math_eval: sections of
+#   evo-sample/configs/rq_config_grpo_h_g8_fix.yaml
+#
+# Loaded by scripts/train_with_verl.py -> rq_evolve.config.load_config().
+
+archive:
+  # rq.n_h_bins: 10
+  n_h_bins: 10
+  # rq.n_div_bins: 6 — auto-forced to len(CONCEPT_GROUPS) for concept_group axis
+  n_div_bins: 6
+  # rq.h_range: [0.0, 0.5]
+  h_range: [0.0, 0.5]
+  # rq.diversity_axis: concept_group
+  diversity_axis: concept_group
+  # rq.epsilon: 0.3
+  epsilon: 0.3
+  # rq.ucb_c: 1.0
+  ucb_c: 1.0
+  # rq.use_reservoir: false + (no rq.selection_strategy) => standard UCB
+  selection_strategy: ucb
+
+evolution:
+  seed_programs_dir: seed_programs
+  # rq.inner_iterations: 64
+  inner_iterations: 64
+  # rq.inner_iteration_batch_size: 8
+  inner_iteration_batch_size: 8
+  # rq.num_rollouts: 10  (R_Q scoring rollouts, independent of GRPO n=8)
+  num_rollouts: 10
+  # rq.in_depth_ratio: 0.5
+  in_depth_ratio: 0.5
+  # rq.crossover_ratio: 0.2
+  crossover_ratio: 0.2
+  # evo-sample verified seeds via load_seeds(seed=42); 5 is the R-Q-Evolve default
+  verify_seeds: 5
+  # rq.frontier_p_hat_range: [0.1, 0.9]
+  frontier_p_hat_range: [0.1, 0.9]
+
+training_data:
+  # rq.instances_per_program: 8
+  instances_per_program: 8
+  # rq.training_budget: null
+  training_budget: null
+  # rq.strict_anti_reuse: true
+  strict_anti_reuse: true
+
+verl:
+  enabled: true
+  config_path: configs/verl_grpo_h_g8_fix.yaml
+  reward_function: ./src/rq_evolve/reward.py:compute_score
+  # rq.evolve_before_train: false  ->  do not evolve on the very first epoch
+  evolve_on_first_epoch: false
+
+# Math benchmark validation (ported from evo-sample math_eval:, GPT-judge dropped).
+# Benchmarks become a verl validation dataset (one data_source each); verl's
+# val_reward_fn (= reward.py sympy answers_match) scores them and reports
+# per-benchmark accuracy. Cadence is set in the verl override
+# (trainer.val_before_train / trainer.test_freq), NOT here.
+math_eval:
+  # evo-sample math_eval.enabled: true
+  enabled: true
+  benchmarks: [math500, amc23, aime24, aime25, minerva_math, olympiadbench]
+  # -1 = full set (R-Zero parity). Set a small int for quick smoke runs.
+  max_samples_per_benchmark: -1
+  sample_seed: 42
+  # "sympy" (no extra deps, reuses reward.answers_match) | "math_verify" (R-Zero
+  # parity, needs math-verify + latex2sympy2_extended). Only the offline grade()
+  # helper uses this; the in-trainer path always scores via val_reward_fn.
+  grader: sympy
+
+# ---------------------------------------------------------------------------
+# NOT PORTED / approximated — evo-sample rq: keys with no exact equivalent.
+# Harmless for THIS run (all inactive/default in g8_fix), but note:
+#
+#   uncertainty_metric: h        -> only mean token entropy (== "h"); no h_span_max.
+#   rq_ablate_learnability/uncertainty: false -> no ablation switches.
+#   use_reservoir: false          -> no reservoir; champion-only parents (matches).
+#   reeval_per_step: null         -> always re-evaluates ALL champions (== null). OK.
+#   training_selection_mode       -> sort-based approximation, not a strict
+#                                    D-uniform quota; with training_budget=null
+#                                    it yields the same dataset anyway.
+#   skip_initial_evolution_on_resume / save_limit / save_final_checkpoint
+#                                 -> archive IS now checkpointed to
+#                                    {default_local_dir}/rq_archive and restored
+#                                    on restart, but it is not step-synced to the
+#                                    verl weight checkpoint (saved per outer
+#                                    iteration, not per save_freq).
+# ---------------------------------------------------------------------------

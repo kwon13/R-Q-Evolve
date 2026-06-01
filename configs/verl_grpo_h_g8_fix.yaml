@@ -1,0 +1,157 @@
+# verl GRPO override for R-Q-Evolve, ported from
+#   evo-sample/configs/rq_config_grpo_h_g8_fix.yaml
+#
+# IMPORTANT: evo-sample's config targets the *EasyR1* verl fork
+# (worker.actor / micro_batch_size_per_device_for_*). This file re-expresses
+# the SAME run settings in the schema of the pip-installed *standard* verl
+# (actor_rollout_ref / ppo_mini_batch_size), which is what R-Q-Evolve loads.
+#
+# Set the model either here (actor_rollout_ref.model.path) or via:
+#   export RQ_MODEL_PATH=/path/to/Qwen3-4B-Base
+
+data:
+  # EasyR1 data.max_prompt_length / max_response_length
+  max_prompt_length: 6000
+  max_response_length: 6000
+  # EasyR1 data.rollout_batch_size: 36  ->  standard verl data.train_batch_size
+  train_batch_size: 36
+  val_batch_size: 36
+  shuffle: true
+  truncation: left
+  dataloader_num_workers: 0
+  filter_overlong_prompts: false
+  trust_remote_code: true
+
+actor_rollout_ref:
+  model:
+    # EasyR1 worker.actor.model.model_path: Qwen/Qwen3-4B-Base
+    path: ${oc.env:RQ_MODEL_PATH,Qwen/Qwen3-4B-Base}
+    trust_remote_code: true
+    use_remove_padding: false
+    enable_gradient_checkpointing: true
+
+  actor:
+    strategy: fsdp
+    # EasyR1 worker.actor.global_batch_size: 36
+    ppo_mini_batch_size: 36
+    ppo_micro_batch_size: null
+    # EasyR1 micro_batch_size_per_device_for_update: 6
+    ppo_micro_batch_size_per_gpu: 6
+    use_dynamic_bsz: false
+    # EasyR1 algorithm.use_kl_loss + kl_penalty + kl_coef
+    use_kl_loss: true
+    kl_loss_coef: 1.0e-3
+    kl_loss_type: low_var_kl
+    use_torch_compile: false
+    fsdp_config:
+      # EasyR1 worker.actor.fsdp.enable_cpu_offload: false
+      param_offload: false
+      optimizer_offload: false
+    optim:
+      lr: 1.0e-6
+      weight_decay: 1.0e-2
+      lr_warmup_steps_ratio: 0.0
+      # EasyR1 trainer.max_steps: 256 (LR schedule horizon)
+      total_training_steps: 256
+
+  ref:
+    # EasyR1 micro_batch_size_per_device_for_experience: 6
+    log_prob_micro_batch_size: null
+    log_prob_micro_batch_size_per_gpu: 6
+    fsdp_config:
+      param_offload: false
+
+  rollout:
+    name: vllm
+    # NOTE: evo-sample used worker.hybrid_engine: true (actor+rollout colocated).
+    # The R-Q-Evolve backend (verl_backend.py) calls
+    # trainer.actor_rollout_wg.generate_sequences / compute_log_prob directly,
+    # which is the *sync/colocated* path. async mode routes rollout through a
+    # separate server and is NOT what the backend expects -> keep mode: sync.
+    mode: sync
+    # EasyR1 worker.rollout.temperature / top_p
+    temperature: 0.8
+    top_p: 0.95
+    # EasyR1 worker.rollout.n: 8  (GRPO group size, the "g8")
+    n: 8
+    # EasyR1 worker.rollout.tensor_parallel_size: 1
+    tensor_model_parallel_size: 1
+    gpu_memory_utilization: 0.85
+    max_model_len: 12000
+    max_num_batched_tokens: 12288
+    dtype: bfloat16
+    enable_chunked_prefill: true
+    enforce_eager: false
+    free_cache_engine: true
+    log_prob_micro_batch_size: null
+    log_prob_micro_batch_size_per_gpu: 6
+
+critic:
+  # GRPO (adv_estimator=grpo) does not train a critic; verl skips the critic
+  # worker. These are placeholders only so the config validates.
+  ppo_mini_batch_size: 36
+  ppo_micro_batch_size: null
+  ppo_micro_batch_size_per_gpu: 6
+
+reward_model:
+  enable: false
+  reward_manager: naive
+
+reward:
+  # verl_adapter._patch_reward_config() overrides path/name from
+  # rq_evolve config (verl.reward_function), so this is just the default.
+  custom_reward_function:
+    path: ./src/rq_evolve/reward.py
+    name: compute_score
+  reward_manager:
+    source: register
+    name: naive
+  reward_model:
+    enable: false
+
+algorithm:
+  adv_estimator: grpo
+  # EasyR1 used actor-side KL loss (use_kl_loss above), not reward-side KL.
+  use_kl_in_reward: false
+  kl_penalty: low_var_kl
+  norm_adv_by_std_in_grpo: true
+
+trainer:
+  # EasyR1 trainer.total_outer_iterations: 100
+  # Each verl epoch == one RQ outer iteration (EvolvingSampler evolves at the
+  # start of every epoch). See note in run_train_grpo_h_g8_fix.sh.
+  total_epochs: 100
+  # EasyR1 trainer.max_steps: 256 (hard cap on optimizer steps)
+  total_training_steps: 256
+  project_name: rq_evolve
+  # Overridable per ablation via RQ_EXP_NAME (default = base g8_fix run name).
+  experiment_name: "${oc.env:RQ_EXP_NAME,'qwen3_4b_base_grpo_h_g8_org_map_pobs=8'}"
+  logger:
+    - console
+    - wandb
+  nnodes: 1
+  # EasyR1 trainer.n_gpus_per_node: 4
+  n_gpus_per_node: 4
+  # evo-sample math_eval.before_train: true — eval benchmarks before step 0.
+  val_before_train: true
+  # evo-sample math_eval.every_n_outer_iterations: 5. verl test_freq counts
+  # OPTIMIZER STEPS, not outer iterations, and steps/iteration vary with the
+  # (dynamic) dataset size — so there is no exact mapping. ~50 gives a few evals
+  # within total_training_steps=256. NOTE: the full benchmark set (AMC/AIME are
+  # ×32-inflated) is thousands of prompts per eval; lower test_freq or set
+  # math_eval.max_samples_per_benchmark to keep it cheap. test_freq: -1 evaluates
+  # only before training.
+  test_freq: 50
+  # EasyR1 trainer.save_freq: 32
+  save_freq: 32
+  # Overridable per ablation via RQ_LOCAL_DIR (also separates the rq_archive/
+  # checkpoint dir so ablations never share an archive).
+  default_local_dir: "${oc.env:RQ_LOCAL_DIR,'./rq_output/verl_ckpt_grpo_h_g8_org_map_pobs=8'}"
+  device: cuda
+  # The RQ MAP-Elites archive is NOT part of the verl checkpoint, so auto-resume
+  # would reload weights against an un-restored archive. Keep resume disabled
+  # (matches the *_fix.yaml, non-resume variant in evo-sample).
+  resume_mode: disable
+
+ray_init:
+  num_cpus: null

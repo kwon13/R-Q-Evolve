@@ -1,0 +1,47 @@
+# ABLATION: crossover-only mutation.
+# Identical to rq_evolve_grpo_h_g8_fix.yaml except the mutation operator mix:
+#   crossover_ratio: 1.0, in_depth_ratio: 0.0  -> every mutation is a crossover
+#   (in_breadth = 1 - 1.0 - 0.0 = 0). _sample_operator() always returns
+#   "crossover"; inner_iteration_batch falls back to in_depth only when the
+#   archive has < 2 champions (early bootstrap), which is unavoidable.
+# Shares the verl override (RL settings); experiment_name/dir set by the run
+# script via RQ_EXP_NAME / RQ_LOCAL_DIR.
+
+archive:
+  n_h_bins: 10
+  n_div_bins: 6
+  h_range: [0.0, 0.5]
+  diversity_axis: concept_group
+  epsilon: 0.3
+  ucb_c: 1.0
+  selection_strategy: ucb
+
+evolution:
+  seed_programs_dir: seed_programs
+  inner_iterations: 64
+  inner_iteration_batch_size: 8
+  num_rollouts: 10
+  # --- ablation knobs ---
+  in_depth_ratio: 0.0        # ablation: no in-depth mutation
+  crossover_ratio: 1.0       # ablation: 100% crossover (in_breadth = 0)
+  # -----------------------
+  verify_seeds: 5
+  frontier_p_hat_range: [0.1, 0.9]
+
+training_data:
+  instances_per_program: 8
+  training_budget: null
+  strict_anti_reuse: true
+
+verl:
+  enabled: true
+  config_path: configs/verl_grpo_h_g8_fix.yaml
+  reward_function: ./src/rq_evolve/reward.py:compute_score
+  evolve_on_first_epoch: false
+
+math_eval:
+  enabled: true
+  benchmarks: [math500, amc23, aime24, aime25, minerva_math, olympiadbench]
+  max_samples_per_benchmark: -1
+  sample_seed: 42
+  grader: sympy

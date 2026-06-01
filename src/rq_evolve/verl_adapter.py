@@ -21,7 +21,6 @@ from .archive import MAPElitesArchive
 from .config import RQEvolveConfig
 from .dataset import VerlDynamicDataset
 from .evolution import RQEvolver
-from .scoring import compute_rq_value
 from .verl_backend import VerlPolicyBackend
 
 
@@ -128,25 +127,15 @@ class VerlTrainerAdapter:
         evolver = self._build_evolver(backend)
 
         # The MAP-Elites archive lives outside the verl weight checkpoint, so we
-        # persist/restore it ourselves. Resume from a saved archive if present;
-        # otherwise bootstrap from seeds and write the initial snapshot.
+        # persist/restore it ourselves. archive_dir is needed now (the
+        # EvolvingSampler writes here each outer iteration), but the actual
+        # resume/bootstrap is DEFERRED until after backend.bind() below — the
+        # bootstrap evaluates every seed with the live solver (real R_Q), which
+        # needs the worker group.
         archive_dir = (
             Path(str(verl_config.trainer.get("default_local_dir", "./rq_output/verl_ckpt")))
             / "rq_archive"
         )
-        resumed = False
-        try:
-            resumed = evolver.load_state(archive_dir)
-        except Exception as exc:  # corrupt/partial snapshot — fall back to seeds
-            print(f"[RQ-Evolve] archive restore failed ({exc!r}); bootstrapping from seeds")
-        if resumed:
-            print(
-                f"[RQ-Evolve] restored archive "
-                f"({len(evolver.archive.champions())} champions) from {archive_dir}"
-            )
-        else:
-            self._bootstrap_seed_archive(evolver)
-            evolver.save_state(archive_dir)
 
         train_batch_size = int(verl_config.data.train_batch_size)
         train_dataset = VerlDynamicDataset(
@@ -179,8 +168,11 @@ class VerlTrainerAdapter:
         train_sampler = EvolvingSampler(
             train_dataset,
             evolver,
-            shuffle=bool(verl_config.data.get("shuffle", True)),
-            seed=int(verl_config.data.get("seed", 1)),
+            # NOTE: OmegaConf .get(key, default) returns the default ONLY when the
+            # key is absent. verl's base ppo_trainer.yaml defines data.seed: null,
+            # so .get("seed", 1) yields None, not 1 -> guard with `or`.
+            shuffle=bool(verl_config.data.get("shuffle") if verl_config.data.get("shuffle") is not None else True),
+            seed=int(verl_config.data.get("seed") or 1),
             evolve_on_first_epoch=bool(self.rq_config.verl.evolve_on_first_epoch),
             archive_dir=archive_dir,
         )
@@ -195,6 +187,26 @@ class VerlTrainerAdapter:
         )
         trainer.init_workers()
         backend.bind(trainer)
+
+        # Backend is now bound to the worker group -> solver rollouts work.
+        # Resume the archive if a snapshot exists; otherwise bootstrap by
+        # evaluating EVERY seed with the live solver. Real R_Q gives each seed a
+        # real h_score, so seeds spread across H bins (instead of collapsing into
+        # one placeholder bin) and the dataset is refreshed before epoch 0.
+        resumed = False
+        try:
+            resumed = evolver.load_state(archive_dir)
+        except Exception as exc:  # corrupt/partial snapshot — fall back to seeds
+            print(f"[RQ-Evolve] archive restore failed ({exc!r}); bootstrapping from seeds")
+        if resumed:
+            print(
+                f"[RQ-Evolve] restored archive "
+                f"({len(evolver.archive.champions())} champions) from {archive_dir}"
+            )
+        else:
+            self._bootstrap_seed_archive(evolver)
+            evolver.save_state(archive_dir)
+
         trainer.fit()
 
     def _load_verl_config(self):
@@ -295,6 +307,16 @@ class VerlTrainerAdapter:
         )
 
     def _bootstrap_seed_archive(self, evolver: RQEvolver) -> None:
+        """Evaluate every seed with the LIVE solver (real R_Q) and insert it.
+
+        MUST be called AFTER backend.bind(trainer): evaluate_instance runs a
+        solver rollout, which needs the worker group. Real R_Q gives each seed a
+        real h_score, so seeds land in their true H bins rather than collapsing
+        into one placeholder bin. Seeds still compete per niche, so two seeds in
+        the same (H bin, concept_group) cell keep only the higher-R_Q one — a
+        MAP-Elites property, not a bug. Then refresh the training dataset so
+        epoch 0 trains on these seeds (with evolve_on_first_epoch=false).
+        """
         seed_dir = Path(self.rq_config.evolution.seed_programs_dir)
         if not seed_dir.is_absolute():
             seed_dir = self.project_root / seed_dir
@@ -302,20 +324,31 @@ class VerlTrainerAdapter:
         if not seeds:
             raise ValueError(f"no valid seed programs in {seed_dir}")
 
+        inserted = 0
         for program in seeds:
             inst, reason = evolver.verify_program(program)
             if inst is None:
                 print(f"[RQ-Evolve] seed rejected after load: {program.program_id} {reason}")
                 continue
-            program.p_hat = 0.5
-            program.h_score = 1.0
-            program.rq_score = compute_rq_value(program.p_hat, program.h_score)
-            evolver.archive.try_insert(
+            # Real R_Q via solver rollout; sets program.p_hat / h_score / rq_score.
+            result = evolver.evaluate_instance(program, inst)
+            if evolver.archive.try_insert(
                 program=program,
-                h_value=program.h_score,
+                h_value=result.uncertainty,
                 problem_text=inst.problem,
-                rq_score=program.rq_score,
-            )
+                rq_score=result.rq_score,
+            ):
+                inserted += 1
+            else:
+                print(
+                    f"[RQ-Evolve] seed not inserted (niche conflict / gate): "
+                    f"{program.program_id} p_hat={result.p_hat:.2f} h={result.uncertainty:.3f}"
+                )
+        print(
+            f"[RQ-Evolve] bootstrapped {inserted}/{len(seeds)} seeds with real R_Q; "
+            f"{len(evolver.archive.champions())} champions on a "
+            f"{evolver.archive.n_h_bins}x{evolver.archive.n_div_bins} grid"
+        )
         evolver.refresh_dataset()
         if len(evolver.dataset.snapshot()) == 0:
             raise RuntimeError("bootstrap archive produced an empty training dataset")

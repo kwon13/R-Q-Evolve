@@ -26,8 +26,12 @@ from .verl_backend import VerlPolicyBackend
 
 @dataclass(slots=True)
 class VerlAdapterConfig:
-    config_path: str
+    # Either config_path (separate yaml) or inline_config (embedded
+    # `verl_config:` block in the rq_evolve yaml) must be provided. Inline
+    # takes precedence when both are set.
+    config_path: str | None = None
     reward_function: str = "./src/rq_evolve/reward.py:compute_score"
+    inline_config: Any = None
 
 
 class EvolvingSampler:
@@ -212,11 +216,20 @@ class VerlTrainerAdapter:
     def _load_verl_config(self):
         from omegaconf import OmegaConf
 
-        user_path = Path(self.config.config_path)
-        if not user_path.is_absolute():
-            user_path = self.project_root / user_path
-        if not user_path.exists():
-            raise FileNotFoundError(f"missing verl config: {user_path}")
+        # Inline config (embedded `verl_config:` block in the rq_evolve yaml)
+        # takes precedence over a separate config_path.
+        user_override = self.config.inline_config
+        if user_override is None:
+            if not self.config.config_path:
+                raise ValueError(
+                    "VerlAdapterConfig needs either inline_config or config_path"
+                )
+            user_path = Path(self.config.config_path)
+            if not user_path.is_absolute():
+                user_path = self.project_root / user_path
+            if not user_path.exists():
+                raise FileNotFoundError(f"missing verl config: {user_path}")
+            user_override = OmegaConf.load(user_path)
 
         package_root = _verl_package_root()
         # Prefer the pre-flattened reference config (verl >= 0.5 uses Hydra
@@ -227,7 +240,7 @@ class VerlTrainerAdapter:
             package_root / "trainer" / "config" / "ppo_trainer.yaml",
         ]
         base = next((OmegaConf.load(path) for path in base_candidates if path.exists()), OmegaConf.create({}))
-        return OmegaConf.merge(base, OmegaConf.load(user_path))
+        return OmegaConf.merge(base, user_override)
 
     def _patch_reward_config(self, config) -> None:
         from omegaconf import OmegaConf, open_dict
@@ -519,7 +532,6 @@ def _optional_import_attr(candidate: tuple[str, str]):
 
 def _select_worker_classes(config, *, default_ray_worker_group_cls):
     strategy = str(config.actor_rollout_ref.actor.get("strategy", "fsdp"))
-    rollout_mode = str(config.actor_rollout_ref.rollout.get("mode", "sync"))
     if strategy in {"fsdp", "fsdp2"}:
         worker_module = importlib.import_module("verl.workers.fsdp_workers")
         ray_worker_group_cls = default_ray_worker_group_cls
@@ -531,12 +543,21 @@ def _select_worker_classes(config, *, default_ray_worker_group_cls):
     else:
         raise NotImplementedError(f"unsupported actor strategy: {strategy}")
 
+    # In verl 0.7.x we must pick AsyncActorRolloutRefWorker. It exposes
+    # update_weights via @register(blocking=False) which the trainer's
+    # checkpoint_manager.update_weights routes to via
+    # actor_rollout_wg.update_weights. The non-async class doesn't expose it
+    # -> AttributeError: 'RayWorkerGroup' object has no attribute 'update_weights'.
+    # Our backend no longer calls actor_rollout_wg.generate_sequences
+    # directly (we route generate through async_rollout_manager instead), so
+    # the previous "this event loop is already running" failure mode no longer
+    # applies — compute_log_prob is plain sync and is safe to call regardless.
     actor_cls = getattr(worker_module, "ActorRolloutRefWorker")
     async_actor_cls = getattr(worker_module, "AsyncActorRolloutRefWorker", actor_cls)
     critic_cls = getattr(worker_module, "CriticWorker", None)
     reward_model_cls = getattr(worker_module, "RewardModelWorker", None)
     return (
-        async_actor_cls if rollout_mode == "async" else actor_cls,
+        async_actor_cls,
         critic_cls,
         reward_model_cls,
         ray_worker_group_cls,

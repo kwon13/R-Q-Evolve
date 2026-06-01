@@ -36,20 +36,46 @@ def main() -> None:
     config = load_config(args.config)
 
     if not config.verl.enabled:
-        print("verl.enabled=false. Set it true and set verl.config_path to train with verl.")
+        print(
+            "verl.enabled=false. Set it true and either embed a `verl_config:` "
+            "block in the same yaml or set verl.config_path to train with verl."
+        )
         return
-    if not config.verl.config_path:
-        raise ValueError("verl.config_path must be set when verl.enabled=true")
+
+    # The rq_evolve yaml may embed the verl override inline under `verl_config:`
+    # (preferred); otherwise verl.config_path must point to a separate file.
+    inline_verl_config = _read_inline_verl_config(args.config)
+    if inline_verl_config is None and not config.verl.config_path:
+        raise ValueError(
+            "either embed a `verl_config:` block in the yaml or set "
+            "verl.config_path when verl.enabled=true"
+        )
 
     adapter = VerlTrainerAdapter(
         config=VerlAdapterConfig(
             config_path=config.verl.config_path,
             reward_function=config.verl.reward_function,
+            inline_config=inline_verl_config,
         ),
         rq_config=config,
         project_root=ROOT,
     )
     adapter.fit()
+
+
+def _read_inline_verl_config(yaml_path: str):
+    """Return the `verl_config` sub-tree from the rq_evolve yaml, or None.
+
+    The typed RQEvolveConfig dataclass intentionally doesn't model verl's
+    schema, so we re-load the yaml as a raw OmegaConf DictConfig just to pull
+    out the embedded verl override.
+    """
+    from omegaconf import OmegaConf
+
+    raw = OmegaConf.load(yaml_path)
+    if not isinstance(raw, type(OmegaConf.create({}))):
+        return None
+    return raw.get("verl_config", None) if "verl_config" in raw else None
 
 
 def _warn_if_project_venv_exists() -> None:

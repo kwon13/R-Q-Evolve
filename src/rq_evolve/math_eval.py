@@ -215,53 +215,21 @@ class MathBenchmarkDataset:
         return len(self.problems)
 
     def __getitem__(self, index: int) -> dict:
-        import verl.utils.torch_functional as verl_F
+        import torch
 
         item = self.problems[index]
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": item.problem},
         ]
-        if getattr(self.tokenizer, "chat_template", None):
-            raw_prompt = self.tokenizer.apply_chat_template(
-                messages, add_generation_prompt=True, tokenize=False,
-            )
-        else:
-            raw_prompt = (
-                f"system: {self.system_prompt}\n"
-                f"user: {item.problem}\n{self.system_prompt}"
-            )
-
-        model_inputs = self.tokenizer(
-            raw_prompt, return_tensors="pt", add_special_tokens=False,
-        )
-        pad_token_id = self.tokenizer.pad_token_id
-        if pad_token_id is None:
-            pad_token_id = (
-                self.tokenizer.eos_token_id
-                if self.tokenizer.eos_token_id is not None
-                else 0
-            )
-
-        input_ids, attention_mask = verl_F.postprocess_data(
-            input_ids=model_inputs["input_ids"],
-            attention_mask=model_inputs["attention_mask"],
-            max_length=self.max_prompt_length,
-            pad_token_id=pad_token_id,
-            left_pad=True,
-            truncation=self.truncation,
-        )
-        position_ids = _compute_position_id_with_mask(attention_mask)
-
-        raw_prompt_ids = self.tokenizer.encode(raw_prompt, add_special_tokens=False)
-        if len(raw_prompt_ids) > self.max_prompt_length:
-            raw_prompt_ids = raw_prompt_ids[-self.max_prompt_length:]
-
+        # verl 0.7.x AgentLoopWorker (SingleTurnAgentLoop) applies the chat
+        # template itself, so the dataset only returns raw_prompt (chat msgs)
+        # plus a dummy_tensor placeholder. Tensor fields like input_ids must
+        # NOT be returned — _get_gen_batch leaves tensors in `batch` and the
+        # agent-loop output's input_ids would then clash on union.
         return {
-            "input_ids": input_ids[0],
-            "attention_mask": attention_mask[0],
-            "position_ids": position_ids[0],
-            "raw_prompt_ids": raw_prompt_ids,
+            "raw_prompt": messages,
+            "dummy_tensor": torch.tensor([0], dtype=torch.uint8),
             "data_source": self.data_source,
             "reward_model": {"ground_truth": item.answer},
             "extra_info": {
@@ -269,6 +237,7 @@ class MathBenchmarkDataset:
                 "index": item.index,
                 "problem": item.problem,
             },
+            "index": item.index,
         }
 
 

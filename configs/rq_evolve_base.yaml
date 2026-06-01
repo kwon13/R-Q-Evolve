@@ -1,0 +1,197 @@
+# ABLATION: crossover-only mutation.
+#   crossover_ratio: 1.0, in_depth_ratio: 0.0  -> every mutation is a crossover
+#   (in_breadth = 1 - 1.0 - 0.0 = 0). _sample_operator() always returns
+#   "crossover"; inner_iteration_batch falls back to in_depth only when the
+#   archive has < 2 champions (early bootstrap), which is unavoidable.
+# verl override (RL settings) is embedded inline below under `verl_config:`;
+# experiment_name/dir are set by the run script via RQ_EXP_NAME / RQ_LOCAL_DIR.
+
+archive:
+  n_h_bins: 10
+  n_div_bins: 6
+  h_range: [0.0, 0.5]
+  diversity_axis: concept_group
+  epsilon: 0.3
+  ucb_c: 1.0
+  selection_strategy: random
+
+evolution:
+  seed_programs_dir: seed_programs
+  inner_iterations: 64
+  inner_iteration_batch_size: 8
+  num_rollouts: 10
+  # --- ablation knobs ---
+  in_depth_ratio: 0.0        # ablation: no in-depth mutation
+  crossover_ratio: 1.0       # ablation: 100% crossover (in_breadth = 0)
+  # -----------------------
+  verify_seeds: 5
+  frontier_p_hat_range: [0, 1.0]
+
+training_data:
+  instances_per_program: 8
+  training_budget: null
+  strict_anti_reuse: true
+
+verl:
+  enabled: true
+  # config_path is optional: if `verl_config` (below) is present it takes
+  # precedence and the standalone yaml is unnecessary.
+  config_path: null
+  reward_function: ./src/rq_evolve/reward.py:compute_score
+  evolve_on_first_epoch: false
+
+math_eval:
+  enabled: true
+  benchmarks: [math500, amc23, aime24, aime25, minerva_math, olympiadbench]
+  max_samples_per_benchmark: -1
+  sample_seed: 42
+  grader: sympy
+
+# ----------------------------------------------------------------------------
+# verl override (was configs/verl_grpo_h_g8_fix.yaml). All edits to RL/rollout
+# settings live here.
+# ----------------------------------------------------------------------------
+verl_config:
+  data:
+    # EasyR1 data.max_prompt_length / max_response_length
+    max_prompt_length: 6000
+    max_response_length: 6000
+    train_batch_size: 32
+    val_batch_size: 32
+    shuffle: true
+    truncation: left
+    dataloader_num_workers: 0
+    filter_overlong_prompts: false
+    trust_remote_code: true
+
+  actor_rollout_ref:
+    model:
+      # EasyR1 worker.actor.model.model_path: Qwen/Qwen3-4B-Base
+      path: ${oc.env:RQ_MODEL_PATH,Qwen/Qwen3-4B-Base}
+      trust_remote_code: true
+      # Without remove_padding the model forwards padding tokens — with
+      # max_seq_len=12000 and vocab=151k the bf16 logits tensor is ~22GB per
+      # micro-batch of 6, OOMing on 97GB GPUs once vLLM + actor + ref coexist.
+      use_remove_padding: true
+      enable_gradient_checkpointing: true
+
+    actor:
+      strategy: fsdp
+      ppo_mini_batch_size: 32
+      ppo_micro_batch_size: null
+      ppo_micro_batch_size_per_gpu: 4
+      use_dynamic_bsz: false
+      # EasyR1 algorithm.use_kl_loss + kl_penalty + kl_coef
+      use_kl_loss: true
+      kl_loss_coef: 1.0e-3
+      kl_loss_type: low_var_kl
+      use_torch_compile: false
+      fsdp_config:
+        param_offload: false
+        optimizer_offload: false
+      optim:
+        lr: 1.0e-6
+        weight_decay: 1.0e-2
+        lr_warmup_steps_ratio: 0.0
+        # EasyR1 trainer.max_steps: 256 (LR schedule horizon)
+        total_training_steps: 256
+
+    ref:
+      log_prob_micro_batch_size: null
+      log_prob_micro_batch_size_per_gpu: 4
+      fsdp_config:
+        # Offload ref weights to CPU when not used; ref is forward-only and
+        # only needed for the per-step KL term.
+        param_offload: true
+
+    rollout:
+      name: vllm
+      # verl 0.7.x: rollout.mode='sync' was removed; only 'async' is accepted.
+      # AsyncActorRolloutRefWorker only overrides update_weights with
+      # blocking=False; generate_sequences/compute_log_prob fall through to
+      # the parent ActorRolloutRefWorker. Our backend routes generation
+      # through trainer.async_rollout_manager (AgentLoopManager) — never via
+      # actor_rollout_wg.generate_sequences — so the old "event loop already
+      # running" failure mode doesn't apply.
+      mode: async
+      # EasyR1 worker.rollout.temperature / top_p
+      temperature: 0.8
+      top_p: 0.95
+      # EasyR1 worker.rollout.n: 8  (GRPO group size, the "g8")
+      n: 8
+      # EasyR1 worker.rollout.tensor_parallel_size: 1
+      tensor_model_parallel_size: 1
+      gpu_memory_utilization: 0.85
+      max_model_len: 12000
+      max_num_batched_tokens: 12288
+      dtype: bfloat16
+      enable_chunked_prefill: true
+      enforce_eager: false
+      free_cache_engine: true
+      log_prob_micro_batch_size: null
+      log_prob_micro_batch_size_per_gpu: 4
+
+  critic:
+    # GRPO (adv_estimator=grpo) does not train a critic; verl skips the critic
+    # worker. These are placeholders only so the config validates.
+    ppo_mini_batch_size: 32
+    ppo_micro_batch_size: null
+    ppo_micro_batch_size_per_gpu: 4
+
+  reward_model:
+    enable: false
+    reward_manager: naive
+
+  reward:
+    # verl_adapter._patch_reward_config() overrides path/name from
+    # rq_evolve config (verl.reward_function), so this is just the default.
+    custom_reward_function:
+      path: ./src/rq_evolve/reward.py
+      name: compute_score
+    reward_manager:
+      source: register
+      name: naive
+    reward_model:
+      enable: false
+
+  algorithm:
+    adv_estimator: grpo
+    # EasyR1 used actor-side KL loss (use_kl_loss above), not reward-side KL.
+    use_kl_in_reward: false
+    kl_penalty: low_var_kl
+    norm_adv_by_std_in_grpo: true
+
+  trainer:
+    # EasyR1 trainer.total_outer_iterations: 100
+    # Each verl epoch == one RQ outer iteration (EvolvingSampler evolves at the
+    # start of every epoch).
+    total_epochs: 100
+    # EasyR1 trainer.max_steps: 256 (hard cap on optimizer steps)
+    total_training_steps: 256
+    project_name: rq_evolve
+    # Overridable per ablation via RQ_EXP_NAME (default = base run name).
+    experiment_name: "${oc.env:RQ_EXP_NAME,'qwen3_4b_base_rq_evolve_base'}"
+    logger:
+      - console
+      - wandb
+    nnodes: 1
+    # EasyR1 trainer.n_gpus_per_node: 4
+    n_gpus_per_node: 8
+    # Skip the pre-step-0 validation pass — the full benchmark set is ~1.5k
+    # prompts and takes ~10-15 minutes; periodic eval at test_freq still runs.
+    val_before_train: false
+    # ~50 gives a few evals within total_training_steps=256. NOTE: the full
+    # benchmark set (AMC/AIME are ×32-inflated) is thousands of prompts per
+    # eval; lower test_freq or math_eval.max_samples_per_benchmark for cheap.
+    test_freq: 32
+    save_freq: 32
+    # Overridable per ablation via RQ_LOCAL_DIR (also separates the rq_archive/
+    # checkpoint dir so ablations never share an archive).
+    default_local_dir: "${oc.env:RQ_LOCAL_DIR,'./rq_output/rq_evolve_base'}"
+    device: cuda
+    # The RQ MAP-Elites archive is NOT part of the verl checkpoint, so auto-resume
+    # would reload weights against an un-restored archive. Keep resume disabled.
+    resume_mode: disable
+
+  ray_init:
+    num_cpus: null

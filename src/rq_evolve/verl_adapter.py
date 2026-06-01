@@ -219,7 +219,11 @@ class VerlTrainerAdapter:
             raise FileNotFoundError(f"missing verl config: {user_path}")
 
         package_root = _verl_package_root()
+        # Prefer the pre-flattened reference config (verl >= 0.5 uses Hydra
+        # `defaults:` composition with ${model_engine} interpolations in
+        # ppo_trainer.yaml; plain OmegaConf.load can't resolve those).
         base_candidates = [
+            package_root / "trainer" / "config" / "_generated_ppo_trainer.yaml",
             package_root / "trainer" / "config" / "ppo_trainer.yaml",
         ]
         base = next((OmegaConf.load(path) for path in base_candidates if path.exists()), OmegaConf.create({}))

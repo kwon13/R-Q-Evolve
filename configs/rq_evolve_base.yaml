@@ -9,7 +9,7 @@
 archive:
   n_h_bins: 10
   n_div_bins: 6
-  h_range: [0.0, 0.5]
+  h_range: [0.1, 0.6]
   diversity_axis: concept_group
   epsilon: 0.3
   ucb_c: 1.0
@@ -103,7 +103,7 @@ verl_config:
       # at the epoch boundary right after update_actor (optimizer states still
       # on GPU). micro-batch 1 cuts the transient ~4x; the forward is a small
       # fraction of step time so the throughput cost is negligible.
-      log_prob_micro_batch_size_per_gpu: 4
+      log_prob_micro_batch_size_per_gpu: 2
       fsdp_config:
         # Offload ref weights to CPU when not used; ref is forward-only and
         # only needed for the per-step KL term.
@@ -157,7 +157,7 @@ verl_config:
       # THIS rollout knob (fsdp_workers: config_source = self.config.rollout).
       # 1 (was 4) to shrink the full-vocab entropy logits transient -> avoids
       # the evolve-phase OOM. See the ref section note above.
-      log_prob_micro_batch_size_per_gpu: 4
+      log_prob_micro_batch_size_per_gpu: 2
 
   critic:
     # GRPO (adv_estimator=grpo) does not train a critic; verl skips the critic

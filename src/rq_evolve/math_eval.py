@@ -7,10 +7,11 @@ Ported from evo-sample/evaluation/math_benchmarks.py, trimmed for R-Q-Evolve:
   * GPT-judge is dropped.
   * Grading is NOT done here for the in-trainer path — benchmarks are emitted
     as a verl validation dataset (one ``data_source`` per benchmark) and verl's
-    own ``val_reward_fn`` (the training reward, i.e. sympy ``answers_match``)
-    scores them, so verl reports per-benchmark accuracy automatically.
-  * A standalone ``grade()`` helper is kept for offline use, supporting either
-    the sympy grader (no extra deps) or ``math_verify`` (R-Zero parity).
+    own ``val_reward_fn`` (the training reward, ``reward.answers_match``, which
+    uses ``math_verify``) scores them, so verl reports per-benchmark accuracy
+    automatically.
+  * A standalone ``grade()`` helper is kept for offline use (both grader options
+    now resolve to ``math_verify`` / R-Zero parity).
 """
 
 from __future__ import annotations
@@ -65,7 +66,8 @@ def _math_verify_equal(pred: str | None, gt: str) -> bool:
             "Install them or use grader='sympy'."
         ) from exc
     try:
-        return bool(verify(parse(str(gt)), parse(str(pred))))
+        # \boxed-wrap so math_verify's LaTeX extractor triggers on bare fragments
+        return bool(verify(parse("\\boxed{" + str(gt) + "}"), parse("\\boxed{" + str(pred) + "}")))
     except Exception:
         return False
 

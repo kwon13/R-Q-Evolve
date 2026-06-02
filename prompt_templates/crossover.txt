@@ -3,12 +3,8 @@ Task: merge Parent A and Parent B into one hybrid program. The hybrid must fuse 
 A valid hybrid must satisfy all of the following:
 1. One object, one answer. The problem has a single final value. Both parents' concepts are required to reach it.
 2. Dependency test. Removing either parent's concept must make the single answer uncomputable — not merely change a constant. If the problem can be split into two parts that are solved independently (even if one is passed to the other only as a constant, or the two results are merely reported together), it is a concatenation and is INVALID.
-3. Cross-check assertion. The generator must compute the answer via the intended insight (the collapsed/short path) AND include an `assert` verifying that a naive/expanded path yields the identical value. If no such shared-quantity cross-check can be written, the two concepts are not truly fused — revise. (See how EXAMPLE_2 asserts the term-by-term binomial sum equals (1+r)^n.)
+3. Cross-check assertion. The generator must compute the answer via the intended insight (the collapsed/short path) AND include an `assert` verifying that a naive/expanded path yields the identical value. If no such shared-quantity cross-check can be written, the two concepts are not truly fused — revise.
 4. In CONCEPT_REASON, state the single identity/object where both concepts meet, and why the term-by-term route is the unattractive long path.
-
-INVALID example (do NOT produce this): "Given a geometric sequence with first term 5, ratio 3, 4 terms, the sum is 200. An arithmetic sequence has first term 200 and common difference 13. Compute the sum of its first 9 terms, then compute the area of a triangle with vertices (11,5), (-1,10), (2,17)."
-Why invalid: this fails the dependency test. The geometric sum only hands the arithmetic sequence a constant (200), and the triangle area is a fully independent second answer. Removing the geometric part still leaves a solvable problem; the two pieces never meet on one object. There are two answers, and no cross-check assertion is possible. This is concatenation, not crossover.
-VALID example: see CROSSOVER_CHILD_PROGRAM_EXAMPLE_2, where the binomial coefficients ARE the weights of the geometric powers, so both parents collapse into the single object (1 + r)^n.
 
 $few_shot_examples
 

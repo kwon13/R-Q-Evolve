@@ -144,6 +144,7 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
     reasons: list[str] = []
     problem = instance.problem.strip()
     answer = instance.answer.strip()
+
     if len(problem) < 10:
         reasons.append("problem text too short")
     if not answer:
@@ -152,5 +153,110 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
         reasons.append("non-finite answer")
     if "," in answer or ";" in answer:
         reasons.append("multi-part answer")
+
+    lowered = problem.lower()
+
+    # 1) repr / object leakage — f-string formatted a function or object
+    #    e.g. "<function lcm at 0x...>", "<built-in ...>", "0x7f..."
+    if re.search(r"<(?:function|built-in|class|bound method|module)\b", problem):
+        reasons.append("object repr leaked into problem text")
+    if re.search(r"0x[0-9a-fA-F]{6,}", problem):
+        reasons.append("memory address leaked into problem text")
+
+    # 2) the literal answer appears in the problem text (answer leakage)
+    #    guard against trivial short answers to avoid false positives
+    if _answer_leaks_into_problem(answer, problem):
+        reasons.append("answer leaked into problem text")
+
+    # 3) answer disguised as a variable assignment, e.g. "z = 64" at the end
+    if _answer_leaks_as_assignment(answer, problem):
+        reasons.append("answer leaked via variable assignment")
+
+    # 4) multi-problem concatenation cues (soft: marker + multiple imperatives)
+    concat_markers = (
+        "additionally", "now consider", "now, consider",
+        "find the value of x in the following",
+        "compute the sum of the first", "also compute", "and then calculate",
+    )
+    hits = [m for m in concat_markers if m in lowered]
+    if len(hits) >= 1 and _looks_multi_answer(problem):
+        reasons.append(f"possible concatenation: {hits}")
+
+    # 4b) strong concatenation markers — these phrases essentially never occur
+    #     in a single-answer competition problem, so flag them on their own
+    #     (catches single-verb staplings the soft rule above misses).
+    if re.search(
+        r"\b(also compute|and then (?:compute|calculate)|"
+        r"separately(?: compute)?|total sum of all parts)\b",
+        problem, re.IGNORECASE,
+    ):
+        reasons.append("explicit concatenation marker")
+
+    # 5) self-contradictory numeric range like "216 < N < 8"
+    for lo, var, hi in re.findall(
+        r"(\d+)\s*<\s*([A-Za-z]\w*)\s*<\s*(\d+)", problem
+    ):
+        if int(lo) >= int(hi):
+            reasons.append(f"contradictory range: {lo} < {var} < {hi}")
+
+    # 6) intermediate computed-value leak — an appositive that hands the solver
+    #    a sub-result it was supposed to compute, e.g. "..., which is 200" or
+    #    "the sum of the first 9 terms ... is 2268".
+    if re.search(r"\bwhich (?:is|equals|gives)\s+-?\d{2,}", problem, re.IGNORECASE) or \
+       re.search(r"\bsum\b[^.]{0,40}\bis\s+-?\d{3,}", problem, re.IGNORECASE):
+        reasons.append("intermediate result leaked into problem text")
+
+    # 7) pre-computed data dump — two or more "<expr> = <bignum>" / "label: <bignum>"
+    #    facts (4+ digit RHS so genuine small givens like "PA = 9" don't trip it).
+    if len(re.findall(r"[=:]\s*-?\d{4,}\b", problem)) >= 2:
+        reasons.append("pre-computed data dump in problem text")
+
+    # 8) malformed / nested LaTeX delimiters, e.g. "\( PA = 9, AB = 21, and \( PC"
+    if re.search(r"\\\([^)]*\\\(", problem):
+        reasons.append("malformed/nested LaTeX delimiters")
+
     return reasons
 
+
+def _answer_leaks_into_problem(answer: str, problem: str) -> bool:
+    """True if the exact answer value shows up in the problem body."""
+    a = answer.strip()
+    # skip very short answers (0-9, single char) — too many false positives
+    if len(a) <= 2:
+        return False
+    # match the answer as a standalone token (not a substring of a longer number)
+    pattern = r"(?<![\d.])" + re.escape(a) + r"(?![\d.])"
+    return re.search(pattern, problem) is not None
+
+
+def _looks_multi_answer(problem: str) -> bool:
+    """Heuristic: more than one imperative 'compute/find' verb suggests
+    independent subproblems."""
+    verbs = re.findall(
+        r"\b(compute|find|calculate|determine|evaluate|how many)\b",
+        problem, re.IGNORECASE,
+    )
+    return len(verbs) >= 2
+
+
+def _answer_leaks_as_assignment(answer: str, problem: str) -> bool:
+    """True if the answer appears as a bare 'var = <number>' assignment.
+
+    Catches the pattern where the model writes a chain like
+        x = 8^10
+        y = x + 8^10
+        z = y + 8^10
+        z = 1073741824
+    disguising the final answer as another equation line.
+    """
+    a = answer.strip()
+    if not re.fullmatch(r"-?\d+(?:\.\d+)?", a):  # only for numeric answers
+        return False
+    # any line of the form  <identifier> = <pure number literal>
+    # where that number equals the answer
+    for m in re.finditer(
+        r"(?m)^\s*[A-Za-z_]\w*\s*=\s*(-?\d+(?:\.\d+)?)\s*$", problem
+    ):
+        if m.group(1) == a:
+            return True
+    return False

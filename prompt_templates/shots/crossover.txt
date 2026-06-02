@@ -1,4 +1,4 @@
-PARENT_A_PROGRAM_EXAMPLE_1:
+PARENT_A_PROGRAM_EXAMPLE:
 ```python
 import random, sympy
 
@@ -21,7 +21,7 @@ CONCEPT_GROUP = "algebra"
 CONCEPT_TYPE = "algebra.arithmetic_mean"
 ```
 
-PARENT_B_PROGRAM_EXAMPLE_1:
+PARENT_B_PROGRAM_EXAMPLE:
 ```python
 import random, sympy
 
@@ -47,7 +47,7 @@ CONCEPT_GROUP = "algebra"
 CONCEPT_TYPE = "algebra.product_extremum_discrete"
 ```
 
-CROSSOVER_CHILD_PROGRAM_EXAMPLE_1:
+CROSSOVER_CHILD_PROGRAM_EXAMPLE:
 ```python
 """Crossover hybrid generator.
 
@@ -94,119 +94,4 @@ def generate(seed):
 CONCEPT_REASON = "To solve, the solver must recognise a product under a fixed-sum constraint is maximised via the AM-GM inequality, tight at x = y — that inequality is the problem's reasoning core."
 CONCEPT_GROUP = "algebra"
 CONCEPT_TYPE = "algebra.am_gm_product_max"
-```
-
-PARENT_A_PROGRAM_EXAMPLE_2:
-```python
-import math
-import sympy
-import random
-
-def generate(seed):
-    rng = random.Random(seed)
-    while True:
-        n = rng.randint(8, 16)
-        k = rng.randint(3, n - 3)
-        if k == n - k:
-            continue
-        answer = math.comb(n, k)
-        if answer < 30:
-            continue
-        break
-    problem = (
-        f"Compute the binomial coefficient C({n}, {k}), i.e. the "
-        f"number of ways to choose {k} items from {n} distinct items."
-    )
-    return problem, str(sympy.Integer(answer))
-
-CONCEPT_GROUP = "combinatorics"
-CONCEPT_TYPE = "combinatorics.binomial_coefficient"
-```
-
-PARENT_B_PROGRAM_EXAMPLE_2:
-```python
-import sympy
-import random
-
-def generate(seed):
-    rng = random.Random(seed)
-    while True:
-        r = rng.choice([2, 3, 4, 5])
-        n = rng.randint(4, 8)
-        if r == 2 and n < 5:
-            continue
-        total = (r ** n - 1) // (r - 1)
-        if total < 50:
-            continue
-        break
-    problem = (
-        f"Compute the sum of the geometric series "
-        f"1 + {r} + {r}^2 + ... + {r}^{n - 1}."
-    )
-    return problem, str(sympy.Integer(total))
-
-CONCEPT_GROUP = "sequence"
-CONCEPT_TYPE = "sequence.geometric_sum"
-```
-
-CROSSOVER_CHILD_PROGRAM_EXAMPLE_2:
-```python
-"""Crossover hybrid generator.
-
-Parents fused: binomial_coefficient (the C(n, k) counts) and
-geometric_sum (a progression of powers of r). The binomial
-theorem (1 + r)^n = sum_{k=0..n} C(n, k) * r^k puts both on one
-polynomial — the binomials are exactly the weights of the sum.
-
-To solve, given the series sum C(n,k)*r^k written out, the
-solver must:
-  (1) see that evaluating n+1 binomials and summing is the long
-      path,
-  (2) recognise the weighted sum as the binomial expansion of
-      (1 + r)^n,
-  (3) collapse it to the single power (1 + r)^n and evaluate.
-Without the binomial theorem each term is handled separately.
-
-Guards keep the task honest: r != 1 (else it degenerates to the
-row sum 2^n), n large enough that term-by-term is unattractive,
-and answers that are not powers guessable by inspection. The
-problem text lists the series explicitly — never the binomial
-theorem or that the answer is one power.
-"""
-
-import sympy
-import random
-
-def generate(seed):
-    rng = random.Random(seed)
-    while True:
-        r = rng.choice([2, 3, 4, 5])
-        n = rng.randint(6, 11)
-        if r == 1:
-            continue
-        if n <= 4:
-            continue
-
-        answer = (1 + r) ** n
-        if answer in (64, 128, 256, 512, 1024):
-            continue
-
-        check = sum(sympy.binomial(n, k) * r ** k for k in range(n + 1))
-        assert int(check) == answer
-        break
-
-    terms = " + ".join(
-        f"C({n},{k})*{r}^{k}" if k > 0 else f"C({n},0)"
-        for k in range(n + 1)
-    )
-    problem = (
-        f"Compute the value of the sum {terms}, where C(n, k) "
-        f"denotes the binomial coefficient. State the answer as "
-        f"a single integer."
-    )
-    return problem, str(sympy.Integer(answer))
-
-CONCEPT_REASON = "To solve, the solver must recognise a sum of binomially-weighted powers as the expansion of (1 + r)^n and collapse it via the binomial theorem — that recognition is the problem's reasoning core."
-CONCEPT_GROUP = "combinatorics"
-CONCEPT_TYPE = "combinatorics.binomial_theorem_sum"
 ```

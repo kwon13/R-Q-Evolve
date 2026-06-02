@@ -56,7 +56,10 @@ class VerlPolicyBackend(EvolutionBackend):
         if not tasks:
             return []
         prompts = [task.prompt for task in tasks]
-        output, _ = self._generate_with_batch(prompts)
+        messages = [getattr(task, "messages", None) for task in tasks]
+        output, _ = self._generate_with_batch(
+            prompts, messages=messages if any(messages) else None
+        )
         responses = output.batch.get("responses")
         if responses is None:
             return [None] * len(tasks)
@@ -218,9 +221,11 @@ class VerlPolicyBackend(EvolutionBackend):
             self.end_session()
         return self.finalize_rollouts(pending)
 
-    def _generate_with_batch(self, prompts: list[str], n_repeat: int = 1):
+    def _generate_with_batch(
+        self, prompts: list[str], n_repeat: int = 1, messages: list | None = None
+    ):
         trainer = self._require_trainer()
-        batch = self._make_prompt_batch(prompts)
+        batch = self._make_prompt_batch(prompts, messages=messages)
         gen_batch = batch.pop(
             batch_keys=["input_ids", "attention_mask", "position_ids"],
             non_tensor_batch_keys=[
@@ -294,7 +299,85 @@ class VerlPolicyBackend(EvolutionBackend):
             values.append(float(valid.mean().item()) if valid.numel() else 0.0)
         return values
 
-    def _make_prompt_batch(self, prompts: list[str]):
+    def _chat_template_len(self, text: str) -> int:
+        """Token count of ``text`` after the chat template the agent loop applies."""
+        tok = self._require_tokenizer()
+        try:
+            ids = tok.apply_chat_template(
+                [{"role": "user", "content": text}],
+                add_generation_prompt=True,
+                tokenize=True,
+            )
+        except Exception:
+            # tokenizer without a chat template: fall back to raw encode
+            ids = tok.encode(text, add_special_tokens=True)
+        return len(ids)
+
+    def _truncate_to_chat_budget(self, prompt: str, max_prompt_length: int) -> str:
+        """Cap ``prompt`` so the chat-templated form fits ``max_prompt_length``.
+
+        Keeps the head (the instructions / output-format spec live at the start
+        of both the mutation and solver prompts) and drops trailing content
+        (the parent example program), which is the safe end to clip. Verifies
+        against the real chat-template length and trims further if token-merge
+        effects at the boundary still overflow.
+        """
+        if self._chat_template_len(prompt) <= max_prompt_length:
+            return prompt
+        tok = self._require_tokenizer()
+        # fixed tokens the template adds around the content (role markers,
+        # default system prompt, generation prompt)
+        overhead = self._chat_template_len("")
+        margin = 16
+        content_ids = tok.encode(prompt, add_special_tokens=False)
+        budget = max(0, max_prompt_length - overhead - margin)
+        truncated = tok.decode(content_ids[:budget], skip_special_tokens=True)
+        # re-check: decode/re-encode round trips can shift the count slightly
+        while budget > 0 and self._chat_template_len(truncated) > max_prompt_length:
+            budget = max(0, budget - 64)
+            truncated = tok.decode(content_ids[:budget], skip_special_tokens=True)
+        return truncated
+
+    def _truncate_messages_to_budget(self, messages: list[dict], max_prompt_length: int) -> list[dict]:
+        """Cap a multi-turn conversation to the budget, clipping middle turns.
+
+        The system turn (rules) and the final user turn (rejection reason + fix
+        request) are preserved intact; the long, clippable middle -- the
+        original-task user turn and the assistant (rejected output) turn -- is
+        shortened from its tail until the chat-templated conversation fits
+        ``max_prompt_length``. Mirrors ``_truncate_to_chat_budget`` but at the
+        message granularity so the fix instruction is never the part that gets cut.
+        """
+        tok = self._require_tokenizer()
+
+        def total(msgs):
+            return len(
+                tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=True)
+            )
+
+        if total(messages) <= max_prompt_length:
+            return messages
+        msgs = [dict(m) for m in messages]
+        clippable = list(range(1, len(msgs) - 1))  # exclude system + final turn
+        for _ in range(256):
+            over = total(msgs) - max_prompt_length
+            if over <= 0:
+                break
+            sizes = [
+                (len(tok.encode(msgs[i]["content"], add_special_tokens=False)), i)
+                for i in clippable
+            ]
+            sizes = [(s, i) for s, i in sizes if s > 0]
+            if not sizes:
+                break
+            _, i = max(sizes)
+            ids = tok.encode(msgs[i]["content"], add_special_tokens=False)
+            keep = max(0, len(ids) - max(64, over + 16))
+            clipped = tok.decode(ids[:keep], skip_special_tokens=True) if keep else ""
+            msgs[i]["content"] = (clipped + "\n...[truncated]...") if keep else "...[truncated]..."
+        return msgs
+
+    def _make_prompt_batch(self, prompts: list[str], messages: list | None = None):
         import verl.utils.torch_functional as verl_F
         from verl import DataProto
 
@@ -304,8 +387,35 @@ class VerlPolicyBackend(EvolutionBackend):
         if pad_token_id is None:
             pad_token_id = tokenizer.eos_token_id if tokenizer.eos_token_id is not None else 0
 
+        if messages is None:
+            messages = [None] * len(prompts)
+
+        # Per item, build (a) the rendered prompt text used for input_ids and
+        # (b) the chat-message list handed to the agent loop as raw_prompt.
+        # Multi-turn items (fix-retry) carry a [system,user,assistant,user]
+        # conversation; single-turn items wrap the text as one user message.
+        # Both are length-capped: verl 0.7.x's AgentLoopWorker re-tokenizes
+        # raw_prompt with the chat template and NEVER truncates it
+        # (tokenizer.pad(padding="max_length") only right-pads), so an
+        # over-length prompt would otherwise crash _postprocess's torch.cat.
+        rendered: list[str] = []
+        raw_msgs: list[list[dict]] = []
+        for p, m in zip(prompts, messages):
+            if m is not None:
+                m = self._truncate_messages_to_budget(m, max_prompt_length)
+                rendered.append(
+                    tokenizer.apply_chat_template(
+                        m, add_generation_prompt=True, tokenize=False
+                    )
+                )
+                raw_msgs.append(m)
+            else:
+                p = self._truncate_to_chat_budget(p, max_prompt_length)
+                rendered.append(p)
+                raw_msgs.append([{"role": "user", "content": p}])
+
         model_inputs = tokenizer(
-            prompts,
+            rendered,
             return_tensors="pt",
             padding=True,
             add_special_tokens=False,
@@ -320,15 +430,14 @@ class VerlPolicyBackend(EvolutionBackend):
         )
         position_ids = _compute_position_id_with_mask(attention_mask)
         raw_prompt_ids = [
-            tokenizer.encode(prompt, add_special_tokens=False)[-max_prompt_length:]
-            for prompt in prompts
+            tokenizer.encode(text, add_special_tokens=False)[-max_prompt_length:]
+            for text in rendered
         ]
-        # verl 0.7.x's AgentLoopWorker (SingleTurnAgentLoop.run) reads
-        # kwargs["raw_prompt"] as chat-format messages and applies the chat
-        # template itself. Wrap each text prompt as a single-turn user message.
+        # AgentLoopWorker reads kwargs["raw_prompt"] as chat messages and applies
+        # the chat template itself (single user turn, or the full fix conversation).
         raw_prompt_arr = np.empty(len(prompts), dtype=object)
-        for i, p in enumerate(prompts):
-            raw_prompt_arr[i] = [{"role": "user", "content": p}]
+        for i, m in enumerate(raw_msgs):
+            raw_prompt_arr[i] = m
         raw_prompt_ids_arr = np.empty(len(prompts), dtype=object)
         for i, ids in enumerate(raw_prompt_ids):
             raw_prompt_ids_arr[i] = ids

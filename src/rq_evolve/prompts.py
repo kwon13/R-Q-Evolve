@@ -32,13 +32,10 @@ MUTATION_SYSTEM_PROMPT = (
     "Design the new problem to maximize R_Q: since it is p_hat * H, aim for the edge of the solver's ability — solvable, yet still uncertain.\n"
     "\n"
     "Output structure, in this order:\n"
-    "  1. an optional module docstring — the mutation idea and how "
-    "the resulting problem is solved;\n"
-    "  2. imports (only collections, fractions, functools, itertools, "
-    "math, random, sympy);\n"
+    "  1. an optional module docstring — the mutation idea and how the resulting problem is solved;\n"
+    "  2. imports (only collections, fractions, functools, itertools, math, random, sympy);\n"
     "  3. `def generate(seed)`;\n"
-    "  4. the constants CONCEPT_REASON, CONCEPT_GROUP, CONCEPT_TYPE, "
-    "in that order.\n"
+    "  4. the constants CONCEPT_REASON, CONCEPT_GROUP, CONCEPT_TYPE, in that order.\n"
     "\n"
     f"CONCEPT_GROUP must be exactly one of: {groups}\n"
     "CONCEPT_TYPE is a free-form '<group>.<snake_case_name>' string.\n"
@@ -47,9 +44,7 @@ MUTATION_SYSTEM_PROMPT = (
     "\n"
     "  - CONCEPT_GROUP and CONCEPT_TYPE: name the reasoning that CONCEPT_REASON describes."
     "\n"
-    "  - The problem text must never reveal the answer's value — no "
-    "\"... and the result is 17\", no \"simplify A/B = 2002\". The "
-    "solver computes it.\n"
+    "  - The problem text must never reveal the answer's value — no \"... and the result is 17\", no \"simplify A/B = 2002\". The solver computes it.\n"
     "\n"
     "Please reason step by step, and put your final program within ```python ```"
 )
@@ -61,6 +56,9 @@ class MutationTask:
     prompt: str
     parent: ProblemProgram
     parent_b: ProblemProgram | None = None
+    # When set, the backend renders this full chat conversation as the prompt
+    # (multi-turn self-fix) instead of wrapping ``prompt`` as a single user msg.
+    messages: list[dict] | None = None
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -111,6 +109,45 @@ def build_mutation_task(
         prompt=f"{MUTATION_SYSTEM_PROMPT}\n\n{user}",
         parent=parent,
         parent_b=parent_b,
+    )
+
+
+def build_fix_task(
+    task: MutationTask,
+    failed_output: str,
+    reason: str,
+) -> MutationTask:
+    """One-shot multi-turn self-fix task.
+
+    Builds the conversation ``[system(rules), user(original mutation task),
+    assistant(the rejected output verbatim), user(rejection reason + fix
+    request)]``. Because the rejected program lives in the assistant turn, it is
+    NOT re-quoted in the user turn. The backend renders ``messages`` directly and
+    clips the middle turns first if the conversation exceeds the prompt budget,
+    so the system rules and the final fix request are always preserved.
+    """
+    original_user = task.prompt
+    if original_user.startswith(MUTATION_SYSTEM_PROMPT):
+        original_user = original_user[len(MUTATION_SYSTEM_PROMPT):].lstrip("\n")
+
+    fix_request = (
+        "Your program above was REJECTED by the validator.\n"
+        f"Rejection reason(s): {reason or 'unspecified'}\n"
+        "Fix ONLY the issue(s) above while keeping the mathematical idea intact. "
+        "Output the corrected full program in one ```python ``` block."
+    )
+    messages = [
+        {"role": "system", "content": MUTATION_SYSTEM_PROMPT},
+        {"role": "user", "content": original_user},
+        {"role": "assistant", "content": failed_output},
+        {"role": "user", "content": fix_request},
+    ]
+    return MutationTask(
+        op=task.op,
+        prompt=f"{failed_output}\n\n{fix_request}",  # flat fallback only
+        parent=task.parent,
+        parent_b=task.parent_b,
+        messages=messages,
     )
 
 

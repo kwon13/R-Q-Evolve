@@ -2,14 +2,38 @@
 
 from __future__ import annotations
 
-import re
-
-_BOXED_RE = re.compile(r"\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}", re.DOTALL)
-
 
 def extract_boxed(text: str) -> str | None:
-    matches = _BOXED_RE.findall(text or "")
-    return matches[-1].strip() if matches else None
+    r"""Return the content of the LAST complete ``\boxed{...}`` in ``text``.
+
+    Brace-matched (not regex) so arbitrarily nested answers extract correctly --
+    e.g. ``\boxed{\frac{\sqrt{3}}{2}}`` -> ``\frac{\sqrt{3}}{2}``. The old
+    single-level regex returned None for any answer with 2+ nested brace groups,
+    which silently scored common MATH-500 answers as wrong.
+    """
+    text = text or ""
+    token = r"\boxed"
+    result: str | None = None
+    pos = 0
+    while True:
+        idx = text.find(token, pos)
+        if idx == -1:
+            break
+        i = idx + len(token)
+        while i < len(text) and text[i].isspace():
+            i += 1
+        if i < len(text) and text[i] == "{":
+            depth = 0
+            for j in range(i, len(text)):
+                if text[j] == "{":
+                    depth += 1
+                elif text[j] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        result = text[i + 1 : j].strip()
+                        break
+        pos = idx + len(token)
+    return result
 
 
 def normalize_answer(text: str) -> str:
@@ -21,29 +45,23 @@ def normalize_answer(text: str) -> str:
 
 
 def answers_match(predicted: str, ground_truth: str) -> bool:
-    if normalize_answer(predicted) == normalize_answer(ground_truth):
-        return True
+    """Answer equality via ``math_verify`` (R-Zero parity), no fallback.
+
+    ``math_verify`` is a hard dependency: the import is intentionally outside the
+    try/except so a missing install fails loud instead of silently degrading to a
+    weaker grader. Parse/verify failures on a given pair count as a non-match.
+    """
+    from math_verify import parse, verify
+
     try:
-        from sympy import N, simplify, sympify
-        from sympy.parsing.latex import parse_latex
-
-        def parse(expr: str):
-            expr = expr.strip().replace("^", "**")
-            if "\\" in expr:
-                try:
-                    return parse_latex(expr)
-                except Exception:
-                    pass
-            return sympify(expr)
-
-        a = parse(predicted)
-        b = parse(ground_truth)
-        try:
-            if simplify(a - b) == 0:
-                return True
-        except Exception:
-            pass
-        return abs(float(N(a)) - float(N(b))) < 1e-4
+        # Wrap both sides in \boxed{} so math_verify's LaTeX extraction triggers.
+        # Parsing a bare fragment (e.g. "\dfrac{1}{2}" or "\frac34") otherwise
+        # fails its extractor and reports a false non-match; the \boxed form makes
+        # \dfrac/\frac, fraction/decimal, and spacing equivalences all resolve.
+        # verify(gold, target): ground truth first, prediction second.
+        gold = parse("\\boxed{" + str(ground_truth) + "}")
+        pred = parse("\\boxed{" + str(predicted) + "}")
+        return bool(verify(gold, pred))
     except Exception:
         return False
 

@@ -29,6 +29,10 @@ class EvolutionConfig:
     crossover_ratio: float = 0.2
     verify_seeds: int = 5
     frontier_p_hat_range: tuple[float, float] = (0.1, 0.9)
+    # When True, a child that parses but fails verification gets ONE multi-turn
+    # self-fix attempt: the model is shown its own program + the rejection reason
+    # and asked to fix only that issue (Reflexion-style).
+    fix_retry: bool = True
 
 
 @dataclass(slots=True)

@@ -14,7 +14,7 @@ from .concepts import validate_concept_decl
 from .config import EvolutionConfig, TrainingDataConfig
 from .dataset import DynamicProblemDataset, build_training_examples
 from .program import ProblemInstance, ProblemProgram
-from .prompts import build_mutation_task
+from .prompts import build_fix_task, build_mutation_task
 from .scoring import RQResult, compute_rq_full
 
 
@@ -197,42 +197,26 @@ class RQEvolver:
             outputs = self.backend.mutate(tasks)
             entries: list[dict] = []
             for task, output in zip(tasks, outputs):
-                if not output:
-                    entries.append(
-                        {"report": CandidateReport(status="mutation_failed", op=task.op)}
-                    )
-                    continue
-                source = extract_generator_code(output)
-                if source is None:
-                    entries.append(
-                        {"report": CandidateReport(status="no_code", op=task.op)}
-                    )
-                    continue
-
-                child = ProblemProgram(
-                    source_code=source,
-                    parent_id=_parent_id(task),
-                    generation=max(
-                        task.parent.generation,
-                        task.parent_b.generation if task.parent_b else 0,
-                    )
-                    + 1,
-                    metadata={"op": task.op},
+                child, inst, reason, source = self._make_child_from_output(
+                    task, output
                 )
-                inst, reason = self.verify_program(child)
-                if inst is None:
+                if inst is not None:
+                    entries.append({"task": task, "child": child, "inst": inst})
+                elif source is not None:
+                    # parses but failed verification -> eligible for one self-fix.
+                    # Keep the RAW output: it becomes the assistant turn in the
+                    # multi-turn fix prompt (so it is not re-quoted in the user turn).
                     entries.append(
-                        {
-                            "report": CandidateReport(
-                                status="verify_failed",
-                                op=task.op,
-                                child_id=child.program_id,
-                                reason=reason,
-                            )
-                        }
+                        {"_retry": {"task": task, "output": output, "reason": reason}}
                     )
-                    continue
-                entries.append({"task": task, "child": child, "inst": inst})
+                else:
+                    status = "mutation_failed" if not output else "no_code"
+                    entries.append({"report": CandidateReport(status=status, op=task.op)})
+
+            # One-shot Reflexion self-fix: show the model its rejected program +
+            # reason and re-verify. Runs inside the open vLLM session so the extra
+            # generate reuses the already-awake rollout worker.
+            self._resolve_retries(entries)
 
             to_eval = [e for e in entries if "child" in e]
             pending = self.backend.generate_rollouts(
@@ -286,6 +270,75 @@ class RQEvolver:
                 )
             )
         return reports
+
+    def _make_child_from_output(self, task, output):
+        """Extract -> build -> verify a child from one model output.
+
+        Returns ``(child, inst, reason, source)``. On success ``inst`` is the
+        verified instance; on failure ``inst`` is None and ``source`` is the
+        parsed program (None if the output had no parseable ``generate``).
+        """
+        if not output:
+            return None, None, "empty model output", None
+        source = extract_generator_code(output)
+        if source is None:
+            return None, None, "no parseable generate() in output", None
+        child = ProblemProgram(
+            source_code=source,
+            parent_id=_parent_id(task),
+            generation=max(
+                task.parent.generation,
+                task.parent_b.generation if task.parent_b else 0,
+            )
+            + 1,
+            metadata={"op": task.op},
+        )
+        inst, reason = self.verify_program(child)
+        return child, inst, reason, source
+
+    def _resolve_retries(self, entries: list[dict]) -> None:
+        """Finalize every ``_retry`` entry into a success or a report entry.
+
+        With ``fix_retry`` enabled, each verify-failed child gets ONE self-fix
+        round (one batched ``mutate`` over all retryable entries); survivors
+        become ``{"task","child","inst"}`` and are tagged ``fixed_after_retry``.
+        With it disabled, the originals collapse straight to a verify_failed
+        report so no entry is ever left dangling.
+        """
+        targets = [e for e in entries if "_retry" in e]
+        if not targets:
+            return
+        enabled = self.evolution_config.fix_retry
+        if enabled:
+            fix_tasks = [
+                build_fix_task(
+                    e["_retry"]["task"], e["_retry"]["output"], e["_retry"]["reason"]
+                )
+                for e in targets
+            ]
+            outputs = self.backend.mutate(fix_tasks)
+        else:
+            outputs = [None] * len(targets)
+
+        for e, output in zip(targets, outputs):
+            info = e.pop("_retry")
+            task = info["task"]
+            if not enabled:
+                e["report"] = CandidateReport(
+                    status="verify_failed", op=task.op, reason=info["reason"]
+                )
+                continue
+            child, inst, reason, _ = self._make_child_from_output(task, output)
+            if inst is not None:
+                child.metadata["fixed_after_retry"] = True
+                e["task"], e["child"], e["inst"] = task, child, inst
+            else:
+                e["report"] = CandidateReport(
+                    status="verify_failed",
+                    op=task.op,
+                    child_id=child.program_id if child else "",
+                    reason=f"[after fix] {reason}",
+                )
 
     def _score_from_rollouts(
         self,

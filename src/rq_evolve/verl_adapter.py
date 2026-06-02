@@ -59,11 +59,16 @@ class EvolvingSampler:
         if self.epoch > 0 or self.evolve_on_first_epoch:
             metrics = self.evolver.run_outer_iteration(self.epoch)
             print(f"[RQ-Evolve] outer iteration {self.epoch}: {metrics}")
-            # Persist the archive after every evolution so a restart resumes
-            # from the evolved grid, not seeds. The verl weight checkpoint does
-            # not include the archive.
+            # Persist after every evolution so a restart resumes from the evolved
+            # grid, not seeds (the verl weight checkpoint excludes the archive).
+            #  - archive.json: latest snapshot (resume) + archive_iter{N}.json:
+            #    per-step version, so the evolution trajectory is recoverable.
+            #  - evolution_log.jsonl: append-only per-iteration metrics + every
+            #    candidate report (inserted/rejected/why, rq_scores).
             if self.archive_dir is not None:
-                self.evolver.save_state(self.archive_dir)
+                self.evolver.save_state(self.archive_dir, iteration=self.epoch)
+                self.evolver.append_evolution_log(self.archive_dir, self.epoch, metrics)
+            self._log_evolve_metrics_to_wandb(metrics)
 
         n = len(self.dataset)
         if self.shuffle:
@@ -76,6 +81,29 @@ class EvolvingSampler:
             indices = list(range(n))
         self.epoch += 1
         return iter(indices)
+
+    def _log_evolve_metrics_to_wandb(self, metrics: dict) -> None:
+        """Best-effort: send the evolve metrics to wandb (was stdout-only).
+
+        commit=False merges them into the next training-step commit instead of
+        advancing wandb's step counter, avoiding "step must increase" conflicts
+        with verl's own logging. Wrapped in try/except so logging never breaks
+        training.
+        """
+        try:
+            import wandb
+
+            if wandb.run is None:
+                return
+            payload = {
+                f"evolve/{k}": v
+                for k, v in metrics.items()
+                if isinstance(v, (int, float)) and not isinstance(v, bool)
+            }
+            if payload:
+                wandb.log(payload, commit=False)
+        except Exception:
+            pass
 
     def __len__(self) -> int:
         return len(self.dataset)

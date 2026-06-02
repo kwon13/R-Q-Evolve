@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import random
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from .archive import MAPElitesArchive
@@ -44,6 +44,9 @@ class RQEvolver:
     dataset: DynamicProblemDataset = field(default_factory=DynamicProblemDataset)
     used_seeds: dict[str, set[int]] = field(default_factory=dict)
     events: list[dict] = field(default_factory=list)
+    # Candidate reports from the most recent run_outer_iteration, exposed so the
+    # sampler can persist them to the per-step evolution log.
+    last_reports: list[CandidateReport] = field(default_factory=list)
 
     def load_seed_programs(self, seed_dir: str | Path) -> list[ProblemProgram]:
         programs: list[ProblemProgram] = []
@@ -139,6 +142,12 @@ class RQEvolver:
         inserted = 0
         reports: list[CandidateReport] = []
 
+        # Push current actor weights into vLLM ONCE for the whole evolve phase.
+        # Evolve runs no optimizer step, so weights are static throughout:
+        # reevaluate + every inner batch reuse the resident model (no per-session
+        # re-push). The backend's begin_session no longer pushes weights when the
+        # rollout is resident (sleep mode off).
+        self.backend.sync_weights()
         self.reevaluate_champions()
 
         batch_size = self.evolution_config.inner_iteration_batch_size
@@ -162,6 +171,7 @@ class RQEvolver:
             "dataset_size": len(self.dataset),
             **stats,
         }
+        self.last_reports = reports
         self.events.append({"event": "outer_iteration_done", **result})
         return result
 
@@ -183,40 +193,73 @@ class RQEvolver:
                     return [CandidateReport(status="no_parent", op="none")]
             tasks.append(build_mutation_task(op, parent, parent_b))
 
-        outputs = self.backend.mutate(tasks)
-        reports: list[CandidateReport] = []
-        for task, output in zip(tasks, outputs):
-            if not output:
-                reports.append(CandidateReport(status="mutation_failed", op=task.op))
-                continue
-            source = extract_generator_code(output)
-            if source is None:
-                reports.append(CandidateReport(status="no_code", op=task.op))
-                continue
-
-            child = ProblemProgram(
-                source_code=source,
-                parent_id=_parent_id(task),
-                generation=max(
-                    task.parent.generation,
-                    task.parent_b.generation if task.parent_b else 0,
-                )
-                + 1,
-                metadata={"op": task.op},
-            )
-            inst, reason = self.verify_program(child)
-            if inst is None:
-                reports.append(
-                    CandidateReport(
-                        status="verify_failed",
-                        op=task.op,
-                        child_id=child.program_id,
-                        reason=reason,
+        # One vLLM wake for the whole batch: the mutation generate and every
+        # solver generate run while vLLM is awake; entropy (actor forward) is
+        # deferred until after end_session (vLLM asleep) inside finalize_rollouts.
+        self.backend.begin_session()
+        try:
+            outputs = self.backend.mutate(tasks)
+            entries: list[dict] = []
+            for task, output in zip(tasks, outputs):
+                if not output:
+                    entries.append(
+                        {"report": CandidateReport(status="mutation_failed", op=task.op)}
                     )
-                )
-                continue
+                    continue
+                source = extract_generator_code(output)
+                if source is None:
+                    entries.append(
+                        {"report": CandidateReport(status="no_code", op=task.op)}
+                    )
+                    continue
 
-            result = self.evaluate_instance(child, inst)
+                child = ProblemProgram(
+                    source_code=source,
+                    parent_id=_parent_id(task),
+                    generation=max(
+                        task.parent.generation,
+                        task.parent_b.generation if task.parent_b else 0,
+                    )
+                    + 1,
+                    metadata={"op": task.op},
+                )
+                inst, reason = self.verify_program(child)
+                if inst is None:
+                    entries.append(
+                        {
+                            "report": CandidateReport(
+                                status="verify_failed",
+                                op=task.op,
+                                child_id=child.program_id,
+                                reason=reason,
+                            )
+                        }
+                    )
+                    continue
+                entries.append({"task": task, "child": child, "inst": inst})
+
+            to_eval = [e for e in entries if "child" in e]
+            pending = self.backend.generate_rollouts(
+                [e["inst"] for e in to_eval],
+                n_rollouts=self.evolution_config.num_rollouts,
+            )
+        finally:
+            self.backend.end_session()
+
+        grouped = self.backend.finalize_rollouts(pending)
+        rollouts_by_child = {
+            id(e["child"]): rollouts for e, rollouts in zip(to_eval, grouped)
+        }
+
+        reports: list[CandidateReport] = []
+        for entry in entries:
+            if "report" in entry:
+                reports.append(entry["report"])
+                continue
+            task, child, inst = entry["task"], entry["child"], entry["inst"]
+            result = self._score_from_rollouts(
+                child, rollouts_by_child.get(id(child), [])
+            )
             if result.p_hat <= 0.0:
                 reports.append(
                     CandidateReport(
@@ -248,16 +291,11 @@ class RQEvolver:
             )
         return reports
 
-    def evaluate_instance(
+    def _score_from_rollouts(
         self,
         program: ProblemProgram,
-        instance: ProblemInstance,
+        rollouts: list[RolloutRecord],
     ) -> RQResult:
-        groups = self.backend.rollout(
-            [instance],
-            n_rollouts=self.evolution_config.num_rollouts,
-        )
-        rollouts: list[RolloutRecord] = groups[0] if groups else []
         flags = [r.correct for r in rollouts]
         uncertainty = (
             sum(r.entropy for r in rollouts) / len(rollouts)
@@ -271,13 +309,56 @@ class RQEvolver:
         program.fitness = result.rq_score
         return result
 
+    def evaluate_instances(
+        self,
+        programs: list[ProblemProgram],
+        instances: list[ProblemInstance],
+    ) -> list[RQResult]:
+        """Score a batch of (program, instance) pairs with ONE vLLM wake/sleep.
+
+        All solver rollouts are generated while vLLM is awake; vLLM is slept
+        once, then entropies (actor forward) are computed against the freed
+        memory. Replaces N per-instance wake_up cycles with a single one.
+        """
+        if not instances:
+            return []
+        self.backend.begin_session()
+        try:
+            pending = self.backend.generate_rollouts(
+                instances, n_rollouts=self.evolution_config.num_rollouts
+            )
+        finally:
+            self.backend.end_session()
+        grouped = self.backend.finalize_rollouts(pending)
+        return [
+            self._score_from_rollouts(program, rollouts)
+            for program, rollouts in zip(programs, grouped)
+        ]
+
+    def evaluate_instance(
+        self,
+        program: ProblemProgram,
+        instance: ProblemInstance,
+    ) -> RQResult:
+        return self.evaluate_instances([program], [instance])[0]
+
     def reevaluate_champions(self) -> None:
-        """Refresh champion scores under the current backend."""
+        """Refresh champion scores under the current backend.
+
+        One vLLM wake/sleep for the whole champion set (was one per champion).
+        """
+        pairs: list[tuple[ProblemProgram, ProblemInstance]] = []
         for champion in list(self.archive.champions()):
             inst = champion.execute(seed=0)
             if inst is None:
                 continue
-            result = self.evaluate_instance(champion, inst)
+            pairs.append((champion, inst))
+        if not pairs:
+            return
+        results = self.evaluate_instances(
+            [p for p, _ in pairs], [i for _, i in pairs]
+        )
+        for (champion, inst), result in zip(pairs, results):
             self.archive.try_insert(
                 program=champion,
                 h_value=result.uncertainty,
@@ -300,17 +381,29 @@ class RQEvolver:
 
     _USED_SEEDS_FILE = "rq_used_seeds.json"
 
-    def save_state(self, directory: str | Path) -> None:
+    def save_state(self, directory: str | Path, iteration: int | None = None) -> None:
         """Persist the MAP-Elites archive + used_seeds for restart.
 
         The verl weight checkpoint does NOT include the archive, so without this
         a resumed run restarts from a seed-only grid and loses every evolved
         champion. Called once per outer iteration (after evolution) so the
         latest archive is always on disk.
+
+        ``archive.json`` is the latest snapshot (overwritten each call, used for
+        resume). When ``iteration`` is given a versioned copy
+        ``archive_iter{iteration}.json`` is also written so the per-step evolution
+        trajectory is recoverable.
         """
+        import shutil
+
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         self.archive.save(directory)
+        if iteration is not None:
+            shutil.copyfile(
+                directory / "archive.json",
+                directory / f"archive_iter{int(iteration)}.json",
+            )
         used = {pid: sorted(seeds) for pid, seeds in self.used_seeds.items()}
         (directory / self._USED_SEEDS_FILE).write_text(
             json.dumps(
@@ -324,6 +417,32 @@ class RQEvolver:
             ),
             encoding="utf-8",
         )
+
+    def append_evolution_log(
+        self,
+        directory: str | Path,
+        iteration: int,
+        metrics: dict,
+        reports: list[CandidateReport] | None = None,
+    ) -> None:
+        """Append one JSON line per outer iteration to ``evolution_log.jsonl``.
+
+        Unlike the archive (latest snapshot only), this is append-only, so the
+        full evolution trajectory is preserved: per-iteration metrics plus every
+        candidate report (status = inserted / rejected_non_elite / verify_failed
+        / p_hat_zero / mutation_failed / no_code, with op, rq_score, p_hat,
+        uncertainty). ``reports`` defaults to ``self.last_reports``.
+        """
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        reports = self.last_reports if reports is None else reports
+        record = {
+            "iteration": int(iteration),
+            "metrics": metrics,
+            "reports": [asdict(r) for r in reports],
+        }
+        with (directory / "evolution_log.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     def load_state(self, directory: str | Path) -> bool:
         """Restore archive + used_seeds written by :meth:`save_state`.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from .backends import EvolutionBackend, RolloutRecord
+from .backends import EvolutionBackend, PendingRollouts, RolloutRecord
 from .program import ProblemInstance
 from .prompts import MutationTask, build_solver_prompt
 from .reward import answers_match, extract_boxed
@@ -33,12 +33,28 @@ class VerlPolicyBackend(EvolutionBackend):
         self.tokenizer = tokenizer
         self.max_prompt_length = max_prompt_length
         self.truncation = truncation
+        # When True, ``_generate_with_batch`` skips its per-call vLLM wake/sleep:
+        # the surrounding session woke vLLM once and will sleep it once at the
+        # end (see ``begin_session`` / ``end_session``).
+        self._session_active = False
+        # Whether vLLM sleep/wake is usable. When the rollout runs with sleep
+        # mode off (free_cache_engine/enable_sleep_mode = false), vLLM is
+        # resident and cannot be slept -- ``_sleep`` becomes a no-op so we never
+        # call sleep() on a non-sleep-enabled engine (and never hit the cumem
+        # wake_up path). Set from config in ``bind``.
+        self._sleep_enabled = True
 
     def bind(self, trainer) -> None:
         self.trainer = trainer
         self.tokenizer = trainer.tokenizer
         self.max_prompt_length = int(trainer.config.data.max_prompt_length)
         self.truncation = trainer.config.data.get("truncation", self.truncation)
+        rollout_cfg = getattr(
+            getattr(trainer.config, "actor_rollout_ref", None), "rollout", None
+        )
+        free_cache_engine = bool(getattr(rollout_cfg, "free_cache_engine", True))
+        enable_sleep_mode = bool(getattr(rollout_cfg, "enable_sleep_mode", True))
+        self._sleep_enabled = free_cache_engine and enable_sleep_mode
 
     def mutate(self, tasks: list[MutationTask]) -> list[str | None]:
         if not tasks:
@@ -53,36 +69,127 @@ class VerlPolicyBackend(EvolutionBackend):
             for row in responses
         ]
 
-    def rollout(
+    # ------------------------------------------------------------------
+    # Phase sessions: keep vLLM awake across a batch of generate calls and
+    # pay a single cumem wake_up, instead of one wake/sleep per instance
+    # (the repeated wake_up is what tripped cumem_allocator's "invalid
+    # argument" under hundreds of toggles per outer iteration).
+    # ------------------------------------------------------------------
+
+    def _wake(self) -> None:
+        """Push current FSDP weights into vLLM and wake it for generation.
+
+        vLLM is launched with load_format=dummy and starts "sleeping"; without
+        pushing the live actor weights it would forward with random weights ->
+        NaNs -> "CUDA error: illegal memory access" inside flash-attn.
+        """
+        trainer = self._require_trainer()
+        checkpoint_manager = getattr(trainer, "checkpoint_manager", None)
+        if checkpoint_manager is not None and hasattr(checkpoint_manager, "update_weights"):
+            global_steps = int(getattr(trainer, "global_steps", 0) or 0)
+            checkpoint_manager.update_weights(global_steps)
+
+    def _sleep(self) -> None:
+        """Offload vLLM KV cache + weights so the actor forward has room.
+
+        Entropy is an actor (FSDP) forward; under sleep mode it would OOM against
+        the live vLLM reservation, so it must run only after this sleep. Matches
+        verl's PPO loop (update_weights -> generate -> sleep).
+
+        No-op when sleep mode is disabled (``_sleep_enabled`` false): vLLM is
+        resident, has no cumem allocator, and cannot be slept. Memory headroom is
+        provided instead by a lower ``gpu_memory_utilization`` so the actor
+        forward coexists with the live vLLM reservation.
+        """
+        if not self._sleep_enabled:
+            return
+        trainer = self._require_trainer()
+        checkpoint_manager = getattr(trainer, "checkpoint_manager", None)
+        if checkpoint_manager is not None and hasattr(checkpoint_manager, "sleep_replicas"):
+            checkpoint_manager.sleep_replicas()
+
+    def sync_weights(self) -> None:
+        """Push the current FSDP actor weights into vLLM once.
+
+        Call at the START of an evolve phase. Weights are static for the whole
+        phase (evolve does no optimizer step), so reevaluate + every inner batch
+        reuse the same resident vLLM model -- no need to re-push per session.
+        """
+        self._wake()
+
+    def begin_session(self) -> None:
+        """Open a generate session.
+
+        With sleep mode ON this wakes vLLM per session (restoring its offloaded
+        weights/KV), as before. With sleep mode OFF vLLM is resident and its
+        weights are synced once per phase via ``sync_weights`` -- so a session is
+        pure state-tracking and does NOT re-push weights. While the session is
+        open ``_generate_with_batch`` neither wakes nor sleeps vLLM; entropy is
+        computed only after ``end_session`` (via ``finalize_rollouts``).
+        """
+        if self._sleep_enabled:
+            self._wake()
+        self._session_active = True
+
+    def end_session(self) -> None:
+        """Sleep vLLM once at the end of the phase (no-op when sleep disabled)."""
+        try:
+            self._sleep()
+        finally:
+            self._session_active = False
+
+    def generate_rollouts(
         self,
         instances: list[ProblemInstance],
         n_rollouts: int,
-    ) -> list[list[RolloutRecord]]:
-        if not instances:
-            return []
+    ) -> PendingRollouts:
+        """Generate solver rollouts WITHOUT computing entropy.
 
+        Call inside an open session (vLLM awake). The decoded responses + the
+        full batch are stashed so ``finalize_rollouts`` can compute entropy once
+        vLLM has been slept.
+        """
+        n = max(1, int(n_rollouts))
+        if not instances:
+            return PendingRollouts(instances=[], n_rollouts=n)
         prompts = [build_solver_prompt(inst.problem) for inst in instances]
-        output, full_batch = self._generate_with_batch(
-            prompts,
-            n_repeat=max(1, int(n_rollouts)),
-        )
+        output, full_batch = self._generate_with_batch(prompts, n_repeat=n)
         responses = output.batch.get("responses")
         if responses is None:
-            return [[] for _ in instances]
-
+            return PendingRollouts(instances=list(instances), n_rollouts=n)
         decoded = [
             self.tokenizer.decode(row.tolist(), skip_special_tokens=True)
             for row in responses
         ]
-        entropies = self._response_entropies(full_batch)
+        return PendingRollouts(
+            instances=list(instances),
+            n_rollouts=n,
+            full_batch=full_batch,
+            decoded=decoded,
+        )
 
+    def finalize_rollouts(self, pending: PendingRollouts) -> list[list[RolloutRecord]]:
+        """Compute entropy (actor forward) and assemble grouped records.
+
+        Call AFTER ``end_session`` so the actor forward runs with vLLM asleep.
+        """
+        instances = pending.instances
+        if not instances:
+            return []
+        if pending.grouped is not None:
+            return pending.grouped
+        if pending.full_batch is None or not pending.decoded:
+            return [[] for _ in instances]
+
+        entropies = self._response_entropies(pending.full_batch)
+        decoded = pending.decoded
+        n = pending.n_rollouts
         grouped: list[list[RolloutRecord]] = []
-        n = max(1, int(n_rollouts))
         for ci, inst in enumerate(instances):
             rows: list[RolloutRecord] = []
             for ri in range(n):
                 idx = ci * n + ri
-                text = decoded[idx]
+                text = decoded[idx] if idx < len(decoded) else ""
                 pred = extract_boxed(text)
                 rows.append(
                     RolloutRecord(
@@ -94,6 +201,26 @@ class VerlPolicyBackend(EvolutionBackend):
                 )
             grouped.append(rows)
         return grouped
+
+    def rollout(
+        self,
+        instances: list[ProblemInstance],
+        n_rollouts: int,
+    ) -> list[list[RolloutRecord]]:
+        """Single-shot rollout: wake -> generate -> sleep -> entropy.
+
+        Convenience wrapper that opens its own session. Batch paths in
+        evolution.py call ``begin_session``/``generate_rollouts``/``end_session``/
+        ``finalize_rollouts`` directly to share one wake across many instances.
+        """
+        if not instances:
+            return []
+        self.begin_session()
+        try:
+            pending = self.generate_rollouts(instances, n_rollouts)
+        finally:
+            self.end_session()
+        return self.finalize_rollouts(pending)
 
     def _generate_with_batch(self, prompts: list[str], n_repeat: int = 1):
         trainer = self._require_trainer()
@@ -128,18 +255,15 @@ class VerlPolicyBackend(EvolutionBackend):
         # "CUDA error: illegal memory access" inside flash-attn.
         rollout_manager = getattr(trainer, "async_rollout_manager", None)
         if rollout_manager is not None and hasattr(rollout_manager, "agent_loop_workers"):
-            checkpoint_manager = getattr(trainer, "checkpoint_manager", None)
-            if checkpoint_manager is not None and hasattr(checkpoint_manager, "update_weights"):
-                global_steps = int(getattr(trainer, "global_steps", 0) or 0)
-                checkpoint_manager.update_weights(global_steps)
+            # In a session the caller already woke vLLM and will sleep it once
+            # at the end; outside one, fall back to per-call wake/sleep.
+            if not self._session_active:
+                self._wake()
             divisor = max(1, len(rollout_manager.agent_loop_workers))
             padded, pad_size = pad_dataproto_to_divisor(gen_batch, divisor)
             out_padded = rollout_manager.generate_sequences(padded)
-            # Put vLLM back to sleep so its KV cache + weights don't pin GPU
-            # memory while we run the actor's compute_log_prob (entropy) next.
-            # Matches verl's PPO loop (update_weights -> generate -> sleep).
-            if checkpoint_manager is not None and hasattr(checkpoint_manager, "sleep_replicas"):
-                checkpoint_manager.sleep_replicas()
+            if not self._session_active:
+                self._sleep()
         else:
             world_size = max(1, int(getattr(trainer.actor_rollout_wg, "world_size", 1)))
             padded, pad_size = pad_dataproto_to_divisor(gen_batch, world_size)

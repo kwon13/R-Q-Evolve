@@ -98,7 +98,13 @@ verl_config:
 
     ref:
       log_prob_micro_batch_size: null
-      log_prob_micro_batch_size_per_gpu: 4
+      # 1 (was 4): the log-prob/entropy forward materializes a full-vocab
+      # (151k) logits tensor per micro-batch (~13.7 GB at 4). With vLLM now
+      # resident (sleep disabled) this OOMs during the evolve phase, which runs
+      # at the epoch boundary right after update_actor (optimizer states still
+      # on GPU). micro-batch 1 cuts the transient ~4x; the forward is a small
+      # fraction of step time so the throughput cost is negligible.
+      log_prob_micro_batch_size_per_gpu: 1
       fsdp_config:
         # Offload ref weights to CPU when not used; ref is forward-only and
         # only needed for the per-step KL term.
@@ -121,15 +127,38 @@ verl_config:
       n: 8
       # EasyR1 worker.rollout.tensor_parallel_size: 1
       tensor_model_parallel_size: 1
-      gpu_memory_utilization: 0.85
+      # vLLM is now RESIDENT (sleep mode disabled, see below) and must coexist
+      # on-GPU with the FSDP actor's training step (peak ~33 GB reserved). On
+      # 97 GB cards. vLLM is resident; the actor's evolve-phase log-prob/entropy
+      # forward plus resident optimizer states must coexist, so keep vLLM modest:
+      # 0.45*97~=43 GB vLLM + ~42 GB actor (incl. optimizer) ~= 85 GB, with the
+      # entropy transient shrunk via log_prob_micro_batch_size_per_gpu=1 below.
+      gpu_memory_utilization: 0.45
       max_model_len: 12000
       max_num_batched_tokens: 12288
       dtype: bfloat16
       enable_chunked_prefill: true
-      enforce_eager: false
-      free_cache_engine: true
+      enforce_eager: true
+      # --- vLLM sleep/wake DISABLED ---------------------------------------
+      # This (custom) vLLM 0.19.1 build's cumem allocator fails to re-map GPU
+      # virtual memory on wake_up after ~3 sleep/wake cycles:
+      #   "CUDA Error: invalid argument at cumem_allocator.cpp:145".
+      # It reproduces in verl's own per-step wake (one wake/step) regardless of
+      # R-Q-Evolve, so any run dies by ~step 3. free_cache_engine=false makes
+      # verl skip rollout.resume()/sleep() (the wake_up call site,
+      # fsdp_workers.rollout_mode), and enable_sleep_mode=false builds vLLM
+      # without the cumem allocator at all (verl then auto-enables
+      # expandable_segments). vLLM stays resident; weights are still synced from
+      # FSDP via checkpoint_manager.update_weights each step (naive backend =
+      # plain weight push, no wake/sleep). Costs the GPU memory above.
+      free_cache_engine: false
+      enable_sleep_mode: false
       log_prob_micro_batch_size: null
-      log_prob_micro_batch_size_per_gpu: 4
+      # actor's compute_log_prob (our evolve uncertainty/entropy path) reads
+      # THIS rollout knob (fsdp_workers: config_source = self.config.rollout).
+      # 1 (was 4) to shrink the full-vocab entropy logits transient -> avoids
+      # the evolve-phase OOM. See the ref section note above.
+      log_prob_micro_batch_size_per_gpu: 1
 
   critic:
     # GRPO (adv_estimator=grpo) does not train a critic; verl skips the critic

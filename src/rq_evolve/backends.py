@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from .program import ProblemInstance
@@ -20,6 +20,23 @@ class RolloutRecord:
     entropy: float
 
 
+@dataclass
+class PendingRollouts:
+    """Carrier between the generate (vLLM awake) and entropy (vLLM asleep) phases.
+
+    ``generate_rollouts`` returns one of these without computing entropy so the
+    expensive actor forward can be deferred until after vLLM has been slept,
+    keeping the whole phase to a single cumem wake_up. Mock backends fill
+    ``grouped`` eagerly; the verl backend stashes ``full_batch`` + ``decoded``.
+    """
+
+    instances: list[ProblemInstance]
+    n_rollouts: int
+    grouped: list[list[RolloutRecord]] | None = None
+    full_batch: object | None = None
+    decoded: list[str] = field(default_factory=list)
+
+
 class EvolutionBackend(Protocol):
     """Everything that depends on an LLM or inference engine."""
 
@@ -32,6 +49,25 @@ class EvolutionBackend(Protocol):
         n_rollouts: int,
     ) -> list[list[RolloutRecord]]:
         """Return G solver rollouts for each problem instance."""
+
+    def sync_weights(self) -> None:
+        """Push current policy weights into the inference engine once per phase."""
+
+    def begin_session(self) -> None:
+        """Wake the inference engine once for a batch of generate calls."""
+
+    def end_session(self) -> None:
+        """Sleep the inference engine once at the end of the phase."""
+
+    def generate_rollouts(
+        self,
+        instances: list[ProblemInstance],
+        n_rollouts: int,
+    ) -> PendingRollouts:
+        """Generate solver rollouts (no entropy) inside an open session."""
+
+    def finalize_rollouts(self, pending: PendingRollouts) -> list[list[RolloutRecord]]:
+        """Assemble grouped records, computing entropy after the engine slept."""
 
 
 class MockEvolutionBackend:
@@ -82,6 +118,31 @@ class MockEvolutionBackend:
                 )
             results.append(rows)
         return results
+
+    def sync_weights(self) -> None:
+        pass
+
+    def begin_session(self) -> None:
+        pass
+
+    def end_session(self) -> None:
+        pass
+
+    def generate_rollouts(
+        self,
+        instances: list[ProblemInstance],
+        n_rollouts: int,
+    ) -> PendingRollouts:
+        return PendingRollouts(
+            instances=list(instances),
+            n_rollouts=int(n_rollouts),
+            grouped=self.rollout(instances, n_rollouts),
+        )
+
+    def finalize_rollouts(self, pending: PendingRollouts) -> list[list[RolloutRecord]]:
+        if pending.grouped is not None:
+            return pending.grouped
+        return [[] for _ in pending.instances]
 
 
 _BOXED_RE = re.compile(r"\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}", re.DOTALL)

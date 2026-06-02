@@ -56,7 +56,7 @@ product_extremum_discrete (maximising x*y). They are not chained;
 the AM-GM inequality (x + y)/2 >= sqrt(x*y) makes the fixed sum
 bound the product directly.
 
-To solve, given only S, the reader must:
+To solve, given only S, the solver must:
   (1) see that x*y must be maximised over a continuous set, so
       no "scan a list" shortcut applies,
   (2) recall AM-GM and read off that x*y <= (S/2)^2,
@@ -91,7 +91,7 @@ def generate(seed):
     )
     return problem, str(sympy.Integer(best))
 
-CONCEPT_REASON = "To solve, the reader must recognise a product under a fixed-sum constraint is maximised via the AM-GM inequality, tight at x = y — that inequality is the problem's reasoning core."
+CONCEPT_REASON = "To solve, the solver must recognise a product under a fixed-sum constraint is maximised via the AM-GM inequality, tight at x = y — that inequality is the problem's reasoning core."
 CONCEPT_GROUP = "algebra"
 CONCEPT_TYPE = "algebra.am_gm_product_max"
 ```
@@ -159,7 +159,7 @@ theorem (1 + r)^n = sum_{k=0..n} C(n, k) * r^k puts both on one
 polynomial — the binomials are exactly the weights of the sum.
 
 To solve, given the series sum C(n,k)*r^k written out, the
-reader must:
+solver must:
   (1) see that evaluating n+1 binomials and summing is the long
       path,
   (2) recognise the weighted sum as the binomial expansion of
@@ -206,7 +206,7 @@ def generate(seed):
     )
     return problem, str(sympy.Integer(answer))
 
-CONCEPT_REASON = "To solve, the reader must recognise a sum of binomially-weighted powers as the expansion of (1 + r)^n and collapse it via the binomial theorem — that recognition is the problem's reasoning core."
+CONCEPT_REASON = "To solve, the solver must recognise a sum of binomially-weighted powers as the expansion of (1 + r)^n and collapse it via the binomial theorem — that recognition is the problem's reasoning core."
 CONCEPT_GROUP = "combinatorics"
 CONCEPT_TYPE = "combinatorics.binomial_theorem_sum"
 ```

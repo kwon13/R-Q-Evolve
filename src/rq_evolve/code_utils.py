@@ -64,6 +64,42 @@ def _trim_to_parseable_prefix(code: str) -> str | None:
     return None
 
 
+def strip_module_docstring(source_code: str) -> str:
+    """Drop top-level string-literal statements from a parent generator.
+
+    Used to clean a parent's source before injecting it into a mutation prompt:
+    the module docstring (and any stray top-level prose narrative) is the
+    anchor the LLM tends to imitate as an output template. Everything else --
+    imports, ``generate``, the CONCEPT_* constants, comments, formatting -- is
+    preserved verbatim (line-based removal, not ``ast.unparse``). Returns the
+    source unchanged if it does not parse. The child is still asked to write its
+    own docstring; only the *parent shown in the prompt* is stripped.
+    """
+    try:
+        tree = ast.parse(source_code)
+    except SyntaxError:
+        return source_code
+
+    drop_lines: set[int] = set()
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
+            end = node.end_lineno or node.lineno
+            drop_lines.update(range(node.lineno, end + 1))
+    if not drop_lines:
+        return source_code
+
+    kept = [
+        line
+        for i, line in enumerate(source_code.splitlines(), start=1)
+        if i not in drop_lines
+    ]
+    return "\n".join(kept).strip()
+
+
 def lint_generator_source(source_code: str) -> list[str]:
     """Cheap static checks before executing a generated program."""
     reasons: list[str] = []

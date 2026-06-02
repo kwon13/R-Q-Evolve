@@ -1,14 +1,5 @@
 Task: write a generator in a different mathematical domain from the parent.
 
-Parent domain:
-- parent CONCEPT_GROUP: $parent_concept_group
-- parent CONCEPT_TYPE: $parent_concept_type
-
-Parent score diagnostics:
-- p_hat: $parent_p_hat
-- uncertainty/H: $parent_h_score
-- R_Q: $parent_rq_score
-
 Breadth means choosing a genuinely new mathematical object and reasoning path.
 Do not reuse the parent's central technique under new wording.
 Preserve inverse construction so the answer is correct by construction.
@@ -16,7 +7,17 @@ Keep the final answer compact and parseable by SymPy when possible.
 
 $few_shot_examples
 
+---
+
+Parent score diagnostics:
+- p_hat: $parent_p_hat
+- uncertainty/H: $parent_h_score
+- R_Q: $parent_rq_score
+
 Parent program:
 ```python
 $parent_source
+
+CONCEPT_GROUP = "$parent_concept_group"
+CONCEPT_TYPE = "$parent_concept_type"
 ```

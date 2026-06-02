@@ -25,7 +25,7 @@ evolution:
   crossover_ratio: 1.0       # ablation: 100% crossover (in_breadth = 0)
   # -----------------------
   verify_seeds: 5
-  frontier_p_hat_range: [0, 1.0]
+  frontier_p_hat_range: [0.0, 1.0]
 
 training_data:
   instances_per_program: 8
@@ -53,10 +53,9 @@ math_eval:
 # ----------------------------------------------------------------------------
 verl_config:
   data:
-    # EasyR1 data.max_prompt_length / max_response_length
     max_prompt_length: 6000
     max_response_length: 6000
-    train_batch_size: 32
+    train_batch_size: 36
     val_batch_size: 32
     shuffle: true
     truncation: left
@@ -67,7 +66,7 @@ verl_config:
   actor_rollout_ref:
     model:
       # EasyR1 worker.actor.model.model_path: Qwen/Qwen3-4B-Base
-      path: ${oc.env:RQ_MODEL_PATH,Qwen/Qwen3-4B-Base}
+      path: Qwen/Qwen3-4B-Base
       trust_remote_code: true
       # Without remove_padding the model forwards padding tokens — with
       # max_seq_len=12000 and vocab=151k the bf16 logits tensor is ~22GB per
@@ -104,7 +103,7 @@ verl_config:
       # at the epoch boundary right after update_actor (optimizer states still
       # on GPU). micro-batch 1 cuts the transient ~4x; the forward is a small
       # fraction of step time so the throughput cost is negligible.
-      log_prob_micro_batch_size_per_gpu: 1
+      log_prob_micro_batch_size_per_gpu: 4
       fsdp_config:
         # Offload ref weights to CPU when not used; ref is forward-only and
         # only needed for the per-step KL term.
@@ -121,7 +120,7 @@ verl_config:
       # running" failure mode doesn't apply.
       mode: async
       # EasyR1 worker.rollout.temperature / top_p
-      temperature: 0.8
+      temperature: 1.0
       top_p: 0.95
       # EasyR1 worker.rollout.n: 8  (GRPO group size, the "g8")
       n: 8
@@ -138,7 +137,7 @@ verl_config:
       max_num_batched_tokens: 12288
       dtype: bfloat16
       enable_chunked_prefill: true
-      enforce_eager: true
+      enforce_eager: false
       # --- vLLM sleep/wake DISABLED ---------------------------------------
       # This (custom) vLLM 0.19.1 build's cumem allocator fails to re-map GPU
       # virtual memory on wake_up after ~3 sleep/wake cycles:
@@ -158,7 +157,7 @@ verl_config:
       # THIS rollout knob (fsdp_workers: config_source = self.config.rollout).
       # 1 (was 4) to shrink the full-vocab entropy logits transient -> avoids
       # the evolve-phase OOM. See the ref section note above.
-      log_prob_micro_batch_size_per_gpu: 1
+      log_prob_micro_batch_size_per_gpu: 4
 
   critic:
     # GRPO (adv_estimator=grpo) does not train a critic; verl skips the critic

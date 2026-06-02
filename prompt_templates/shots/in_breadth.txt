@@ -32,7 +32,7 @@ discrete progression) to chord geometry — no shared object,
 move, or vocabulary with the parent.
 
 To solve, given only radius r and the chord's centre-distance
-d, the reader must:
+d, the solver must:
   (1) drop the radius to a chord endpoint,
   (2) see that radius, centre-perpendicular, and half-chord
       form a right triangle,
@@ -81,7 +81,7 @@ def generate(seed):
     )
     return problem, answer
 
-CONCEPT_REASON = "To solve, the reader must decompose the chord into a right triangle of radius, centre-perpendicular, and half-chord, then apply Pythagoras — that decomposition is the problem's reasoning core."
+CONCEPT_REASON = "To solve, the solver must decompose the chord into a right triangle of radius, centre-perpendicular, and half-chord, then apply Pythagoras — that decomposition is the problem's reasoning core."
 CONCEPT_GROUP = "geometry"
 CONCEPT_TYPE = "geometry.chord_length_from_center"
 ```
@@ -120,7 +120,7 @@ Crosses domains from rectangle_area (one multiplication of two
 side lengths) to divisor counting — no shared object, move, or
 vocabulary with the parent.
 
-To solve, given only an integer N, the reader must:
+To solve, given only an integer N, the solver must:
   (1) factor N into primes N = p1^e1 * p2^e2 * ... * pk^ek,
   (2) recall the multiplicative formula
       d(N) = (e1+1)(e2+1)...(ek+1),
@@ -165,7 +165,7 @@ def generate(seed):
     )
     return problem, str(sympy.Integer(count))
 
-CONCEPT_REASON = "To solve, the reader must factor N into prime powers and apply the multiplicative divisor formula d(N) = prod(e_i + 1) — that factor-and-count is the problem's reasoning core."
+CONCEPT_REASON = "To solve, the solver must factor N into prime powers and apply the multiplicative divisor formula d(N) = prod(e_i + 1) — that factor-and-count is the problem's reasoning core."
 CONCEPT_GROUP = "number_theory"
 CONCEPT_TYPE = "number_theory.divisor_count"
 ```

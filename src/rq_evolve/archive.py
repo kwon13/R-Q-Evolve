@@ -301,17 +301,26 @@ class MAPElitesArchive:
     def champions(self) -> list[ProblemProgram]:
         return [n.champion for n in self.grid.values() if n.champion is not None]
 
+    @staticmethod
+    def _is_learnable(program: ProblemProgram | None) -> bool:
+        """RQ>0: a learnable parent. Too-easy generators (p_hat=1.0 -> RQ=0)
+        stay in the archive but are not selected for mutation."""
+        return program is not None and (program.rq_score or 0.0) > 0.0
+
     def sample_parent(self) -> ProblemProgram | None:
         occupied = [(key, n) for key, n in self.grid.items() if n.champion is not None]
         if not occupied:
             return None
+        # Prefer learnable (RQ>0) champions as mutation parents; fall back to all
+        # occupied niches when none are learnable (e.g. early bootstrap).
+        pool = [(key, n) for key, n in occupied if self._is_learnable(n.champion)] or occupied
 
         if self.selection_strategy == "random":
-            key, niche = random.choice(occupied)
+            key, niche = random.choice(pool)
         elif random.random() < self.epsilon:
-            key, niche = random.choice(occupied)
+            key, niche = random.choice(pool)
         else:
-            key, niche = self._sample_ucb(occupied)
+            key, niche = self._sample_ucb(pool)
         niche.selection_count += 1
         self.total_selections += 1
         assert niche.champion is not None
@@ -321,10 +330,14 @@ class MAPElitesArchive:
         champions = self.champions()
         if len(champions) < 2:
             return None, None
+        # Both parents from learnable (RQ>0) champions when at least two exist;
+        # otherwise fall back to the full set so crossover is not starved.
+        learnable = [c for c in champions if self._is_learnable(c)]
+        pool = learnable if len(learnable) >= 2 else champions
         first = self.sample_parent()
         if first is None:
             return None, None
-        remaining = [p for p in champions if p.program_id != first.program_id]
+        remaining = [p for p in pool if p.program_id != first.program_id]
         if not remaining:
             return None, None
         return first, random.choice(remaining)

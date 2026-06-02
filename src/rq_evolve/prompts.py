@@ -1,38 +1,52 @@
-"""Prompt builders for mutation and solver rollout."""
-
-from __future__ import annotations
-
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from string import Template
 
+from .code_utils import strip_module_docstring
 from .program import ProblemProgram
-
-MUTATION_SYSTEM_PROMPT = (
-    "You write Python programs that generate competition-math problems. "
-    "Each program must define generate(seed) and return (problem, answer). "
-    "Use inverse construction: choose the answer or hidden structure first, "
-    "then build the problem around it. "
-    "\n\n"
-    "Anti-cloning and anti-triviality rules: "
-    "Each mutation must alter the underlying mathematical task, not just its surface. "
-    "Reject near-constant generators, paraphrases, clones, numeric-only tweaks, and "
-    "template variants that change only numbers, names, formatting, or wording. "
-    "A valid mutation introduces real structural change—a new reasoning path, "
-    "an added constraint, a hidden construction, a different object type, "
-    "or a nontrivial composition of concepts. "
-    "\n\n"
-    "The program should generate seed-dependent, non-degenerate, "
-    "competition-style problems with a single well-defined answer. "
-    "Avoid hard-coded problems, fixed answers, or instances solvable by the "
-    "same method across nearly all seeds. "
-    "\n\n"
-    "Please reason step by step, and put your final answer within ```python ```"
-)
 
 SOLVER_SYSTEM_PROMPT = (
     "Please reason step by step, and put your final answer within \\boxed{}."
+)
+
+CONCEPT_GROUPS: tuple[str, ...] = (
+    "number_theory",
+    "combinatorics",
+    "sequence",
+    "algebra",
+    "geometry",
+    "inequality",
+)
+
+groups = ", ".join(CONCEPT_GROUPS)
+
+MUTATION_SYSTEM_PROMPT = (
+    "You design a Python program for competition-math problems. "
+    "Each file defines `generate(seed)`, which returns one "
+    "(problem_text, answer) pair, and then labels what it produced.\n"
+    "\n"
+    "Output structure, in this order:\n"
+    "  1. an optional module docstring — the mutation idea and how "
+    "the resulting problem is solved;\n"
+    "  2. imports (only collections, fractions, functools, itertools, "
+    "math, random, sympy);\n"
+    "  3. `def generate(seed)`;\n"
+    "  4. the constants CONCEPT_REASON, CONCEPT_GROUP, CONCEPT_TYPE, "
+    "in that order.\n"
+    "\n"
+    f"CONCEPT_GROUP must be exactly one of: {groups}\n"
+    "CONCEPT_TYPE is a free-form '<group>.<snake_case_name>' string.\n"
+    "Fill the three constants:\n"
+    "  - CONCEPT_REASON: It must describe the core mathematical reasoning the solver performs based strictly on the problem text. If the problem reduces to a simple operation, state it plainly rather than overcomplicating the label."
+    "\n"
+    "  - CONCEPT_GROUP and CONCEPT_TYPE: name the reasoning that CONCEPT_REASON describes."
+    "\n"
+    "  - The problem text must never reveal the answer's value — no "
+    "\"... and the result is 17\", no \"simplify A/B = 2002\". The "
+    "solver computes it.\n"
+    "\n"
+    "Please reason step by step, and put your final program within ```python ```"
 )
 
 
@@ -121,7 +135,7 @@ def _template_context(
         "few_shot_examples": _load_shot_examples(op),
         "parent_id": parent.program_id,
         "parent_generation": str(parent.generation),
-        "parent_source": parent.source_code,
+        "parent_source": strip_module_docstring(parent.source_code),
         "parent_concept_group": str(parent.get_concept_group() or ""),
         "parent_concept_type": str(parent.get_concept_type() or ""),
         "parent_p_hat": f"{float(getattr(parent, 'p_hat', 0.0) or 0.0):.3f}",
@@ -133,7 +147,7 @@ def _template_context(
             {
                 "parent_b_id": parent_b.program_id,
                 "parent_b_generation": str(parent_b.generation),
-                "parent_b_source": parent_b.source_code,
+                "parent_b_source": strip_module_docstring(parent_b.source_code),
                 "parent_b_concept_group": str(parent_b.get_concept_group() or ""),
                 "parent_b_concept_type": str(parent_b.get_concept_type() or ""),
                 "parent_b_p_hat": f"{float(getattr(parent_b, 'p_hat', 0.0) or 0.0):.3f}",

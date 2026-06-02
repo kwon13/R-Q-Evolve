@@ -1,14 +1,5 @@
 Task: write a deeper variant of the parent generator.
 
-Stay in the same mathematical domain:
-- parent CONCEPT_GROUP: $parent_concept_group
-- parent CONCEPT_TYPE: $parent_concept_type
-
-Parent score diagnostics:
-- p_hat: $parent_p_hat
-- uncertainty/H: $parent_h_score
-- R_Q: $parent_rq_score
-
 Depth means adding one substantive reasoning stage beyond the parent:
 - wrap the same object in a theorem or identity,
 - lift scalar reasoning to a structured object,
@@ -20,7 +11,17 @@ Use inverse construction so the answer is correct by construction.
 
 $few_shot_examples
 
+---
+
+Parent score diagnostics:
+- p_hat: $parent_p_hat
+- uncertainty/H: $parent_h_score
+- R_Q: $parent_rq_score
+
 Parent program:
 ```python
 $parent_source
+
+CONCEPT_GROUP = "$parent_concept_group"
+CONCEPT_TYPE = "$parent_concept_type"
 ```

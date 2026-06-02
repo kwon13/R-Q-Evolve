@@ -32,7 +32,7 @@ Deepens modular_reduction: the parent reduces a given integer
 N mod p in one step; this child asks for a^b mod p with b far
 too large to form a^b directly.
 
-To solve, given only a, b, p, the reader must:
+To solve, given only a, b, p, the solver must:
   (1) see that forming a^b directly is hopeless,
   (2) recall Fermat's little theorem a^(p-1) ≡ 1 (mod p) for
       gcd(a, p) = 1,
@@ -74,7 +74,7 @@ def generate(seed):
     )
     return problem, str(sympy.Integer(answer))
 
-CONCEPT_REASON = "To solve, the reader must recognise a too-large exponent forces Fermat's little theorem to reduce it mod (p-1) before the final mod-p reduction — that exponent reduction is the problem's reasoning core."
+CONCEPT_REASON = "To solve, the solver must recognise a too-large exponent forces Fermat's little theorem to reduce it mod (p-1) before the final mod-p reduction — that exponent reduction is the problem's reasoning core."
 CONCEPT_GROUP = "number_theory"
 CONCEPT_TYPE = "number_theory.modular_reduction"
 ```
@@ -131,7 +131,7 @@ remainder of a higher-degree p(x) divided by (x - c), the
 linear divisor lightly disguised so the identity is not a
 surface match.
 
-To solve, given the polynomial and the divisor, the reader
+To solve, given the polynomial and the divisor, the solver
 must:
   (1) see that explicit polynomial division is messy at the
       stated degree,
@@ -197,7 +197,7 @@ def generate(seed):
     )
     return problem, str(sympy.Integer(answer))
 
-CONCEPT_REASON = "To solve, the reader must recognise division by a linear factor (x - c) reduces to evaluating p(c) via the remainder theorem — that substitution is the problem's reasoning core."
+CONCEPT_REASON = "To solve, the solver must recognise division by a linear factor (x - c) reduces to evaluating p(c) via the remainder theorem — that substitution is the problem's reasoning core."
 CONCEPT_GROUP = "algebra"
 CONCEPT_TYPE = "algebra.polynomial_evaluation"
 ```

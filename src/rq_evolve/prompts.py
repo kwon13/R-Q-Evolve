@@ -13,7 +13,22 @@ MUTATION_SYSTEM_PROMPT = (
     "You write Python programs that generate competition-math problems. "
     "Each program must define generate(seed) and return (problem, answer). "
     "Use inverse construction: choose the answer or hidden structure first, "
-    "then build the problem around it. Output Python source only."
+    "then build the problem around it. "
+    "\n\n"
+    "Anti-cloning and anti-triviality rules: "
+    "Each mutation must alter the underlying mathematical task, not just its surface. "
+    "Reject near-constant generators, paraphrases, clones, numeric-only tweaks, and "
+    "template variants that change only numbers, names, formatting, or wording. "
+    "A valid mutation introduces real structural change—a new reasoning path, "
+    "an added constraint, a hidden construction, a different object type, "
+    "or a nontrivial composition of concepts. "
+    "\n\n"
+    "The program should generate seed-dependent, non-degenerate, "
+    "competition-style problems with a single well-defined answer. "
+    "Avoid hard-coded problems, fixed answers, or instances solvable by the "
+    "same method across nearly all seeds. "
+    "\n\n"
+    "Please reason step by step, and put your final answer within ```python ```"
 )
 
 SOLVER_SYSTEM_PROMPT = (

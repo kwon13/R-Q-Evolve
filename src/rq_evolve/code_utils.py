@@ -19,10 +19,18 @@ FORBIDDEN_SOURCE_PATTERNS = (
 
 
 def extract_generator_code(text: str) -> str | None:
-    """Extract the best parseable Python block containing ``generate``."""
-    candidates: list[str] = []
-    for match in re.finditer(r"```(?:python)?\s*\n(.*?)```", text, re.DOTALL):
-        candidates.append(match.group(1).strip())
+    """Extract the best parseable Python block containing ``generate``.
+
+    Prefers the LAST parseable fenced block: when the model thinks first and a
+    draft ``generate`` appears in a ```python``` fence inside <think>, the final
+    program (the last fence) wins instead of the draft. Falls back to an
+    import/def scan and the whole text when no fenced block parses.
+    """
+    # Fenced blocks in REVERSE document order -> last fence tried first.
+    candidates: list[str] = [
+        match.group(1).strip()
+        for match in re.finditer(r"```(?:python)?\s*\n(.*?)```", text, re.DOTALL)
+    ][::-1]
 
     lines = text.splitlines()
     for i, line in enumerate(lines):

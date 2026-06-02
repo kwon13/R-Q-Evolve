@@ -1,7 +1,3 @@
-"""Framework-free R_Q-Evolve orchestration loop."""
-
-from __future__ import annotations
-
 import json
 import random
 from dataclasses import asdict, dataclass, field

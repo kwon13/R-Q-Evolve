@@ -1,12 +1,3 @@
-"""Training adapter for the pip-installed verl package.
-
-The user's virtualenv decides the exact verl version.  This module keeps the
-R-Q-Evolve side small and uses runtime imports/signature checks for the verl
-APIs that have moved between releases.
-"""
-
-from __future__ import annotations
-
 import importlib
 import importlib.metadata as metadata
 import importlib.util
@@ -368,6 +359,16 @@ class VerlTrainerAdapter:
         seeds = evolver.load_seed_programs(seed_dir)
         if not seeds:
             raise ValueError(f"no valid seed programs in {seed_dir}")
+
+        # vLLM launches with dummy (random) weights and is only synced via
+        # update_weights. The training loop and the evolve phase push their own
+        # weights, but bootstrap is a third generation site: push the live actor
+        # weights ONCE here so the solver rollouts use the real policy. Without
+        # this every seed scores ~random -> p_hat 0 -> empty training dataset.
+        # (Previously begin_session pushed per session; that was removed when the
+        # resident model made per-session pushes redundant -- but bootstrap still
+        # needs the initial sync.)
+        evolver.backend.sync_weights()
 
         inserted = 0
         for program in seeds:

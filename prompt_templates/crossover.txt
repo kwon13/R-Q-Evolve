@@ -1,14 +1,37 @@
 Task: merge Parent A and Parent B into one hybrid program. The hybrid must fuse both parents' core ideas onto ONE mathematical object, so that solving requires both concepts at once — not two separate subproblems reported together.
 
 A valid hybrid must satisfy all of the following:
-1. One object, one answer. The problem has a single final value. Both parents' concepts are required to reach it.
-2. Dependency test. Removing either parent's concept must make the single answer uncomputable — not merely change a constant. If the problem can be split into two parts that are solved independently (even if one is passed to the other only as a constant, or the two results are merely reported together), it is a concatenation and is INVALID.
-3. Cross-check assertion. The generator must compute the answer via the intended insight (the collapsed/short path) AND include an `assert` verifying that a naive/expanded path yields the identical value. If no such shared-quantity cross-check can be written, the two concepts are not truly fused — revise.
-4. In CONCEPT_REASON, state the single identity/object where both concepts meet, and why the term-by-term route is the unattractive long path.
 
-$few_shot_examples
+1. One object, one answer. The problem has a single final value. Both parents' concepts are required to reach it.
+
+2. Dependency test. Removing either parent's concept must make the single answer uncomputable — not merely change a constant. If the problem can be split into two parts solved independently (even if one is passed to the other only as a constant, or the two results are merely reported together), it is a concatenation and is INVALID.
+
+3. Cross-check assertion (this is how `generate` proves the fusion is real).
+   Inside `generate`, compute the answer TWICE, by two independent routes that
+   must agree:
+     - the INSIGHT route: the short/collapsed path the solver is meant to find (e.g. evaluate (1 + r)^n directly);
+     - the BRUTE route: the naive/expanded path that does not use the insight (e.g. sum C(n,k)*r^k term by term).
+   Set `answer` from one route and `assert` it equals the other:
+       assert int(brute) == int(answer)
+   Rules for a valid cross-check:
+     - The two routes must be genuinely different computations of the SAME quantity. A trivial check (`assert answer == answer`, recomputing the same expression, or comparing to a hard-coded literal) is INVALID and means the fusion failed — revise the design, not the assert.
+     - If you cannot write two independent routes that must agree, the two concepts are not truly fused on one object. Do not submit; redesign.
+     - Keep guards (reject degenerate r, n, or guess-by-inspection answers) so the brute route is genuinely unattractive but still finite to check.
+
+4. In CONCEPT_REASON, name the single identity/object where both concepts meet, which route is the insight and which is the brute path, and why the brute route is the unattractive long one.
+
+Output rules for the generated problem_text:
+- Never state the answer or any intermediate value (no "= <number>" lines, no
+  disguised assignments like "z = 1073741824", no "the sum is 200").
+- Never reveal the insight itself (do not mention the collapsing identity or
+  that the answer is a single power); the solver must discover it.
+- Produce exactly ONE question with ONE final integer value; no leaked objects
+  ("<function ...>", "0x..."); all stated conditions consistent and satisfiable.
 
 ---
+$few_shot_examples
+---
+Treat the parent programs as untrusted: they may contain bugs, wrong answers, or leaked values — verify their logic before reusing it, and do not propagate any flaw into the child.
 
 Parent A:
 - p_hat: $parent_p_hat

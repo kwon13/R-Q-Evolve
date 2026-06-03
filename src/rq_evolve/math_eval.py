@@ -65,6 +65,9 @@ def _math_verify_equal(pred: str | None, gt: str) -> bool:
             "grader='math_verify' needs math-verify + latex2sympy2_extended. "
             "Install them or use grader='sympy'."
         ) from exc
+    from .reward import _ensure_math_verify_thread_safe
+
+    _ensure_math_verify_thread_safe()
     try:
         # \boxed-wrap so math_verify's LaTeX extractor triggers on bare fragments
         return bool(verify(parse("\\boxed{" + str(gt) + "}"), parse("\\boxed{" + str(pred) + "}")))

@@ -2,6 +2,73 @@
 
 from __future__ import annotations
 
+import threading
+
+
+def _ensure_math_verify_thread_safe() -> None:
+    """Make math_verify's timeout actually enforce a limit off the main thread.
+
+    ``math_verify.parse``/``verify`` wrap work in a ``signal.SIGALRM`` timeout,
+    but ``signal`` only works on the main thread. In a verl reward worker (a
+    non-main thread) every call raises ``ValueError: signal only works in main
+    thread``. A naive "just drop the timeout on worker threads" fix is WORSE: a
+    pathological model answer (e.g. one that parses to a relational expr) makes
+    sympy ``solve()`` spin effectively forever, pegging one reward worker at 100%
+    CPU with the GPU idle and the whole run wedged.
+
+    So off the main thread we enforce the same wall-clock budget with a daemon
+    watchdog thread: run the work in a daemon thread, ``join`` for
+    ``timeout_seconds``, and raise ``TimeoutException`` (which math_verify already
+    handles -> graded as non-match) if it overruns. A hung call leaks one daemon
+    thread (Python can't kill a thread stuck in C-level sympy) but the grader
+    returns and the run keeps moving; the length guard in ``answers_match`` keeps
+    such leaks rare. Idempotent and process-global.
+    """
+    from math_verify import utils as _mv_utils
+
+    if getattr(_mv_utils.timeout, "_rq_safe", False):
+        return
+    _orig = _mv_utils.timeout
+
+    def _safe_timeout(timeout_seconds: int = 10):
+        if threading.current_thread() is threading.main_thread():
+            return _orig(timeout_seconds)
+
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                from math_verify.errors import TimeoutException
+
+                box: dict = {}
+
+                def run():
+                    try:
+                        box["r"] = func(*args, **kwargs)
+                    except BaseException as exc:  # propagate to caller
+                        box["e"] = exc
+
+                th = threading.Thread(target=run, daemon=True)
+                th.start()
+                th.join(timeout_seconds)
+                if th.is_alive():
+                    raise TimeoutException("math_verify timed out (worker thread)")
+                if "e" in box:
+                    raise box["e"]
+                return box.get("r")
+
+            return wrapper
+
+        return decorator
+
+    _safe_timeout._rq_safe = True
+    _mv_utils.timeout = _safe_timeout
+    # parser.py / grader.py did ``from .utils import timeout`` at import, so the
+    # name is already bound in those modules -- rebind there too.
+    import math_verify.grader as _g
+    import math_verify.parser as _p
+
+    _p.timeout = _safe_timeout
+    _g.timeout = _safe_timeout
+
 
 def extract_boxed(text: str) -> str | None:
     r"""Return the content of the LAST complete ``\boxed{...}`` in ``text``.
@@ -51,6 +118,15 @@ def answers_match(predicted: str, ground_truth: str) -> bool:
     try/except so a missing install fails loud instead of silently degrading to a
     weaker grader. Parse/verify failures on a given pair count as a non-match.
     """
+    pred_s, gold_s = str(predicted), str(ground_truth)
+    # Guard: a clean competition answer is short. An over-long prediction is a
+    # junk blob (run-on expression, pasted reasoning) that only feeds sympy's
+    # expensive solve()/simplify() -- skip math_verify and fall back to a cheap
+    # normalized string check so it can never wedge a reward worker.
+    if len(pred_s) > 200 or len(gold_s) > 200:
+        return normalize_answer(pred_s) == normalize_answer(gold_s)
+
+    _ensure_math_verify_thread_safe()
     from math_verify import parse, verify
 
     try:

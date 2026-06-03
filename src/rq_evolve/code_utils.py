@@ -156,23 +156,21 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
 
     lowered = problem.lower()
 
-    # 1) repr / object leakage — f-string formatted a function or object
-    #    e.g. "<function lcm at 0x...>", "<built-in ...>", "0x7f..."
+    # 1) repr / object leakage
     if re.search(r"<(?:function|built-in|class|bound method|module)\b", problem):
         reasons.append("object repr leaked into problem text")
     if re.search(r"0x[0-9a-fA-F]{6,}", problem):
         reasons.append("memory address leaked into problem text")
 
-    # 2) the literal answer appears in the problem text (answer leakage)
-    #    guard against trivial short answers to avoid false positives
+    # 2) literal answer appears in the problem text
     if _answer_leaks_into_problem(answer, problem):
         reasons.append("answer leaked into problem text")
 
-    # 3) answer disguised as a variable assignment, e.g. "z = 64" at the end
+    # 3) answer disguised as a variable assignment
     if _answer_leaks_as_assignment(answer, problem):
         reasons.append("answer leaked via variable assignment")
 
-    # 4) multi-problem concatenation cues (soft: marker + multiple imperatives)
+    # 4) soft concatenation cue: marker + multiple imperatives
     concat_markers = (
         "additionally", "now consider", "now, consider",
         "find the value of x in the following",
@@ -182,9 +180,7 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
     if len(hits) >= 1 and _looks_multi_answer(problem):
         reasons.append(f"possible concatenation: {hits}")
 
-    # 4b) strong concatenation markers — these phrases essentially never occur
-    #     in a single-answer competition problem, so flag them on their own
-    #     (catches single-verb staplings the soft rule above misses).
+    # 4b) strong concatenation markers
     if re.search(
         r"\b(also compute|and then (?:compute|calculate)|"
         r"separately(?: compute)?|total sum of all parts)\b",
@@ -192,30 +188,58 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
     ):
         reasons.append("explicit concatenation marker")
 
-    # 5) self-contradictory numeric range like "216 < N < 8"
+    # 5) self-contradictory numeric range
     for lo, var, hi in re.findall(
         r"(\d+)\s*<\s*([A-Za-z]\w*)\s*<\s*(\d+)", problem
     ):
         if int(lo) >= int(hi):
             reasons.append(f"contradictory range: {lo} < {var} < {hi}")
 
-    # 6) intermediate computed-value leak — an appositive that hands the solver
-    #    a sub-result it was supposed to compute, e.g. "..., which is 200" or
-    #    "the sum of the first 9 terms ... is 2268".
+    # 6) intermediate computed-value leak
     if re.search(r"\bwhich (?:is|equals|gives)\s+-?\d{2,}", problem, re.IGNORECASE) or \
        re.search(r"\bsum\b[^.]{0,40}\bis\s+-?\d{3,}", problem, re.IGNORECASE):
         reasons.append("intermediate result leaked into problem text")
 
-    # 7) pre-computed data dump — two or more "<expr> = <bignum>" / "label: <bignum>"
-    #    facts (4+ digit RHS so genuine small givens like "PA = 9" don't trip it).
+    # 7) pre-computed data dump
     if len(re.findall(r"[=:]\s*-?\d{4,}\b", problem)) >= 2:
         reasons.append("pre-computed data dump in problem text")
 
-    # 8) malformed / nested LaTeX delimiters, e.g. "\( PA = 9, AB = 21, and \( PC"
+    # 8) malformed / nested LaTeX delimiters
     if re.search(r"\\\([^)]*\\\(", problem):
         reasons.append("malformed/nested LaTeX delimiters")
 
+    # 9) structural multi-problem: two or more independent questions, even with
+    #    NO concatenation marker (catches the marker-free stapling that 4/4b miss,
+    #    e.g. a number-theory paragraph followed by a committee paragraph).
+    if _counts_independent_questions(problem) >= 2:
+        reasons.append("multiple independent questions in problem text")
+
     return reasons
+
+
+def _counts_independent_questions(problem: str) -> int:
+    """Count distinct answer-demanding questions.
+
+    A single multi-step problem normally issues ONE final demand ("find X").
+    Two or more separate demands — each phrased as its own question — is the
+    signature of a stapled multi-problem, regardless of any linking word.
+    """
+    # explicit question marks
+    q_marks = problem.count("?")
+    # imperative answer-demands ("how many", "find", "compute", "solve for",
+    # "determine", "calculate"), counted as occurrences
+    demands = re.findall(
+        r"\b(how many|find|compute|calculate|determine|solve for|"
+        r"evaluate)\b",
+        problem, re.IGNORECASE,
+    )
+    # Question marks are a clean signal (a single problem normally has one "?").
+    # Demand verbs are NOISY: a legitimate multi-step problem routinely chains
+    # two of them on one object -- "compute ... find ... mod 1000", "find all x
+    # ... and sum them" -- which are exactly the high-RQ AIME-style problems we
+    # must not reject. So count demands as multiple questions only at 3+ (i.e.
+    # demands - 1), while 2+ question marks alone still flags a stapled pair.
+    return max(q_marks, len(demands) - 1)
 
 
 def _answer_leaks_into_problem(answer: str, problem: str) -> bool:

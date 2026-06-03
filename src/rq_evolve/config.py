@@ -31,7 +31,7 @@ class EvolutionConfig:
     frontier_p_hat_range: tuple[float, float] = (0.1, 0.9)
     # When True, a child that parses but fails verification gets ONE multi-turn
     # self-fix attempt: the model is shown its own program + the rejection reason
-    # and asked to fix only that issue (Reflexion-style).
+    # and asked to fix only that issue.
     fix_retry: bool = True
 
 

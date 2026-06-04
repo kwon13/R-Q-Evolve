@@ -27,6 +27,7 @@ evolution:
   verify_seeds: 5
   frontier_p_hat_range: [0.0, 1.0]
   fix_retry: false
+  use_evaluator: true        # LLM coherence gate on seed-0 problem before archive
 
 training_data:
   instances_per_program: 8
@@ -46,6 +47,12 @@ math_eval:
   benchmarks: [math500, amc23, aime24, aime25, minerva_math, olympiadbench]
   max_samples_per_benchmark: -1
   sample_seed: 42
+  # OFF for periodic in-trainer eval: R-Zero's x32 AMC/AIME inflation makes the
+  # set ~4.6k prompts, and grading them serially through math_verify (sympy) on
+  # the base model's pathological boxed outputs clogs the async reward workers
+  # -> GPU sits at 0% mid-eval. Without inflation the set is ~1.5k. Offline final
+  # eval still uses full x32 (load_math_benchmark defaults inflate=True).
+  inflate_x32: false
   grader: sympy
 
 # ----------------------------------------------------------------------------
@@ -204,11 +211,10 @@ verl_config:
       - console
       - wandb
     nnodes: 1
-    # EasyR1 trainer.n_gpus_per_node: 4
     n_gpus_per_node: 8
     # Skip the pre-step-0 validation pass — the full benchmark set is ~1.5k
     # prompts and takes ~10-15 minutes; periodic eval at test_freq still runs.
-    val_before_train: false
+    val_before_train: true
     # ~50 gives a few evals within total_training_steps=256. NOTE: the full
     # benchmark set (AMC/AIME are ×32-inflated) is thousands of prompts per
     # eval; lower test_freq or math_eval.max_samples_per_benchmark for cheap.
@@ -218,8 +224,12 @@ verl_config:
     # checkpoint dir so ablations never share an archive).
     default_local_dir: "${oc.env:RQ_LOCAL_DIR,'./rq_output/rq_evolve_base'}"
     device: cuda
-    # The RQ MAP-Elites archive is NOT part of the verl checkpoint, so auto-resume
-    # would reload weights against an un-restored archive. Keep resume disabled.
+    # Resume: weights resume from the latest global_step_* via verl's `auto`
+    # (reads latest_checkpointed_iteration.txt). The RQ MAP-Elites archive lives
+    # outside the verl checkpoint but is ALWAYS restored independently at startup
+    # via evolver.load_state(archive_dir) from rq_archive/archive.json (+
+    # rq_used_seeds.json), so weights and archive resume consistently. Set to
+    # `disable` for a fresh run from the base model.
     resume_mode: disable
 
   ray_init:

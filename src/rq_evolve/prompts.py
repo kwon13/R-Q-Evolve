@@ -26,7 +26,7 @@ MUTATION_SYSTEM_PROMPT = (
     "Each file defines `generate(seed)`, which returns one "
     "(problem_text, answer) pair, and then labels what it produced.\n"
     "Each parent carries three solver signals:\n"
-    "  - p_hat: the solver's success rate (0-1).\n"
+    "  - p_hat: the solver's empirical success rate (0-1); the term p(1-p) is its variance, peaking at p_hat = 0.5.\n"
     "  - uncertainty/H: how unsure the solver is; higher is better.\n"
     "  - R_Q: the product p_hat * H, the problem's overall quality.\n"
     "Design the new problem to maximize R_Q: since it is p_hat * H, aim for the edge of the solver's ability — solvable, yet still uncertain.\n"
@@ -49,6 +49,16 @@ MUTATION_SYSTEM_PROMPT = (
     "Please reason step by step, and put your final program within ```python ```"
 )
 
+EVALUATOR_SYSTEM_PROMPT = (
+    "You are an evaluator for math word problems.\n"
+    "Your task is to determine whether the problem statement itself is internally coherent.\n\n"
+    "Mark the problem as INVALID if any stated condition, theorem, system, recurrence, optimization, or variable definition is not logically connected to the final question (even if the answer can still be computed by ignoring it), if the statement combines two or more independent problems or poses multiple unrelated final questions, if the same variable name is reused for unrelated objects in an ambiguous way, or if the final requested answer does not follow from the stated problem; otherwise, check for contradictory conditions, irrelevant conditions, inapplicable claims about solution methods, and extraneous assumptions.\n"
+    "Return:\n"
+    "- reason: concise explanation\n"
+    "- verdict: VALID or INVALID"
+)
+
+EVALUATOR_SHOT_FILE = "evaluator.txt"
 
 @dataclass(slots=True)
 class MutationTask:
@@ -83,17 +93,6 @@ def build_mutation_task(
     parent: ProblemProgram,
     parent_b: ProblemProgram | None = None,
 ) -> MutationTask:
-    """Build one mutation prompt from ``prompt_templates/<op>.txt``.
-
-    Edit these files to customize each mutation operator:
-      - prompt_templates/in_depth.txt
-      - prompt_templates/in_breadth.txt
-      - prompt_templates/crossover.txt
-
-    Templates use ``string.Template`` placeholders such as
-    ``$few_shot_examples``, ``$parent_source``, and ``$parent_b_source`` so
-    Python code blocks can contain normal ``{...}`` braces without escaping.
-    """
     if op not in PROMPT_TEMPLATE_FILES:
         raise ValueError(f"unknown mutation op: {op}")
     if op == "crossover" and parent_b is None:
@@ -117,15 +116,6 @@ def build_fix_task(
     failed_output: str,
     reason: str,
 ) -> MutationTask:
-    """One-shot multi-turn self-fix task.
-
-    Builds the conversation ``[system(rules), user(original mutation task),
-    assistant(the rejected output verbatim), user(rejection reason + fix
-    request)]``. Because the rejected program lives in the assistant turn, it is
-    NOT re-quoted in the user turn. The backend renders ``messages`` directly and
-    clips the middle turns first if the conversation exceeds the prompt budget,
-    so the system rules and the final fix request are always preserved.
-    """
     original_user = task.prompt
     if original_user.startswith(MUTATION_SYSTEM_PROMPT):
         original_user = original_user[len(MUTATION_SYSTEM_PROMPT):].lstrip("\n")
@@ -149,6 +139,80 @@ def build_fix_task(
         parent_b=task.parent_b,
         messages=messages,
     )
+
+
+def _load_evaluator_shots() -> str:
+    path = SHOT_TEMPLATE_DIR / EVALUATOR_SHOT_FILE
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8").strip()
+
+
+def build_evaluator_messages(problem_text: str) -> list[dict]:
+    """Render the coherence-check conversation for one problem.
+
+    The shot file demonstrates the ``Problem: ... Answer: reason: ... verdict:``
+    format, so the user turn presents only the problem text and stops at
+    ``Answer:`` for the model to continue. The math answer is deliberately
+    omitted: the evaluator judges the *statement's* internal coherence, not
+    whether a number is correct.
+    """
+    shots = _load_evaluator_shots()
+    blocks: list[str] = []
+    if shots:
+        blocks.append(shots)
+    blocks.append(
+        "Now evaluate the following problem.\n\n"
+        f"Problem:\n{problem_text.strip()}\n\n"
+        "Answer:"
+    )
+    return [
+        {"role": "system", "content": EVALUATOR_SYSTEM_PROMPT},
+        {"role": "user", "content": "\n\n".join(blocks)},
+    ]
+
+
+def build_evaluator_task(program: ProblemProgram, problem_text: str) -> MutationTask:
+    """Wrap an evaluator query as a MutationTask so ``backend.mutate`` can run it.
+
+    Reuses the existing batched generate path (mutate reads ``messages``); no new
+    backend method is needed. ``parent`` carries the program under review purely
+    for reporting -- mutate only consumes ``messages``/``prompt``.
+    """
+    messages = build_evaluator_messages(problem_text)
+    flat = f"{messages[0]['content']}\n\n{messages[1]['content']}"
+    return MutationTask(op="evaluate", prompt=flat, parent=program, messages=messages)
+
+
+def parse_evaluator_verdict(output: str) -> tuple[bool, str]:
+    """Parse an evaluator response into ``(is_valid, reason)``.
+
+    A candidate passes ONLY on an explicit VALID verdict. Reads the ``verdict:`` /
+    ``reason:`` lines first, then falls back to scanning the whole text. Anything
+    else -- INVALID, no verdict at all, empty, or off-format output -- is treated
+    as NOT valid and discarded, so only problems the evaluator clearly endorses
+    reach the archive. ``INVALID`` is checked before ``VALID`` because it contains
+    ``VALID`` as a substring.
+    """
+    text = output or ""
+    reason = ""
+    verdict = ""
+    for line in text.splitlines():
+        low = line.strip().lower()
+        if low.startswith("reason:"):
+            reason = line.split(":", 1)[1].strip()
+        elif low.startswith("verdict:"):
+            verdict = line.split(":", 1)[1].strip().upper()
+    if not verdict:
+        upper = text.upper()
+        if "INVALID" in upper:
+            verdict = "INVALID"
+        elif "VALID" in upper:
+            verdict = "VALID"
+    is_valid = verdict.startswith("VALID")  # INVALID / missing / off-format -> discard
+    if not reason:
+        reason = text.strip()[:300] or "no explicit VALID verdict"
+    return is_valid, reason
 
 
 def _load_prompt_template(op: str) -> str:

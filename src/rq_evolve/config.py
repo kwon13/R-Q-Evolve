@@ -1,11 +1,8 @@
-"""Typed configuration for the educational R_Q-Evolve pipeline."""
-
-from __future__ import annotations
-
 import ast
 from dataclasses import MISSING, dataclass, field, fields, is_dataclass
 from pathlib import Path
 from typing import Any
+from omegaconf import OmegaConf
 
 
 @dataclass(slots=True)
@@ -33,6 +30,11 @@ class EvolutionConfig:
     # self-fix attempt: the model is shown its own program + the rejection reason
     # and asked to fix only that issue.
     fix_retry: bool = True
+    # When True, every lint-verified child (including fix-retry survivors) passes
+    # an LLM coherence gate on its seed-0 problem before solver rollout / archive
+    # insertion. A problem the evaluator marks INVALID is discarded -- a final
+    # noise filter against incoherent statements that pass the cheap lint checks.
+    use_evaluator: bool = True
 
 
 @dataclass(slots=True)
@@ -74,6 +76,11 @@ class MathEvalConfig:
     # Sub-sample per benchmark for quick debugging; -1 = full set (R-Zero parity).
     max_samples_per_benchmark: int = -1
     sample_seed: int = 42
+    # R-Zero x32-inflates AMC/AIME for greedy pass@1 stability. The in-trainer
+    # periodic eval defaults this OFF: the inflated set (~4.6k prompts at -1)
+    # grades serially through math_verify and stalls the run with GPU at 0%
+    # mid-eval. Set true only if you want full R-Zero parity in periodic eval.
+    inflate_x32: bool = False
     # "sympy" reuses reward.answers_match (no extra deps). "math_verify" matches
     # R-Zero numerically but needs math-verify + latex2sympy2_extended installed.
     grader: str = "sympy"
@@ -95,12 +102,7 @@ class RQEvolveConfig:
 def load_config(path: str | Path) -> RQEvolveConfig:
     """Load YAML via OmegaConf, with a tiny fallback for this simple config."""
     path = Path(path)
-    try:
-        from omegaconf import OmegaConf
-    except ImportError:
-        raw = _load_minimal_yaml(path)
-    else:
-        raw = OmegaConf.to_container(OmegaConf.load(path), resolve=True)
+    raw = OmegaConf.to_container(OmegaConf.load(path), resolve=True)
     if not isinstance(raw, dict):
         raise ValueError(f"config root must be a mapping: {path}")
     return RQEvolveConfig.from_dict(raw)

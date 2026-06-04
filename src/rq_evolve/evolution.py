@@ -14,7 +14,12 @@ from .concepts import validate_concept_decl
 from .config import EvolutionConfig, TrainingDataConfig
 from .dataset import DynamicProblemDataset, build_training_examples
 from .program import ProblemInstance, ProblemProgram
-from .prompts import build_fix_task, build_mutation_task
+from .prompts import (
+    build_evaluator_task,
+    build_fix_task,
+    build_mutation_task,
+    parse_evaluator_verdict,
+)
 from .scoring import RQResult, compute_rq_full
 
 
@@ -218,6 +223,11 @@ class RQEvolver:
             # generate reuses the already-awake rollout worker.
             self._resolve_retries(entries)
 
+            # Final coherence gate: drop verified children whose seed-0 problem
+            # the evaluator marks INVALID, BEFORE solver rollouts are spent on
+            # them. Runs in the same open vLLM session as mutate.
+            self._apply_evaluator(entries)
+
             to_eval = [e for e in entries if "child" in e]
             pending = self.backend.generate_rollouts(
                 [e["inst"] for e in to_eval],
@@ -339,6 +349,41 @@ class RQEvolver:
                     child_id=child.program_id if child else "",
                     reason=f"[after fix] {reason}",
                 )
+
+    def _apply_evaluator(self, entries: list[dict]) -> None:
+        """LLM coherence gate over every verified child's seed-0 problem.
+
+        For each ``{"task","child","inst"}`` entry the evaluator judges whether
+        the seed-0 problem statement is internally coherent (using
+        ``EVALUATOR_SYSTEM_PROMPT`` + the ``evaluator.txt`` shots). A child marked
+        INVALID is converted in place to an ``evaluator_rejected`` report, so it
+        is discarded before solver rollouts and never reaches the archive.
+
+        One batched ``mutate`` over all targets, run inside the already-open vLLM
+        session. Parsing failures / missing verdicts default to VALID (keep), so
+        the gate only ever removes a candidate on an explicit INVALID.
+        """
+        if not self.evolution_config.use_evaluator:
+            return
+        targets = [e for e in entries if "child" in e]
+        if not targets:
+            return
+        eval_tasks = [
+            build_evaluator_task(e["child"], e["inst"].problem) for e in targets
+        ]
+        outputs = self.backend.mutate(eval_tasks)
+        for e, output in zip(targets, outputs):
+            is_valid, reason = parse_evaluator_verdict(output or "")
+            if is_valid:
+                continue
+            task, child = e["task"], e["child"]
+            e.clear()
+            e["report"] = CandidateReport(
+                status="evaluator_rejected",
+                op=task.op,
+                child_id=child.program_id,
+                reason=reason,
+            )
 
     def _score_from_rollouts(
         self,

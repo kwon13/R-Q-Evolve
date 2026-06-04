@@ -1,0 +1,44 @@
+Example 1
+
+Problem:
+Compute the value of the sum C(14,0) + C(14,1)*2^1 + C(14,2)*2^2 + C(14,3)*2^3 + C(14,4)*2^4 + C(14,5)*2^5 + C(14,6)*2^6 + C(14,7)*2^7 + C(14,8)*2^8 + C(14,9)*2^9 + C(14,10)*2^10 + C(14,11)*2^11 + C(14,12)*2^12 + C(14,13)*2^13 + C(14,14)*2^14, where C(n, k) denotes the binomial coefficient. The system is solved using the Chinese Remainder Theorem, and the answer must be a single integer.
+
+Answer:
+reason: The flaw is in the final sentence. The statement "The system is solved using the Chinese Remainder Theorem" has nothing to do with this problem. This is a single-sum computation, and since there is no system of congruences, there is nothing for the CRT to be applied to. It appears that an irrelevant solution-method phrase was erroneously inserted from the generation program's seed/template.
+verdict: INVALID
+
+Example 2
+
+Problem:
+Given the sequence a(0) = 3 and the recurrence relation a(n) = 3 * a(n-1) + 1 for n >= 1, compute a(9). The sequence is defined by iteratively applying the recurrence, and the answer must be a single integer.
+
+Answer:
+reason: There is no contradiction in the problem itself. The initial value a(0) = 3 and the recurrence relation a(n) = 3 * a(n-1) + 1 for n >= 1 are consistent with each other, and there is sufficient information to compute the final question, a(9). The additional sentence is also consistent with the direction of the solution.
+verdict: VALID
+
+Example 3
+
+Problem:
+Two lines are defined by 2x + 3y = -18 and -2x + 6y = 11. Find the exact distance from their intersection point to the origin. State the answer as a simplified radical or rational number.
+
+Answer:
+reason: reason: The two lines are clearly defined, there are no irrelevant or contradictory conditions, no combination of independent problems, and no ambiguous reuse of variable names. The final question—the distance from the intersection point to the origin—follows directly and unambiguously from the stated conditions.
+verdict: VALID
+
+Example 4
+
+Problem:
+A positive integer N satisfies the system of congruences: N ≡ 14 (mod 19) and N ≡ 2 (mod 25). Additionally, N is equal to the binomial coefficient C(52, 10). The positive integers a, b, and c, such that a + b + c = 15, achieve the maximum value of (a + 2)(b + 2)(c + 2) when maximized using the AM-GM Inequality. Compute the binomial coefficient C(52, 10).
+
+Answer:
+reason: Multiple unrelated conditions are mixed into a single problem—the congruences (N ≡ 14 mod 19, N ≡ 2 mod 25), the binomial coefficient condition (N = C(52,10)), and the a+b+c=15 optimization—yet the only thing asked is C(52,10), making the rest superfluous. They are also mutually incompatible: C(52,10) = 15820024220 does not yield 14 and 2 mod 19 and mod 25, so the premise that N = C(52,10) satisfies those congruences is false. This combination of unrelated and contradictory conditions falls under the INVALID criteria.
+verdict: INVALID
+
+Example 5
+
+Problem:
+Given the quadratic equation x^2 + -6x + -7 = 0 with roots r1 and r2, let u = 2 + 1/r1 and v = 2 + 1/r2. The coefficient of x in the monic quadratic with roots u and v is 22/7. Additionally, a positive integer N leaves a remainder of 8 when divided by 11, and a remainder of 12 when divided by 17. The number of such integers N in the range 1 to 38732, inclusive, is 207. Compute the sum of these two values.
+
+Answer:
+reason: Two independent problems are artificially combined, and the final "Compute the sum of these two values" asks for two mathematically unrelated quantities (the x-coefficient of a monic quadratic from a root transformation, and a count of N satisfying congruences) to be added together, which is meaningless. This combination of independent problems with unrelated final questions falls under the INVALID criteria.
+verdict: INVALID

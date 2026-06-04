@@ -123,10 +123,19 @@ def _load_hf(hf_id: str, split: str | None = None, config_name: str | None = Non
     return load_dataset(hf_id, split=split)
 
 
-def _load_benchmark_rows(name: str) -> list[dict[str, str]]:
+def _load_benchmark_rows(name: str, inflate: bool = True) -> list[dict[str, str]]:
     if name == "math500":
+        # The OpenAI simple-evals MATH-500 CSV "Answer" column holds the FULL
+        # solution text with the result in \boxed{...}, NOT the bare answer.
+        # Extract the boxed answer so grading compares answer-to-answer. Without
+        # this the >200-char solution trips answers_match's length guard into a
+        # normalized string-compare against the whole solution, and even a
+        # perfect solver scores ~0 on math500.
         rows = [
-            {"question": str(e["Question"]), "answer": str(e["Answer"])}
+            {
+                "question": str(e["Question"]),
+                "answer": extract_boxed(str(e["Answer"])) or str(e["Answer"]),
+            }
             for e in _load_math500_csv()
         ]
     elif name == "amc23":
@@ -160,7 +169,7 @@ def _load_benchmark_rows(name: str) -> list[dict[str, str]]:
     else:
         raise ValueError(f"unknown benchmark: {name!r}")
 
-    if name in INFLATE_X32:
+    if inflate and name in INFLATE_X32:
         rows = list(rows) * 32
     return rows
 
@@ -169,8 +178,9 @@ def load_math_benchmark(
     name: str,
     max_samples: int = -1,
     sample_seed: int = 42,
+    inflate: bool = True,
 ) -> list[MathBenchmarkProblem]:
-    rows = _load_benchmark_rows(name)
+    rows = _load_benchmark_rows(name, inflate=inflate)
     if max_samples is not None and int(max_samples) > 0 and len(rows) > int(max_samples):
         rng = random.Random(sample_seed)
         rows = [rows[i] for i in sorted(rng.sample(range(len(rows)), int(max_samples)))]
@@ -182,7 +192,7 @@ def load_math_benchmark(
     ]
     logger.info(
         "[math_eval] loaded %s: %d examples%s",
-        name, len(problems), " (x32)" if name in INFLATE_X32 else "",
+        name, len(problems), " (x32)" if (inflate and name in INFLATE_X32) else "",
     )
     return problems
 
@@ -259,11 +269,18 @@ def build_math_eval_val_dataset(math_eval_config, tokenizer, max_prompt_length: 
 
     max_samples = int(getattr(math_eval_config, "max_samples_per_benchmark", -1))
     sample_seed = int(getattr(math_eval_config, "sample_seed", 42))
+    # In-trainer periodic eval skips R-Zero's x32 AMC/AIME inflation by default:
+    # at -1 samples the inflated set is ~4.6k prompts, and grading them serially
+    # through math_verify (sympy) on the base model's pathological boxed outputs
+    # clogs the async reward workers -> GPU idles at 0% mid-eval. Without
+    # inflation the set is ~1.5k. Offline final eval (load_math_benchmark with
+    # the default inflate=True) keeps full R-Zero parity.
+    inflate = bool(getattr(math_eval_config, "inflate_x32", False))
 
     datasets = []
     for name in math_eval_config.benchmarks:
         try:
-            problems = load_math_benchmark(name, max_samples, sample_seed)
+            problems = load_math_benchmark(name, max_samples, sample_seed, inflate=inflate)
         except Exception as exc:
             logger.warning("[math_eval] skipping %s: %r", name, exc)
             continue

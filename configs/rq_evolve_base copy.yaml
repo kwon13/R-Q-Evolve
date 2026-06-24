@@ -10,7 +10,6 @@ archive:
   n_h_bins: 10
   n_div_bins: 6
   h_range: [0.1, 0.6]
-  # h_range: [0.05, 0.25]
   diversity_axis: concept_group
   epsilon: 0.3
   ucb_c: 1.0
@@ -21,10 +20,6 @@ evolution:
   inner_iterations: 32
   inner_iteration_batch_size: 32
   num_rollouts: 10
-  # R_Q uncertainty factor U: "entropy" (Shannon -sum p log p, the approximation)
-  # or "gini" (exact capacity factor 1 - sum p^2 = 1 - ||pi_t||^2). gini swaps
-  # verl's per-token entropy in each actor worker (see verl_patches.py).
-  uncertainty_measure: entropy
   # --- ablation knobs ---
   # in_breadth is NOT a knob: it is the remainder = 1 - crossover_ratio - in_depth_ratio.
   # crossover_ratio MUST be set explicitly to 0.0 to disable crossover; commenting it
@@ -63,6 +58,11 @@ math_eval:
   benchmarks: [math500, amc23, aime24, aime25, minerva_math, olympiadbench]
   max_samples_per_benchmark: -1
   sample_seed: 42
+  # OFF for periodic in-trainer eval: R-Zero's x32 AMC/AIME inflation makes the
+  # set ~4.6k prompts, and grading them serially through math_verify (sympy) on
+  # the base model's pathological boxed outputs clogs the async reward workers
+  # -> GPU sits at 0% mid-eval. Without inflation the set is ~1.5k. Offline final
+  # eval still uses full x32 (load_math_benchmark defaults inflate=True).
   inflate_x32: false
   grader: sympy
 
@@ -73,8 +73,8 @@ math_eval:
 verl_config:
   data:
     max_prompt_length: 6000
-    max_response_length: 5000
-    train_batch_size: 32
+    max_response_length: 6000
+    train_batch_size: 36
     val_batch_size: 60000
     shuffle: true
     truncation: left
@@ -97,7 +97,7 @@ verl_config:
       strategy: fsdp
       ppo_mini_batch_size: 32
       ppo_micro_batch_size: null
-      ppo_micro_batch_size_per_gpu: 2
+      ppo_micro_batch_size_per_gpu: 4
       use_dynamic_bsz: false
       # EasyR1 algorithm.use_kl_loss + kl_penalty + kl_coef
       use_kl_loss: true
@@ -161,9 +161,9 @@ verl_config:
       # forward plus resident optimizer states must coexist, so keep vLLM modest:
       # 0.45*97~=43 GB vLLM + ~42 GB actor (incl. optimizer) ~= 85 GB, with the
       # entropy transient shrunk via log_prob_micro_batch_size_per_gpu=1 below.
-      gpu_memory_utilization: 0.45
+      gpu_memory_utilization: 0.5
       max_model_len: 12000
-      max_num_batched_tokens: 12000
+      max_num_batched_tokens: 12288
       dtype: bfloat16
       enable_chunked_prefill: true
       enforce_eager: false

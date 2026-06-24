@@ -1,0 +1,152 @@
+archive:
+  n_h_bins: 10
+  n_div_bins: 6
+  h_range: [0.1, 0.6]
+  diversity_axis: concept_group
+  epsilon: 0.3
+  ucb_c: 1.0
+  selection_strategy: random
+
+evolution:
+  seed_programs_dir: seed_programs
+  inner_iterations: 32
+  inner_iteration_batch_size: 32
+  num_rollouts: 10
+  uncertainty_measure: entropy
+  in_depth_ratio: 0.5        # -> in_breadth = 1 - 0.0 - 0.5 = 0.5  (50/50 depth/breadth)
+  # -----------------------
+  verify_seeds: 5
+  frontier_p_hat_range: [0.0, 1.0]
+  fix_retry: false
+  use_evaluator: true
+  evolver_update: false
+  evolver_max_samples: null
+  evolver_reward_mode: valid_all
+
+training_data:
+  instances_per_program: 8
+  training_budget: null
+  strict_anti_reuse: true
+
+verl:
+  enabled: true
+  config_path: null
+  reward_function: ./src/rq_evolve/reward.py:compute_score
+  evolve_on_first_epoch: false
+
+math_eval:
+  enabled: true
+  benchmarks: [math500, amc23, aime24, aime25, minerva_math, olympiadbench]
+  max_samples_per_benchmark: -1
+  sample_seed: 42
+  inflate_x32: false
+  grader: sympy
+
+verl_config:
+  data:
+    max_prompt_length: 6000
+    max_response_length: 5000
+    train_batch_size: 32
+    val_batch_size: 60000
+    shuffle: true
+    truncation: left
+    dataloader_num_workers: 0
+    filter_overlong_prompts: false
+    trust_remote_code: true
+
+  actor_rollout_ref:
+    model:
+      path: /data1/yhoon113/OctoThinker-3B-Hybrid-Base
+      trust_remote_code: true
+      use_remove_padding: true
+      enable_gradient_checkpointing: true
+
+    actor:
+      strategy: fsdp
+      ppo_mini_batch_size: 32
+      ppo_micro_batch_size: null
+      ppo_micro_batch_size_per_gpu: 4
+      use_dynamic_bsz: false
+      use_kl_loss: true
+      kl_loss_coef: 1.0e-3
+      kl_loss_type: low_var_kl
+      use_torch_compile: false
+      fsdp_config:
+        param_offload: false
+        optimizer_offload: false
+      optim:
+        lr: 1.0e-6
+        weight_decay: 1.0e-2
+        lr_warmup_steps_ratio: 0.0
+        total_training_steps: 128
+
+    ref:
+      log_prob_micro_batch_size: null
+      log_prob_micro_batch_size_per_gpu: 4
+      fsdp_config:
+        param_offload: true
+
+    rollout:
+      name: vllm
+      mode: async
+      temperature: 1.0
+      top_p: 0.95
+      n: 8
+      tensor_model_parallel_size: 1
+      checkpoint_engine:
+        update_weights_bucket_megabytes: 4096
+      gpu_memory_utilization: 0.45
+      max_model_len: 12000
+      max_num_batched_tokens: 12000
+      dtype: bfloat16
+      enable_chunked_prefill: true
+      enforce_eager: false
+      free_cache_engine: false
+      enable_sleep_mode: false
+      log_prob_micro_batch_size: null
+      log_prob_micro_batch_size_per_gpu: 4
+
+  critic:
+    ppo_mini_batch_size: 32
+    ppo_micro_batch_size: null
+    ppo_micro_batch_size_per_gpu: 4
+
+  reward_model:
+    enable: false
+    reward_manager: naive
+
+  reward:
+    custom_reward_function:
+      path: ./src/rq_evolve/reward.py
+      name: compute_score
+    reward_manager:
+      source: register
+      name: naive
+    reward_model:
+      enable: false
+
+  algorithm:
+    adv_estimator: grpo
+    use_kl_in_reward: false
+    kl_penalty: low_var_kl
+    norm_adv_by_std_in_grpo: true
+
+  trainer:
+    total_epochs: 10000
+    total_training_steps: 128
+    project_name: rq_evolve
+    experiment_name: octo_3b_base_rq_evolve_base
+    logger:
+      - console
+      - wandb
+    nnodes: 1
+    n_gpus_per_node: 8
+    val_before_train: false
+    test_freq: 32
+    save_freq: 32
+    default_local_dir: ./rq_output/rq_evolve_octo_3b
+    device: cuda
+    resume_mode: auto
+
+  ray_init:
+    num_cpus: null

@@ -23,13 +23,12 @@ CONCEPT_GROUP = "sequence"
 CONCEPT_TYPE = "sequence.arithmetic_nth_term"
 ```
 
-MUTATED_PROGRAM_EXAMPLE_1:
+CHILD_PROGRAM_EXAMPLE_1:
 ```python
-"""In-breadth mutation generator.
+"""In-breadth mutation generator (cross-checked).
 
-Crosses domains from arithmetic_nth_term (a linear step in a
-discrete progression) to chord geometry — no shared object,
-move, or vocabulary with the parent.
+Crosses domains from arithmetic_nth_term to chord geometry —
+no shared object, move, or vocabulary with the parent.
 
 To solve, given only radius r and the chord's centre-distance
 d, the solver must:
@@ -40,11 +39,17 @@ d, the solver must:
   (4) double it for the full chord, in exact surd form.
 Coordinate geometry also works but runs several times longer.
 
-Guards keep the task honest: r^2 - d^2 not a perfect square
-(else the chord is an integer, guessable), radicand <= 30 (not
-artificial), gcd(r, d) = 1 (not a rescaled smaller case). The
-problem text states only r and d — never Pythagoras or the
-bisection.
+Two independent answer paths are cross-checked at generation
+time; a mismatch rejects the candidate, so no mislabeled
+surd can ship:
+  PATH A (insight): Pythagoras, simplified to coef*sqrt(m).
+  PATH B (brute):   place the chord at y = d, intersect with
+                    x^2 + y^2 = r^2, take the distance between
+                    the two intersection points — no Pythagoras.
+
+Guards: r^2 - d^2 not a perfect square (chord irrational, not
+guessable), radicand <= 30, gcd(r, d) = 1. Problem text states
+only r and d — never Pythagoras or the bisection.
 """
 
 import random
@@ -57,20 +62,39 @@ def generate(seed):
         d = rng.randint(1, r - 1)
 
         diff = r * r - d * d
+
+        # --- PATH A: insight (Pythagoras -> exact surd) ---
+        # factor diff = k^2 * m, so 2*sqrt(diff) = 2k*sqrt(m)
         m, k = diff, 1
         for q in sympy.primerange(2, 20):
             while m % (q * q) == 0:
                 m //= q * q
                 k *= q
-
-        if m == 1:
+        if m == 1:           # perfect square -> integer chord, guessable
             continue
         if m > 30:
             continue
         if sympy.gcd(r, d) > 1:
             continue
-
         coef = 2 * k
+        answer_insight = coef * sympy.sqrt(m)
+
+        # --- PATH B: brute (coordinate geometry, independent) ---
+        # chord on line y = d; endpoints where x^2 + d^2 = r^2
+        x = sympy.symbols('x', real=True)
+        roots = sympy.solve(sympy.Eq(x**2 + d**2, r**2), x)
+        # full chord length = distance between (x1, d) and (x2, d)
+        answer_brute = sympy.nsimplify(
+            sympy.Abs(roots[0] - roots[1])
+        )
+        answer_brute = sympy.sqrtdenest(sympy.simplify(answer_brute))
+
+        # --- CROSS-CHECK: surd path must equal coordinate path ---
+        assert sympy.simplify(answer_insight - answer_brute) == 0, (
+            f"chord mismatch r={r} d={d}: "
+            f"insight={answer_insight} brute={answer_brute}"
+        )
+
         answer = f"{coef}*sqrt({m})"
         break
 
@@ -87,32 +111,6 @@ CONCEPT_TYPE = "geometry.chord_length_from_center"
 ```
 
 PARENT_PROGRAM_EXAMPLE_2:
-```python
-import random
-import sympy
-
-def generate(seed):
-    rng = random.Random(seed)
-    while True:
-        a = rng.randint(3, 15)
-        b = rng.randint(3, 15)
-        if a == b:
-            continue
-        area = a * b
-        if area < 20:
-            continue
-        break
-    problem = (
-        f"A rectangle has side lengths {a} and {b}. "
-        f"Compute its area."
-    )
-    return problem, str(sympy.Integer(area))
-
-CONCEPT_GROUP = "geometry"
-CONCEPT_TYPE = "geometry.rectangle_area"
-```
-
-MUTATED_PROGRAM_EXAMPLE_2:
 ```python
 """In-breadth mutation generator.
 
@@ -168,4 +166,97 @@ def generate(seed):
 CONCEPT_REASON = "To solve, the solver must factor N into prime powers and apply the multiplicative divisor formula d(N) = prod(e_i + 1) — that factor-and-count is the problem's reasoning core."
 CONCEPT_GROUP = "number_theory"
 CONCEPT_TYPE = "number_theory.divisor_count"
+```
+
+CHILD_PROGRAM_EXAMPLE_2:
+```python
+"""In-breadth mutation generator (cross-checked).
+
+Crosses domains from rectangle_area to constrained counting —
+no shared object, operation, or vocabulary with the parent.
+
+To solve, given only the code length n, the allowed digit range
+0 through m-1, and the required digit sum S, the solver must:
+  (1) translate the problem into counting bounded integer solutions
+      x_1 + ... + x_n = S with 0 <= x_i <= m-1;
+  (2) count the unrestricted nonnegative solutions;
+  (3) subtract the solutions where at least one variable exceeds
+      the digit bound, using inclusion-exclusion;
+  (4) return the resulting integer count.
+
+Brute force enumeration of all digit strings also works, but it
+scales as m^n and is deliberately unattractive for the solver.
+
+Two independent answer paths are cross-checked at generation time:
+  PATH A (insight): inclusion-exclusion for bounded compositions.
+  PATH B (brute): enumerate all possible digit strings and count
+                  those whose digit sum is S.
+
+Guards ensure the count is nontrivial, the digit bound actually
+matters, the target sum is not near an endpoint, and brute force
+remains finite for generator-side validation.
+"""
+
+import itertools
+import random
+import sympy
+
+def generate(seed):
+    rng = random.Random(seed)
+
+    while True:
+        n = rng.randint(5, 6)
+        m = rng.randint(5, 7)
+
+        # Choose S away from trivial endpoints, while ensuring that
+        # the upper bound x_i <= m-1 is relevant.
+        S = rng.randint(m + 2, n * (m - 1) - m - 2)
+
+        # --- PATH A: insight (bounded compositions via inclusion-exclusion) ---
+        answer_insight = 0
+        max_bad_variables = S // m
+        for j in range(max_bad_variables + 1):
+            remaining = S - j * m
+            if remaining < 0:
+                continue
+            term = sympy.binomial(n, j) * sympy.binomial(remaining + n - 1, n - 1)
+            if j % 2:
+                answer_insight -= term
+            else:
+                answer_insight += term
+        answer_insight = int(answer_insight)
+
+        # --- PATH B: brute (explicit enumeration of all digit strings) ---
+        answer_brute = 0
+        for digits in itertools.product(range(m), repeat=n):
+            if sum(digits) == S:
+                answer_brute += 1
+
+        # --- CROSS-CHECK: inclusion-exclusion route must equal brute route ---
+        assert int(answer_brute) == int(answer_insight), (
+            f"count mismatch n={n} m={m} S={S}: "
+            f"insight={answer_insight} brute={answer_brute}"
+        )
+
+        answer = answer_insight
+
+        # Guards against degenerate or guessable cases.
+        if answer <= 10:
+            continue
+        if answer >= m ** n // 2:
+            continue
+        if S in (0, 1, n * (m - 1), n * (m - 1) - 1):
+            continue
+        break
+
+    problem = (
+        f"A code consists of {n} digits, and each digit is an integer "
+        f"from 0 through {m - 1}. How many such codes have digit sum {S}? "
+        f"State only the integer count."
+    )
+    return problem, str(sympy.Integer(answer))
+
+CONCEPT_REASON = "To solve, the solver must model the code as a bounded integer-solution count and apply inclusion-exclusion to count digit strings with a prescribed total sum."
+CONCEPT_GROUP = "combinatorics"
+CONCEPT_TYPE = "combinatorics.bounded_integer_compositions"
 ```

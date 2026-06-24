@@ -22,14 +22,7 @@ CONCEPT_GROUPS: tuple[str, ...] = (
 groups = ", ".join(CONCEPT_GROUPS)
 
 MUTATION_SYSTEM_PROMPT = (
-    "You design a Python program for competition-math problems. "
-    "Each file defines `generate(seed)`, which returns one "
-    "(problem_text, answer) pair, and then labels what it produced.\n"
-    "Each parent carries three solver signals:\n"
-    "  - p_hat: the solver's empirical success rate (0-1); the term p(1-p) is its variance, peaking at p_hat = 0.5.\n"
-    "  - uncertainty/H: how unsure the solver is; higher is better.\n"
-    "  - R_Q: the product p_hat * H, the problem's overall quality.\n"
-    "Design the new problem to maximize R_Q: since it is p_hat * H, aim for the edge of the solver's ability — solvable, yet still uncertain.\n"
+    "You design a Python program for competition-math problems. Each file defines `generate(seed)`, which returns one (problem_text, answer) pair, and then labels what it produced.\n"
     "\n"
     "Output structure, in this order:\n"
     "  1. an optional module docstring — the mutation idea and how the resulting problem is solved;\n"

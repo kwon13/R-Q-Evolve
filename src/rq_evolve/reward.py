@@ -174,7 +174,16 @@ def compute_score(
     if responses is not None or truths is not None:
         if responses is None or truths is None:
             raise ValueError("batch compute_score requires responses and ground truths")
-        return [_score_one(response, truth) for response, truth in zip(responses, truths)]
+        infos = extra_infos if extra_infos is not None else [None] * len(responses)
+        return [
+            _skipped_score() if _is_skip(info) else _score_one(response, truth)
+            for response, truth, info in zip(responses, truths, infos)
+        ]
+
+    # Eval rows (math-benchmark val set) carry a skip sentinel: the trainer
+    # re-grades them on the main thread, so the worker thread does no sympy work.
+    if _is_skip(extra_info):
+        return _skipped_score()
 
     if solution_str is None or ground_truth is None:
         raise ValueError("compute_score requires solution_str and ground_truth")
@@ -194,3 +203,23 @@ def _score_one(response: str, ground_truth: str) -> dict:
         "accuracy": 1.0 if correct else 0.0,
         "format": 1.0 if predicted is not None else 0.0,
     }
+
+
+# Sentinel placed by the math-benchmark val dataset (math_eval.MathBenchmarkDataset)
+# in each row's ``extra_info``. The agent loop's reward worker runs compute_score
+# in a non-main thread (NaiveRewardManager -> loop.run_in_executor); grading the
+# base model's pathological boxed outputs there pegs CPU and stalls vLLM
+# generation -> GPU 0% mid-eval (signal.SIGALRM can't fire off the main thread, so
+# the watchdog only leaks daemon threads). For eval rows we skip the worker grade
+# entirely and re-grade on the trainer's MAIN thread in RQValidatingTrainer._validate
+# (where math_verify's native SIGALRM timeout works). See eval_trainer.py.
+SKIP_WORKER_GRADE_KEY = "skip_worker_grade"
+
+
+def _skipped_score() -> dict:
+    """Placeholder reward for eval rows graded later on the main thread."""
+    return {"score": 0.0, "overall": 0.0, "accuracy": 0.0, "format": 0.0, "skipped": 1.0}
+
+
+def _is_skip(extra_info) -> bool:
+    return isinstance(extra_info, dict) and bool(extra_info.get(SKIP_WORKER_GRADE_KEY))

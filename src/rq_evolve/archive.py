@@ -380,10 +380,11 @@ class MAPElitesArchive:
             "total_selections": self.total_selections,
         }
 
-    def save(self, path: str | Path) -> None:
-        path = Path(path)
-        path.mkdir(parents=True, exist_ok=True)
-        payload = {
+    def to_payload(self) -> dict:
+        """In-memory snapshot of the archive (same structure written to
+        ``archive.json``). Used to embed the live MAP into the verl ``data.pt``
+        checkpoint so the grid is restored atomically with the weights."""
+        return {
             "meta": {
                 "n_h_bins": self.n_h_bins,
                 "n_div_bins": self.n_div_bins,
@@ -396,28 +397,21 @@ class MAPElitesArchive:
             },
             "champions": [p.to_dict() for p in self.champions()],
         }
+
+    def save(self, path: str | Path) -> None:
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
         (path / "archive.json").write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False),
+            json.dumps(self.to_payload(), indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
 
-    def load(self, path: str | Path) -> int:
-        """Restore champions written by :meth:`save`.
+    def load_payload(self, payload: dict) -> int:
+        """Restore champions from an in-memory payload (see :meth:`to_payload`).
 
-        Returns the number of champions placed. Every niche is cleared first so
-        the restored grid reflects exactly the saved state. Champions are placed
-        directly at their saved ``(niche_h, niche_div)`` when those coordinates
-        fit the current grid (no try_insert, so validity/RQ gates are not
-        re-applied — the saved state is reproduced as-is). If the grid shape
-        changed since the snapshot, those champions are re-binned via
-        ``try_insert`` from their stored ``h_score``.
+        Shares all placement/re-binning logic with :meth:`load`; the file-based
+        ``load`` is a thin reader that delegates here.
         """
-        path = Path(path)
-        archive_file = path / "archive.json" if path.is_dir() else path
-        if not archive_file.exists():
-            raise FileNotFoundError(f"no archive snapshot at {archive_file}")
-        payload = json.loads(archive_file.read_text(encoding="utf-8"))
-
         meta = payload.get("meta", {})
         if (
             meta.get("n_h_bins") not in (None, self.n_h_bins)
@@ -458,6 +452,24 @@ class MAPElitesArchive:
             ):
                 placed += 1
         return placed
+
+    def load(self, path: str | Path) -> int:
+        """Restore champions written by :meth:`save`.
+
+        Returns the number of champions placed. Every niche is cleared first so
+        the restored grid reflects exactly the saved state. Champions are placed
+        directly at their saved ``(niche_h, niche_div)`` when those coordinates
+        fit the current grid (no try_insert, so validity/RQ gates are not
+        re-applied — the saved state is reproduced as-is). If the grid shape
+        changed since the snapshot, those champions are re-binned via
+        ``try_insert`` from their stored ``h_score``.
+        """
+        path = Path(path)
+        archive_file = path / "archive.json" if path.is_dir() else path
+        if not archive_file.exists():
+            raise FileNotFoundError(f"no archive snapshot at {archive_file}")
+        payload = json.loads(archive_file.read_text(encoding="utf-8"))
+        return self.load_payload(payload)
 
 
 def _stable_hash(text: str) -> int:

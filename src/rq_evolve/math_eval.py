@@ -6,12 +6,20 @@ Ported from evo-sample/evaluation/math_benchmarks.py, trimmed for R-Q-Evolve:
     yentinglin for the rest; ×32 inflation for AMC/AIME).
   * GPT-judge is dropped.
   * Grading is NOT done here for the in-trainer path — benchmarks are emitted
-    as a verl validation dataset (one ``data_source`` per benchmark) and verl's
-    own ``val_reward_fn`` (the training reward, ``reward.answers_match``, which
-    uses ``math_verify``) scores them, so verl reports per-benchmark accuracy
-    automatically.
-  * A standalone ``grade()`` helper is kept for offline use (both grader options
-    now resolve to ``math_verify`` / R-Zero parity).
+    as a verl validation dataset (one ``data_source`` per benchmark). The agent
+    loop's reward worker SKIPS grading these rows (each carries an
+    ``extra_info[SKIP_WORKER_GRADE_KEY]`` sentinel); ``RQValidatingTrainer.
+    _validate`` (eval_trainer.py) re-grades the decoded responses with
+    ``grade_eval`` on the trainer's MAIN thread, where math_verify's SIGALRM
+    timeout works. Per-benchmark accuracy is then reported via verl's own metric
+    aggregation. (The old path graded on the worker thread, which stalled the
+    GPU to 0% mid-eval — see eval_trainer.py.)
+  * ``grade_eval`` is kept identical to the offline checkpoint grader
+    (scripts/eval_vllm_math.py): brace-matched ``extract_boxed`` + \boxed-wrapped
+    math_verify, NO length guard — so val-core matches eval_vllm_math.py exactly.
+    The \boxed wrap is required (bare parse falsely rejects \dfrac<->\frac). NOT
+    to be confused with ``reward.answers_match`` (the training reward grader,
+    which keeps the length guard for reward-worker-thread safety).
 """
 
 from __future__ import annotations
@@ -19,14 +27,13 @@ from __future__ import annotations
 import logging
 import os
 import random
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .dataset import _compute_position_id_with_mask
 from .prompts import SOLVER_SYSTEM_PROMPT
-from .reward import answers_match, extract_boxed
+from .reward import SKIP_WORKER_GRADE_KEY, answers_match, extract_boxed
 
 logger = logging.getLogger(__name__)
 
@@ -52,37 +59,61 @@ class MathBenchmarkProblem:
 
 
 # ---------------------------------------------------------------------------
-# Grading (standalone / offline only — the in-trainer path uses val_reward_fn)
+# Grading
+#
+# ``grade_eval`` is the single source of truth for the in-trainer val-core path
+# (eval_trainer.RQValidatingTrainer._validate). It is kept byte-for-byte in sync
+# with the offline checkpoint grader (scripts/eval_vllm_math.py -> evo-sample/
+# evaluation.math_benchmarks.grade_math_response) so val-core matches the
+# checkpoint number exactly. It is ``reward.answers_match`` WITHOUT the length
+# guard:
+#   * brace-matched ``extract_boxed`` (LAST \boxed) -- final answer, nesting-safe;
+#   * ``verify(parse("\boxed{gt}"), parse("\boxed{pred}"))``. The \boxed wrap is
+#     REQUIRED, not leniency: bare ``parse("\dfrac{1}{2}")`` fails math_verify's
+#     LaTeX extractor and FALSELY rejects \dfrac<->\frac and fraction<->decimal
+#     equivalences (verified: bare grades \dfrac{1}{2}==\frac{1}{2} as wrong).
+# The length guard (reward.answers_match) is intentionally DROPPED here: eval
+# runs on the trainer MAIN thread where math_verify's SIGALRM timeout already
+# bounds each call, and the guard's normalized string-compare causes false
+# negatives on long-but-correct answers. Do NOT swap in reward.answers_match.
 # ---------------------------------------------------------------------------
 
-def _math_verify_equal(pred: str | None, gt: str) -> bool:
+def grade_eval(response: str, ground_truth: str) -> bool:
+    """Measurement grader: extract_boxed + \\boxed-wrapped math_verify, no guard.
+    Mirrors eval_vllm_math.py so val-core == the offline checkpoint number."""
+    pred = extract_boxed(response)
     if pred is None:
         return False
     try:
         from math_verify import parse, verify
     except ImportError as exc:
         raise ImportError(
-            "grader='math_verify' needs math-verify + latex2sympy2_extended. "
-            "Install them or use grader='sympy'."
+            "math_verify is required for eval grading. "
+            "Install math-verify + latex2sympy2_extended."
         ) from exc
     from .reward import _ensure_math_verify_thread_safe
 
     _ensure_math_verify_thread_safe()
     try:
-        # \boxed-wrap so math_verify's LaTeX extractor triggers on bare fragments
-        return bool(verify(parse("\\boxed{" + str(gt) + "}"), parse("\\boxed{" + str(pred) + "}")))
+        # verify(gold, target): ground truth first, prediction second. \boxed-wrap
+        # both sides so math_verify's LaTeX extractor triggers on bare fragments.
+        return bool(
+            verify(
+                parse("\\boxed{" + str(ground_truth) + "}"),
+                parse("\\boxed{" + str(pred) + "}"),
+            )
+        )
     except Exception:
         return False
 
 
-def grade(response: str, ground_truth: str, grader: str = "sympy") -> bool:
-    """Offline grading helper. ``sympy`` reuses reward.answers_match."""
-    pred = extract_boxed(response)
-    if pred is None:
-        return False
+def grade(response: str, ground_truth: str, grader: str = "math_verify") -> bool:
+    """Offline grading helper. ``math_verify`` = the eval grader (\\boxed wrap, no
+    guard); ``sympy`` reuses the training-reward grader (reward.answers_match)."""
     if grader == "math_verify":
-        return _math_verify_equal(pred, ground_truth)
-    return answers_match(pred, ground_truth)
+        return grade_eval(response, ground_truth)
+    pred = extract_boxed(response)
+    return pred is not None and answers_match(pred, ground_truth)
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +282,12 @@ class MathBenchmarkDataset:
                 "benchmark": self.data_source,
                 "index": item.index,
                 "problem": item.problem,
+                # Tell reward.compute_score to skip grading on the agent loop's
+                # (non-main) reward worker thread -- math_verify's SIGALRM timeout
+                # can't fire there, so a pathological boxed answer would peg CPU
+                # and stall vLLM (GPU 0%). RQValidatingTrainer._validate re-grades
+                # these on the main thread instead. See eval_trainer.py.
+                SKIP_WORKER_GRADE_KEY: True,
             },
             "index": item.index,
         }
@@ -270,11 +307,11 @@ def build_math_eval_val_dataset(math_eval_config, tokenizer, max_prompt_length: 
     max_samples = int(getattr(math_eval_config, "max_samples_per_benchmark", -1))
     sample_seed = int(getattr(math_eval_config, "sample_seed", 42))
     # In-trainer periodic eval skips R-Zero's x32 AMC/AIME inflation by default:
-    # at -1 samples the inflated set is ~4.6k prompts, and grading them serially
-    # through math_verify (sympy) on the base model's pathological boxed outputs
-    # clogs the async reward workers -> GPU idles at 0% mid-eval. Without
-    # inflation the set is ~1.5k. Offline final eval (load_math_benchmark with
-    # the default inflate=True) keeps full R-Zero parity.
+    # at -1 samples the inflated set is ~4.6k prompts vs ~1.5k without. Grading
+    # runs on the trainer's main thread now (RQValidatingTrainer._validate), so
+    # this no longer risks the GPU-0% stall -- it's just an eval wall-time knob.
+    # Offline final eval (load_math_benchmark with the default inflate=True) keeps
+    # full R-Zero parity.
     inflate = bool(getattr(math_eval_config, "inflate_x32", False))
 
     datasets = []

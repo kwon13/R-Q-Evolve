@@ -26,6 +26,13 @@ def extract_generator_code(text: str) -> str | None:
     program (the last fence) wins instead of the draft. Falls back to an
     import/def scan and the whole text when no fenced block parses.
     """
+    # ast.parse raises ValueError ("source code string cannot contain null
+    # bytes"), NOT SyntaxError, on NUL bytes in a generation -- which the
+    # except-SyntaxError guards below would not catch, crashing the whole run.
+    # Strip NULs up front so a poisoned generation degrades to a normal
+    # parse-failure (rejected candidate) instead of killing training.
+    text = text.replace("\x00", "")
+
     # Fenced blocks in REVERSE document order -> last fence tried first.
     candidates: list[str] = [
         match.group(1).strip()
@@ -33,9 +40,19 @@ def extract_generator_code(text: str) -> str | None:
     ][::-1]
 
     lines = text.splitlines()
+    # Cap the import/def-suffix candidates: a degenerate output with hundreds of
+    # "def generate"/"import" lines would otherwise spawn hundreds of candidates,
+    # each running the (bounded but non-trivial) prefix scan below -> the evolution
+    # phase wedges the main thread for many minutes. A real program has 1-2 entry
+    # points, so the first few suffixes are enough.
+    _MAX_SUFFIX_CANDIDATES = 16
+    suffix_added = 0
     for i, line in enumerate(lines):
         if line.lstrip().startswith(("import ", "from ", "def generate")):
             candidates.append("\n".join(lines[i:]).strip())
+            suffix_added += 1
+            if suffix_added >= _MAX_SUFFIX_CANDIDATES:
+                break
 
     candidates.append(text.strip())
 
@@ -48,19 +65,45 @@ def extract_generator_code(text: str) -> str | None:
     return None
 
 
+# Max ast.parse attempts per candidate. The prefix scan below is worst-case
+# O(n^2) over lines; on a multi-thousand-line degenerate generation that wedges
+# the (single-threaded) evolution phase for minutes. A genuine generate() program
+# is small, so capping the attempts bounds the work without losing real code.
+_TRIM_MAX_ATTEMPTS = 400
+
+
 def _trim_to_parseable_prefix(code: str) -> str | None:
+    """Longest line-prefix of ``code`` that parses AND defines ``generate``.
+
+    Bounded: instead of trying every prefix length (O(n) parses), a SyntaxError
+    jumps straight to just before the offending line, and the total attempts are
+    capped at ``_TRIM_MAX_ATTEMPTS`` so a huge unparseable blob can never hang.
+    """
     lines = code.splitlines()
-    for end in range(len(lines), 0, -1):
+    end = len(lines)
+    attempts = 0
+    while end > 0:
+        attempts += 1
+        if attempts > _TRIM_MAX_ATTEMPTS:
+            return None
         snippet = "\n".join(lines[:end]).strip()
         try:
             tree = ast.parse(snippet)
-        except SyntaxError:
+        except (SyntaxError, ValueError) as exc:
+            # Jump to just before the failing line (O(#error-points), not O(n));
+            # ValueError (NUL bytes) has no lineno -> fall back to a single step.
+            lineno = getattr(exc, "lineno", None)
+            if isinstance(lineno, int) and 0 < lineno - 1 < end:
+                end = lineno - 1
+            else:
+                end -= 1
             continue
         if any(
             isinstance(node, ast.FunctionDef) and node.name == "generate"
             for node in tree.body
         ):
             return snippet
+        end -= 1
     return None
 
 
@@ -77,7 +120,7 @@ def strip_module_docstring(source_code: str) -> str:
     """
     try:
         tree = ast.parse(source_code)
-    except SyntaxError:
+    except (SyntaxError, ValueError):
         return source_code
 
     drop_lines: set[int] = set()
@@ -110,7 +153,7 @@ def lint_generator_source(source_code: str) -> list[str]:
 
     try:
         tree = ast.parse(source_code)
-    except SyntaxError as exc:
+    except (SyntaxError, ValueError) as exc:
         return [f"syntax error: {exc}"]
 
     if not any(

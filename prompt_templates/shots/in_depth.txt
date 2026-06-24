@@ -24,29 +24,33 @@ CONCEPT_GROUP = "number_theory"
 CONCEPT_TYPE = "number_theory.modular_reduction"
 ```
 
-MUTATED_PROGRAM_EXAMPLE_1:
+CHILD_PROGRAM_EXAMPLE_1:
 ```python
-"""In-depth mutation generator.
+"""In-depth mutation generator (uncertainty-raised + cross-checked).
 
-Deepens modular_reduction: the parent reduces a given integer
-N mod p in one step; this child asks for a^b mod p with b far
-too large to form a^b directly.
+Deepens modular_reduction: the modulus m may be prime or
+composite, so the solver must first decide between Fermat and
+Euler before reducing the exponent and finishing with the
+parent's mod step.
 
-To solve, given only a, b, p, the solver must:
+To solve, given only a, b, m, the solver must:
   (1) see that forming a^b directly is hopeless,
-  (2) recall Fermat's little theorem a^(p-1) ≡ 1 (mod p) for
-      gcd(a, p) = 1,
-  (3) reduce the exponent to b' = b mod (p-1),
-  (4) reduce a^b' mod p — the parent's original move.
-Fast modular exponentiation also works but costs several times
-more multiplications and effectively rediscovers FLT along the
-way.
+  (2) DECIDE the tool: m prime -> Fermat (exp mod m-1);
+      m composite with gcd(a,m)=1 -> Euler (exp mod phi(m)),
+  (3) reduce the exponent with the correct totient,
+  (4) reduce a^(b') mod m — the parent's original move.
+Applying Fermat blindly to a composite m gives a wrong answer.
 
-Guards keep the task honest: b' not in {0, 1} (else it collapses
-to 1 or a mod p), final residue not in {0, 1, p-1} (guessable),
-a coprime to p (FLT precondition, forced by 2 <= a < p prime).
-The problem text states only a, b, p — never FLT or the exponent
-reduction.
+Two independent answer paths are cross-checked at generation
+time; a mismatch rejects the candidate, so no mislabeled problem
+can ship:
+  PATH A (insight): reduce exponent via totient, then pow.
+  PATH B (brute):   pow(a, b, m) over the full exponent.
+
+Guards: m prime ~half the time, composite (coprime to a)
+otherwise; b' not in {0,1}; residue not in {0,1,m-1}; gcd(a,m)=1.
+Problem text states only a, b, m — never the theorem or that m
+may be composite.
 """
 
 import random
@@ -55,26 +59,50 @@ import sympy
 def generate(seed):
     rng = random.Random(seed)
     while True:
-        p = rng.choice([7, 11, 13, 17, 19, 23])
-        a = rng.randint(2, p - 1)
-        b = rng.randint(p ** 2, p ** 3)
+        if rng.random() < 0.5:
+            m = rng.choice([7, 11, 13, 17, 19, 23])
+        else:
+            m = rng.choice([12, 15, 21, 22, 25, 33, 35])
 
-        b_reduced = b % (p - 1)
-        if b_reduced in (0, 1):
+        a = rng.randint(2, m - 1)
+        if sympy.gcd(a, m) != 1:
             continue
 
-        answer = pow(a, b, p)
-        if answer in (0, 1, p - 1):
+        b = rng.randint(m ** 2, m ** 3)
+
+        # --- PATH A: insight (totient exponent reduction) ---
+        phi = sympy.totient(m)
+        b_reduced = int(b % phi)
+        if b_reduced in (0, 1):
+            continue
+        answer_insight = pow(a, b_reduced, m)
+
+        # --- PATH B: brute (full exponent, independent) ---
+        answer_brute = pow(a, b, m)
+
+        # --- CROSS-CHECK: insight path must equal brute path ---
+        # catches a wrong totient / mis-selected theorem at gen time
+        assert answer_insight == answer_brute, (
+            f"path mismatch m={m} a={a} b={b}: "
+            f"insight={answer_insight} brute={answer_brute}"
+        )
+
+        # independent confirmation of the prime/composite branch:
+        # Fermat is valid iff m is prime, in which case phi == m-1
+        assert (sympy.isprime(m) == (phi == m - 1))
+
+        answer = answer_insight
+        if answer in (0, 1, m - 1):
             continue
         break
 
     problem = (
-        f"Compute the remainder when {a}^{b} is divided by {p}. "
-        f"State only the remainder as an integer between 0 and {p - 1}."
+        f"Compute the remainder when {a}^{b} is divided by {m}. "
+        f"State only the remainder as an integer between 0 and {m - 1}."
     )
     return problem, str(sympy.Integer(answer))
 
-CONCEPT_REASON = "To solve, the solver must recognise a too-large exponent forces Fermat's little theorem to reduce it mod (p-1) before the final mod-p reduction — that exponent reduction is the problem's reasoning core."
+CONCEPT_REASON = "To solve, the solver must first decide whether the modulus is prime (Fermat) or composite (Euler), compute the correct totient to reduce the exponent, then perform the final mod reduction — that tool selection plus exponent reduction is the reasoning core."
 CONCEPT_GROUP = "number_theory"
 CONCEPT_TYPE = "number_theory.modular_reduction"
 ```
@@ -121,32 +149,33 @@ CONCEPT_GROUP = "algebra"
 CONCEPT_TYPE = "algebra.polynomial_evaluation"
 ```
 
-MUTATED_PROGRAM_EXAMPLE_2:
+CHILD_PROGRAM_EXAMPLE_2:
 ```python
-"""In-depth mutation generator.
+"""In-depth mutation generator (polynomial evaluation via finite differences + cross-check).
 
-Deepens polynomial_evaluation: the parent substitutes a point
-into a small-degree polynomial; this child asks for the
-remainder of a higher-degree p(x) divided by (x - c), the
-linear divisor lightly disguised so the identity is not a
-surface match.
+Deepens polynomial_evaluation: instead of giving p(x) explicitly, the
+problem gives the first few values of a hidden polynomial sequence and asks
+for a later value. The solver must recognize that the sequence comes from
+a low-degree polynomial and use finite differences to extrapolate.
 
-To solve, given the polynomial and the divisor, the solver
-must:
-  (1) see that explicit polynomial division is messy at the
-      stated degree,
-  (2) recall the remainder theorem p(x) mod (x - c) = p(c),
-  (3) read c off the divisor,
-  (4) evaluate p(c) — the parent's single-point substitution.
-Synthetic division is the only short alternative, and is
-itself a disguised execution of the remainder theorem.
+To solve, given p(0), p(1), ..., p(d), and the target n, the solver must:
+  (1) infer that the listed values determine a polynomial sequence of degree d;
+  (2) compute the finite-difference table;
+  (3) use Newton's forward formula to evaluate p(n);
+  (4) return the single integer value.
 
-Guards keep the task honest: leading coefficient != 0 (degree
-preserved), |c| <= 4 (powers do not blow into an
-arithmetic-stamina test), final value not in {-1, 0, 1}
-(guessable). The problem text states only the polynomial and
-the divisor (x - c) — never the remainder theorem or the
-substitution shortcut.
+This is a deeper variant of polynomial evaluation because the polynomial is
+not displayed in coefficient form. The solver must reconstruct the evaluation
+structure from values rather than directly substitute x into an explicit
+formula.
+
+Two independent answer paths are cross-checked at generation time:
+  PATH A (insight): finite differences + Newton forward formula.
+  PATH B (brute): construct the hidden polynomial explicitly and substitute n.
+
+Guards ensure the sequence is non-degenerate, the degree is genuine, the
+target is far enough from the given data to prevent inspection, and the
+answer is not trivially small.
 """
 
 import random
@@ -154,50 +183,68 @@ import sympy
 
 def generate(seed):
     rng = random.Random(seed)
-    x = sympy.symbols('x')
+    x = sympy.symbols("x")
 
     while True:
-        deg = rng.randint(5, 7)
+        deg = rng.randint(3, 5)
+
         coeffs = [rng.randint(-4, 4) for _ in range(deg + 1)]
         if coeffs[0] == 0:
             continue
 
-        c = rng.randint(-3, 3)
-        if c == 0:
-            continue
-
         poly = sum(coeffs[i] * x ** (deg - i) for i in range(deg + 1))
-        answer = int(poly.subs(x, c))
 
-        if answer in (-1, 0, 1):
+        given_values = [int(poly.subs(x, k)) for k in range(deg + 1)]
+
+        # Guard against visually trivial or nearly constant sequences.
+        if len(set(given_values)) <= deg:
             continue
-        if abs(answer) > 500:
+        if max(abs(v) for v in given_values) < 10:
+            continue
+
+        n = rng.randint(deg + 4, deg + 12)
+
+        # --- PATH A: insight (finite differences + Newton forward formula) ---
+        layers = [given_values[:]]
+        while len(layers[-1]) > 1:
+            prev = layers[-1]
+            layers.append([prev[i + 1] - prev[i] for i in range(len(prev) - 1)])
+
+        first_differences = [layer[0] for layer in layers]
+        answer_insight = 0
+        for k, delta_k in enumerate(first_differences):
+            answer_insight += sympy.binomial(n, k) * delta_k
+        answer_insight = int(answer_insight)
+
+        # --- PATH B: brute (explicit hidden polynomial substitution) ---
+        answer_brute = int(poly.subs(x, n))
+
+        # --- CROSS-CHECK: finite-difference route must equal direct polynomial route ---
+        assert int(answer_insight) == int(answer_brute), (
+            f"path mismatch deg={deg} n={n}: "
+            f"insight={answer_insight} brute={answer_brute}"
+        )
+
+        # Confirm the generated sequence genuinely has the intended degree.
+        assert layers[-1][0] != 0
+
+        answer = answer_insight
+        if abs(answer) < 20:
+            continue
+        if answer in given_values:
             continue
         break
 
-    terms = []
-    for i, k in enumerate(coeffs):
-        power = deg - i
-        if k == 0:
-            continue
-        if power == 0:
-            terms.append(f"{k:+d}")
-        elif power == 1:
-            terms.append(f"{k:+d}*x")
-        else:
-            terms.append(f"{k:+d}*x^{power}")
-    expr = " ".join(terms).lstrip("+ ").replace("+ -", "- ")
-
-    divisor = f"x - {c}" if c > 0 else f"x + {-c}"
-
+    value_text = ", ".join(str(v) for v in given_values)
     problem = (
-        f"Let p(x) = {expr}. Compute the remainder when p(x) is "
-        f"divided by ({divisor}). State only the remainder as an "
-        f"integer."
+        f"A sequence a_0, a_1, ..., a_{deg} begins with the values "
+        f"{value_text}. These values come from evaluating a polynomial p(t) "
+        f"of degree at most {deg} at t = 0, 1, ..., {deg}, respectively. "
+        f"Compute p({n}). State only the integer value."
     )
     return problem, str(sympy.Integer(answer))
 
-CONCEPT_REASON = "To solve, the solver must recognise division by a linear factor (x - c) reduces to evaluating p(c) via the remainder theorem — that substitution is the problem's reasoning core."
+CONCEPT_REASON = "To solve, the solver must recognize that the listed consecutive values determine a polynomial sequence, build the finite-difference table, and use Newton forward extrapolation to evaluate the polynomial at a later integer input."
 CONCEPT_GROUP = "algebra"
 CONCEPT_TYPE = "algebra.polynomial_evaluation"
 ```

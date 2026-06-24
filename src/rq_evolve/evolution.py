@@ -48,6 +48,18 @@ class RQEvolver:
     # Candidate reports from the most recent run_outer_iteration, exposed so the
     # sampler can persist them to the per-step evolution log.
     last_reports: list[CandidateReport] = field(default_factory=list)
+    # Evolver REINFORCE dataset collected during the CURRENT outer iteration:
+    # one record {messages, response, rq_score} per mutation generation that
+    # entered the MAP archive. Consumed by update_evolver() at the END of the
+    # outer iteration (i.e. after the Solver GRPO update) and then refilled by
+    # the next run_outer_iteration. Persisted across restarts via save_state.
+    pending_evolver_samples: list[dict] = field(default_factory=list)
+    # Number of Evolver REINFORCE optimizer steps applied so far. Tracked for
+    # logging/audit only: total_training_steps now counts SOLVER GRPO steps ONLY,
+    # so Evolver steps are NOT charged against the budget and need no re-charging
+    # on resume. Persisted across restarts so the running tally survives a resume.
+    # See VerlTrainerAdapter.fit / EvolvingSampler._run_evolver_update.
+    evolver_updates_done: int = 0
 
     def load_seed_programs(self, seed_dir: str | Path) -> list[ProblemProgram]:
         programs: list[ProblemProgram] = []
@@ -142,6 +154,12 @@ class RQEvolver:
         attempted = 0
         inserted = 0
         reports: list[CandidateReport] = []
+
+        # Start a fresh Evolver REINFORCE buffer for this iteration. Any buffer
+        # from the previous iteration must already have been consumed by
+        # update_evolver() (the sampler calls it before this method); refilling
+        # it now ties the dataset to the mutations of THIS iteration only.
+        self.pending_evolver_samples = []
 
         # Push current actor weights into vLLM ONCE for the whole evolve phase.
         # Evolve runs no optimizer step, so weights are static throughout:
@@ -250,7 +268,13 @@ class RQEvolver:
             result = self._score_from_rollouts(
                 child, rollouts_by_child.get(id(child), [])
             )
+            # "valid_all": every solver-scored candidate (a valid, runnable problem)
+            # trains the Evolver, rewarded by its R_Q -- including p_hat_zero (R_Q=0)
+            # and rejected_non_elite. "inserted_only": only champions (recorded below).
+            reward_all = self.evolution_config.evolver_reward_mode == "valid_all"
             if result.p_hat <= 0.0:
+                if reward_all:
+                    self._record_evolver_sample(child, result.rq_score)  # R_Q == 0
                 reports.append(
                     CandidateReport(
                         status="p_hat_zero",
@@ -269,6 +293,8 @@ class RQEvolver:
                 problem_text=inst.problem,
                 rq_score=result.rq_score,
             )
+            if inserted or reward_all:
+                self._record_evolver_sample(child, result.rq_score)
             reports.append(
                 CandidateReport(
                     status="inserted" if inserted else "rejected_non_elite",
@@ -303,6 +329,17 @@ class RQEvolver:
             + 1,
             metadata={"op": task.op},
         )
+        # Keep the RAW mutation generation (full reasoning + docstring, before the
+        # archive strips them) so the Evolver REINFORCE step can replay the exact
+        # action that produced this child. The single-turn mutation prompt the
+        # policy saw is task.prompt wrapped as one user message (mirrors how
+        # VerlPolicyBackend._make_prompt_batch renders a messages=None task).
+        if self.evolution_config.evolver_update:
+            child.metadata["raw_output"] = output
+            child.metadata["evolver_action"] = {
+                "messages": [{"role": "user", "content": task.prompt}],
+                "response": output,
+            }
         inst, reason = self.verify_program(child)
         return child, inst, reason, source
 
@@ -341,6 +378,14 @@ class RQEvolver:
             child, inst, reason, _ = self._make_child_from_output(task, output)
             if inst is not None:
                 child.metadata["fixed_after_retry"] = True
+                # The action that actually produced this survivor is the fix turn,
+                # not the original mutation: replay the full multi-turn fix prompt.
+                if self.evolution_config.evolver_update:
+                    fix_task = build_fix_task(task, info["output"], info["reason"])
+                    child.metadata["evolver_action"] = {
+                        "messages": fix_task.messages,
+                        "response": output,
+                    }
                 e["task"], e["child"], e["inst"] = task, child, inst
             else:
                 e["report"] = CandidateReport(
@@ -402,6 +447,58 @@ class RQEvolver:
         program.rq_score = result.rq_score
         program.fitness = result.rq_score
         return result
+
+    def _record_evolver_sample(self, program: ProblemProgram, rq_score: float) -> None:
+        """Buffer one mutation generation as an Evolver REINFORCE training example.
+
+        Caller decides eligibility by ``evolver_reward_mode`` (inserted_only =
+        champions only; valid_all = every solver-scored valid problem). The action
+        is the raw mutation (or fix) output captured on the program metadata,
+        rewarded by the child's R_Q score (min-max normalized at update time).
+        """
+        if not self.evolution_config.evolver_update:
+            return
+        action = (program.metadata or {}).get("evolver_action")
+        if not action or not action.get("response") or not action.get("messages"):
+            return
+        self.pending_evolver_samples.append(
+            {
+                "messages": action["messages"],
+                "response": action["response"],
+                "rq_score": float(rq_score),
+                "program_id": program.program_id,
+            }
+        )
+
+    def update_evolver(self) -> dict:
+        """Run one Evolver REINFORCE step over this iteration's inserted mutations.
+
+        Called at the END of an outer iteration (after the Solver GRPO update) so
+        the shared actor is improved as the Questioner before the next evolve
+        phase. No-op when disabled, when nothing was inserted, or when the backend
+        cannot train (e.g. the mock backend). The buffer is left in place so the
+        caller can persist it; run_outer_iteration clears it next iteration.
+        """
+        if not self.evolution_config.evolver_update:
+            return {}
+        samples = self.pending_evolver_samples
+        if not samples:
+            return {"evolver/num_samples": 0}
+        update_fn = getattr(self.backend, "reinforce_update", None)
+        if update_fn is None:
+            self.events.append(
+                {"event": "evolver_update_skipped", "reason": "backend has no reinforce_update"}
+            )
+            return {"evolver/num_samples": 0, "evolver/skipped": 1.0}
+        metrics = update_fn(
+            samples, max_samples=self.evolution_config.evolver_max_samples
+        )
+        # Count only when an optimizer step actually ran (backend present, samples
+        # non-empty). This is what the shared budget is charged for.
+        if metrics.get("evolver/num_samples", 0):
+            self.evolver_updates_done += 1
+        self.events.append({"event": "evolver_update", **metrics})
+        return metrics
 
     def evaluate_instances(
         self,
@@ -474,6 +571,7 @@ class RQEvolver:
         self.dataset.update(examples)
 
     _USED_SEEDS_FILE = "rq_used_seeds.json"
+    _EVOLVER_SAMPLES_FILE = "rq_evolver_samples.json"
 
     def save_state(self, directory: str | Path, iteration: int | None = None) -> None:
         """Persist the MAP-Elites archive + used_seeds for restart.
@@ -511,6 +609,21 @@ class RQEvolver:
             ),
             encoding="utf-8",
         )
+        # Pending Evolver REINFORCE dataset + the count of applied Evolver steps:
+        # the verl weight checkpoint excludes both. The pending set is consumed at
+        # the start of the next outer iteration; the count is kept for logging/audit
+        # (Evolver steps are not charged against total_training_steps).
+        if self.evolution_config.evolver_update:
+            (directory / self._EVOLVER_SAMPLES_FILE).write_text(
+                json.dumps(
+                    {
+                        "updates_done": self.evolver_updates_done,
+                        "pending": self.pending_evolver_samples,
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
 
     def append_evolution_log(
         self,
@@ -556,6 +669,19 @@ class RQEvolver:
                 pid: set(seeds)
                 for pid, seeds in payload.get("used_seeds", {}).items()
             }
+        samples_file = directory / self._EVOLVER_SAMPLES_FILE
+        if samples_file.exists():
+            try:
+                payload = json.loads(samples_file.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                payload = None
+            if isinstance(payload, dict):
+                self.pending_evolver_samples = payload.get("pending") or []
+                self.evolver_updates_done = int(payload.get("updates_done", 0) or 0)
+            elif isinstance(payload, list):  # legacy bare-list format
+                self.pending_evolver_samples = payload
+            else:
+                self.pending_evolver_samples = []
         self.refresh_dataset()
         self.events.append(
             {"event": "archive_restored", "champions": n_champions}

@@ -359,6 +359,13 @@ class VerlPolicyBackend(EvolutionBackend):
             return messages
         msgs = [dict(m) for m in messages]
         clippable = list(range(1, len(msgs) - 1))  # exclude system + final turn
+        # Short conversations (e.g. the evaluator's [system, user] pair) have no
+        # middle turn, so there is nothing in the range above -- the long content
+        # lives in the final user turn itself. Fall back to clipping that turn so
+        # the prompt is still capped; otherwise it sails past max_prompt_length
+        # and crashes verl's _postprocess torch.cat (mismatched prompt lengths).
+        if not clippable and len(msgs) >= 2:
+            clippable = [len(msgs) - 1]
         for _ in range(256):
             over = total(msgs) - max_prompt_length
             if over <= 0:
@@ -460,6 +467,287 @@ class VerlPolicyBackend(EvolutionBackend):
             "reward_model": reward_model_arr,
         }
         return DataProto.from_single_dict(data)
+
+    # ------------------------------------------------------------------
+    # Evolver REINFORCE update
+    # ------------------------------------------------------------------
+
+    def reinforce_update(
+        self, samples: list[dict], *, max_samples: int | None = None
+    ) -> dict:
+        """REINFORCE + baseline step on the actor, treating it as the Evolver.
+
+        ``samples`` are the mutation generations that entered the MAP this outer
+        iteration: each is ``{messages, response, rq_score}`` where ``messages``
+        is the exact prompt the policy saw and ``response`` its raw output. We
+        rebuild the (prompt, response) batch verl's actor update expects, set the
+        per-sequence advantage to (normalized R_Q - batch mean) broadcast over the
+        response tokens, and call ``actor_rollout_wg.update_actor``.
+
+        verl's ``DataParallelPPOActor.update_policy`` sets
+        ``old_log_prob = log_prob.detach()`` when the data is a single mini-batch
+        and ``ppo_epochs == 1`` (its ``on_policy`` branch), so the surrogate
+        reduces to an EXACT REINFORCE gradient ``∇logπ·advantage`` -- no behavior
+        log-probs need to be carried over from the evolve phase. When the actor
+        runs >1 ppo_epoch we still pass real old_log_probs (computed under the
+        current actor) so the clipped PPO objective stays well-defined.
+
+        Returns a metrics dict (prefixed ``evolver/``). Runs the actor forward +
+        optimizer step against the live worker group, so it must be called while
+        vLLM is asleep/resident (same constraint as the GRPO update), i.e. NOT
+        inside an open generate session.
+        """
+        import torch
+        from verl.protocol import pad_dataproto_to_divisor
+
+        trainer = self._require_trainer()
+        if not samples:
+            return {"evolver/num_samples": 0.0}
+
+        truncated = 0
+        if max_samples is not None and len(samples) > max_samples:
+            truncated = len(samples) - int(max_samples)
+            samples = sorted(
+                samples, key=lambda s: float(s.get("rq_score", 0.0)), reverse=True
+            )[: int(max_samples)]
+
+        data = self._build_replay_batch(samples)
+        response_mask = data.batch["response_mask"]
+
+        # Reward = R_Q normalized to [0, 1] (min-max over the batch), then a mean
+        # baseline subtracted -> REINFORCE + baseline advantage. Degenerate cases
+        # (all-equal R_Q) yield zero advantage everywhere -> a harmless no-op step.
+        rqs = torch.tensor(
+            [float(s.get("rq_score", 0.0)) for s in samples], dtype=torch.float32
+        )
+        lo = float(rqs.min())
+        hi = float(rqs.max())
+        norm = (rqs - lo) / (hi - lo) if (hi - lo) > 1e-8 else torch.zeros_like(rqs)
+        adv = norm - norm.mean()
+        advantages = adv[:, None] * response_mask.float()  # (B, response_len)
+        data.batch["advantages"] = advantages.float()
+
+        # old_log_probs: required key. Overwritten by the on_policy branch for the
+        # ppo_epochs==1 single-mini-batch case; provide the real current-actor
+        # log-probs so multi-epoch configs remain correct.
+        ppo_epochs = int(
+            self._cfg_get("actor_rollout_ref.actor.ppo_epochs", 1) or 1
+        )
+        if ppo_epochs > 1:
+            data.batch["old_log_probs"] = self._replay_log_probs(data)
+        else:
+            data.batch["old_log_probs"] = torch.zeros_like(
+                response_mask, dtype=torch.float32
+            )
+
+        temperature = float(
+            self._cfg_get("actor_rollout_ref.rollout.temperature", 1.0) or 1.0
+        )
+        data.meta_info["temperature"] = temperature
+        data.meta_info["global_token_num"] = torch.sum(
+            data.batch["attention_mask"], dim=-1
+        ).tolist()
+
+        # update_actor dispatches across the actor mesh; pad to the worker world
+        # size so the shards are even. pad_dataproto_to_divisor repeats real rows
+        # (not zeros), so padded rows carry valid advantages -- a tiny, bounded
+        # up-weight of the duplicated samples, never a NaN from an all-mask-0 row.
+        world_size = max(1, int(getattr(trainer.actor_rollout_wg, "world_size", 1)))
+        padded, _ = pad_dataproto_to_divisor(data, world_size)
+        padded.meta_info["global_token_num"] = torch.sum(
+            padded.batch["attention_mask"], dim=-1
+        ).tolist()
+
+        # KL is REMOVED for the Evolver path. actor.use_kl_loss is globally ON
+        # (the Solver GRPO uses it), so update_policy unconditionally SELECTs
+        # ``ref_log_prob`` and would KeyError without it. Instead of running the
+        # reference model, set ref_log_prob = the CURRENT actor log-probs: the
+        # low_var_kl term is kl(delta=ref_logp - log_prob) and with ref_logp ==
+        # the current log_prob (same weights, ppo_epochs=1) delta ~= 0 -> KL ~= 0.
+        # Net effect: pure REINFORCE for the Evolver, Solver's KL untouched, and
+        # NO ref-worker forward (the path that was failing). Uses the proven
+        # compute_log_prob path (same call GRPO uses for entropy).
+        if bool(self._cfg_get("actor_rollout_ref.actor.use_kl_loss", False)):
+            padded.batch["ref_log_prob"] = self._replay_log_probs(padded)
+
+        output = trainer.actor_rollout_wg.update_actor(padded)
+        metrics = {}
+        try:
+            metrics = dict(output.meta_info.get("metrics", {}))
+        except Exception:
+            metrics = {}
+
+        resp_lens = response_mask.sum(dim=-1).float()
+        result = {
+            "evolver/num_samples": float(len(samples)),
+            "evolver/truncated": float(truncated),
+            # raw R_Q (absolute trend of generated-problem quality)
+            "evolver/rq_mean": float(rqs.mean()),
+            "evolver/rq_max": hi,
+            "evolver/rq_min": lo,
+            # normalized reward actually used (R_Q min-max -> [0,1]); batch-relative
+            "evolver/reward_norm_mean": float(norm.mean()),
+            "evolver/reward_norm_std": float(norm.std(unbiased=False)) if norm.numel() > 1 else 0.0,
+            # advantage = normalized reward - baseline (the learning signal)
+            "evolver/adv_mean": float(adv.mean()),
+            "evolver/adv_abs_mean": float(adv.abs().mean()),
+            "evolver/adv_std": float(adv.std(unbiased=False)) if adv.numel() > 1 else 0.0,
+            "evolver/resp_len_mean": float(resp_lens.mean()),
+        }
+        # verl returns actor metrics as PER-MICRO-BATCH LISTS (e.g. actor/pg_loss
+        # = [..]); reduce to a scalar. Defensive so a metrics-format change can
+        # never undo a successful update_actor (the optimizer step already ran).
+        def _as_scalar(v):
+            # NB: float() works on 0-dim torch tensors / numpy scalars, so do NOT
+            # pre-filter by isinstance(int,float) -- that dropped tensor-valued
+            # verl metrics (e.g. actor/grad_norm) and wrongly logged 0.
+            if isinstance(v, (list, tuple)):
+                nums = []
+                for x in v:
+                    try:
+                        nums.append(float(x))
+                    except (TypeError, ValueError):
+                        pass
+                return sum(nums) / len(nums) if nums else 0.0
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return 0.0
+
+        for src, dst in (("actor/pg_loss", "evolver/pg_loss"),
+                         ("actor/entropy", "evolver/entropy"),
+                         ("actor/kl_loss", "evolver/kl_loss"),
+                         ("actor/grad_norm", "evolver/grad_norm"),
+                         ("actor/lr", "evolver/lr")):
+            if src in metrics:
+                result[dst] = _as_scalar(metrics[src])
+        return result
+
+    def _build_replay_batch(self, samples: list[dict]):
+        """Tokenize stored (messages, response) pairs into a verl actor batch.
+
+        Lays sequences out the way verl's rollout does: prompt left-padded to
+        ``max_prompt_length``, response right-padded to ``max_response_length``,
+        concatenated into ``input_ids``. Returns a DataProto carrying
+        input_ids / attention_mask / position_ids / responses / response_mask.
+        """
+        import torch
+        import verl.utils.torch_functional as verl_F
+        from verl import DataProto
+
+        tokenizer = self._require_tokenizer()
+        trainer = self._require_trainer()
+        max_prompt_length = self.max_prompt_length or 1024
+        max_response_length = int(
+            self._cfg_get("actor_rollout_ref.rollout.response_length", None)
+            or self._cfg_get("data.max_response_length", 1024)
+            or 1024
+        )
+        pad_token_id = tokenizer.pad_token_id
+        if pad_token_id is None:
+            pad_token_id = (
+                tokenizer.eos_token_id if tokenizer.eos_token_id is not None else 0
+            )
+
+        # Prompt side: render the stored chat messages with the chat template
+        # (mirrors _make_prompt_batch / the agent loop), left-pad + left-truncate.
+        rendered: list[str] = []
+        for s in samples:
+            msgs = s["messages"]
+            try:
+                text = tokenizer.apply_chat_template(
+                    msgs, add_generation_prompt=True, tokenize=False
+                )
+            except Exception:
+                text = "\n\n".join(m.get("content", "") for m in msgs)
+            rendered.append(text)
+        prompt_inputs = tokenizer(
+            rendered, return_tensors="pt", padding=True, add_special_tokens=False
+        )
+        prompt_ids, prompt_mask = verl_F.postprocess_data(
+            input_ids=prompt_inputs["input_ids"],
+            attention_mask=prompt_inputs["attention_mask"],
+            max_length=max_prompt_length,
+            pad_token_id=pad_token_id,
+            left_pad=True,
+            truncation=self.truncation,
+        )
+
+        # Response side: right-pad to the longest response in the batch (capped at
+        # max_response_length). Built explicitly so the layout is unambiguous.
+        resp_enc = [
+            tokenizer.encode(s["response"], add_special_tokens=False)[
+                :max_response_length
+            ]
+            for s in samples
+        ]
+        resp_len = max(1, max((len(e) for e in resp_enc), default=1))
+        batch_size = len(samples)
+        resp_ids = torch.full(
+            (batch_size, resp_len), pad_token_id, dtype=prompt_ids.dtype
+        )
+        resp_mask = torch.zeros((batch_size, resp_len), dtype=prompt_mask.dtype)
+        for i, enc in enumerate(resp_enc):
+            if enc:
+                resp_ids[i, : len(enc)] = torch.tensor(enc, dtype=prompt_ids.dtype)
+                resp_mask[i, : len(enc)] = 1
+
+        input_ids = torch.cat([prompt_ids, resp_ids], dim=1)
+        attention_mask = torch.cat([prompt_mask, resp_mask], dim=1)
+        position_ids = _compute_position_id_with_mask(attention_mask)
+
+        data = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "position_ids": position_ids,
+            "responses": resp_ids,
+            "response_mask": resp_mask,
+        }
+        return DataProto.from_single_dict(data)
+
+    def _replay_log_probs(self, data):
+        """Current-actor per-token log-probs for the replay batch (PPO>1 epochs)."""
+        import torch
+        from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
+
+        trainer = self._require_trainer()
+        probe = data.select(
+            batch_keys=["input_ids", "attention_mask", "position_ids", "responses"]
+        )
+        probe.batch["response_mask"] = data.batch["response_mask"]
+        probe.meta_info["global_token_num"] = torch.sum(
+            probe.batch["attention_mask"], dim=-1
+        ).tolist()
+        probe.meta_info["temperature"] = float(
+            self._cfg_get("actor_rollout_ref.rollout.temperature", 1.0) or 1.0
+        )
+        world_size = max(1, int(getattr(trainer.actor_rollout_wg, "world_size", 1)))
+        padded, pad_size = pad_dataproto_to_divisor(probe, world_size)
+        out = unpad_dataproto(
+            self._compute_actor_log_probs(padded), pad_size=pad_size
+        )
+        log_probs = out.batch.get("old_log_probs")
+        if log_probs is None:
+            return torch.zeros_like(data.batch["response_mask"], dtype=torch.float32)
+        return log_probs.float()
+
+    def _cfg_get(self, dotted_key: str, default=None):
+        """Read a dotted key from the trainer's verl config (OmegaConf or dict)."""
+        trainer = self._require_trainer()
+        node = getattr(trainer, "config", None)
+        if node is None:
+            return default
+        try:
+            from omegaconf import OmegaConf
+
+            value = OmegaConf.select(node, dotted_key)
+            return default if value is None else value
+        except Exception:
+            for key in dotted_key.split("."):
+                node = getattr(node, key, None) if not isinstance(node, dict) else node.get(key)
+                if node is None:
+                    return default
+            return node
 
     def _require_trainer(self):
         if self.trainer is None:

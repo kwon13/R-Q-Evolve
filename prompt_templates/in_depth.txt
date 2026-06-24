@@ -1,27 +1,27 @@
 Task: write a deeper variant of the parent generator.
 
-Depth means adding one substantive reasoning stage beyond the parent:
-- wrap the same object in a theorem or identity,
-- lift scalar reasoning to a structured object,
-- or chain a second mathematical relation onto the result.
+Inside generate, the answer must be cross-checked through two genuinely independent computational routes to prove that the conceptual fusion is real. The first route is the INSIGHT route, which corresponds to the short or collapsed reasoning path that the solver is expected to discover. The second route is the BRUTE route, which corresponds to a naive or expanded computation that does not use the intended insight. The final answer should be assigned from one of these routes, and the implementation must assert that it agrees with the other route.
+A valid cross-check requires that the two routes compute the same mathematical quantity through genuinely different procedures. Trivial checks such as assert answer == answer, recomputing the exact same expression twice, or comparing the result against a hard-coded literal are invalid and indicate that the fusion has failed. In that case, the generator design itself must be revised rather than merely changing the assertion. If two independent routes that necessarily agree cannot be written, then the two concepts are not truly fused into a single object, and the generator should not be submitted until it is redesigned.
+The generator should also include appropriate guards to avoid degenerate choices of parameters such as (r), (n), or cases where the answer can be guessed by inspection. These guards should ensure that the brute-force route remains finite and checkable, while still being sufficiently unattractive compared to the intended insight route.
 
-Do not merely increase numeric ranges.
-Do not leak the answer in the problem text.
-Use inverse construction so the answer is correct by construction.
+Output rules for the generated problem_text:
+- Never state the answer or any intermediate value (no "= <number>" lines, no
+  disguised assignments like "z = 1073741824", no "the sum is 200").
+- Never reveal the insight itself (do not mention the collapsing identity or
+  that the answer is a single power); the solver must discover it.
+- Produce exactly ONE question with ONE final integer value; no leaked objects
+  ("<function ...>", "0x..."); all stated conditions consistent and satisfiable.
 
 $few_shot_examples
 
 ---
 
-Parent score diagnostics:
-- p_hat: $parent_p_hat
-- uncertainty/H: $parent_h_score
-- R_Q: $parent_rq_score
-
-Parent program:
+PARENT_PROGRAM:
 ```python
 $parent_source
 
 CONCEPT_GROUP = "$parent_concept_group"
 CONCEPT_TYPE = "$parent_concept_type"
 ```
+
+CHILD_PROGRAM:

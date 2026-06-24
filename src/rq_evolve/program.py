@@ -1,15 +1,98 @@
 import ast
 import hashlib
-import importlib.util
 import json
-import math
-import random
-import signal
+import os
+import select
+import subprocess
+import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from .concepts import concept_group_for_type
+
+# Absolute path to the hermetic sandbox worker. Resolved once at import so the
+# client can (re)spawn it regardless of the trainer's cwd.
+_SANDBOX_WORKER_PATH = Path(__file__).with_name("_sandbox_worker.py")
+
+
+class _SandboxClient:
+    """One persistent subprocess that runs generated programs under a hard kill.
+
+    ``signal.alarm`` (the previous timeout) cannot interrupt a generated program
+    spinning in a C-level call (huge ``**``/``factorial``/``sympy`` work): the
+    SIGALRM handler only runs once control returns to the interpreter, which for a
+    runaway C loop is never -- so one such program pegged the trainer's MAIN thread
+    at 100% CPU with every GPU idle. Here each ``generate`` runs in a separate
+    spawned interpreter; if it overruns the wall-clock budget the parent SIGKILLs
+    it (a thread or signal cannot stop C-level work; killing the process does) and
+    lazily respawns a fresh worker for the next call.
+
+    A single worker serialised by a lock is enough: ``ProblemProgram.execute`` is
+    driven from the trainer's between-step evolution path (and archive refresh),
+    not from many threads at once. The lock keeps it correct if that ever changes.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._proc: subprocess.Popen | None = None
+
+    def _spawn(self) -> None:
+        self._proc = subprocess.Popen(
+            [sys.executable, str(_SANDBOX_WORKER_PATH)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+        )
+
+    def _kill(self) -> None:
+        if self._proc is not None:
+            try:
+                self._proc.kill()
+                self._proc.wait(timeout=2)
+            except Exception:
+                pass
+            self._proc = None
+
+    def run(self, source: str, seed: int, timeout: float) -> dict | None:
+        """Return ``{"problem","answer"}`` or None (bad program / timeout / crash)."""
+        with self._lock:
+            try:
+                if self._proc is None or self._proc.poll() is not None:
+                    self._spawn()
+                self._proc.stdin.write(
+                    json.dumps({"source": source, "seed": seed}) + "\n"
+                )
+                self._proc.stdin.flush()
+            except Exception:
+                self._kill()
+                return None
+
+            ready, _, _ = select.select([self._proc.stdout], [], [], timeout)
+            if not ready:
+                # Overran the budget -> the worker is wedged in C-level work.
+                # Kill it; the next call respawns a clean one.
+                self._kill()
+                return None
+            line = self._proc.stdout.readline()
+            if not line:  # worker died mid-request (e.g. MemoryError-killed)
+                self._kill()
+                return None
+            try:
+                resp = json.loads(line)
+            except Exception:
+                return None
+            if not resp.get("ok"):
+                return None
+            return {"problem": resp["problem"], "answer": resp["answer"]}
+
+
+# Process-global client: one resident worker shared by all ProblemProgram.execute
+# calls in this interpreter.
+_SANDBOX = _SandboxClient()
 
 ALLOWED_IMPORT_ROOTS = {
     "collections",
@@ -97,82 +180,25 @@ class ProblemProgram:
         )
 
     def execute(self, seed: int, timeout: float = 5.0) -> ProblemInstance | None:
-        """Run ``generate(seed)`` in a small import-guarded namespace."""
+        """Run ``generate(seed)`` in a hard-killable sandbox subprocess.
 
-        def guarded_import(
-            name: str,
-            globals_: dict | None = None,
-            locals_: dict | None = None,
-            fromlist: tuple = (),
-            level: int = 0,
-        ):
-            root = name.split(".", 1)[0]
-            if root not in ALLOWED_IMPORT_ROOTS:
-                raise ImportError(f"import not allowed: {name}")
-            return __import__(name, globals_, locals_, fromlist, level)
-
-        import builtins as _builtins
-
-        # Permissive blocklist sandbox: expose every builtin EXCEPT IO, dynamic
-        # code execution, and introspection-mutation. This mirrors evo-sample's
-        # full-__builtins__ generosity (so generators using next/divmod/map/
-        # filter/reversed/frozenset/itertools-style helpers run) while still
-        # blocking the dangerous ones. Defense in depth: imports go through
-        # guarded_import (ALLOWED_IMPORT_ROOTS only) and lint_generator_source
-        # rejects forbidden source patterns before execution.
-        _FORBIDDEN_BUILTINS = {
-            "open", "eval", "exec", "compile", "input",
-            "getattr", "setattr", "delattr",
-            "globals", "locals", "vars",
-            "exit", "quit", "help", "breakpoint",
-        }
-        safe_builtins = {
-            name: getattr(_builtins, name)
-            for name in dir(_builtins)
-            if not name.startswith("_") and name not in _FORBIDDEN_BUILTINS
-        }
-        # Dunder builtins are excluded by the filter above. Re-add the two we
-        # need: a sandboxed importer, and class-definition support.
-        safe_builtins["__import__"] = guarded_import
-        safe_builtins["__build_class__"] = _builtins.__build_class__
-
-        def timeout_handler(signum, frame):
-            raise TimeoutError("program execution timed out")
-
-        spec = importlib.util.spec_from_loader("rq_generated_program", loader=None)
-        module = importlib.util.module_from_spec(spec)
-        module.__dict__.update(
-            {
-                "__builtins__": safe_builtins,
-                "math": math,
-                "random": random,
-            }
-        )
-
-        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(max(1, int(timeout)))
-        try:
-            exec(self.source_code, module.__dict__)
-            generate = getattr(module, "generate", None)
-            if generate is None:
-                return None
-            result = generate(seed)
-            if not isinstance(result, (tuple, list)) or len(result) != 2:
-                return None
-            problem, answer = str(result[0]), str(result[1])
-            if not problem.strip() or not answer.strip():
-                return None
-            return ProblemInstance(
-                problem=problem,
-                answer=answer,
-                program_id=self.program_id,
-                seed=seed,
-            )
-        except Exception:
+        The import-guarded namespace and builtin blocklist live in
+        ``_sandbox_worker.py``; the worker is run in a separate spawned
+        interpreter so a generator that spins in a C-level call (which
+        ``signal.alarm`` could never interrupt) is SIGKILLed at ``timeout``
+        instead of wedging the trainer. Any failure -- bad program, timeout,
+        worker crash -- comes back as None, exactly as the old in-process path
+        signalled it.
+        """
+        resp = _SANDBOX.run(self.source_code, seed, timeout)
+        if resp is None:
             return None
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old_handler)
+        return ProblemInstance(
+            problem=resp["problem"],
+            answer=resp["answer"],
+            program_id=self.program_id,
+            seed=seed,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -567,6 +567,9 @@ class RQEvolver:
             n_div_bins=self.archive.n_div_bins,
             used_seeds=self.used_seeds,
             strict_anti_reuse=self.training_config.strict_anti_reuse,
+            select_lowest_rq_first=self.training_config.select_lowest_rq_first,
+            select_ignores_uncertainty=self.evolution_config.select_ignores_uncertainty,
+            select_ignores_variance=self.evolution_config.select_ignores_variance,
         )
         self.dataset.update(examples)
 

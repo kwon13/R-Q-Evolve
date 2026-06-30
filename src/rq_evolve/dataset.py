@@ -1,9 +1,8 @@
-import random
 from dataclasses import dataclass, field
 
 from .program import ProblemProgram
 from .prompts import SOLVER_SYSTEM_PROMPT
-from .scoring import is_frontier
+from .scoring import is_frontier, selection_priority
 
 
 @dataclass
@@ -98,18 +97,21 @@ def build_training_examples(
     n_div_bins: int,
     used_seeds: dict[str, set[int]] | None = None,
     strict_anti_reuse: bool = True,
+    select_lowest_rq_first: bool = False,
+    select_ignores_uncertainty: bool = False,
+    select_ignores_variance: bool = False,
 ) -> list[dict]:
-    """Render champion programs into training problems (H-priority, D-uniform).
+    """Render champion programs into training problems (global R_Q priority).
 
-    Ports evo-sample's ``h_priority_d_uniform`` selection: repeated grid sweeps
-    emit at most one instance per occupied niche per sweep, walking H bins from
-    high to low and the D (concept) bins in a fresh random order each sweep.
-    This spreads the training set evenly across the D axis instead of draining
-    one champion fully before the next — which matters when ``training_budget``
-    binds (smaller than frontier_champions x instances_per_program). With
-    ``training_budget=null`` the budget never binds, so every frontier champion
-    still contributes ``instances_per_program`` instances (same set as the
-    legacy order, just interleaved).
+    Frontier champions are sorted by ``rq_score`` descending, then each champion
+    contributes up to ``instances_per_program`` generated instances before lower
+    R_Q champions are considered. This makes ``training_budget`` bind globally
+    by R_Q instead of by the MAP grid traversal order. Set
+    ``select_lowest_rq_first=True`` to invert the order (ablation: drain the
+    lowest-R_Q champions first). With
+    ``training_budget=null`` every frontier champion still contributes up to
+    ``instances_per_program`` instances, but the resulting rows are ordered by
+    R_Q before the trainer's sampler shuffles them.
 
     Only frontier champions (low < p_hat < high) contribute; duplicate
     (problem, answer) instances are dropped; seeds advance monotonically under
@@ -120,10 +122,21 @@ def build_training_examples(
     budget = training_budget or max(1, len(champions) * instances_per_program)
     used_seeds = used_seeds if used_seeds is not None else {}
 
-    # Reconstruct the occupied grid from champion niche coordinates.
-    grid: dict[tuple[int, int], ProblemProgram] = {
-        (c.niche_h, c.niche_div): c for c in champions
-    }
+    ranked_champions = sorted(
+        (
+            c
+            for c in champions
+            if is_frontier(float(getattr(c, "p_hat", 0.5)), low, high)
+        ),
+        key=lambda c: selection_priority(
+            float(getattr(c, "p_hat", 0.5) or 0.5),
+            float(getattr(c, "rq_score", 0.0) or 0.0),
+            float(getattr(c, "h_score", 0.0) or 0.0),
+            ignore_uncertainty=select_ignores_uncertainty,
+            ignore_variance=select_ignores_variance,
+        ),
+        reverse=not select_lowest_rq_first,
+    )
 
     examples: list[dict] = []
     emitted_per_program: dict[str, int] = {}
@@ -168,36 +181,26 @@ def build_training_examples(
         emitted_per_program[pid] = emitted_per_program.get(pid, 0) + 1
         return True, True
 
-    MAX_FAILED_SWEEPS = 2
-    failed_sweeps = 0
-    while len(examples) < budget:
-        progress = False
-        advanced = False
-        for h_bin in range(n_h_bins - 1, -1, -1):       # high H (hard) first
-            d_order = list(range(n_div_bins))
-            random.shuffle(d_order)                       # D-uniform per sweep
-            for d_bin in d_order:
-                if len(examples) >= budget:
-                    break
-                champ = grid.get((h_bin, d_bin))
-                if champ is None:
-                    continue
-                if not is_frontier(float(getattr(champ, "p_hat", 0.5)), low, high):
-                    continue
-                appended, stepped = _try_emit(champ, h_bin, d_bin)
-                progress = progress or appended
-                advanced = advanced or stepped
-            else:
+    MAX_FAILED_ATTEMPTS = 2
+    for champ in ranked_champions:
+        h_bin = int(getattr(champ, "niche_h", -1))
+        d_bin = int(getattr(champ, "niche_div", -1))
+        failed_attempts = 0
+        while len(examples) < budget:
+            if emitted_per_program.get(champ.program_id, 0) >= instances_per_program:
+                break
+            appended, advanced = _try_emit(champ, h_bin, d_bin)
+            if appended:
+                failed_attempts = 0
                 continue
-            break  # budget reached in the inner loop — propagate out
-        if progress:
-            failed_sweeps = 0
-            continue
-        # Nothing appended this sweep: either every frontier champion hit its
-        # per-refresh cap (not advanced -> normal under-fill for small archives)
-        # or only exec-failing seeds were consumed for MAX_FAILED_SWEEPS sweeps.
-        failed_sweeps += 1
-        if not advanced or failed_sweeps >= MAX_FAILED_SWEEPS:
+            if not advanced:
+                break
+            # Avoid spending indefinitely on generators whose next seeds all fail
+            # or duplicate already-emitted problems.
+            failed_attempts += 1
+            if failed_attempts >= MAX_FAILED_ATTEMPTS:
+                break
+        if len(examples) >= budget:
             break
 
     return examples

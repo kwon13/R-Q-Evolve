@@ -67,12 +67,34 @@ class EvolutionConfig:
     # (see verl_patches.py), so the change is transparent to the scoring path.
     uncertainty_measure: str = "entropy"
 
+    # Ablation: drop the H/uncertainty term ONLY from the priority that drives
+    # evolution -- which champions are picked as mutation parents and which are
+    # drained into the training batch -- so those decisions rank by s(1-s)
+    # (pass-rate variance) instead of s(1-s)*H. The MAP still bins on real H and
+    # stores/logs each champion's real R_Q, so the archive snapshots show the
+    # true scores; only the selection ranking ignores H. This isolates whether
+    # H is actually needed to drive the curriculum. Production keeps this False.
+    select_ignores_uncertainty: bool = False
+
+    # Ablation (the mirror of select_ignores_uncertainty): drop the s(1-s)
+    # pass-rate-variance term ONLY from the selection/mutation priority, so those
+    # decisions rank by H (uncertainty) alone instead of s(1-s)*H. The MAP still
+    # bins on real H and stores/logs each champion's real R_Q. Isolates whether
+    # the pass-rate-variance term is needed to drive the curriculum. Do NOT set
+    # this together with select_ignores_uncertainty (that leaves no signal).
+    select_ignores_variance: bool = False
+
 
 @dataclass(slots=True)
 class TrainingDataConfig:
     instances_per_program: int = 8
     training_budget: int | None = None
     strict_anti_reuse: bool = True
+    # Order in which frontier champions are drained into the training batch.
+    #   False (default) -> highest R_Q first (production behavior).
+    #   True            -> lowest R_Q first (ablation: invert the priority so the
+    #                      budget binds on the LEAST uncertain/valuable champions).
+    select_lowest_rq_first: bool = False
 
 
 @dataclass(slots=True)

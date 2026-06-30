@@ -25,6 +25,18 @@ evolution:
   # or "gini" (exact capacity factor 1 - sum p^2 = 1 - ||pi_t||^2). gini swaps
   # verl's per-token entropy in each actor worker (see verl_patches.py).
   uncertainty_measure: entropy
+  # Ablation: drop the H term ONLY from the selection/mutation priority -- rank
+  # mutation parents and training-data drain by s(1-s) instead of s(1-s)*H. The
+  # MAP still bins on real H and logs each champion's real R_Q, so snapshots show
+  # true scores; only the driving signal ignores H. false = production.
+  select_ignores_uncertainty: false
+  # Mirror ablation: drop the s(1-s) pass-rate-variance term from the
+  # selection/mutation priority instead -- rank by H alone (s(1-s)*H -> H). MAP
+  # still logs real R_Q/H. MUTUALLY EXCLUSIVE with select_ignores_uncertainty
+  # (both true -> constant priority, no signal -> rejected at startup). To run
+  # this ablation set select_ignores_uncertainty: false and this: true (and give
+  # the run its own RQ_EXP_NAME / RQ_LOCAL_DIR so it doesn't share the none_h dir).
+  select_ignores_variance: true
   # --- ablation knobs ---
   # in_breadth is NOT a knob: it is the remainder = 1 - crossover_ratio - in_depth_ratio.
   # crossover_ratio MUST be set explicitly to 0.0 to disable crossover; commenting it
@@ -49,6 +61,10 @@ training_data:
   instances_per_program: 8
   training_budget: null
   strict_anti_reuse: true
+  # ABLATION: invert training-data priority. false (default) drains the
+  # HIGHEST-R_Q frontier champions into the batch first; true drains the
+  # LOWEST-R_Q first (the budget then binds on the least uncertain problems).
+  select_lowest_rq_first: false
 
 verl:
   enabled: true
@@ -112,7 +128,7 @@ verl_config:
         weight_decay: 1.0e-2
         lr_warmup_steps_ratio: 0.0
         # EasyR1 trainer.max_steps: 256 (LR schedule horizon)
-        total_training_steps: 256
+        total_training_steps: 128
 
     ref:
       log_prob_micro_batch_size: null
@@ -224,10 +240,10 @@ verl_config:
     # start of every epoch).
     total_epochs: 10000
     # EasyR1 trainer.max_steps: 256 (hard cap on optimizer steps)
-    total_training_steps: 256
+    total_training_steps: 128
     project_name: rq_evolve
     # Overridable per ablation via RQ_EXP_NAME (default = base run name).
-    experiment_name: qwen3_8b_base_rq_evolve_base
+    experiment_name: qwen3_8b_base_rq_evolve_none_s_8b
     logger:
       - console
       - wandb
@@ -243,7 +259,7 @@ verl_config:
     save_freq: 32
     # Overridable per ablation via RQ_LOCAL_DIR (also separates the rq_archive/
     # checkpoint dir so ablations never share an archive).
-    default_local_dir: ./rq_output/rq_evolve_base
+    default_local_dir: ./rq_output/rq_evolve_none_s_8b
     device: cuda
     # Resume: weights resume from the latest global_step_* via verl's `auto`
     # (reads latest_checkpointed_iteration.txt). The RQ MAP-Elites archive lives

@@ -21,6 +21,35 @@ def compute_rq_value(p_hat: float, uncertainty: float) -> float:
     return float(p_hat) * (1.0 - float(p_hat)) * float(uncertainty)
 
 
+def selection_priority(
+    p_hat: float,
+    rq_score: float,
+    h: float = 0.0,
+    *,
+    ignore_uncertainty: bool = False,
+    ignore_variance: bool = False,
+) -> float:
+    """Priority used to rank champions for mutation / training-data selection.
+
+    Production ranks by the full R_Q (``rq_score`` = s(1-s)*H). Two ablations
+    drop one factor from the *driving signal only* (the archive keeps storing /
+    logging the real R_Q, so the MAP still records true scores):
+
+    * ``ignore_uncertainty`` -- H term := 1, rank by s(1-s) (pass-rate variance).
+    * ``ignore_variance``    -- s(1-s) term := 1, rank by H (uncertainty/``h``).
+
+    Enabling both drops every factor, leaving a constant 1.0 (degenerate: the
+    priority carries no signal). Callers should not set both at once.
+    """
+    if ignore_uncertainty and ignore_variance:
+        return 1.0
+    if ignore_uncertainty:
+        return float(p_hat) * (1.0 - float(p_hat))
+    if ignore_variance:
+        return float(h)
+    return float(rq_score)
+
+
 def compute_rq(p_hat: float, uncertainty: float) -> RQResult:
     p_var = float(p_hat) * (1.0 - float(p_hat))
     return RQResult(

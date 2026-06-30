@@ -17,4 +17,4 @@ LOG="$ROOT/logs/rq_evolve_base_$(date +%Y%m%d_%H%M%S).log"
 echo "[run] logging to $LOG"
 set -o pipefail
 python scripts/train_with_verl.py \
-  --config configs/rq_evolve_octo_8b.yaml 2>&1 | tee "$LOG"
+  --config configs/rq_evolve_base.yaml 2>&1 | tee "$LOG"

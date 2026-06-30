@@ -567,7 +567,11 @@ class VerlTrainerAdapter:
         return tokenizer, processor
 
     def _build_evolver(self, backend: VerlPolicyBackend) -> RQEvolver:
-        archive = MAPElitesArchive(**asdict(self.rq_config.archive))
+        archive = MAPElitesArchive(
+            **asdict(self.rq_config.archive),
+            select_ignores_uncertainty=self.rq_config.evolution.select_ignores_uncertainty,
+            select_ignores_variance=self.rq_config.evolution.select_ignores_variance,
+        )
         return RQEvolver(
             archive=archive,
             backend=backend,

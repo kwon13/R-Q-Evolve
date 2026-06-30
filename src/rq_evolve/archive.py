@@ -9,6 +9,7 @@ from pathlib import Path
 from .code_utils import lint_problem_instance
 from .concepts import DEFAULT_CONCEPT_TYPES, CONCEPT_GROUPS
 from .program import ProblemProgram
+from .scoring import selection_priority
 
 
 @dataclass
@@ -38,11 +39,19 @@ class MAPElitesArchive:
         epsilon: float = 0.3,
         ucb_c: float = 1.0,
         selection_strategy: str = "ucb",
+        select_ignores_uncertainty: bool = False,
+        select_ignores_variance: bool = False,
     ) -> None:
         if diversity_axis not in {"concept_group", "concept_type", "hash"}:
             raise ValueError(f"unknown diversity_axis: {diversity_axis}")
         if selection_strategy not in {"ucb", "random"}:
             raise ValueError(f"unknown selection_strategy: {selection_strategy}")
+        if select_ignores_uncertainty and select_ignores_variance:
+            raise ValueError(
+                "select_ignores_uncertainty and select_ignores_variance are "
+                "mutually exclusive: enabling both drops every R_Q factor and "
+                "leaves a constant (signal-free) selection priority."
+            )
         self.diversity_axis = diversity_axis
         if diversity_axis == "concept_group":
             n_div_bins = len(CONCEPT_GROUPS)
@@ -55,6 +64,11 @@ class MAPElitesArchive:
         self.epsilon = float(epsilon)
         self.ucb_c = float(ucb_c)
         self.selection_strategy = selection_strategy
+        # Ablations: rank mutation parents by s(1-s) (ignore_uncertainty) or by H
+        # (ignore_variance) instead of s(1-s)*H. Neither changes what is stored /
+        # binned -- champion_rq and H bins stay real.
+        self.select_ignores_uncertainty = bool(select_ignores_uncertainty)
+        self.select_ignores_variance = bool(select_ignores_variance)
         self.total_insertions = 0
         self.total_replacements = 0
         self.total_selections = 0
@@ -120,7 +134,13 @@ class MAPElitesArchive:
             return False
 
         niche = self.grid[(h_bin, d_bin)]
-        if niche.champion is None or rq_score > niche.champion_rq:
+        # Champion competition ranks by selection priority: real R_Q in
+        # production, s(1-s) under the select_ignores_uncertainty ablation
+        # (program.rq_score / p_hat are already set above). The stored
+        # champion_rq and the H bin stay real, so the MAP still logs the true
+        # scores -- only the winner choice is H-blind under the ablation.
+        new_priority = self._select_priority(program)
+        if niche.champion is None or new_priority > self._select_priority(niche.champion):
             event = "inserted" if niche.champion is None else "replaced"
             if niche.champion is not None:
                 self.total_replacements += 1
@@ -301,11 +321,24 @@ class MAPElitesArchive:
     def champions(self) -> list[ProblemProgram]:
         return [n.champion for n in self.grid.values() if n.champion is not None]
 
-    @staticmethod
-    def _is_learnable(program: ProblemProgram | None) -> bool:
-        """RQ>0: a learnable parent. Too-easy generators (p_hat=1.0 -> RQ=0)
-        stay in the archive but are not selected for mutation."""
-        return program is not None and (program.rq_score or 0.0) > 0.0
+    def _select_priority(self, program: ProblemProgram | None) -> float:
+        """Selection priority for a champion: full R_Q, or s(1-s) under the
+        select_ignores_uncertainty ablation, or H under select_ignores_variance."""
+        if program is None:
+            return 0.0
+        return selection_priority(
+            float(getattr(program, "p_hat", 0.0) or 0.0),
+            float(getattr(program, "rq_score", 0.0) or 0.0),
+            float(getattr(program, "h_score", 0.0) or 0.0),
+            ignore_uncertainty=self.select_ignores_uncertainty,
+            ignore_variance=self.select_ignores_variance,
+        )
+
+    def _is_learnable(self, program: ProblemProgram | None) -> bool:
+        """Priority>0: a learnable parent. Too-easy generators (p_hat=1.0 ->
+        priority 0) stay in the archive but are not selected for mutation.
+        Under the ablation the priority is s(1-s), so p_hat in (0,1) qualifies."""
+        return program is not None and self._select_priority(program) > 0.0
 
     def sample_parent(self) -> ProblemProgram | None:
         occupied = [(key, n) for key, n in self.grid.items() if n.champion is not None]
@@ -343,16 +376,21 @@ class MAPElitesArchive:
         return first, random.choice(remaining)
 
     def _sample_ucb(self, occupied: list[tuple[tuple[int, int], Niche]]):
-        rqs = [n.champion_rq for _, n in occupied]
-        sorted_rqs = sorted(set(rqs))
+        # Exploitation term ranks by selection priority: real R_Q in production,
+        # s(1-s) under the select_ignores_uncertainty ablation. champion_rq stays
+        # the real stored R_Q; we recompute priority from each champion.
+        priorities = {
+            key: self._select_priority(n.champion) for key, n in occupied
+        }
+        sorted_rqs = sorted(set(priorities.values()))
         denom = max(len(sorted_rqs) - 1, 1)
         total = self.total_selections + 1
 
         best_score = -math.inf
         best = occupied[0]
         for item in occupied:
-            _, niche = item
-            rank = sorted_rqs.index(niche.champion_rq) / denom
+            key, niche = item
+            rank = sorted_rqs.index(priorities[key]) / denom
             if niche.selection_count <= 0:
                 exploration = math.inf
             else:

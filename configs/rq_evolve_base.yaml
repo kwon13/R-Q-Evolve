@@ -34,6 +34,11 @@ evolution:
   frontier_p_hat_range: [0.0, 1.0]
   fix_retry: false
   use_evaluator: true        # LLM coherence gate on seed-0 problem before archive
+  evaluator_provider: openai # policy = current rollout model; openai = OpenAI API
+  evaluator_model: gpt-5.4-mini
+  evaluator_reasoning_effort: low
+  evaluator_timeout_s: 60
+  evaluator_max_output_tokens: 512
 
 training_data:
   instances_per_program: 8

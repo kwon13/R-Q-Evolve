@@ -13,8 +13,10 @@ from .code_utils import (
 from .concepts import validate_concept_decl
 from .config import EvolutionConfig, TrainingDataConfig
 from .dataset import DynamicProblemDataset, build_training_examples
+from .openai_evaluator import OpenAIEvaluatorConfig, evaluate_messages_with_openai
 from .program import ProblemInstance, ProblemProgram
 from .prompts import (
+    build_evaluator_messages,
     build_evaluator_task,
     build_fix_task,
     build_mutation_task,
@@ -377,20 +379,34 @@ class RQEvolver:
         INVALID is converted in place to an ``evaluator_rejected`` report, so it
         is discarded before solver rollouts and never reaches the archive.
 
-        One batched ``mutate`` over all targets, run inside the already-open vLLM
-        session. Parsing failures / missing verdicts default to VALID (keep), so
-        the gate only ever removes a candidate on an explicit INVALID.
+        With ``evaluator_provider=policy``, one batched ``mutate`` over all
+        targets runs inside the already-open vLLM session. With
+        ``evaluator_provider=openai``, the same evaluator messages are sent to
+        the OpenAI Responses API using ``evaluator_model``.
         """
         if not self.evolution_config.use_evaluator:
             return
         targets = [e for e in entries if "child" in e]
         if not targets:
             return
-        eval_tasks = [
-            build_evaluator_task(e["child"], e["inst"].problem) for e in targets
-        ]
-        outputs = self.backend.mutate(eval_tasks)
+        if self.evolution_config.evaluator_provider == "openai":
+            outputs = self._run_openai_evaluator(targets)
+        else:
+            eval_tasks = [
+                build_evaluator_task(e["child"], e["inst"].problem) for e in targets
+            ]
+            outputs = self.backend.mutate(eval_tasks)
         for e, output in zip(targets, outputs):
+            if isinstance(output, Exception):
+                task, child = e["task"], e["child"]
+                e.clear()
+                e["report"] = CandidateReport(
+                    status="evaluator_error",
+                    op=task.op,
+                    child_id=child.program_id,
+                    reason=str(output)[:300],
+                )
+                continue
             is_valid, reason = parse_evaluator_verdict(output or "")
             if is_valid:
                 continue
@@ -402,6 +418,22 @@ class RQEvolver:
                 child_id=child.program_id,
                 reason=reason,
             )
+
+    def _run_openai_evaluator(self, targets: list[dict]) -> list[str | Exception]:
+        cfg = OpenAIEvaluatorConfig(
+            model=self.evolution_config.evaluator_model,
+            reasoning_effort=self.evolution_config.evaluator_reasoning_effort,
+            timeout_s=self.evolution_config.evaluator_timeout_s,
+            max_output_tokens=self.evolution_config.evaluator_max_output_tokens,
+        )
+        outputs: list[str | Exception] = []
+        for e in targets:
+            messages = build_evaluator_messages(e["inst"].problem)
+            try:
+                outputs.append(evaluate_messages_with_openai(messages, cfg))
+            except Exception as exc:
+                outputs.append(exc)
+        return outputs
 
     def _score_from_rollouts(
         self,

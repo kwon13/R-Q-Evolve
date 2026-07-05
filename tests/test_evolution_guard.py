@@ -11,7 +11,7 @@ from dataclasses import asdict
 
 from rq_evolve.archive import MAPElitesArchive
 from rq_evolve.backends import PendingRollouts, RolloutRecord
-from rq_evolve.config import ArchiveConfig
+from rq_evolve.config import ArchiveConfig, EvolutionConfig
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.program import ProblemInstance, ProblemProgram
 
@@ -110,3 +110,41 @@ def test_rejected_samples_excluded_from_p_hat():
     assert result is not None
     assert result.p_hat == 0.5
     assert result.num_rollouts == 2
+
+
+def test_openai_evaluator_rejects_invalid(monkeypatch):
+    def fake_openai(messages, config):
+        assert config.model == "gpt-5.4-mini"
+        assert messages[0]["role"] == "system"
+        return "reason: disconnected condition\nverdict: INVALID"
+
+    monkeypatch.setattr("rq_evolve.evolution.evaluate_messages_with_openai", fake_openai)
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(evaluator_provider="openai")
+    child = _program("child")
+    entry = {
+        "task": type("Task", (), {"op": "in_depth"})(),
+        "child": child,
+        "inst": ProblemInstance(problem="p", answer="4", program_id="child", seed=0),
+    }
+    evolver._apply_evaluator([entry])
+    assert entry["report"].status == "evaluator_rejected"
+    assert entry["report"].child_id == "child"
+
+
+def test_openai_evaluator_error_becomes_report(monkeypatch):
+    def fake_openai(messages, config):
+        raise RuntimeError("missing OPENAI_API_KEY")
+
+    monkeypatch.setattr("rq_evolve.evolution.evaluate_messages_with_openai", fake_openai)
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(evaluator_provider="openai")
+    child = _program("child")
+    entry = {
+        "task": type("Task", (), {"op": "in_depth"})(),
+        "child": child,
+        "inst": ProblemInstance(problem="p", answer="4", program_id="child", seed=0),
+    }
+    evolver._apply_evaluator([entry])
+    assert entry["report"].status == "evaluator_error"
+    assert "OPENAI_API_KEY" in entry["report"].reason

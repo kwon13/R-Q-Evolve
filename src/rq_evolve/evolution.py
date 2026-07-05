@@ -1,5 +1,6 @@
 import json
 import random
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -426,14 +427,16 @@ class RQEvolver:
             timeout_s=self.evolution_config.evaluator_timeout_s,
             max_output_tokens=self.evolution_config.evaluator_max_output_tokens,
         )
-        outputs: list[str | Exception] = []
-        for e in targets:
+        def evaluate_one(e: dict) -> str | Exception:
             messages = build_evaluator_messages(e["inst"].problem)
             try:
-                outputs.append(evaluate_messages_with_openai(messages, cfg))
+                return evaluate_messages_with_openai(messages, cfg)
             except Exception as exc:
-                outputs.append(exc)
-        return outputs
+                return exc
+
+        max_workers = min(self.evolution_config.evaluator_concurrency, len(targets))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            return list(executor.map(evaluate_one, targets))
 
     def _score_from_rollouts(
         self,

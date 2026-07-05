@@ -43,6 +43,7 @@ class EvolutionConfig:
     evaluator_reasoning_effort: str = "low"
     evaluator_timeout_s: float = 60.0
     evaluator_max_output_tokens: int = 512
+    evaluator_concurrency: int = 8
     # Ablation: drop the H/uncertainty term ONLY from the priority that drives
     # evolution -- which champions are picked as mutation parents and which are
     # drained into the training batch -- so those decisions rank by s(1-s)
@@ -75,6 +76,8 @@ class EvolutionConfig:
             raise ValueError("evolution.evaluator_timeout_s must be > 0")
         if self.evaluator_max_output_tokens < 1:
             raise ValueError("evolution.evaluator_max_output_tokens must be >= 1")
+        if self.evaluator_concurrency < 1:
+            raise ValueError("evolution.evaluator_concurrency must be >= 1")
 
 
 @dataclass(slots=True)

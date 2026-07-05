@@ -132,6 +132,42 @@ def test_openai_evaluator_rejects_invalid(monkeypatch):
     assert entry["report"].child_id == "child"
 
 
+def test_openai_evaluator_preserves_target_order(monkeypatch):
+    seen = []
+
+    def fake_openai(messages, config):
+        seen.append(messages[1]["content"])
+        if "second" in messages[1]["content"]:
+            return "reason: ok\nverdict: VALID"
+        return "reason: first invalid\nverdict: INVALID"
+
+    monkeypatch.setattr("rq_evolve.evolution.evaluate_messages_with_openai", fake_openai)
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(
+        evaluator_provider="openai",
+        evaluator_concurrency=2,
+    )
+    entries = []
+    for pid, problem in (("first", "first problem"), ("second", "second problem")):
+        entries.append(
+            {
+                "task": type("Task", (), {"op": "in_depth"})(),
+                "child": _program(pid),
+                "inst": ProblemInstance(
+                    problem=problem,
+                    answer="4",
+                    program_id=pid,
+                    seed=0,
+                ),
+            }
+        )
+
+    evolver._apply_evaluator(entries)
+    assert entries[0]["report"].status == "evaluator_rejected"
+    assert "child" in entries[1]
+    assert len(seen) == 2
+
+
 def test_openai_evaluator_error_becomes_report(monkeypatch):
     def fake_openai(messages, config):
         raise RuntimeError("missing OPENAI_API_KEY")

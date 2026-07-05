@@ -37,8 +37,9 @@ evolution:
   evaluator_provider: openai # policy = current rollout model; openai = OpenAI API
   evaluator_model: gpt-5.4-mini
   evaluator_reasoning_effort: low
-  evaluator_timeout_s: 60
-  evaluator_max_output_tokens: 512
+  evaluator_timeout_s: 20
+  evaluator_max_output_tokens: 4096
+  evaluator_concurrency: 8
 
 training_data:
   instances_per_program: 8

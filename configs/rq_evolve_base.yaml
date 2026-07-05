@@ -37,7 +37,7 @@ evolution:
   evaluator_provider: openai # policy = current rollout model; openai = OpenAI API
   evaluator_model: gpt-5.4-mini
   evaluator_reasoning_effort: low
-  evaluator_timeout_s: 20
+  evaluator_timeout_s: 30
   evaluator_max_output_tokens: 4096
   evaluator_concurrency: 8
 
@@ -53,7 +53,7 @@ training_data:
   # RANDOM (seeded) order. Takes precedence over select_lowest_rq_first. Give the
   # run its own RQ_EXP_NAME / RQ_LOCAL_DIR so it doesn't share another ablation's
   # archive. select_random_seed varies the shuffle (+ refresh count per iter).
-  select_random_order: true
+  select_random_order: False
   select_random_seed: 0
 
 verl:
@@ -266,7 +266,7 @@ verl_config:
     total_training_steps: 128
     project_name: rq_evolve
     # Overridable per ablation via RQ_EXP_NAME (default = base run name).
-    experiment_name: qwen3_8b_base_rq_evolve_random_8b
+    experiment_name: qwen3_8b_base_rq_evolve_gpt_8b
     logger:
       - console
       - wandb
@@ -282,7 +282,7 @@ verl_config:
     save_freq: 32
     # Overridable per ablation via RQ_LOCAL_DIR (also separates the rq_archive/
     # checkpoint dir so ablations never share an archive).
-    default_local_dir: ./rq_output/rq_evolve_random_8b
+    default_local_dir: ./rq_output/rq_evolve_gpt_8b
     device: cuda
     # Resume: weights resume from the latest global_step_* via verl's `auto`
     # (reads latest_checkpointed_iteration.txt). The RQ MAP-Elites archive lives

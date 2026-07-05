@@ -12,6 +12,21 @@ class RolloutRecord:
     predicted_answer: str | None
     correct: bool
     entropy: float
+    # --- async-RL metadata (defaulted: legacy call sites unaffected) --------
+    # accepted | rejected; rejected records carry reject_reason and are
+    # excluded from p_hat / R_Q scoring (never trained on silently).
+    status: str = "accepted"
+    reject_reason: str | None = None
+    # Policy/adapter version at GENERATION time (PolicyVersionTracker.stamp()),
+    # -1 = unknown (legacy path without a tracker).
+    policy_version: int = -1
+    adapter_version: int = -1
+    global_step: int = -1
+    source_checkpoint: str = ""
+    # Wall-clock submit/finish of the chunk this sample rode in.
+    ts_start: float = 0.0
+    ts_end: float = 0.0
+    response_tokens: int = 0
 
 
 @dataclass
@@ -29,6 +44,11 @@ class PendingRollouts:
     grouped: list[list[RolloutRecord]] | None = None
     full_batch: object | None = None
     decoded: list[str] = field(default_factory=list)
+    # Streaming path: per-chunk results (records already verified/filtered by
+    # the scheduler's consumers; entropy still pending). When set,
+    # finalize_rollouts runs the deferred entropy pass over the chunks' batches
+    # and backfills RolloutRecord.entropy instead of using full_batch/decoded.
+    chunk_results: list | None = None
 
 
 class EvolutionBackend(Protocol):

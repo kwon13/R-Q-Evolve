@@ -20,7 +20,7 @@ from .prompts import (
     build_mutation_task,
     parse_evaluator_verdict,
 )
-from .scoring import RQResult, compute_rq_full
+from .scoring import RQResult, compute_rq_full, is_frontier
 
 
 @dataclass(slots=True)
@@ -51,6 +51,11 @@ class RQEvolver:
     # Number of refresh_dataset() calls so far. Only used to vary the seed of the
     # select_random_order ablation shuffle across outer iterations (reproducible).
     dataset_refresh_count: int = 0
+    # Per-champion frontier decision from the most recent refresh_dataset():
+    # {program_id, p_hat, rq_score, decision: in_frontier | p_hat_out_of_range}.
+    # Persisted into evolution_log.jsonl so the learnability/curriculum filter
+    # is observable (which champions fed the training set, and why not).
+    last_frontier: list[dict] = field(default_factory=list)
 
     def load_seed_programs(self, seed_dir: str | Path) -> list[ProblemProgram]:
         programs: list[ProblemProgram] = []
@@ -92,7 +97,7 @@ class RQEvolver:
                 )
                 continue
             result = self.evaluate_instance(program, inst)
-            if result.p_hat <= 0.0:
+            if result is None or result.p_hat <= 0.0:
                 continue
             if self.archive.try_insert(
                 program=program,
@@ -167,12 +172,15 @@ class RQEvolver:
 
         self.refresh_dataset()
         stats = self.archive.stats()
+        frontier_in = sum(1 for f in self.last_frontier if f["decision"] == "in_frontier")
         result = {
             "outer_iteration": outer_iteration,
             "attempted": attempted,
             "inserted": inserted,
             "accept_rate": inserted / attempted if attempted else 0.0,
             "dataset_size": len(self.dataset),
+            "frontier_in": frontier_in,
+            "frontier_out": len(self.last_frontier) - frontier_in,
             **stats,
         }
         self.last_reports = reports
@@ -242,9 +250,28 @@ class RQEvolver:
                 reports.append(entry["report"])
                 continue
             task, child, inst = entry["task"], entry["child"], entry["inst"]
-            result = self._score_from_rollouts(
-                child, rollouts_by_child.get(id(child), [])
-            )
+            rollouts = rollouts_by_child.get(id(child), [])
+            accepted = [
+                r for r in rollouts if getattr(r, "status", "accepted") == "accepted"
+            ]
+            if rollouts and not accepted:
+                # Every rollout for this child was rejected (timeout / worker
+                # error / stale / ...): report the dominant reason explicitly
+                # instead of letting it masquerade as an ordinary p_hat_zero.
+                reasons: dict[str, int] = {}
+                for r in rollouts:
+                    key = r.reject_reason or "unknown"
+                    reasons[key] = reasons.get(key, 0) + 1
+                reports.append(
+                    CandidateReport(
+                        status="rollout_failed",
+                        op=task.op,
+                        child_id=child.program_id,
+                        reason=max(reasons, key=reasons.get),
+                    )
+                )
+                continue
+            result = self._score_from_rollouts(child, rollouts)
             if result.p_hat <= 0.0:
                 reports.append(
                     CandidateReport(
@@ -381,10 +408,16 @@ class RQEvolver:
         program: ProblemProgram,
         rollouts: list[RolloutRecord],
     ) -> RQResult:
-        flags = [r.correct for r in rollouts]
+        # Streamed rollouts carry a status: rejected samples (timeout / stale /
+        # overlong / ...) leave the p_hat estimate entirely -- they are logged
+        # with a reason but never scored. Legacy records default to "accepted".
+        accepted = [
+            r for r in rollouts if getattr(r, "status", "accepted") == "accepted"
+        ]
+        flags = [r.correct for r in accepted]
         uncertainty = (
-            sum(r.entropy for r in rollouts) / len(rollouts)
-            if rollouts
+            sum(r.entropy for r in accepted) / len(accepted)
+            if accepted
             else 0.0
         )
         result = compute_rq_full(flags, uncertainty)
@@ -398,12 +431,18 @@ class RQEvolver:
         self,
         programs: list[ProblemProgram],
         instances: list[ProblemInstance],
-    ) -> list[RQResult]:
+    ) -> list[RQResult | None]:
         """Score a batch of (program, instance) pairs with ONE vLLM wake/sleep.
 
         All solver rollouts are generated while vLLM is awake; vLLM is slept
         once, then entropies (actor forward) are computed against the freed
         memory. Replaces N per-instance wake_up cycles with a single one.
+
+        A group whose rollouts were ALL rejected (streaming timeout / worker
+        error / staleness) yields ``None`` instead of an RQResult: scoring it
+        would zero the program's p_hat/h_score IN PLACE and let a single
+        transient infra failure evict a champion from its true niche (the
+        stale-p_hat archive-pollution failure mode). Callers must skip None.
         """
         if not instances:
             return []
@@ -415,16 +454,35 @@ class RQEvolver:
         finally:
             self.backend.end_session()
         grouped = self.backend.finalize_rollouts(pending)
-        return [
-            self._score_from_rollouts(program, rollouts)
-            for program, rollouts in zip(programs, grouped)
-        ]
+        results: list[RQResult | None] = []
+        for program, rollouts in zip(programs, grouped):
+            accepted = [
+                r for r in rollouts if getattr(r, "status", "accepted") == "accepted"
+            ]
+            if rollouts and not accepted:
+                reasons = sorted({r.reject_reason or "unknown" for r in rollouts})
+                self.events.append(
+                    {
+                        "event": "eval_rollout_failed",
+                        "program_id": program.program_id,
+                        "reasons": reasons,
+                    }
+                )
+                print(
+                    f"[RQ-Evolve] eval skipped for {program.program_id}: all "
+                    f"{len(rollouts)} rollouts rejected ({reasons}); keeping "
+                    f"previous scores"
+                )
+                results.append(None)
+                continue
+            results.append(self._score_from_rollouts(program, rollouts))
+        return results
 
     def evaluate_instance(
         self,
         program: ProblemProgram,
         instance: ProblemInstance,
-    ) -> RQResult:
+    ) -> RQResult | None:
         return self.evaluate_instances([program], [instance])[0]
 
     def reevaluate_champions(self) -> None:
@@ -444,6 +502,10 @@ class RQEvolver:
             [p for p, _ in pairs], [i for _, i in pairs]
         )
         for (champion, inst), result in zip(pairs, results):
+            if result is None:
+                # all rollouts rejected (transient timeout/worker error) --
+                # keep the champion's previous scores and niche untouched.
+                continue
             self.archive.try_insert(
                 program=champion,
                 h_value=result.uncertainty,
@@ -452,6 +514,23 @@ class RQEvolver:
             )
 
     def refresh_dataset(self) -> None:
+        # Record each champion's frontier decision (the learnability filter that
+        # decides which problems feed training) with the SAME predicate
+        # build_training_examples uses -- observability only, no behavior change.
+        low, high = self.evolution_config.frontier_p_hat_range
+        self.last_frontier = [
+            {
+                "program_id": champion.program_id,
+                "p_hat": round(float(champion.p_hat), 4),
+                "rq_score": round(float(champion.rq_score), 6),
+                "decision": (
+                    "in_frontier"
+                    if is_frontier(champion.p_hat, low, high)
+                    else "p_hat_out_of_range"
+                ),
+            }
+            for champion in self.archive.champions()
+        ]
         examples = build_training_examples(
             self.archive.champions(),
             instances_per_program=self.training_config.instances_per_program,
@@ -535,6 +614,7 @@ class RQEvolver:
             "iteration": int(iteration),
             "metrics": metrics,
             "reports": [asdict(r) for r in reports],
+            "frontier": self.last_frontier,
         }
         with (directory / "evolution_log.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")

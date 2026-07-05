@@ -79,6 +79,142 @@ class VerlConfig:
 
 
 @dataclass(slots=True)
+class AsyncRolloutConfig:
+    """Streaming (producer-consumer) evolve-phase rollout settings.
+
+    ``streaming_enabled: false`` restores the legacy whole-batch path exactly
+    (one blocking ``generate_sequences`` for the full inner batch). When true,
+    solver rollouts are split into chunks of ``chunk_size`` instances (each
+    chunk carries ``chunk_size * num_rollouts`` requests), submitted round-robin
+    to verl's agent-loop workers with at most ``max_in_flight_chunks`` chunks
+    outstanding, and verification/filtering/logging consume each chunk as soon
+    as IT finishes -- a short problem's chunk is never blocked behind another
+    chunk's long generations.
+    """
+
+    streaming_enabled: bool = True
+    # Instances per chunk. 1 = finest granularity: one problem's G rollouts per
+    # chunk, so its verification starts the moment its own rollouts finish.
+    chunk_size: int = 1
+    # Backpressure: max chunks outstanding in the rollout engine at once.
+    max_in_flight_chunks: int = 8
+    # Per-chunk wall-clock budget (covers queueing + generation of the chunk's
+    # slowest sample). On expiry the chunk is retried up to max_retries times,
+    # then recorded as a failure with reason "timeout" -- never silently dropped.
+    request_timeout_s: float = 900.0
+    max_retries: int = 1
+    # CPU threads consuming completed chunks (math_verify + filtering + JSONL).
+    verify_workers: int = 4
+    # Bound on the completed-chunk queue between scheduler and verifiers; when
+    # full, submission pauses (backpressure) instead of buffering unboundedly.
+    queue_maxsize: int = 32
+    # Async-RL correctness: "strict" rejects any sample whose policy_version
+    # differs from the current one; "bounded" allows lag <= max_policy_lag.
+    # During today's evolve phase weights are static (lag 0 by construction);
+    # the gate is the invariant check that makes overlap modes safe later.
+    staleness_mode: str = "bounded"
+    max_policy_lag: int = 1
+    # Per-sample JSONL logging (accepted AND rejected) to rq_archive/.
+    log_samples: bool = True
+    # --- filtering semantics -------------------------------------------------
+    # Rejected samples leave the p_hat denominator (p_hat = correct/accepted),
+    # so each filter that can bias the curriculum estimate is a knob:
+    #   reject_overlong: a truncated response is ambiguous (can't tell if the
+    #     model would have solved it) -> rejected by default.
+    #   reject_duplicates: identical rollouts are legitimate samples of the
+    #     policy; dropping them biases p_hat on low-entropy problems -> default
+    #     False (duplicates are DETECTED and counted in metrics/JSONL either way).
+    #   reject_invalid_answer: a response with no \boxed{} DID fail the problem;
+    #     removing it from the denominator would overestimate p_hat -> default
+    #     False (counted as correct=false, flagged in metrics/JSONL either way).
+    reject_overlong: bool = True
+    reject_duplicates: bool = False
+    reject_invalid_answer: bool = False
+    # Where the uncertainty (actor-forward entropy) pass runs. Only "deferred"
+    # is implemented: one batched FSDP forward after the last chunk drains,
+    # identical memory profile to the legacy path (no contention with vLLM
+    # generation on the colocated GPUs).
+    entropy_mode: str = "deferred"
+
+    def __post_init__(self) -> None:
+        if self.staleness_mode not in ("strict", "bounded"):
+            raise ValueError(
+                f"async_rollout.staleness_mode must be 'strict' or 'bounded', "
+                f"got {self.staleness_mode!r}"
+            )
+        if self.entropy_mode != "deferred":
+            raise ValueError(
+                f"async_rollout.entropy_mode: only 'deferred' is implemented, "
+                f"got {self.entropy_mode!r}"
+            )
+        if self.chunk_size < 1:
+            raise ValueError("async_rollout.chunk_size must be >= 1")
+        if self.max_in_flight_chunks < 1:
+            raise ValueError("async_rollout.max_in_flight_chunks must be >= 1")
+        if self.max_policy_lag < 0:
+            raise ValueError("async_rollout.max_policy_lag must be >= 0")
+        # NOTE: unlike queue.Queue, 0 does NOT mean unbounded here -- it would
+        # gate every submission off and hang the scheduler, so reject it.
+        if self.queue_maxsize < 1:
+            raise ValueError(
+                "async_rollout.queue_maxsize must be >= 1 (it bounds the "
+                "completed-chunk backlog; 0 is not 'unbounded')"
+            )
+        if self.request_timeout_s <= 0:
+            raise ValueError("async_rollout.request_timeout_s must be > 0")
+        if self.max_retries < 0:
+            raise ValueError("async_rollout.max_retries must be >= 0")
+        if self.verify_workers < 1:
+            raise ValueError("async_rollout.verify_workers must be >= 1")
+
+
+@dataclass(slots=True)
+class LoraConfig:
+    """LoRA settings plumbed into verl (actor_rollout_ref.model.lora_*).
+
+    Disabled in the base configs (existing full-finetune runs unchanged);
+    enabled in the smoke/DeepSeek configs. NOTE: the installed verl 0.7.1
+    legacy FSDP worker does not plumb lora_dropout into peft -- effective
+    dropout is 0.0 and a warning is printed when dropout > 0 is configured.
+    """
+
+    enabled: bool = False
+    rank: int = 32
+    alpha: int = 64
+    dropout: float = 0.05
+    # Standard attention/MLP projections (Qwen/Llama naming). Models with other
+    # module names (e.g. DeepSeek MLA: q_a_proj/q_b_proj/kv_a_proj_with_mqa/
+    # kv_b_proj) must override this; scripts/preflight_check.py prints matched
+    # modules per pattern and fails early if any pattern matches nothing.
+    target_modules: tuple[str, ...] = (
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+    )
+    # How trainer LoRA weights reach the vLLM rollout engine:
+    #   auto           -> native_adapter if vLLM supports LoRA for the model
+    #                     class, else fail with guidance (merge_push is a
+    #                     documented future path, see docs/deepseek_support_plan.md)
+    #   native_adapter -> verl's TensorLoRARequest/add_lora push (Qwen3 etc.)
+    #   merge_push     -> NOT IMPLEMENTED (fails early); merged full-weight push
+    #                     for models without vLLM LoRA support (DeepSeek MoE)
+    sync_mode: str = "auto"
+
+    def __post_init__(self) -> None:
+        if self.sync_mode not in ("auto", "native_adapter", "merge_push"):
+            raise ValueError(
+                f"lora.sync_mode must be auto|native_adapter|merge_push, "
+                f"got {self.sync_mode!r}"
+            )
+        if self.enabled and self.rank <= 0:
+            raise ValueError("lora.enabled requires lora.rank > 0")
+
+
+@dataclass(slots=True)
 class MathEvalConfig:
     """Benchmark validation, ported from evo-sample's math_eval section.
 
@@ -115,6 +251,8 @@ class RQEvolveConfig:
     training_data: TrainingDataConfig = field(default_factory=TrainingDataConfig)
     verl: VerlConfig = field(default_factory=VerlConfig)
     math_eval: MathEvalConfig = field(default_factory=MathEvalConfig)
+    async_rollout: AsyncRolloutConfig = field(default_factory=AsyncRolloutConfig)
+    lora: LoraConfig = field(default_factory=LoraConfig)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "RQEvolveConfig":
@@ -199,6 +337,8 @@ def _dataclass_from_dict(cls, payload: dict[str, Any]):
             kwargs[item.name] = tuple(float(x) for x in value)
         elif item.name == "frontier_p_hat_range" and isinstance(value, list):
             kwargs[item.name] = tuple(float(x) for x in value)
+        elif item.name == "target_modules" and isinstance(value, list):
+            kwargs[item.name] = tuple(str(x) for x in value)
         else:
             kwargs[item.name] = value
     return cls(**kwargs)

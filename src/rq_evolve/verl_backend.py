@@ -44,6 +44,16 @@ class VerlPolicyBackend(EvolutionBackend):
         # call sleep() on a non-sleep-enabled engine (and never hit the cumem
         # wake_up path). Set from config in ``bind``.
         self._sleep_enabled = True
+        # Streaming (producer-consumer) rollout state; wired by
+        # ``configure_streaming`` after bind. None -> legacy whole-batch path.
+        self._async_cfg = None
+        self._version_tracker = None
+        self._sample_logger = None
+        self._rollout_metrics = None
+        self._streaming_in_flight = False
+        # Outer-iteration index for JSONL sample records; the EvolvingSampler
+        # updates this before each evolve phase.
+        self.current_iteration = -1
 
     def bind(self, trainer) -> None:
         self.trainer = trainer
@@ -80,6 +90,42 @@ class VerlPolicyBackend(EvolutionBackend):
     # argument" under hundreds of toggles per outer iteration).
     # ------------------------------------------------------------------
 
+    def configure_streaming(
+        self,
+        async_cfg,
+        *,
+        version_tracker,
+        sample_logger,
+        rollout_metrics,
+    ) -> None:
+        """Enable the chunked streaming rollout path (call after ``bind``).
+
+        With ``async_cfg.streaming_enabled`` false (or this never called) the
+        legacy whole-batch path runs unchanged.
+        """
+        self._async_cfg = async_cfg
+        self._version_tracker = version_tracker
+        self._sample_logger = sample_logger
+        self._rollout_metrics = rollout_metrics
+        if async_cfg is not None and async_cfg.streaming_enabled:
+            print(
+                "[RQ-Evolve] rollout mode: streaming producer-consumer "
+                f"(staleness={async_cfg.staleness_mode}, "
+                f"max_policy_lag={async_cfg.max_policy_lag}, "
+                f"chunk_size={async_cfg.chunk_size}, "
+                f"max_in_flight={async_cfg.max_in_flight_chunks}, "
+                f"timeout={async_cfg.request_timeout_s}s)"
+            )
+        else:
+            print("[RQ-Evolve] rollout mode: legacy sequential (whole-batch, streaming off)")
+
+    def _streaming_active(self) -> bool:
+        if self._async_cfg is None or not self._async_cfg.streaming_enabled:
+            return False
+        trainer = self.trainer
+        manager = getattr(trainer, "async_rollout_manager", None) if trainer else None
+        return manager is not None and bool(getattr(manager, "agent_loop_workers", None))
+
     def _wake(self) -> None:
         """Push current FSDP weights into vLLM and wake it for generation.
 
@@ -87,6 +133,12 @@ class VerlPolicyBackend(EvolutionBackend):
         pushing the live actor weights it would forward with random weights ->
         NaNs -> "CUDA error: illegal memory access" inside flash-attn.
         """
+        # Weight sync while chunks are in flight would mix policies WITHIN a
+        # chunk (metadata stamps chunk-level versions). The sequential evolve
+        # phase can't hit this; the assert keeps future overlap modes honest.
+        assert not self._streaming_in_flight, (
+            "weight sync requested while streamed rollout chunks are in flight"
+        )
         trainer = self._require_trainer()
         checkpoint_manager = getattr(trainer, "checkpoint_manager", None)
         if checkpoint_manager is not None and hasattr(checkpoint_manager, "update_weights"):
@@ -156,6 +208,8 @@ class VerlPolicyBackend(EvolutionBackend):
         n = max(1, int(n_rollouts))
         if not instances:
             return PendingRollouts(instances=[], n_rollouts=n)
+        if self._streaming_active():
+            return self._generate_rollouts_streaming(list(instances), n)
         prompts = [build_solver_prompt(inst.problem) for inst in instances]
         output, full_batch = self._generate_with_batch(prompts, n_repeat=n)
         responses = output.batch.get("responses")
@@ -172,6 +226,124 @@ class VerlPolicyBackend(EvolutionBackend):
             decoded=decoded,
         )
 
+    def _generate_rollouts_streaming(
+        self, instances: list[ProblemInstance], n: int
+    ) -> PendingRollouts:
+        """Chunked producer-consumer rollout over the agent-loop workers.
+
+        Chunks of ``chunk_size`` instances (x n rollouts each) are submitted
+        round-robin directly to the AgentLoopWorker actors; verification,
+        filtering, and per-sample JSONL run the moment each chunk completes.
+        Entropy stays deferred to ``finalize_rollouts`` (same GPU memory
+        profile as the legacy path).
+        """
+        from .async_rollout import (
+            ChunkedRolloutScheduler,
+            ChunkJob,
+            RayAgentLoopTransport,
+        )
+        from .rollout_log import JsonlSampleLogger
+
+        trainer = self._require_trainer()
+        manager = trainer.async_rollout_manager
+        cfg = self._async_cfg
+        tracker = self._version_tracker
+        stamp = tracker.stamp() if tracker is not None else {}
+        current_version_fn = (
+            (lambda: tracker.policy_version) if tracker is not None else (lambda: -1)
+        )
+        sample_logger = self._sample_logger
+        if sample_logger is None or not cfg.log_samples:
+            sample_logger = JsonlSampleLogger(None, enabled=False)
+        metrics = self._rollout_metrics
+        if metrics is None:
+            from .metrics import RolloutMetrics
+
+            metrics = RolloutMetrics()
+
+        jobs: list[ChunkJob] = []
+        chunk_size = max(1, int(cfg.chunk_size))
+        for chunk_id, start in enumerate(range(0, len(instances), chunk_size)):
+            chunk_instances = instances[start : start + chunk_size]
+            prompts = [build_solver_prompt(inst.problem) for inst in chunk_instances]
+            batch = self._make_prompt_batch(prompts)
+            gen_batch = batch.pop(
+                batch_keys=["input_ids", "attention_mask", "position_ids"],
+                non_tensor_batch_keys=[
+                    "raw_prompt_ids",
+                    "raw_prompt",
+                    "data_source",
+                    "reward_model",
+                ],
+            )
+            batch.non_tensor_batch["uid"] = np.array(
+                [f"{chunk_id}-{i}" for i in range(len(batch.batch))], dtype=object
+            )
+            if n > 1:
+                gen_batch = gen_batch.repeat(repeat_times=n, interleave=True)
+            jobs.append(
+                ChunkJob(
+                    chunk_id=chunk_id,
+                    instances=chunk_instances,
+                    gen_batch=gen_batch,
+                    batch=batch,
+                    n_rollouts=n,
+                    meta=dict(stamp),
+                )
+            )
+
+        scheduler = ChunkedRolloutScheduler(
+            transport=RayAgentLoopTransport(manager.agent_loop_workers),
+            cfg=cfg,
+            tokenizer=self._require_tokenizer(),
+            metrics=metrics,
+            sample_logger=sample_logger,
+            current_version_fn=current_version_fn,
+            iteration=self.current_iteration,
+        )
+        self._streaming_in_flight = True
+        try:
+            results = scheduler.run(jobs)
+        finally:
+            self._streaming_in_flight = False
+        return PendingRollouts(
+            instances=instances, n_rollouts=n, chunk_results=results
+        )
+
+    def _finalize_streaming(self, pending: PendingRollouts) -> list[list[RolloutRecord]]:
+        """Deferred entropy over the streamed chunks, then regroup in order.
+
+        Failed chunks contributed no output batch; their (rejected) records
+        keep entropy 0.0. Row order within the concat matches the per-chunk
+        record order (chunk_id ascending, instances x n interleaved), so the
+        entropy vector back-distributes by simple offset.
+        """
+        results = pending.chunk_results or []
+        grouped_all: list[list[RolloutRecord]] = []
+        entropy_batches = [r.full_batch for r in results if r.full_batch is not None]
+        entropies: list[float] = []
+        if entropy_batches:
+            from verl.protocol import DataProto as _DataProto
+
+            merged = _DataProto.concat(entropy_batches)
+            metrics = self._rollout_metrics
+            if metrics is not None:
+                with metrics.timed("entropy"):
+                    entropies = self._response_entropies(merged)
+            else:
+                entropies = self._response_entropies(merged)
+        offset = 0
+        for result in results:
+            has_rows = result.full_batch is not None
+            for rows in result.grouped:
+                for record in rows:
+                    if has_rows and offset < len(entropies):
+                        record.entropy = entropies[offset]
+                    if has_rows:
+                        offset += 1
+                grouped_all.append(rows)
+        return grouped_all
+
     def finalize_rollouts(self, pending: PendingRollouts) -> list[list[RolloutRecord]]:
         """Compute entropy (actor forward) and assemble grouped records.
 
@@ -180,6 +352,8 @@ class VerlPolicyBackend(EvolutionBackend):
         instances = pending.instances
         if not instances:
             return []
+        if pending.chunk_results is not None:
+            return self._finalize_streaming(pending)
         if pending.grouped is not None:
             return pending.grouped
         if pending.full_batch is None or not pending.decoded:

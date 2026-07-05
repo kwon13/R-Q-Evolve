@@ -25,12 +25,27 @@ def main() -> None:
         action="store_true",
         help="print the Python executable and verl package resolved by this environment",
     )
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help=(
+            "smoke-test mode: force WANDB_MODE=offline and, after fit() "
+            "returns, verify the LoRA adapter checkpoint + rollout JSONL logs "
+            "exist. Pair with configs/rq_evolve_smoke_lora.yaml (LoRA r32, "
+            "1 training step). Requires free GPUs."
+        ),
+    )
     args = parser.parse_args()
 
     if args.print_verl_env:
         for key, value in describe_verl_runtime().items():
             print(f"{key}: {value}")
         return
+
+    if args.smoke:
+        import os
+
+        os.environ.setdefault("WANDB_MODE", "offline")
 
     _warn_if_project_venv_exists()
     config = load_config(args.config)
@@ -60,7 +75,94 @@ def main() -> None:
         rq_config=config,
         project_root=ROOT,
     )
+    import time as _time
+
+    smoke_started_at = _time.time()
     adapter.fit()
+
+    if args.smoke:
+        raise SystemExit(
+            _run_smoke_checks(config, inline_verl_config, smoke_started_at)
+        )
+
+
+def _run_smoke_checks(config, inline_verl_config, started_at: float) -> int:
+    """Post-fit PASS/FAIL: did the LoRA + async instrumentation actually land?
+
+    Artifacts must be NEWER than this run's start (``started_at``) so a stale
+    ./rq_output/smoke from a previous run can never green-light a regression.
+    """
+    if inline_verl_config is None and config.verl.config_path:
+        from omegaconf import OmegaConf
+
+        path = Path(config.verl.config_path)
+        if not path.is_absolute():
+            path = ROOT / path
+        inline_verl_config = OmegaConf.load(path)
+    if inline_verl_config is None:
+        print("[smoke] cannot resolve the verl config -> no checks run")
+        return 1
+
+    local_dir = Path(
+        str(inline_verl_config.trainer.get("default_local_dir", "./rq_output/smoke"))
+    )
+    if not local_dir.is_absolute():
+        # verl and the adapter resolve relative dirs against the process cwd;
+        # the checks must look in the same place.
+        local_dir = Path.cwd() / local_dir
+
+    def fresh(path: Path) -> bool:
+        try:
+            return path.stat().st_mtime >= started_at
+        except OSError:
+            return False
+
+    checks: list[tuple[str, bool, str]] = []
+
+    if config.lora.enabled:
+        adapters = [
+            p
+            for p in sorted(
+                local_dir.glob("global_step_*/**/lora_adapter/adapter_model.safetensors")
+            )
+            if fresh(p)
+        ]
+        checks.append(
+            (
+                "lora_adapter_saved",
+                bool(adapters),
+                str(adapters[-1])
+                if adapters
+                else f"no fresh lora_adapter under {local_dir}/global_step_*",
+            )
+        )
+
+    archive_dir = local_dir / "rq_archive"
+    samples = archive_dir / "rollout_samples.jsonl"
+    metrics = archive_dir / "rollout_metrics.jsonl"
+    if config.async_rollout.streaming_enabled and config.async_rollout.log_samples:
+        checks.append(
+            (
+                "rollout_samples_jsonl",
+                samples.exists() and samples.stat().st_size > 0 and fresh(samples),
+                str(samples),
+            )
+        )
+    checks.append(
+        (
+            "rollout_metrics_jsonl",
+            metrics.exists() and metrics.stat().st_size > 0 and fresh(metrics),
+            str(metrics),
+        )
+    )
+
+    failed = False
+    print("== smoke checks ==")
+    for name, ok, detail in checks:
+        print(f"[{'PASS' if ok else 'FAIL'}] {name}: {detail}")
+        failed = failed or not ok
+    print("smoke:", "FAILED" if failed else "OK")
+    return 1 if failed else 0
 
 
 def _read_inline_verl_config(yaml_path: str):

@@ -50,10 +50,35 @@ class EvolvingSampler:
         # -1 = no evolution yet (epoch-0 bootstrap). Stored in data.pt so a resume
         # knows which snapshots belong to the abandoned future and must be cleared.
         self._active_iteration = -1
+        # Async-RL instrumentation, wired by attach_instrumentation() once the
+        # trainer exists (all optional -- the sampler works without them).
+        self.rollout_metrics = None
+        self.version_tracker = None
+        self.metrics_logger = None
+
+    def attach_instrumentation(
+        self, *, rollout_metrics=None, version_tracker=None, metrics_logger=None
+    ) -> None:
+        self.rollout_metrics = rollout_metrics
+        self.version_tracker = version_tracker
+        self.metrics_logger = metrics_logger
 
     def __iter__(self) -> Iterator[int]:
         if self.epoch > 0 or self.evolve_on_first_epoch:
+            import time as _time
+
+            # Stamp the outer-iteration index on the backend so streamed
+            # rollout JSONL lines carry it, and start this phase's metrics.
+            backend = getattr(self.evolver, "backend", None)
+            if backend is not None and hasattr(backend, "current_iteration"):
+                backend.current_iteration = self.epoch
+            if self.rollout_metrics is not None:
+                self.rollout_metrics.reset()
+            evolve_t0 = _time.monotonic()
             metrics = self.evolver.run_outer_iteration(self.epoch)
+            # The whole evolve phase runs while the optimizer is idle (verl
+            # HYBRID mode time-shares the GPUs) -> this IS the trainer idle time.
+            trainer_idle_s = _time.monotonic() - evolve_t0
             print(f"[RQ-Evolve] outer iteration {self.epoch}: {metrics}")
             # Persist after every evolution so a restart resumes from the evolved
             # grid, not seeds (the verl weight checkpoint excludes the archive).
@@ -65,6 +90,7 @@ class EvolvingSampler:
                 self.evolver.save_state(self.archive_dir, iteration=self.epoch)
                 self.evolver.append_evolution_log(self.archive_dir, self.epoch, metrics)
             self._log_evolve_metrics_to_wandb(metrics)
+            self._log_rollout_instrumentation(trainer_idle_s)
             # This evolution's snapshot now drives the Solver training that follows
             # (and any global_step_* checkpoint saved during it).
             self._active_iteration = self.epoch
@@ -191,6 +217,34 @@ class EvolvingSampler:
         except Exception as exc:
             print(f"[RQ-Evolve] resume: snapshot cleanup skipped ({exc!r})")
 
+    def _log_rollout_instrumentation(self, trainer_idle_s: float) -> None:
+        """Per-outer-iteration rollout metrics -> wandb (commit=False) + JSONL."""
+        snapshot: dict = {}
+        payload: dict = {"evolve/trainer_idle_s": float(trainer_idle_s)}
+        if self.rollout_metrics is not None:
+            snapshot = self.rollout_metrics.snapshot()
+            payload.update(self.rollout_metrics.to_wandb("rollout/"))
+        if self.version_tracker is not None:
+            payload.update(self.version_tracker.to_wandb("rollout/"))
+        try:
+            import wandb
+
+            if wandb.run is not None:
+                wandb.log(payload, commit=False)
+        except Exception:
+            pass
+        if self.metrics_logger is not None:
+            record = {"iteration": int(self.epoch), "trainer_idle_s": float(trainer_idle_s)}
+            record.update(snapshot)
+            if self.version_tracker is not None:
+                record["policy_version"] = self.version_tracker.policy_version
+                record["adapter_version"] = self.version_tracker.adapter_version
+                record["source_checkpoint"] = self.version_tracker.source_checkpoint
+            try:
+                self.metrics_logger.log(record)
+            except Exception as exc:
+                print(f"[RQ-Evolve] rollout_metrics.jsonl write failed ({exc!r})")
+
     def _log_evolve_metrics_to_wandb(self, metrics: dict) -> None:
         """Best-effort: send the evolve metrics to wandb (was stdout-only).
 
@@ -237,6 +291,23 @@ class VerlTrainerAdapter:
             raise RuntimeError("verl is not installed in this Python environment")
 
     def fit(self) -> None:
+        ctx = self._setup()
+        self._resume_or_bootstrap(ctx)
+
+        # Resume: verl restores trainer.global_steps from the checkpoint, so the run
+        # simply continues until global_steps reaches the configured target.
+
+        # Mirror the Solver's GRPO metrics (verl logs them as actor/* , critic/*)
+        # under a clean ``solver/*`` namespace alongside ``evolve/*`` metrics.
+        _install_solver_metric_alias()
+
+        ctx["trainer"].fit()
+
+    def _setup(self) -> dict:
+        """Everything up to (excluding) archive resume/bootstrap: config, ray,
+        tokenizer, trainer, workers, backend bind, and async-RL instrumentation.
+        Shared by fit() and dry_run_rollout() so the dry run exercises the
+        EXACT production stack."""
         self.assert_verl_available()
 
         import ray
@@ -244,6 +315,10 @@ class VerlTrainerAdapter:
 
         verl_config = self._load_verl_config()
         self._patch_reward_config(verl_config)
+        # LoRA plumbing + fail-fast validation BEFORE ray/worker startup: an
+        # invalid LoRA/model/vLLM combination should die here with a clear
+        # message, not minutes later inside a worker.
+        self._apply_lora_config(verl_config)
         OmegaConf.resolve(verl_config)
 
         if not ray.is_initialized():
@@ -331,6 +406,54 @@ class VerlTrainerAdapter:
         trainer.init_workers()
         backend.bind(trainer)
 
+        # --- async-RL instrumentation -------------------------------------
+        # Policy/adapter versions bump on EVERY trainer->vLLM weight sync
+        # (verl's per-step push, the initial sync, and the evolve-phase wake);
+        # rollout samples are stamped with them and gated by staleness_mode.
+        from .metrics import PolicyVersionTracker, RolloutMetrics
+        from .rollout_log import METRICS_FILE, SAMPLES_FILE, JsonlSampleLogger
+
+        version_tracker = PolicyVersionTracker()
+        version_tracker.install(
+            trainer,
+            lora_enabled=bool(self.rq_config.lora.enabled),
+            model_path=str(verl_config.actor_rollout_ref.model.path),
+        )
+        rollout_metrics = RolloutMetrics()
+        sample_logger = JsonlSampleLogger(
+            archive_dir / SAMPLES_FILE,
+            enabled=bool(self.rq_config.async_rollout.log_samples),
+        )
+        metrics_logger = JsonlSampleLogger(archive_dir / METRICS_FILE)
+        backend.configure_streaming(
+            self.rq_config.async_rollout,
+            version_tracker=version_tracker,
+            sample_logger=sample_logger,
+            rollout_metrics=rollout_metrics,
+        )
+        train_sampler.attach_instrumentation(
+            rollout_metrics=rollout_metrics,
+            version_tracker=version_tracker,
+            metrics_logger=metrics_logger,
+        )
+
+        return {
+            "trainer": trainer,
+            "backend": backend,
+            "evolver": evolver,
+            "train_sampler": train_sampler,
+            "verl_config": verl_config,
+            "archive_dir": archive_dir,
+            "rollout_metrics": rollout_metrics,
+            "version_tracker": version_tracker,
+            "sample_logger": sample_logger,
+        }
+
+    def _resume_or_bootstrap(self, ctx: dict) -> None:
+        evolver = ctx["evolver"]
+        archive_dir = ctx["archive_dir"]
+        train_sampler = ctx["train_sampler"]
+
         # Backend is now bound to the worker group -> solver rollouts work.
         # Resume the archive if a snapshot exists; otherwise bootstrap by
         # evaluating EVERY seed with the live solver. Real R_Q gives each seed a
@@ -364,14 +487,176 @@ class VerlTrainerAdapter:
             self._bootstrap_seed_archive(evolver)
             evolver.save_state(archive_dir)
 
-        # Resume: verl restores trainer.global_steps from the checkpoint, so the run
-        # simply continues until global_steps reaches the configured target.
+    def dry_run_rollout(self, *, n_problems: int = 24, n_rollouts: int = 2) -> dict:
+        """Live async-rollout dry run on the REAL stack (no training step).
 
-        # Mirror the Solver's GRPO metrics (verl logs them as actor/* , critic/*)
-        # under a clean ``solver/*`` namespace alongside ``evolve/*`` metrics.
-        _install_solver_metric_alias()
+        Boots ray + workers + backend + instrumentation exactly like fit(),
+        pushes weights once, then streams engineered short/long prompts through
+        the chunked scheduler and reports the metrics. Proves, before a real
+        run: completions are consumed as they finish, short problems are not
+        blocked behind long ones, pending stays bounded, and accepted/rejected
+        JSONL lines appear. Requires free GPUs.
+        """
+        import time as _time
 
-        trainer.fit()
+        ctx = self._setup()
+        backend = ctx["backend"]
+        metrics = ctx["rollout_metrics"]
+        metrics.reset()
+        backend.current_iteration = -1
+
+        from .program import ProblemInstance
+
+        instances = []
+        for i in range(n_problems):
+            if i % 2 == 0:
+                instances.append(
+                    ProblemInstance(
+                        problem=(
+                            f"What is {i} + {i + 1}? Answer with just the "
+                            f"number inside \\boxed{{}}."
+                        ),
+                        answer=str(i + i + 1),
+                        program_id=f"dryrun_short_{i}",
+                        seed=0,
+                    )
+                )
+            else:
+                instances.append(
+                    ProblemInstance(
+                        problem=(
+                            f"Write a complete, fully detailed step-by-step "
+                            f"derivation (every intermediate step, no skipping) "
+                            f"of the sum of the first {100 + i} positive "
+                            f"integers, then verify it a second way, and only "
+                            f"then give the final answer in \\boxed{{}}."
+                        ),
+                        answer=str((100 + i) * (101 + i) // 2),
+                        program_id=f"dryrun_long_{i}",
+                        seed=0,
+                    )
+                )
+
+        backend.sync_weights()
+        t0 = _time.time()
+        backend.begin_session()
+        try:
+            pending = backend.generate_rollouts(instances, n_rollouts)
+        finally:
+            backend.end_session()
+        grouped = backend.finalize_rollouts(pending)
+
+        # completion timeline: chunk_size=1 -> one group per instance
+        short_done, long_done = [], []
+        for inst, rows in zip(instances, grouped):
+            if not rows:
+                continue
+            done_at = max(r.ts_end for r in rows) - t0
+            (short_done if "short" in inst.program_id else long_done).append(done_at)
+        report = {
+            "metrics": metrics.snapshot(),
+            "short_mean_completion_s": (
+                sum(short_done) / len(short_done) if short_done else None
+            ),
+            "long_mean_completion_s": (
+                sum(long_done) / len(long_done) if long_done else None
+            ),
+            "samples_logged": getattr(ctx["sample_logger"], "lines_written", 0),
+        }
+        print("[RQ-Evolve dry-run] rollout metrics:")
+        for key, value in report["metrics"].items():
+            print(f"  {key}: {value}")
+        print(
+            f"[RQ-Evolve dry-run] mean completion: "
+            f"short={report['short_mean_completion_s']}s "
+            f"long={report['long_mean_completion_s']}s "
+            f"(short well below long ==> streaming consumption is working; "
+            f"roughly equal ==> a whole-batch barrier is back)"
+        )
+        return report
+
+    def _apply_lora_config(self, verl_config) -> None:
+        """Plumb rq-level lora.* into verl's actor_rollout_ref.model.lora_*.
+
+        Fail-fast rules (all raise BEFORE ray.init):
+          * strategy must be fsdp/fsdp2
+          * sync_mode=merge_push -> NotImplementedError (deferred; see
+            docs/deepseek_support_plan.md; engine-restart via
+            scripts/merge_fsdp_to_hf.py is the manual fallback)
+          * sync_mode=auto/native_adapter -> the installed vLLM must support
+            runtime LoRA for this model class (Qwen3: yes; DeepSeek MoE: no)
+        """
+        lora = self.rq_config.lora
+        if not lora.enabled:
+            return
+        from omegaconf import open_dict
+
+        from .preflight import load_hf_config, vllm_supports_lora
+
+        strategy = str(verl_config.actor_rollout_ref.actor.get("strategy", "fsdp"))
+        if strategy not in ("fsdp", "fsdp2"):
+            raise ValueError(
+                f"lora.enabled requires actor strategy fsdp/fsdp2, got {strategy!r}"
+            )
+        if lora.sync_mode == "merge_push":
+            raise NotImplementedError(
+                "lora.sync_mode=merge_push (merged full-weight push for models "
+                "without vLLM runtime-LoRA support) is not implemented yet -- "
+                "see docs/deepseek_support_plan.md. Manual fallback: train, "
+                "merge the adapter with scripts/merge_fsdp_to_hf.py, and "
+                "relaunch the rollout engine on the merged checkpoint."
+            )
+
+        model_path = str(verl_config.actor_rollout_ref.model.path)
+        trust_remote_code = bool(
+            verl_config.actor_rollout_ref.model.get("trust_remote_code", True)
+        )
+        try:
+            hf_config = load_hf_config(model_path, trust_remote_code)
+            archs = list(getattr(hf_config, "architectures", None) or [])
+            lora_ok = vllm_supports_lora(archs)
+        except Exception as exc:
+            raise RuntimeError(
+                f"LoRA preflight could not resolve vLLM support for "
+                f"{model_path}: {exc}. Run scripts/preflight_check.py for the "
+                f"full diagnosis."
+            ) from exc
+        if not lora_ok:
+            raise RuntimeError(
+                f"vLLM has no runtime-LoRA support for {archs} (required by "
+                f"lora.sync_mode={lora.sync_mode!r}). For such models use the "
+                f"engine-restart fallback (scripts/merge_fsdp_to_hf.py) or the "
+                f"planned merge_push worker -- docs/deepseek_support_plan.md."
+            )
+
+        with open_dict(verl_config):
+            model_cfg = verl_config.actor_rollout_ref.model
+            model_cfg.lora_rank = int(lora.rank)
+            model_cfg.lora_alpha = int(lora.alpha)
+            model_cfg.target_modules = list(lora.target_modules)
+        if lora.dropout and not self._verl_supports_lora_dropout():
+            print(
+                f"[RQ-Evolve] WARNING: lora.dropout={lora.dropout} configured, but "
+                f"the installed verl 0.7.1 fsdp worker does not plumb lora_dropout "
+                f"into peft -- EFFECTIVE DROPOUT IS 0.0. (A one-line local verl "
+                f"patch is documented in docs/deepseek_support_plan.md.)"
+            )
+        print(
+            f"[RQ-Evolve] LoRA enabled: rank={lora.rank} alpha={lora.alpha} "
+            f"target_modules={list(lora.target_modules)} sync=native_adapter "
+            f"(first sync pushes full base weights under load_format=dummy, "
+            f"later syncs push adapter-only via vLLM add_lora)"
+        )
+
+    @staticmethod
+    def _verl_supports_lora_dropout() -> bool:
+        """Whether the installed verl plumbs lora_dropout into its peft config."""
+        try:
+            import verl.workers.fsdp_workers as fsdp_workers
+
+            return "lora_dropout" in inspect.getsource(fsdp_workers)
+        except Exception:
+            return False
 
     def _load_verl_config(self):
         from omegaconf import OmegaConf
@@ -545,6 +830,12 @@ class VerlTrainerAdapter:
                 continue
             # Real R_Q via solver rollout; sets program.p_hat / h_score / rq_score.
             result = evolver.evaluate_instance(program, inst)
+            if result is None:
+                print(
+                    f"[RQ-Evolve] seed eval failed (all rollouts rejected): "
+                    f"{program.program_id} -- skipped"
+                )
+                continue
             if evolver.archive.try_insert(
                 program=program,
                 h_value=result.uncertainty,

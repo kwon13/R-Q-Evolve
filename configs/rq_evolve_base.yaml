@@ -66,6 +66,39 @@ math_eval:
   inflate_x32: false
   grader: sympy
 
+# Streaming evolve-phase rollout (producer-consumer). streaming_enabled: false
+# restores the legacy whole-batch path bit-for-bit. chunk_size=1 means one
+# problem's num_rollouts generations per chunk: its verification/filtering/JSONL
+# run the moment its own rollouts finish, never blocked behind another chunk's
+# long generations. See docs/async_pipeline.md.
+async_rollout:
+  streaming_enabled: true
+  chunk_size: 1
+  max_in_flight_chunks: 8
+  request_timeout_s: 900
+  max_retries: 1
+  verify_workers: 4
+  queue_maxsize: 32
+  # strict = every sample must be from the current policy_version;
+  # bounded = lag <= max_policy_lag allowed. Evolve-phase weights are static
+  # (lag 0 by construction) -- this is the invariant gate for future overlap.
+  staleness_mode: bounded
+  max_policy_lag: 1
+  log_samples: true
+  entropy_mode: deferred
+
+# LoRA stays OFF for the base full-finetune experiment series (lr 1e-6 is tuned
+# for full FT). Enabled in configs/rq_evolve_smoke_lora.yaml and the DeepSeek
+# template. When enabled, defaults are rank 32 / alpha 64; run
+# scripts/preflight_check.py first (target-module match + vLLM LoRA support).
+lora:
+  enabled: false
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  sync_mode: auto
+
 # ----------------------------------------------------------------------------
 # verl override (was configs/verl_grpo_h_g8_fix.yaml). All edits to RL/rollout
 # settings live here.

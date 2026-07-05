@@ -1,0 +1,221 @@
+# =============================================================================
+# DeepSeek v4 Flash TEMPLATE -- NOT RUNNABLE YET on this machine.
+#
+#   ################  PREFLIGHT REQUIRED  ################
+#   python scripts/preflight_check.py \
+#       --model-path <deepseek-checkpoint-path> \
+#       --config configs/rq_evolve_deepseek_template.yaml
+#   #######################################################
+#
+# As of 2026-07 this environment (azr-bw-blackwell) CANNOT run DeepSeek v4:
+#   * no DeepSeek checkpoint on disk (/data1 has ~529 GB free -- check size!)
+#   * transformers 4.57.6 supports up to `deepseek_v3` (no deepseek_v32/v4)
+#   * vllm 0.10.1.1 supports up to DeepseekV3ForCausalLM, and its DeepSeek MoE
+#     classes have NO runtime-LoRA support (no SupportsLoRA interface)
+# See docs/deepseek_support_plan.md for the gated path to enabling this file.
+#
+# Parallelism is configured SEPARATELY for the two engines:
+#   ROLLOUT (vLLM)  -> actor_rollout_ref.rollout.tensor_model_parallel_size,
+#                      .expert_parallel_size (MoE), .gpu_memory_utilization,
+#                      .enable_prefix_caching, .max_num_seqs, .max_num_batched_tokens
+#   TRAINING (FSDP) -> actor_rollout_ref.actor.strategy (fsdp | fsdp2 = the
+#                      ZeRO-3 equivalent; experts are FSDP-sharded like dense
+#                      params -- no expert parallelism on the training side),
+#                      .actor.fsdp_config.{param_offload,optimizer_offload,fsdp_size},
+#                      .actor.ulysses_sequence_parallel_size,
+#                      model.enable_gradient_checkpointing (use_cache=False is
+#                      passed on every training forward by verl's dp_actor)
+# Both engines share all 8 GPUs time-sliced (verl HYBRID mode): generate, then
+# train, with IPC weight sync in between -- no engine restart needed.
+# =============================================================================
+
+archive:
+  n_h_bins: 10
+  n_div_bins: 6
+  h_range: [0.1, 0.6]
+  diversity_axis: concept_group
+  epsilon: 0.3
+  ucb_c: 1.0
+  selection_strategy: random
+
+evolution:
+  seed_programs_dir: seed_programs
+  inner_iterations: 32
+  inner_iteration_batch_size: 32
+  num_rollouts: 10
+  in_depth_ratio: 0.5
+  verify_seeds: 5
+  frontier_p_hat_range: [0.0, 1.0]
+  fix_retry: false
+  use_evaluator: true
+
+training_data:
+  instances_per_program: 8
+  training_budget: null
+  strict_anti_reuse: true
+
+verl:
+  enabled: true
+  config_path: null
+  reward_function: ./src/rq_evolve/reward.py:compute_score
+  evolve_on_first_epoch: false
+
+math_eval:
+  enabled: true
+  benchmarks: [math500, amc23, aime24, aime25, minerva_math, olympiadbench]
+  max_samples_per_benchmark: -1
+  sample_seed: 42
+  inflate_x32: false
+  grader: sympy
+
+async_rollout:
+  streaming_enabled: true
+  chunk_size: 1
+  max_in_flight_chunks: 8
+  # Large-model generations are slow; budget generously before calling timeout.
+  request_timeout_s: 1800
+  max_retries: 1
+  verify_workers: 4
+  queue_maxsize: 32
+  staleness_mode: bounded
+  max_policy_lag: 1
+  log_samples: true
+  entropy_mode: deferred
+
+lora:
+  enabled: true
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+  # FILL IN after preflight: DeepSeek MLA does NOT use q_proj/k_proj/v_proj --
+  # its attention modules are q_a_proj/q_b_proj/kv_a_proj_with_mqa/kv_b_proj.
+  # preflight_check.py prints the module names that actually exist and fails
+  # if any pattern below matches nothing.
+  target_modules: [q_a_proj, q_b_proj, kv_a_proj_with_mqa, kv_b_proj, o_proj, gate_proj, up_proj, down_proj]
+  # vllm 0.10.1.1 has no LoRA for DeepSeek MoE classes -> native_adapter is
+  # impossible. merge_push (merged full-weight IPC push) is the planned
+  # fallback but NOT implemented yet: startup fails early with a pointer to
+  # docs/deepseek_support_plan.md. The always-correct manual fallback is
+  # engine restart: merge the adapter with scripts/merge_fsdp_to_hf.py and
+  # relaunch on the merged checkpoint.
+  sync_mode: merge_push
+
+verl_config:
+  data:
+    max_prompt_length: 6000
+    max_response_length: 5000
+    train_batch_size: 32
+    val_batch_size: 60000
+    shuffle: true
+    truncation: left
+    dataloader_num_workers: 0
+    trust_remote_code: true
+
+  actor_rollout_ref:
+    model:
+      path: /path/to/deepseek-v4-flash   # FILL IN when a checkpoint exists
+      trust_remote_code: true
+      use_remove_padding: true
+      enable_gradient_checkpointing: true
+
+    actor:
+      # fsdp2 is available in this verl (torch 2.7.1) and is the recommended
+      # sharding backend for very large models (ZeRO-3 equivalent).
+      strategy: fsdp2
+      ppo_mini_batch_size: 32
+      ppo_micro_batch_size: null
+      ppo_micro_batch_size_per_gpu: 1
+      use_dynamic_bsz: false
+      use_kl_loss: true
+      kl_loss_coef: 1.0e-3
+      kl_loss_type: low_var_kl
+      use_torch_compile: false
+      fsdp_config:
+        # Large-model defaults: offload what the step doesn't need resident.
+        param_offload: true
+        optimizer_offload: true
+      optim:
+        lr: 1.0e-5             # LoRA-appropriate (full-FT series uses 1e-6)
+        weight_decay: 1.0e-2
+        lr_warmup_steps_ratio: 0.0
+        total_training_steps: 128
+
+    ref:
+      log_prob_micro_batch_size: null
+      log_prob_micro_batch_size_per_gpu: 1
+      fsdp_config:
+        param_offload: true
+
+    rollout:
+      name: vllm
+      mode: async
+      temperature: 1.0
+      top_p: 0.95
+      n: 8
+      # ROLLOUT parallelism (independent of training-side FSDP): a large MoE
+      # needs TP > 1; preflight validates head/expert divisibility.
+      tensor_model_parallel_size: 8
+      expert_parallel_size: 8
+      checkpoint_engine:
+        # Must exceed the largest single tensor (embed table). Preflight checks.
+        update_weights_bucket_megabytes: 8192
+      # The model may need nearly all VRAM for rollout; training then relies on
+      # FSDP offload. Tune after preflight's memory estimate.
+      gpu_memory_utilization: 0.75
+      enable_prefix_caching: true
+      max_num_seqs: 256
+      max_model_len: 12000
+      max_num_batched_tokens: 12000
+      dtype: bfloat16
+      enable_chunked_prefill: true
+      enforce_eager: false
+      # sleep/wake stays DISABLED on this box (cumem allocator crash).
+      free_cache_engine: false
+      enable_sleep_mode: false
+      log_prob_micro_batch_size: null
+      log_prob_micro_batch_size_per_gpu: 1
+
+  critic:
+    ppo_mini_batch_size: 32
+    ppo_micro_batch_size: null
+    ppo_micro_batch_size_per_gpu: 1
+
+  reward_model:
+    enable: false
+    reward_manager: naive
+
+  reward:
+    custom_reward_function:
+      path: ./src/rq_evolve/reward.py
+      name: compute_score
+    reward_manager:
+      source: register
+      name: naive
+    reward_model:
+      enable: false
+
+  algorithm:
+    adv_estimator: grpo
+    use_kl_in_reward: false
+    kl_penalty: low_var_kl
+    norm_adv_by_std_in_grpo: true
+
+  trainer:
+    total_epochs: 10000
+    total_training_steps: 128
+    project_name: rq_evolve
+    experiment_name: deepseek_v4_flash_lora32
+    logger:
+      - console
+      - wandb
+    nnodes: 1
+    n_gpus_per_node: 8
+    val_before_train: false
+    test_freq: 32
+    save_freq: 32
+    default_local_dir: ./rq_output/deepseek_v4_flash
+    device: cuda
+    resume_mode: auto
+
+  ray_init:
+    num_cpus: null

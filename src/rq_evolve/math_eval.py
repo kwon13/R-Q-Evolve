@@ -42,11 +42,14 @@ class MathBenchmarkProblem:
 # Grading
 #
 # ``grade_eval`` is the single source of truth for the in-trainer val-core path
-# (eval_trainer.RQValidatingTrainer._validate). It is kept byte-for-byte in sync
-# with the offline checkpoint grader (scripts/eval_vllm_math.py -> evo-sample/
-# evaluation.math_benchmarks.grade_math_response) so val-core matches the
-# checkpoint number exactly. It is ``reward.answers_match`` WITHOUT the length
-# guard:
+# (eval_trainer.RQValidatingTrainer._validate). It mirrors the INTENT of the
+# offline checkpoint grader (scripts/eval_vllm_math.py) -- boxed extraction +
+# math_verify, no length guard -- but is NOT byte-identical to it: the offline
+# script takes the FIRST \boxed via regex and verifies the RAW strings, whereas
+# grade_eval takes the LAST \boxed (brace-matched) and \boxed-wraps both sides.
+# So val-core and the offline number track each other but can diverge on
+# multi-box / bare-fragment answers (see docs/GRADING.md). It is
+# ``reward.answers_match`` WITHOUT the length guard:
 #   * brace-matched ``extract_boxed`` (LAST \boxed) -- final answer, nesting-safe;
 #   * ``verify(parse("\boxed{gt}"), parse("\boxed{pred}"))``. The \boxed wrap is
 #     REQUIRED, not leniency: bare ``parse("\dfrac{1}{2}")`` fails math_verify's
@@ -60,7 +63,8 @@ class MathBenchmarkProblem:
 
 def grade_eval(response: str, ground_truth: str) -> bool:
     """Measurement grader: extract_boxed + \\boxed-wrapped math_verify, no guard.
-    Mirrors eval_vllm_math.py so val-core == the offline checkpoint number."""
+    Approximates eval_vllm_math.py's offline grader (not byte-identical; see
+    docs/GRADING.md) so val-core tracks the offline checkpoint number."""
     pred = extract_boxed(response)
     if pred is None:
         return False

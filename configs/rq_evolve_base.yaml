@@ -126,9 +126,7 @@ verl_config:
       # EasyR1 worker.actor.model.model_path: Qwen/Qwen3-8B-Base
       path: /data1/yhoon113/qwen3-8b-base
       trust_remote_code: true
-      # Without remove_padding the model forwards padding tokens — with
-      # max_seq_len=12000 and vocab=151k the bf16 logits tensor is ~22GB per
-      # micro-batch of 6, OOMing on 97GB GPUs once vLLM + actor + ref coexist.
+      # 97GB GPU OOM 회피(bf16 logits ~22GB/micro-batch); 근거: docs/RUNTIME_NOTES.md#remove-padding
       use_remove_padding: true
       enable_gradient_checkpointing: true
 
@@ -155,12 +153,7 @@ verl_config:
 
     ref:
       log_prob_micro_batch_size: null
-      # 1 (was 4): the log-prob/entropy forward materializes a full-vocab
-      # (151k) logits tensor per micro-batch (~13.7 GB at 4). With vLLM now
-      # resident (sleep disabled) this OOMs during the evolve phase, which runs
-      # at the epoch boundary right after update_actor (optimizer states still
-      # on GPU). micro-batch 1 cuts the transient ~4x; the forward is a small
-      # fraction of step time so the throughput cost is negligible.
+      # full-vocab logits transient 축소로 evolve-phase OOM 회피; 근거: docs/RUNTIME_NOTES.md#ref-logprob
       log_prob_micro_batch_size_per_gpu: 2
       fsdp_config:
         # Offload ref weights to CPU when not used; ref is forward-only and
@@ -184,47 +177,21 @@ verl_config:
       n: 8
       # EasyR1 worker.rollout.tensor_parallel_size: 1
       tensor_model_parallel_size: 1
-      # Bucketed weight transfer to vLLM groups tensors into a fixed-size buffer;
-      # the largest single tensor must fit in one bucket. Qwen3-8B's
-      # embed_tokens.weight is 151936 x 4096 x 4B (fp32 master weight) ~= 2374 MB,
-      # which overflows the verl default of 2048 MB. Raise to 4096 MB for headroom.
-      # NOTE: the runtime reads this from rollout.checkpoint_engine.* (vllm_rollout.py
-      # line 166: self.config.checkpoint_engine.update_weights_bucket_megabytes);
-      # the assertion's "rollout.update_weights_bucket_megabytes" message omits the
-      # checkpoint_engine level.
+      # embed_tokens ~2374MB > verl 기본 2048MB 버킷; 근거: docs/RUNTIME_NOTES.md#weight-bucket
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096
-      # vLLM is now RESIDENT (sleep mode disabled, see below) and must coexist
-      # on-GPU with the FSDP actor's training step (peak ~33 GB reserved). On
-      # 97 GB cards. vLLM is resident; the actor's evolve-phase log-prob/entropy
-      # forward plus resident optimizer states must coexist, so keep vLLM modest:
-      # 0.45*97~=43 GB vLLM + ~42 GB actor (incl. optimizer) ~= 85 GB, with the
-      # entropy transient shrunk via log_prob_micro_batch_size_per_gpu=1 below.
+      # resident vLLM + FSDP actor 공존 예산(0.45*97≈43GB); 근거: docs/RUNTIME_NOTES.md#gpu-memory
       gpu_memory_utilization: 0.45
       max_model_len: 12000
       max_num_batched_tokens: 12000
       dtype: bfloat16
       enable_chunked_prefill: true
       enforce_eager: false
-      # --- vLLM sleep/wake DISABLED ---------------------------------------
-      # This (custom) vLLM 0.19.1 build's cumem allocator fails to re-map GPU
-      # virtual memory on wake_up after ~3 sleep/wake cycles:
-      #   "CUDA Error: invalid argument at cumem_allocator.cpp:145".
-      # It reproduces in verl's own per-step wake (one wake/step) regardless of
-      # R-Q-Evolve, so any run dies by ~step 3. free_cache_engine=false makes
-      # verl skip rollout.resume()/sleep() (the wake_up call site,
-      # fsdp_workers.rollout_mode), and enable_sleep_mode=false builds vLLM
-      # without the cumem allocator at all (verl then auto-enables
-      # expandable_segments). vLLM stays resident; weights are still synced from
-      # FSDP via checkpoint_manager.update_weights each step (naive backend =
-      # plain weight push, no wake/sleep). Costs the GPU memory above.
+      # vLLM sleep/wake 비활성화 (cumem allocator crash 회피); 근거: docs/RUNTIME_NOTES.md#sleep-wake
       free_cache_engine: false
       enable_sleep_mode: false
       log_prob_micro_batch_size: null
-      # actor's compute_log_prob (our evolve uncertainty/entropy path) reads
-      # THIS rollout knob (fsdp_workers: config_source = self.config.rollout).
-      # 1 (was 4) to shrink the full-vocab entropy logits transient -> avoids
-      # the evolve-phase OOM. See the ref section note above.
+      # evolve entropy 경로가 읽는 rollout knob; OOM 회피용 축소; 근거: docs/RUNTIME_NOTES.md#rollout-logprob
       log_prob_micro_batch_size_per_gpu: 2
 
   critic:

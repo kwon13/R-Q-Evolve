@@ -248,8 +248,9 @@ class MathEvalConfig:
 
     When enabled, the listed benchmarks are tokenized into a verl validation
     dataset (one ``data_source`` per benchmark). ``RQValidatingTrainer._validate``
-    (eval_trainer.py) reports per-benchmark accuracy; grading reuses the training
-    ``reward_function`` (sympy ``answers_match``) but runs on the trainer's MAIN
+    (eval_trainer.py) reports per-benchmark accuracy; grading uses
+    ``math_eval.grade_eval`` -- the training reward's ``answers_match`` WITHOUT its
+    >200-char length guard (see docs/GRADING.md) -- and runs on the trainer's MAIN
     thread (the agent-loop reward worker skips eval rows) so math_verify's SIGALRM
     timeout works and a pathological boxed answer can't stall the GPU mid-eval.
     GPT-judge is intentionally dropped. Evaluation cadence (before-train / every N
@@ -297,7 +298,7 @@ def load_config(path: str | Path) -> RQEvolveConfig:
 
 
 def _load_minimal_yaml(path: Path) -> dict[str, Any]:
-    """Parse the small YAML subset used by ``configs/rq_evolve.yaml``.
+    """Parse the small YAML subset used by ``configs/rq_evolve_base.yaml``.
 
     This is not a general YAML parser. It supports nested mappings through
     indentation plus inline scalars/lists, which keeps the starter project

@@ -1,4 +1,3 @@
-import re
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -82,11 +81,3 @@ class EvolutionBackend(Protocol):
 
     def finalize_rollouts(self, pending: PendingRollouts) -> list[list[RolloutRecord]]:
         """Assemble grouped records, computing entropy after the engine slept."""
-
-
-_BOXED_RE = re.compile(r"\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}", re.DOTALL)
-
-
-def extract_boxed(text: str) -> str | None:
-    matches = _BOXED_RE.findall(text)
-    return matches[-1].strip() if matches else None

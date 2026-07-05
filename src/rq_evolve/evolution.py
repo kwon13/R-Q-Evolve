@@ -191,6 +191,22 @@ class RQEvolver:
         return result
 
     def inner_iteration_batch(self, batch_size: int) -> list[CandidateReport]:
+        """Run one batch: mutate -> verify -> evaluate -> rollout -> report.
+
+        ``entries`` is a ``list[dict]`` where an entry's *state is which key it
+        holds* (there is no status field). Each entry moves through three shapes:
+
+          * ``{"task", "child", "inst"}``   -- verified child, alive for rollouts;
+          * ``{"_retry": {...}}``           -- parsed but failed verify; eligible
+                                               for one Reflexion self-fix;
+          * ``{"report": CandidateReport}`` -- terminal; carries the outcome.
+
+        Flow: mutate() -> split into the three shapes -> _resolve_retries
+        (_retry -> child | report) -> _apply_evaluator (drops incoherent children
+        -> report) -> generate_rollouts on survivors -> each child scored and
+        archived into a terminal CandidateReport. See docs/PIPELINE.md
+        ("Evolution Candidate State") for the diagram and full status vocabulary.
+        """
         tasks = []
         for _ in range(batch_size):
             parent = self.archive.sample_parent()
@@ -638,9 +654,12 @@ class RQEvolver:
 
         Unlike the archive (latest snapshot only), this is append-only, so the
         full evolution trajectory is preserved: per-iteration metrics plus every
-        candidate report (status = inserted / rejected_non_elite / verify_failed
-        / p_hat_zero / mutation_failed / no_code, with op, rq_score, p_hat,
-        uncertainty). ``reports`` defaults to ``self.last_reports``.
+        candidate report. ``CandidateReport.status`` is one of: no_parent,
+        mutation_failed, no_code, verify_failed, evaluator_error,
+        evaluator_rejected, rollout_failed, p_hat_zero, inserted,
+        rejected_non_elite (each with op, rq_score, p_hat, uncertainty; see
+        docs/PIPELINE.md "Evolution Candidate State"). ``reports`` defaults to
+        ``self.last_reports``.
         """
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)

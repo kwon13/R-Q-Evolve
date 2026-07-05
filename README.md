@@ -35,20 +35,28 @@ seed_programs/*.py
 ## Quick Start
 
 ```bash
-cd /Users/kyhoon13/Desktop/Code/R-Q-Evolve
-python3 scripts/smoke_test.py
+cd "/Users/kyhoon13/Desktop/Code/수식 증명/R-Q-Evolve"
+
+# 의존성 없이 도는 sanity check (pyproject: pythonpath=src, testpaths=tests)
+pytest
+
+# import / 설정 preflight 점검 (GPU 불필요)
+python scripts/preflight_check.py
+
+# 실제 학습 스모크 (LoRA r32, 1 step; free GPU 필요)
+python scripts/train_with_verl.py --smoke --config configs/rq_evolve_smoke_lora.yaml
 ```
 
 ## verl Training
 
-`verl` 학습을 켜려면 `configs/rq_evolve.yaml`에서 `verl.enabled: true`로
-바꾸고, `configs/verl_ppo_rq.yaml`의 `actor_rollout_ref.model.path`를 실제
-Hugging Face 모델 경로로 수정하거나 아래 환경변수를 설정합니다.
+`verl` 학습을 켜려면 `configs/rq_evolve_base.yaml`에서 `verl.enabled: true`로
+바꾸고, 같은 파일의 inline `verl_config.actor_rollout_ref.model.path`를 실제
+Hugging Face 모델 경로로 수정합니다. (별도의 `verl_ppo_rq.yaml`은 없고, verl
+PPO 오버라이드가 각 `rq_evolve_*.yaml`의 `verl_config:` 블록에 인라인돼 있습니다.)
 
 ```bash
-export RQ_MODEL_PATH=/path/to/your/hf_model
-.venv/bin/python scripts/train_with_verl.py --print-verl-env
-.venv/bin/python scripts/train_with_verl.py --config configs/rq_evolve.yaml
+python scripts/train_with_verl.py --print-verl-env          # 환경이 잡은 verl 버전 확인
+python scripts/train_with_verl.py --config configs/rq_evolve_base.yaml
 ```
 
 학습 중에는 현재 Python 환경에서 import되는 `verl`의 `RayPPOTrainer`가
@@ -62,9 +70,14 @@ re-evaluation, mutation, R_Q scoring, dataset refresh를 실행합니다.
 3. `prompt_templates/`에 few-shot mutation prompt 작성
 4. `backends.py`에 실제 mutation backend 추가
 5. `backends.py` 또는 `verl_adapter.py`에 solver rollout + entropy 계산 연결
-6. `.venv/bin/python scripts/train_with_verl.py --print-verl-env`로 실제 `verl` 버전 확인
+6. `python scripts/train_with_verl.py --print-verl-env`로 실제 `verl` 버전 확인
 
-원본 코드와 새 스켈레톤의 대응표는 `docs/PIPELINE.md`에 정리했습니다.
+## Docs
+
+- `docs/PIPELINE.md`: 원본 코드 ↔ 새 스켈레톤 대응표 + evolution 상태 전이
+- `docs/GRADING.md`: grader 3종(학습 reward / trainer val / offline eval) 비교표
+- `docs/RUNTIME_NOTES.md`: 장비별 운영 노트(OOM, vLLM cumem crash, 메모리 튜닝 근거)
+- `docs/async_pipeline.md`, `docs/deepseek_support_plan.md`: async rollout / DeepSeek 지원 계획
 
 ## Important Contracts
 

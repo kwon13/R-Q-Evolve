@@ -19,7 +19,7 @@ from rq_evolve.verl_adapter import (
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default=str(ROOT / "configs" / "rq_evolve.yaml"))
+    parser.add_argument("--config", default=str(ROOT / "configs" / "rq_evolve_base.yaml"))
     parser.add_argument(
         "--print-verl-env",
         action="store_true",

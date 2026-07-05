@@ -32,6 +32,54 @@
 11. The installed `verl` trainer consumes those examples and updates the solver.
 12. The next outer iteration re-scores champions under the updated solver.
 
+## Evolution Candidate State
+
+`EvolutionEngine.inner_iteration_batch` ([`src/rq_evolve/evolution.py:193`](../src/rq_evolve/evolution.py#L193))는
+한 batch의 candidate를 처리합니다. 여기서 `entries`는 `list[dict]`이고, **각 dict의
+"상태"는 어떤 키를 들고 있는지로 표현**됩니다(별도의 status 필드 없음). entry는 세 가지
+shape를 거칩니다:
+
+| shape (dict 키) | 의미 |
+|---|---|
+| `{"task", "child", "inst"}` | verified child — rollout 대상으로 살아있음 |
+| `{"_retry": {task, output, reason}}` | parse는 됐으나 verify 실패 — 1회 Reflexion self-fix 대상 |
+| `{"report": CandidateReport}` | terminal — 결과를 담음 |
+
+```text
+                       backend.mutate(tasks)
+                               │
+              ┌────────────────┼────────────────────┐
+       inst!=None        source!=None            둘 다 None
+        (verify OK)     (parse OK/verify 실패)    (추출 실패)
+              │                │                     │
+        {task,child,inst}   {_retry}         {report: mutation_failed|no_code}
+              │                │
+              │        _resolve_retries()
+              │         fix_retry off ─────────► {report: verify_failed}
+              │         fix 성공 ─► {task,child,inst}(fixed_after_retry)
+              │         fix 실패 ─► {report: verify_failed "[after fix]"}
+              │                │
+              └───────┬────────┘
+                _apply_evaluator()   (INVALID 판정 시)
+                      │  ├────────────────► {report: evaluator_rejected}
+                      │  └── 예외 ─────────► {report: evaluator_error}
+                      │ (valid → child 유지)
+              generate_rollouts(child)
+                      │
+        모든 rollout reject ─────────────► {report: rollout_failed}
+        p_hat <= 0 ──────────────────────► {report: p_hat_zero}
+        archive.try_insert()
+              ├── elite ───────────────────► {report: inserted}
+              └── non-elite ───────────────► {report: rejected_non_elite}
+```
+
+parent가 없으면 batch 진입 직후 `{report: no_parent}` 하나로 조기 반환됩니다.
+
+**`CandidateReport.status` 전체 어휘** ([`evolution.py:29`](../src/rq_evolve/evolution.py#L29)):
+`no_parent`, `mutation_failed`, `no_code`, `verify_failed`, `evaluator_error`,
+`evaluator_rejected`, `rollout_failed`, `p_hat_zero`, `inserted`, `rejected_non_elite`.
+모든 report는 `append_evolution_log`가 `evolution_log.jsonl`에 append합니다.
+
 ## Implementation Milestones
 
 ### Milestone 1: Archive Correctness

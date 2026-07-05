@@ -1,32 +1,3 @@
-"""Hermetic subprocess sandbox for executing generated problem programs.
-
-Run as a PLAIN SCRIPT (``python .../_sandbox_worker.py``), never ``-m``: launched
-as a path, Python puts only this file's directory on ``sys.path`` and runs it as
-``__main__`` -- it does NOT import the ``rq_evolve`` package, so a fresh worker
-starts fast and never re-imports torch/vllm/verl. It imports only the stdlib
-(plus ``sympy`` on demand, inside a generated program's own ``import``).
-
-Protocol. The parent (``program._SandboxClient``) keeps ONE of these alive and
-sends one request per line on stdin::
-
-    {"source": "<generator source>", "seed": <int>}\n
-
-and reads one reply per line back::
-
-    {"ok": true, "problem": "...", "answer": "..."}\n   (or {"ok": false})
-
-A request that overruns the parent's wall-clock budget is killed (SIGKILL) and a
-fresh worker is spawned for the next call. That hard kill is the whole point:
-``signal.alarm`` (the previous in-process timeout) cannot interrupt a generated
-program spinning in a C-level call -- ``2**(2**30)``, ``math.factorial(10**8)``,
-a huge ``sympy`` simplify -- because the SIGALRM handler can't run until the C
-call returns to the interpreter. Killing the process actually stops it.
-
-The sandbox namespace mirrors ``ProblemProgram.execute`` EXACTLY. It is kept as a
-self-contained copy (not imported from ``program.py``) precisely so that importing
-anything here costs nothing beyond the stdlib.
-"""
-
 import importlib.util
 import json
 import math
@@ -35,7 +6,6 @@ import random
 import resource
 import sys
 
-# Mirror of program.ProblemProgram's sandbox policy -- keep in sync by hand.
 ALLOWED_IMPORT_ROOTS = {
     "collections",
     "fractions",
@@ -51,12 +21,6 @@ _FORBIDDEN_BUILTINS = {
     "globals", "locals", "vars",
     "exit", "quit", "help", "breakpoint",
 }
-
-# Address-space cap so a memory-bomb generator (e.g. ``10**10**9``, whose integer
-# alone is gigabytes) raises MemoryError in here instead of OOM-killing the node.
-# 8 GiB is far above anything legitimate problem generation needs, well below the
-# node's RAM. The wall-clock kill in the parent handles CPU spinners; this only
-# guards the allocation axis.
 _MEM_LIMIT_BYTES = 8 * 1024**3
 
 

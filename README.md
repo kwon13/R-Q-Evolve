@@ -25,7 +25,7 @@ seed_programs/*.py
 - `archive.py`: H축 × D축 MAP-Elites archive
 - `scoring.py`: `R_Q = p(1-p)U`
 - `prompts.py`: mutation / solver prompt builder
-- `prompt_templates/`: `in_depth`, `in_breadth`, `crossover` prompt text files and `shots/` examples
+- `prompt_templates/`: `in_depth`, `in_breadth` prompt text files and `shots/` examples
 - `backends.py`: LLM mutation과 solver rollout 인터페이스
 - `evolution.py`: outer iteration, mutation, verification, scoring, dataset refresh
 - `dataset.py`: champion에서 학습 문제를 만드는 framework-free dataset
@@ -38,8 +38,6 @@ seed_programs/*.py
 cd /Users/kyhoon13/Desktop/Code/R-Q-Evolve
 python3 scripts/smoke_test.py
 ```
-
-이 smoke test는 모델 없이 `MockEvolutionBackend`로 전체 흐름을 통과합니다.
 
 ## verl Training
 

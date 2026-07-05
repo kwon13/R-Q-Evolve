@@ -359,22 +359,6 @@ class MAPElitesArchive:
         assert niche.champion is not None
         return niche.champion
 
-    def sample_two_parents(self) -> tuple[ProblemProgram | None, ProblemProgram | None]:
-        champions = self.champions()
-        if len(champions) < 2:
-            return None, None
-        # Both parents from learnable (RQ>0) champions when at least two exist;
-        # otherwise fall back to the full set so crossover is not starved.
-        learnable = [c for c in champions if self._is_learnable(c)]
-        pool = learnable if len(learnable) >= 2 else champions
-        first = self.sample_parent()
-        if first is None:
-            return None, None
-        remaining = [p for p in pool if p.program_id != first.program_id]
-        if not remaining:
-            return None, None
-        return first, random.choice(remaining)
-
     def _sample_ucb(self, occupied: list[tuple[tuple[int, int], Niche]]):
         # Exploitation term ranks by selection priority: real R_Q in production,
         # s(1-s) under the select_ignores_uncertainty ablation. champion_rq stays

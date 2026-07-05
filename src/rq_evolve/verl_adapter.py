@@ -53,13 +53,6 @@ class EvolvingSampler:
 
     def __iter__(self) -> Iterator[int]:
         if self.epoch > 0 or self.evolve_on_first_epoch:
-            # End-of-outer-iteration Evolver update: the Solver GRPO steps for the
-            # PREVIOUS epoch's dataset have now finished (verl trains the dataset
-            # AFTER __iter__ returns), so this is the point to update the shared
-            # actor as the Questioner on the mutations that entered the MAP last
-            # iteration -- BEFORE the next evolve phase re-syncs weights into vLLM.
-            if self.epoch > 0:
-                self._run_evolver_update()
             metrics = self.evolver.run_outer_iteration(self.epoch)
             print(f"[RQ-Evolve] outer iteration {self.epoch}: {metrics}")
             # Persist after every evolution so a restart resumes from the evolved
@@ -103,8 +96,6 @@ class EvolvingSampler:
             "map_payload": {
                 "archive": ev.archive.to_payload(),
                 "used_seeds": {pid: sorted(s) for pid, s in ev.used_seeds.items()},
-                "pending_evolver_samples": ev.pending_evolver_samples,
-                "evolver_updates_done": int(getattr(ev, "evolver_updates_done", 0) or 0),
             },
         }
 
@@ -129,8 +120,6 @@ class EvolvingSampler:
             ev.used_seeds = {
                 pid: set(s) for pid, s in (payload.get("used_seeds") or {}).items()
             }
-            ev.pending_evolver_samples = payload.get("pending_evolver_samples") or []
-            ev.evolver_updates_done = int(payload.get("evolver_updates_done", 0) or 0)
             ev.refresh_dataset()
             print(
                 f"[RQ-Evolve] resume: restored MAP from data.pt ({n} champions, "
@@ -142,10 +131,10 @@ class EvolvingSampler:
                   f"keeping archive.json state")
             return
         self._archive_post_checkpoint_snapshots(self._active_iteration)
-        # Rewrite the live snapshot files (archive.json / used_seeds / evolver
-        # samples) to the restored point so disk is immediately consistent with the
-        # weights -- not the now-discarded latest. A crash before the first
-        # post-resume evolution then resumes from K, not the abandoned future.
+        # Rewrite the live snapshot files (archive.json / used_seeds) to the
+        # restored point so disk is immediately consistent with the weights -- not
+        # the now-discarded latest. A crash before the first post-resume evolution
+        # then resumes from K, not the abandoned future.
         if self.archive_dir is not None:
             try:
                 ev.save_state(self.archive_dir)
@@ -176,8 +165,7 @@ class EvolvingSampler:
                     shutil.move(str(p), str(backup / p.name))
                     moved.append(p.name)
             # Append-only logs: split into kept (<= cutoff) and dropped (> cutoff).
-            for fname, key in (("evolution_log.jsonl", "iteration"),
-                               ("evolver_update_log.jsonl", "epoch")):
+            for fname, key in (("evolution_log.jsonl", "iteration"),):
                 f = d / fname
                 if not f.exists():
                     continue
@@ -202,66 +190,6 @@ class EvolvingSampler:
                       f"(> iter {cutoff}) to {backup.name} -> {moved}")
         except Exception as exc:
             print(f"[RQ-Evolve] resume: snapshot cleanup skipped ({exc!r})")
-
-    def _run_evolver_update(self) -> None:
-        """Run + log the Evolver REINFORCE update (best-effort; never breaks training)."""
-        if not getattr(self.evolver.evolution_config, "evolver_update", False):
-            return
-        try:
-            metrics = self.evolver.update_evolver()
-        except Exception as exc:  # an evolver-update failure must not kill the run
-            import traceback
-
-            tb = traceback.format_exc()
-            print(
-                "[RQ-Evolve] !!! EVOLVER UPDATE FAILED (skipping this step) !!!\n"
-                f"[RQ-Evolve]   {exc!r}\n" + tb
-            )
-            self._append_evolver_update_log({"epoch": self.epoch, "ok": False, "error": repr(exc), "traceback": tb})
-            return
-        if not metrics:
-            return
-        self._append_evolver_update_log({"epoch": self.epoch, "ok": True, **metrics})
-        # total_training_steps counts SOLVER GRPO steps ONLY. The run terminates
-        # when trainer.global_steps (the pure GRPO counter, bumped once per Solver
-        # update) reaches the configured target; Evolver REINFORCE steps run on top
-        # of that budget and are NOT charged against it, so the number of Solver
-        # updates is fixed regardless of how many Evolver steps run between epochs.
-        # (The actor LR schedule is constant-with-0-warmup, so the extra Evolver
-        # update_actor calls do not perturb the learning rate.)
-        print(f"[RQ-Evolve] evolver update (epoch {self.epoch}): {metrics}")
-        # Already namespaced (evolver/...); log as-is rather than via the
-        # evolve/-prefixing helper. commit=False merges into the next step.
-        try:
-            import wandb
-
-            if wandb.run is not None:
-                payload = {
-                    k: v
-                    for k, v in metrics.items()
-                    if isinstance(v, (int, float)) and not isinstance(v, bool)
-                }
-                if payload:
-                    wandb.log(payload, commit=False)
-        except Exception:
-            pass
-
-    def _append_evolver_update_log(self, record: dict) -> None:
-        """Append one evolver-update outcome (success metrics or failure+traceback)
-        to ``<archive_dir>/evolver_update_log.jsonl`` so failures are visible even
-        when stdout (a tty) is not captured to a file."""
-        if self.archive_dir is None:
-            return
-        try:
-            import json
-            from pathlib import Path
-
-            d = Path(self.archive_dir)
-            d.mkdir(parents=True, exist_ok=True)
-            with (d / "evolver_update_log.jsonl").open("a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
 
     def _log_evolve_metrics_to_wandb(self, metrics: dict) -> None:
         """Best-effort: send the evolve metrics to wandb (was stdout-only).
@@ -318,22 +246,6 @@ class VerlTrainerAdapter:
         self._patch_reward_config(verl_config)
         OmegaConf.resolve(verl_config)
 
-        # R_Q uncertainty/capacity factor U: "entropy" (verl default) or "gini"
-        # (exact 1 - sum p^2). In gini mode verl's per-token entropy function is
-        # env-gated to return Gini impurity; the RQ_UNCERTAINTY_MEASURE env var
-        # (read at verl import, before the actor binds the fn) carries the choice
-        # into every worker. NOTE: this is deliberately an env var + a verl-side
-        # gate, NOT a Ray worker_process_setup_hook -- a job-level setup hook
-        # perturbs Ray's per-actor GPU assignment and causes "Duplicate GPU
-        # detected" / NCCL invalid-usage at FSDP init.
-        uncertainty_measure = str(
-            getattr(self.rq_config.evolution, "uncertainty_measure", "entropy")
-        ).strip().lower()
-        os.environ["RQ_UNCERTAINTY_MEASURE"] = uncertainty_measure
-        from .verl_patches import assert_verl_uncertainty_gate
-
-        assert_verl_uncertainty_gate(uncertainty_measure)
-
         if not ray.is_initialized():
             ray_init = verl_config.get("ray_init", {})
             ray.init(
@@ -345,7 +257,6 @@ class VerlTrainerAdapter:
                         "VLLM_USE_V1": "1",
                         "VLLM_LOGGING_LEVEL": "WARN",
                         "VLLM_ALLOW_RUNTIME_LORA_UPDATING": "true",
-                        "RQ_UNCERTAINTY_MEASURE": uncertainty_measure,
                         "PYTHONPATH": str(self.project_root / "src")
                         + os.pathsep
                         + os.environ.get("PYTHONPATH", ""),
@@ -453,14 +364,11 @@ class VerlTrainerAdapter:
             self._bootstrap_seed_archive(evolver)
             evolver.save_state(archive_dir)
 
-        # Resume: total_training_steps counts SOLVER GRPO steps only, and verl
-        # restores trainer.global_steps (the GRPO counter) from the checkpoint, so
-        # the run simply continues until global_steps reaches the configured target.
-        # No budget re-charging is needed — Evolver steps are never charged to it.
+        # Resume: verl restores trainer.global_steps from the checkpoint, so the run
+        # simply continues until global_steps reaches the configured target.
 
         # Mirror the Solver's GRPO metrics (verl logs them as actor/* , critic/*)
-        # under a clean ``solver/*`` namespace so wandb shows one panel per role:
-        # solver/* (this), evolver/* (REINFORCE update), evolve/* (MAP evolution).
+        # under a clean ``solver/*`` namespace alongside ``evolve/*`` metrics.
         _install_solver_metric_alias()
 
         trainer.fit()
@@ -792,9 +700,7 @@ def _install_solver_metric_alias() -> None:
     """Monkeypatch ``wandb.log`` to add ``solver/*`` aliases for the Solver's
     verl metrics. Additive and idempotent; wrapped so it can never break logging.
 
-    Safe because the Evolver's own update_actor metrics are extracted manually
-    into ``evolver/*`` (never logged via wandb.log with actor/ keys), so the
-    actor/* keys that pass through wandb.log are the Solver GRPO step only.
+    The actor/* keys that pass through wandb.log are the Solver GRPO step.
     """
     try:
         import wandb

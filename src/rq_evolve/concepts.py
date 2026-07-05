@@ -1,7 +1,3 @@
-"""Controlled diversity labels used by the MAP-Elites D-axis."""
-
-from __future__ import annotations
-
 CONCEPT_GROUPS: tuple[str, ...] = (
     "number_theory",
     "combinatorics",

@@ -1,29 +1,3 @@
-"""Math benchmark validation datasets for in-trainer verl evaluation.
-
-Ported from evo-sample/evaluation/math_benchmarks.py, trimmed for R-Q-Evolve:
-
-  * Same R-Zero source mapping (OpenAI MATH-500 CSV; zwhe99 / HuggingFaceH4 /
-    yentinglin for the rest; ×32 inflation for AMC/AIME).
-  * GPT-judge is dropped.
-  * Grading is NOT done here for the in-trainer path — benchmarks are emitted
-    as a verl validation dataset (one ``data_source`` per benchmark). The agent
-    loop's reward worker SKIPS grading these rows (each carries an
-    ``extra_info[SKIP_WORKER_GRADE_KEY]`` sentinel); ``RQValidatingTrainer.
-    _validate`` (eval_trainer.py) re-grades the decoded responses with
-    ``grade_eval`` on the trainer's MAIN thread, where math_verify's SIGALRM
-    timeout works. Per-benchmark accuracy is then reported via verl's own metric
-    aggregation. (The old path graded on the worker thread, which stalled the
-    GPU to 0% mid-eval — see eval_trainer.py.)
-  * ``grade_eval`` is kept identical to the offline checkpoint grader
-    (scripts/eval_vllm_math.py): brace-matched ``extract_boxed`` + \boxed-wrapped
-    math_verify, NO length guard — so val-core matches eval_vllm_math.py exactly.
-    The \boxed wrap is required (bare parse falsely rejects \dfrac<->\frac). NOT
-    to be confused with ``reward.answers_match`` (the training reward grader,
-    which keeps the length guard for reward-worker-thread safety).
-"""
-
-from __future__ import annotations
-
 import logging
 import os
 import random
@@ -31,13 +5,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .dataset import _compute_position_id_with_mask
+import pandas as pd
+import requests
+import torch
+from datasets import load_dataset
+from math_verify import parse, verify
+from torch.utils.data import ConcatDataset
+
 from .prompts import SOLVER_SYSTEM_PROMPT
 from .reward import SKIP_WORKER_GRADE_KEY, answers_match, extract_boxed
+from .reward import _ensure_math_verify_thread_safe
 
 logger = logging.getLogger(__name__)
 
-# R-Zero's evaluation prompt (R-Zero/evaluation/generate.py).
 MATH_EVAL_SYSTEM_PROMPT = (
     "Please reason step by step, and put your final answer within \\boxed{}."
 )
@@ -84,14 +64,6 @@ def grade_eval(response: str, ground_truth: str) -> bool:
     pred = extract_boxed(response)
     if pred is None:
         return False
-    try:
-        from math_verify import parse, verify
-    except ImportError as exc:
-        raise ImportError(
-            "math_verify is required for eval grading. "
-            "Install math-verify + latex2sympy2_extended."
-        ) from exc
-    from .reward import _ensure_math_verify_thread_safe
 
     _ensure_math_verify_thread_safe()
     try:
@@ -131,12 +103,8 @@ def _math500_cache_path() -> Path:
 
 
 def _load_math500_csv() -> list[dict[str, Any]]:
-    import pandas as pd
-
     cache = _math500_cache_path()
     if not cache.exists():
-        import requests
-
         logger.info("[math_eval] downloading MATH-500 CSV -> %s", cache)
         resp = requests.get(MATH500_CSV_URL, timeout=60)
         resp.raise_for_status()
@@ -146,8 +114,6 @@ def _load_math500_csv() -> list[dict[str, Any]]:
 
 
 def _load_hf(hf_id: str, split: str | None = None, config_name: str | None = None):
-    from datasets import load_dataset
-
     if config_name is not None:
         ds = load_dataset(hf_id, config_name)
         return ds[split or "train"]
@@ -156,12 +122,6 @@ def _load_hf(hf_id: str, split: str | None = None, config_name: str | None = Non
 
 def _load_benchmark_rows(name: str, inflate: bool = True) -> list[dict[str, str]]:
     if name == "math500":
-        # The OpenAI simple-evals MATH-500 CSV "Answer" column holds the FULL
-        # solution text with the result in \boxed{...}, NOT the bare answer.
-        # Extract the boxed answer so grading compares answer-to-answer. Without
-        # this the >200-char solution trips answers_match's length guard into a
-        # normalized string-compare against the whole solution, and even a
-        # perfect solver scores ~0 on math500.
         rows = [
             {
                 "question": str(e["Question"]),
@@ -261,8 +221,6 @@ class MathBenchmarkDataset:
         return len(self.problems)
 
     def __getitem__(self, index: int) -> dict:
-        import torch
-
         item = self.problems[index]
         messages = [
             {"role": "system", "content": self.system_prompt},
@@ -282,11 +240,6 @@ class MathBenchmarkDataset:
                 "benchmark": self.data_source,
                 "index": item.index,
                 "problem": item.problem,
-                # Tell reward.compute_score to skip grading on the agent loop's
-                # (non-main) reward worker thread -- math_verify's SIGALRM timeout
-                # can't fire there, so a pathological boxed answer would peg CPU
-                # and stall vLLM (GPU 0%). RQValidatingTrainer._validate re-grades
-                # these on the main thread instead. See eval_trainer.py.
                 SKIP_WORKER_GRADE_KEY: True,
             },
             "index": item.index,
@@ -302,16 +255,8 @@ def build_math_eval_val_dataset(math_eval_config, tokenizer, max_prompt_length: 
     if not getattr(math_eval_config, "enabled", False):
         return None
 
-    from torch.utils.data import ConcatDataset
-
     max_samples = int(getattr(math_eval_config, "max_samples_per_benchmark", -1))
     sample_seed = int(getattr(math_eval_config, "sample_seed", 42))
-    # In-trainer periodic eval skips R-Zero's x32 AMC/AIME inflation by default:
-    # at -1 samples the inflated set is ~4.6k prompts vs ~1.5k without. Grading
-    # runs on the trainer's main thread now (RQValidatingTrainer._validate), so
-    # this no longer risks the GPU-0% stall -- it's just an eval wall-time knob.
-    # Offline final eval (load_math_benchmark with the default inflate=True) keeps
-    # full R-Zero parity.
     inflate = bool(getattr(math_eval_config, "inflate_x32", False))
 
     datasets = []

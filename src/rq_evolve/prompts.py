@@ -58,7 +58,6 @@ class MutationTask:
     op: str
     prompt: str
     parent: ProblemProgram
-    parent_b: ProblemProgram | None = None
     # When set, the backend renders this full chat conversation as the prompt
     # (multi-turn self-fix) instead of wrapping ``prompt`` as a single user msg.
     messages: list[dict] | None = None
@@ -76,7 +75,6 @@ SHOT_TEMPLATE_DIR = Path(
 PROMPT_TEMPLATE_FILES = {
     "in_depth": "in_depth.txt",
     "in_breadth": "in_breadth.txt",
-    "crossover": "crossover.txt",
 }
 SHOT_TEMPLATE_FILES = PROMPT_TEMPLATE_FILES
 
@@ -84,23 +82,19 @@ SHOT_TEMPLATE_FILES = PROMPT_TEMPLATE_FILES
 def build_mutation_task(
     op: str,
     parent: ProblemProgram,
-    parent_b: ProblemProgram | None = None,
 ) -> MutationTask:
     if op not in PROMPT_TEMPLATE_FILES:
         raise ValueError(f"unknown mutation op: {op}")
-    if op == "crossover" and parent_b is None:
-        raise ValueError("crossover requires parent_b")
 
     template = _load_prompt_template(op)
     user = Template(template).safe_substitute(
-        _template_context(op=op, parent=parent, parent_b=parent_b)
+        _template_context(op=op, parent=parent)
     )
 
     return MutationTask(
         op=op,
         prompt=f"{MUTATION_SYSTEM_PROMPT}\n\n{user}",
         parent=parent,
-        parent_b=parent_b,
     )
 
 
@@ -129,7 +123,6 @@ def build_fix_task(
         op=task.op,
         prompt=f"{failed_output}\n\n{fix_request}",  # flat fallback only
         parent=task.parent,
-        parent_b=task.parent_b,
         messages=messages,
     )
 
@@ -228,9 +221,8 @@ def _load_shot_examples(op: str) -> str:
 def _template_context(
     op: str,
     parent: ProblemProgram,
-    parent_b: ProblemProgram | None = None,
 ) -> dict[str, str]:
-    context = {
+    return {
         "few_shot_examples": _load_shot_examples(op),
         "parent_id": parent.program_id,
         "parent_generation": str(parent.generation),
@@ -241,20 +233,6 @@ def _template_context(
         "parent_h_score": f"{float(getattr(parent, 'h_score', 0.0) or 0.0):.3f}",
         "parent_rq_score": f"{float(getattr(parent, 'rq_score', 0.0) or 0.0):.6f}",
     }
-    if parent_b is not None:
-        context.update(
-            {
-                "parent_b_id": parent_b.program_id,
-                "parent_b_generation": str(parent_b.generation),
-                "parent_b_source": strip_module_docstring(parent_b.source_code),
-                "parent_b_concept_group": str(parent_b.get_concept_group() or ""),
-                "parent_b_concept_type": str(parent_b.get_concept_type() or ""),
-                "parent_b_p_hat": f"{float(getattr(parent_b, 'p_hat', 0.0) or 0.0):.3f}",
-                "parent_b_h_score": f"{float(getattr(parent_b, 'h_score', 0.0) or 0.0):.3f}",
-                "parent_b_rq_score": f"{float(getattr(parent_b, 'rq_score', 0.0) or 0.0):.6f}",
-            }
-        )
-    return context
 
 
 def build_solver_prompt(problem: str) -> str:

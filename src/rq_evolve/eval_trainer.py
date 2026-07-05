@@ -1,45 +1,7 @@
-"""Main-thread math-benchmark validation for the verl PPO/GRPO trainer.
-
-Why this exists
----------------
-verl's stock ``RayPPOTrainer._validate`` relies on the reward score the agent
-loop computes *inside* ``async_rollout_manager.generate_sequences`` -- and that
-grading runs in the reward worker's thread pool (``NaiveRewardManager`` ->
-``loop.run_in_executor``), i.e. NOT the main thread. ``math_verify`` guards its
-sympy ``parse``/``verify`` with ``signal.SIGALRM``, which only arms on the main
-thread; off it, a pathological boxed answer (common for the base model on hard
-competition math) makes sympy spin and our watchdog (reward._ensure_math_verify_
-thread_safe) can only leak a CPU-pegged daemon thread. A burst of those during a
-~1.5k-prompt eval saturates the worker CPUs, vLLM generation in the same agent
-loop workers starves, and GPU utilization drops to 0% mid-eval.
-
-evo-sample never hit this: its custom eval loop grades on the driver's MAIN
-thread, where ``math_verify``'s native SIGALRM timeout actually fires. This
-module ports that approach. Two halves work together:
-
-  1. The math-benchmark val rows carry ``extra_info[SKIP_WORKER_GRADE_KEY]=True``
-     (see math_eval.MathBenchmarkDataset), so ``reward.compute_score`` returns a
-     placeholder for them on the worker thread -- no sympy there.
-  2. ``RQValidatingTrainer._validate`` re-grades the decoded responses on the
-     main thread via ``math_eval.grade_eval`` (SIGALRM works) and feeds the
-     scores back through verl's own metric aggregation, so the wandb keys
-     (``val-core/<benchmark>/acc/...``) are unchanged. ``grade_eval`` is kept
-     identical to the offline checkpoint grader (scripts/eval_vllm_math.py):
-     brace-matched extract_boxed + \boxed-wrapped math_verify, NO length guard,
-     so val-core == the eval_vllm_math.py number. We deliberately do NOT use
-     ``reward.answers_match`` here -- that grader keeps the length guard for
-     reward-worker-thread safety, which causes false negatives on long answers.
-
-The override mirrors verl's ``_validate`` generation/plumbing (agent-loop
-generate, val_kwargs, per-batch interleave, ``_val_metrics_update``); only the
-scoring block differs. It is pinned to the installed verl in azr-bw -- if verl
-is upgraded, re-diff against ``trainer/ppo/ray_trainer.py:_validate``.
-"""
-
-from __future__ import annotations
-
 import logging
 from collections import defaultdict
+from verl import DataProto
+from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
 
 import numpy as np
 
@@ -54,8 +16,6 @@ def make_validating_trainer_cls(base_cls):
 
     class RQValidatingTrainer(base_cls):
         def _validate(self, merged: bool = False):
-            from verl import DataProto
-            from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
 
             data_source_lst = []
             reward_extra_infos_dict: dict[str, list] = defaultdict(list)

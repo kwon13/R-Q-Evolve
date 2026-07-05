@@ -23,7 +23,6 @@ class EvolutionConfig:
     inner_iteration_batch_size: int = 4
     num_rollouts: int = 4
     in_depth_ratio: float = 0.5
-    crossover_ratio: float = 0.2
     verify_seeds: int = 5
     frontier_p_hat_range: tuple[float, float] = (0.1, 0.9)
     # When True, a child that parses but fails verification gets ONE multi-turn
@@ -35,38 +34,6 @@ class EvolutionConfig:
     # insertion. A problem the evaluator marks INVALID is discarded -- a final
     # noise filter against incoherent statements that pass the cheap lint checks.
     use_evaluator: bool = True
-    # --- Evolver (Questioner) REINFORCE update -------------------------------
-    # When True, after the Solver GRPO update of an outer iteration the shared
-    # actor is ALSO updated as the Evolver: a REINFORCE + baseline step over the
-    # mutation generations that successfully entered the MAP archive this
-    # iteration, rewarded by their normalized R_Q score. This keeps the
-    # problem-generation policy improving (otherwise the Evolver is frozen and
-    # good problems stop appearing). Default OFF -- existing runs are unaffected.
-    evolver_update: bool = False
-    # Cap on the number of inserted-this-iteration generations fed to one
-    # REINFORCE step. None = use all of them. Keeping it <= the actor
-    # ppo_mini_batch_size makes the update a single on-policy mini-batch (verl
-    # then sets old_log_prob = log_prob.detach() -> an exact REINFORCE gradient).
-    # When more were inserted than the cap, the highest-R_Q ones are kept (logged).
-    evolver_max_samples: int | None = None
-    # Which generations train the Evolver, and how the [0,1] min-max reward pool
-    # is formed:
-    #   "inserted_only" -- only champions that entered the MAP (sparse: most outer
-    #       iterations insert 0-2, so many updates are no-ops / single-sample).
-    #   "valid_all" -- every candidate that produced a valid, solver-scored problem
-    #       (inserted + rejected_non_elite + p_hat_zero); reward = each one's R_Q,
-    #       normalized across this pool. Far denser signal; does NOT add a -1 for
-    #       invalid generations -- it only rewards valid ones by R_Q.
-    evolver_reward_mode: str = "inserted_only"
-
-    # How the R_Q uncertainty/capacity factor U is measured per token:
-    #   "entropy" -- Shannon entropy -sum p log p (verl's default; an
-    #                approximation of the exact capacity factor).
-    #   "gini"    -- exact Gini impurity 1 - sum p^2 = (1 - ||pi_t||^2).
-    # In "gini" mode verl's per-token entropy is swapped at worker startup
-    # (see verl_patches.py), so the change is transparent to the scoring path.
-    uncertainty_measure: str = "entropy"
-
     # Ablation: drop the H/uncertainty term ONLY from the priority that drives
     # evolution -- which champions are picked as mutation parents and which are
     # drained into the training batch -- so those decisions rank by s(1-s)
@@ -95,6 +62,12 @@ class TrainingDataConfig:
     #   True            -> lowest R_Q first (ablation: invert the priority so the
     #                      budget binds on the LEAST uncertain/valuable champions).
     select_lowest_rq_first: bool = False
+    # ABLATION: ignore R_Q ordering entirely and drain frontier champions in a
+    # RANDOM order (no sort). Takes precedence over select_lowest_rq_first when
+    # both are set. The shuffle is seeded (select_random_seed + refresh count) so
+    # runs are reproducible while still varying across outer iterations.
+    select_random_order: bool = False
+    select_random_seed: int = 0
 
 
 @dataclass(slots=True)
@@ -131,14 +104,7 @@ class MathEvalConfig:
     # Sub-sample per benchmark for quick debugging; -1 = full set (R-Zero parity).
     max_samples_per_benchmark: int = -1
     sample_seed: int = 42
-    # R-Zero x32-inflates AMC/AIME for greedy pass@1 stability. The in-trainer
-    # periodic eval defaults this OFF to keep the set ~1.5k prompts (the inflated
-    # set is ~4.6k). Grading no longer stalls the GPU (main-thread grade, see
-    # eval_trainer.py); this is now purely an eval wall-time knob. Set true for
-    # full R-Zero parity in periodic eval.
     inflate_x32: bool = False
-    # "sympy" reuses reward.answers_match (no extra deps). "math_verify" matches
-    # R-Zero numerically but needs math-verify + latex2sympy2_extended installed.
     grader: str = "sympy"
 
 

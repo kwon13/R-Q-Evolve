@@ -1,8 +1,3 @@
-# ABLATION: crossover-only mutation.
-#   crossover_ratio: 1.0, in_depth_ratio: 0.0  -> every mutation is a crossover
-#   (in_breadth = 1 - 1.0 - 0.0 = 0). _sample_operator() always returns
-#   "crossover"; inner_iteration_batch falls back to in_depth only when the
-#   archive has < 2 champions (early bootstrap), which is unavoidable.
 # verl override (RL settings) is embedded inline below under `verl_config:`;
 # experiment_name/dir are set by the run script via RQ_EXP_NAME / RQ_LOCAL_DIR.
 
@@ -21,10 +16,6 @@ evolution:
   inner_iterations: 32
   inner_iteration_batch_size: 32
   num_rollouts: 10
-  # R_Q uncertainty factor U: "entropy" (Shannon -sum p log p, the approximation)
-  # or "gini" (exact capacity factor 1 - sum p^2 = 1 - ||pi_t||^2). gini swaps
-  # verl's per-token entropy in each actor worker (see verl_patches.py).
-  uncertainty_measure: entropy
   # Ablation: drop the H term ONLY from the selection/mutation priority -- rank
   # mutation parents and training-data drain by s(1-s) instead of s(1-s)*H. The
   # MAP still bins on real H and logs each champion's real R_Q, so snapshots show
@@ -36,26 +27,13 @@ evolution:
   # (both true -> constant priority, no signal -> rejected at startup). To run
   # this ablation set select_ignores_uncertainty: false and this: true (and give
   # the run its own RQ_EXP_NAME / RQ_LOCAL_DIR so it doesn't share the none_h dir).
-  select_ignores_variance: true
-  # --- ablation knobs ---
-  # in_breadth is NOT a knob: it is the remainder = 1 - crossover_ratio - in_depth_ratio.
-  # crossover_ratio MUST be set explicitly to 0.0 to disable crossover; commenting it
-  # out falls back to the config.py default (0.2), which silently re-enables it.
-  crossover_ratio: 0.0       # crossover OFF
-  in_depth_ratio: 0.5        # -> in_breadth = 1 - 0.0 - 0.5 = 0.5  (50/50 depth/breadth)
-  # -----------------------
+  select_ignores_variance: false
+  # in_breadth is NOT a knob: it is the remainder = 1 - in_depth_ratio.
+  in_depth_ratio: 0.5        # -> in_breadth = 1 - 0.5 = 0.5  (50/50 depth/breadth)
   verify_seeds: 5
   frontier_p_hat_range: [0.0, 1.0]
   fix_retry: false
   use_evaluator: true        # LLM coherence gate on seed-0 problem before archive
-  # Evolver REINFORCE: update the shared actor as the Questioner after each
-  # Solver GRPO update, on the mutations that entered the MAP this iteration
-  # (reward = normalized R_Q). Off by default; flip to true to enable.
-  evolver_update: false
-  evolver_max_samples: null  # null = all; keep <= ppo_mini_batch_size (32) for exact REINFORCE
-  # inserted_only (sparse) | valid_all (inserted + rejected_non_elite + p_hat_zero
-  # = every solver-scored valid problem) -> denser reward pool, no -1 penalty.
-  evolver_reward_mode: valid_all
 
 training_data:
   instances_per_program: 8
@@ -65,6 +43,12 @@ training_data:
   # HIGHEST-R_Q frontier champions into the batch first; true drains the
   # LOWEST-R_Q first (the budget then binds on the least uncertain problems).
   select_lowest_rq_first: false
+  # ABLATION: drop R_Q ordering entirely and drain frontier champions in a
+  # RANDOM (seeded) order. Takes precedence over select_lowest_rq_first. Give the
+  # run its own RQ_EXP_NAME / RQ_LOCAL_DIR so it doesn't share another ablation's
+  # archive. select_random_seed varies the shuffle (+ refresh count per iter).
+  select_random_order: true
+  select_random_seed: 0
 
 verl:
   enabled: true
@@ -243,7 +227,7 @@ verl_config:
     total_training_steps: 128
     project_name: rq_evolve
     # Overridable per ablation via RQ_EXP_NAME (default = base run name).
-    experiment_name: qwen3_8b_base_rq_evolve_none_s_8b
+    experiment_name: qwen3_8b_base_rq_evolve_random_8b
     logger:
       - console
       - wandb
@@ -259,7 +243,7 @@ verl_config:
     save_freq: 32
     # Overridable per ablation via RQ_LOCAL_DIR (also separates the rq_archive/
     # checkpoint dir so ablations never share an archive).
-    default_local_dir: ./rq_output/rq_evolve_none_s_8b
+    default_local_dir: ./rq_output/rq_evolve_random_8b
     device: cuda
     # Resume: weights resume from the latest global_step_* via verl's `auto`
     # (reads latest_checkpointed_iteration.txt). The RQ MAP-Elites archive lives

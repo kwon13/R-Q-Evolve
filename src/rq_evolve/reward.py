@@ -1,8 +1,10 @@
-"""verl-compatible reward function for boxed math answers."""
-
-from __future__ import annotations
-
 import threading
+
+import math_verify.grader as _g
+import math_verify.parser as _p
+from math_verify import parse, verify
+from math_verify import utils as _mv_utils
+from math_verify.errors import TimeoutException
 
 
 def _ensure_math_verify_thread_safe() -> None:
@@ -24,8 +26,6 @@ def _ensure_math_verify_thread_safe() -> None:
     returns and the run keeps moving; the length guard in ``answers_match`` keeps
     such leaks rare. Idempotent and process-global.
     """
-    from math_verify import utils as _mv_utils
-
     if getattr(_mv_utils.timeout, "_rq_safe", False):
         return
     _orig = _mv_utils.timeout
@@ -36,8 +36,6 @@ def _ensure_math_verify_thread_safe() -> None:
 
         def decorator(func):
             def wrapper(*args, **kwargs):
-                from math_verify.errors import TimeoutException
-
                 box: dict = {}
 
                 def run():
@@ -63,9 +61,6 @@ def _ensure_math_verify_thread_safe() -> None:
     _mv_utils.timeout = _safe_timeout
     # parser.py / grader.py did ``from .utils import timeout`` at import, so the
     # name is already bound in those modules -- rebind there too.
-    import math_verify.grader as _g
-    import math_verify.parser as _p
-
     _p.timeout = _safe_timeout
     _g.timeout = _safe_timeout
 
@@ -127,7 +122,6 @@ def answers_match(predicted: str, ground_truth: str) -> bool:
         return normalize_answer(pred_s) == normalize_answer(gold_s)
 
     _ensure_math_verify_thread_safe()
-    from math_verify import parse, verify
 
     try:
         # Wrap both sides in \boxed{} so math_verify's LaTeX extraction triggers.

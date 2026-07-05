@@ -1,4 +1,7 @@
+import random
 from dataclasses import dataclass, field
+
+import torch
 
 from .program import ProblemProgram
 from .prompts import SOLVER_SYSTEM_PROMPT
@@ -43,28 +46,23 @@ class VerlDynamicDataset:
         return max(len(self.dynamic_dataset.snapshot()), self.min_size)
 
     def __getitem__(self, item: int) -> dict:
-        import torch
-        import verl.utils.torch_functional as verl_F
 
         rows = self.dynamic_dataset.snapshot()
-        if rows:
-            row = rows[item % len(rows)]
-            problem = row["problem"]
-            answer = row["answer"]
-            extra = {
-                "index": item,
-                "program_id": row.get("program_id"),
-                "seed": row.get("seed"),
-                "rq_score": row.get("rq_score"),
-                "p_hat": row.get("p_hat"),
-                "h_score": row.get("h_score"),
-                "h_bin": row.get("h_bin"),
-                "d_bin": row.get("d_bin"),
-            }
-        else:
-            problem = "What is 1 + 1?"
-            answer = "2"
-            extra = {"index": item, "fallback": True}
+        if not rows:
+            raise IndexError("VerlDynamicDataset is empty")
+        row = rows[item % len(rows)]
+        problem = row["problem"]
+        answer = row["answer"]
+        extra = {
+            "index": item,
+            "program_id": row.get("program_id"),
+            "seed": row.get("seed"),
+            "rq_score": row.get("rq_score"),
+            "p_hat": row.get("p_hat"),
+            "h_score": row.get("h_score"),
+            "h_bin": row.get("h_bin"),
+            "d_bin": row.get("d_bin"),
+        }
 
         messages = [
             {"role": "system", "content": SOLVER_SYSTEM_PROMPT},
@@ -98,6 +96,8 @@ def build_training_examples(
     used_seeds: dict[str, set[int]] | None = None,
     strict_anti_reuse: bool = True,
     select_lowest_rq_first: bool = False,
+    select_random_order: bool = False,
+    select_random_seed: int = 0,
     select_ignores_uncertainty: bool = False,
     select_ignores_variance: bool = False,
 ) -> list[dict]:
@@ -108,7 +108,10 @@ def build_training_examples(
     R_Q champions are considered. This makes ``training_budget`` bind globally
     by R_Q instead of by the MAP grid traversal order. Set
     ``select_lowest_rq_first=True`` to invert the order (ablation: drain the
-    lowest-R_Q champions first). With
+    lowest-R_Q champions first), or ``select_random_order=True`` to drop the R_Q
+    ordering entirely and drain frontier champions in a random (seeded) order
+    (ablation: no priority signal). ``select_random_order`` takes precedence over
+    ``select_lowest_rq_first`` when both are set. With
     ``training_budget=null`` every frontier champion still contributes up to
     ``instances_per_program`` instances, but the resulting rows are ordered by
     R_Q before the trainer's sampler shuffles them.
@@ -122,21 +125,29 @@ def build_training_examples(
     budget = training_budget or max(1, len(champions) * instances_per_program)
     used_seeds = used_seeds if used_seeds is not None else {}
 
-    ranked_champions = sorted(
-        (
-            c
-            for c in champions
-            if is_frontier(float(getattr(c, "p_hat", 0.5)), low, high)
-        ),
-        key=lambda c: selection_priority(
-            float(getattr(c, "p_hat", 0.5) or 0.5),
-            float(getattr(c, "rq_score", 0.0) or 0.0),
-            float(getattr(c, "h_score", 0.0) or 0.0),
-            ignore_uncertainty=select_ignores_uncertainty,
-            ignore_variance=select_ignores_variance,
-        ),
-        reverse=not select_lowest_rq_first,
-    )
+    frontier_champions = [
+        c
+        for c in champions
+        if is_frontier(float(getattr(c, "p_hat", 0.5)), low, high)
+    ]
+
+    if select_random_order:
+        # Ablation: no R_Q ordering -- drain frontier champions in a random
+        # (seeded) order. selection_priority / select_lowest_rq_first are ignored.
+        ranked_champions = list(frontier_champions)
+        random.Random(select_random_seed).shuffle(ranked_champions)
+    else:
+        ranked_champions = sorted(
+            frontier_champions,
+            key=lambda c: selection_priority(
+                float(getattr(c, "p_hat", 0.5) or 0.5),
+                float(getattr(c, "rq_score", 0.0) or 0.0),
+                float(getattr(c, "h_score", 0.0) or 0.0),
+                ignore_uncertainty=select_ignores_uncertainty,
+                ignore_variance=select_ignores_variance,
+            ),
+            reverse=not select_lowest_rq_first,
+        )
 
     examples: list[dict] = []
     emitted_per_program: dict[str, int] = {}
@@ -204,12 +215,3 @@ def build_training_examples(
             break
 
     return examples
-
-
-def _compute_position_id_with_mask(attention_mask):
-    try:
-        from verl.utils.model import compute_position_id_with_mask
-    except ImportError:
-        from verl.utils.model_utils import compute_position_id_with_mask
-
-    return compute_position_id_with_mask(attention_mask)

@@ -30,13 +30,3 @@ def test_in_breadth_template_uses_breadth_shots():
     assert "Task: write a generator in a different mathematical domain" in task.prompt
     assert "MUTATED_PROGRAM_EXAMPLE" in task.prompt
     assert "chord geometry" in task.prompt
-
-
-def test_crossover_template_uses_both_parent_sources():
-    parent = _program("algebra", 3)
-    parent_b = _program("geometry", 4)
-    task = build_mutation_task("crossover", parent, parent_b)
-    assert "Parent A" in task.prompt
-    assert "Parent B" in task.prompt
-    assert "CROSSOVER_CHILD_PROGRAM_EXAMPLE" in task.prompt
-    assert "geometry" in task.prompt

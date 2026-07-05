@@ -44,8 +44,8 @@
 
 ### Milestone 2: Mutation Quality
 
-- Edit `prompt_templates/in_depth.txt`, `prompt_templates/in_breadth.txt`, and `prompt_templates/crossover.txt`.
-- Edit `prompt_templates/shots/in_depth.txt`, `prompt_templates/shots/in_breadth.txt`, and `prompt_templates/shots/crossover.txt` for mutation-specific few-shot examples.
+- Edit `prompt_templates/in_depth.txt` and `prompt_templates/in_breadth.txt`.
+- Edit `prompt_templates/shots/in_depth.txt` and `prompt_templates/shots/in_breadth.txt` for mutation-specific few-shot examples.
 - Add score-aware feedback from parent `p_hat` and uncertainty.
 - Add execution-failure feedback for rejected children.
 

@@ -1,4 +1,5 @@
 #!/bin/bash
+# export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}"
 export WANDB_MODE="${WANDB_MODE:-online}"
 

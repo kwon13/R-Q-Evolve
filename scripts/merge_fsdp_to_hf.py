@@ -96,7 +96,7 @@ def main():
     print("[merge] building HF model skeleton...")
     config = AutoConfig.from_pretrained(hf_src)
     with torch.device("meta"):
-        model = AutoModelForCausalLM.from_config(config, dtype=target_dtype)
+        model = AutoModelForCausalLM.from_config(config, torch_dtype=target_dtype)
     model.to_empty(device="cpu")
 
     missing, unexpected = model.load_state_dict(full_sd, strict=False, assign=True)

@@ -34,12 +34,12 @@ evolution:
   frontier_p_hat_range: [0.0, 1.0]
   fix_retry: false
   use_evaluator: true        # LLM coherence gate on seed-0 problem before archive
-  evaluator_provider: openai # policy = current rollout model; openai = OpenAI API
-  evaluator_model: gpt-5.4-mini
-  evaluator_reasoning_effort: low
-  evaluator_timeout_s: 30
-  evaluator_max_output_tokens: 4096
-  evaluator_concurrency: 8
+  evaluator_provider: policy # policy = current rollout model; openai = OpenAI API
+  # evaluator_model: gpt-5.4-mini
+  # evaluator_reasoning_effort: low
+  # evaluator_timeout_s: 30
+  # evaluator_max_output_tokens: 4096
+  # evaluator_concurrency: 8
 
 training_data:
   instances_per_program: 8
@@ -233,7 +233,7 @@ verl_config:
     total_training_steps: 128
     project_name: rq_evolve
     # Overridable per ablation via RQ_EXP_NAME (default = base run name).
-    experiment_name: qwen3_8b_base_rq_evolve_gpt_8b
+    experiment_name: qwen3_8b_base_rq_evolve_base_8b
     logger:
       - console
       - wandb
@@ -249,7 +249,7 @@ verl_config:
     save_freq: 32
     # Overridable per ablation via RQ_LOCAL_DIR (also separates the rq_archive/
     # checkpoint dir so ablations never share an archive).
-    default_local_dir: ./rq_output/rq_evolve_gpt_8b
+    default_local_dir: ./rq_output/rq_evolve_base_8b
     device: cuda
     # Resume: weights resume from the latest global_step_* via verl's `auto`
     # (reads latest_checkpointed_iteration.txt). The RQ MAP-Elites archive lives

@@ -182,6 +182,242 @@ def lint_generator_source(source_code: str) -> list[str]:
     return reasons
 
 
+def lint_metacognitive_generator_source(
+    source_code: str,
+    *,
+    require_assert: bool = True,
+    reject_trivial_assert: bool = True,
+    reject_unbounded_sampling: bool = True,
+) -> list[str]:
+    """Extra static contract for children generated from a MutationPlan.
+
+    This deliberately applies only to planned children; legacy seeds and legacy
+    mutations retain their historical validation behavior.
+    """
+    try:
+        tree = ast.parse(source_code)
+    except (SyntaxError, ValueError) as exc:
+        return [f"syntax error: {exc}"]
+
+    generate = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "generate"
+        ),
+        None,
+    )
+    if generate is None:
+        return ["missing top-level generate function"]
+
+    reasons: list[str] = []
+    max_attempts = next(
+        (
+            node.value.value
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "MAX_ATTEMPTS"
+                for target in node.targets
+            )
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, int)
+        ),
+        None,
+    )
+    if max_attempts != 200:
+        reasons.append("planned generator requires top-level MAX_ATTEMPTS = 200")
+
+    assertions = [node for node in ast.walk(generate) if isinstance(node, ast.Assert)]
+    if require_assert and not assertions:
+        reasons.append("planned generator requires an assert inside generate()")
+
+    if reject_trivial_assert:
+        for assertion in assertions:
+            test = assertion.test
+            if isinstance(test, ast.Compare) and len(test.comparators) == 1:
+                left = ast.dump(test.left, include_attributes=False)
+                right = ast.dump(test.comparators[0], include_attributes=False)
+                if left == right:
+                    reasons.append("trivial self-comparison assert")
+                    break
+
+    if reject_unbounded_sampling:
+        for node in ast.walk(generate):
+            if (
+                isinstance(node, ast.While)
+                and isinstance(node.test, ast.Constant)
+                and node.test.value is True
+            ):
+                reasons.append("planned generator may not use while True")
+                break
+        has_bounded_sampler = any(
+            isinstance(node, ast.For)
+            and isinstance(node.iter, ast.Call)
+            and isinstance(node.iter.func, ast.Name)
+            and node.iter.func.id == "range"
+            and any(
+                isinstance(arg, ast.Name) and arg.id == "MAX_ATTEMPTS"
+                for arg in node.iter.args
+            )
+            and any(
+                isinstance(child, ast.Raise)
+                and isinstance(child.exc, ast.Call)
+                and isinstance(child.exc.func, ast.Name)
+                and child.exc.func.id == "RuntimeError"
+                for branch in node.orelse
+                for child in ast.walk(branch)
+            )
+            for node in ast.walk(generate)
+        )
+        if not has_bounded_sampler:
+            reasons.append(
+                "planned generator requires `for ... in range(MAX_ATTEMPTS)` "
+                "with an exhaustion else clause that raises RuntimeError"
+            )
+
+    assigned_names = {
+        target.id
+        for node in ast.walk(generate)
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        for target in (
+            list(node.targets)
+            if isinstance(node, ast.Assign)
+            else [node.target]
+        )
+        if isinstance(target, ast.Name)
+    }
+    if not any("decoy" in name.lower() for name in assigned_names):
+        reasons.append("planned generator must compute a named decoy value")
+    for route_name in ("answer_insight", "answer_brute"):
+        if route_name not in assigned_names:
+            reasons.append(f"planned generator must assign `{route_name}`")
+
+    has_route_equivalence_assert = any(
+        isinstance(assertion.test, ast.Compare)
+        and any(isinstance(op, ast.Eq) for op in assertion.test.ops)
+        and {
+            part.id
+            for part in [assertion.test.left, *assertion.test.comparators]
+            if isinstance(part, ast.Name)
+        }
+        >= {"answer_insight", "answer_brute"}
+        for assertion in assertions
+    )
+    if not has_route_equivalence_assert:
+        reasons.append(
+            "planned generator must assert "
+            "`answer_insight == answer_brute`"
+        )
+
+    decoy_collision_guards = [
+        node
+        for node in ast.walk(generate)
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Compare)
+        and any(isinstance(op, ast.Eq) for op in node.test.ops)
+        and any(
+            isinstance(part, ast.Name) and "decoy" in part.id.lower()
+            for part in [node.test.left, *node.test.comparators]
+        )
+        and any(
+            isinstance(part, ast.Name) and "answer" in part.id.lower()
+            for part in [node.test.left, *node.test.comparators]
+        )
+        and any(isinstance(child, ast.Continue) for child in ast.walk(node))
+    ]
+    if not decoy_collision_guards:
+        reasons.append(
+            "planned generator must resample accidental decoy collisions "
+            "with `if decoy == answer: continue` before asserting inequality"
+        )
+
+    decoy_inequality_asserts = [
+        assertion
+        for assertion in assertions
+        if isinstance(assertion.test, ast.Compare)
+        and any(isinstance(op, ast.NotEq) for op in assertion.test.ops)
+        and any(
+            isinstance(part, ast.Name) and "decoy" in part.id.lower()
+            for part in [assertion.test.left, *assertion.test.comparators]
+        )
+        and any(
+            isinstance(part, ast.Name) and "answer" in part.id.lower()
+            for part in [assertion.test.left, *assertion.test.comparators]
+        )
+    ]
+    if not decoy_inequality_asserts:
+        reasons.append("planned generator must assert that decoy != answer")
+    elif decoy_collision_guards and min(
+        node.lineno for node in decoy_collision_guards
+    ) > min(node.lineno for node in decoy_inequality_asserts):
+        reasons.append("decoy collision guard must appear before inequality assert")
+
+    # Randomness must flow through the seed-local rng. Creating Random(seed) is
+    # required, and direct module-level random calls inside generate are rejected.
+    has_local_rng = any(
+        isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "rng" for t in node.targets)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Attribute)
+        and isinstance(node.value.func.value, ast.Name)
+        and node.value.func.value.id == "random"
+        and node.value.func.attr == "Random"
+        and len(node.value.args) == 1
+        and isinstance(node.value.args[0], ast.Name)
+        and node.value.args[0].id == "seed"
+        for node in ast.walk(generate)
+    )
+    if not has_local_rng:
+        reasons.append("planned generator requires `rng = random.Random(seed)`")
+    for node in ast.walk(generate):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "random"
+            and node.func.attr != "Random"
+        ):
+            reasons.append(f"direct random.{node.func.attr} call; use rng instead")
+            break
+
+    for node in ast.walk(generate):
+        if (
+            isinstance(node, ast.For)
+            and isinstance(node.iter, ast.Call)
+            and isinstance(node.iter.func, ast.Attribute)
+            and node.iter.func.attr in {"items", "keys", "values"}
+        ):
+            reasons.append(
+                "dict/set-derived iteration must be wrapped in sorted() "
+                "for cross-process determinism"
+            )
+            break
+
+    returns = [node for node in ast.walk(generate) if isinstance(node, ast.Return)]
+    has_integer_serialization = any(
+        isinstance(node.value, ast.Tuple)
+        and len(node.value.elts) == 2
+        and isinstance(node.value.elts[1], ast.Call)
+        and isinstance(node.value.elts[1].func, ast.Name)
+        and node.value.elts[1].func.id == "str"
+        and len(node.value.elts[1].args) == 1
+        and isinstance(node.value.elts[1].args[0], ast.Call)
+        and isinstance(node.value.elts[1].args[0].func, ast.Attribute)
+        and isinstance(node.value.elts[1].args[0].func.value, ast.Name)
+        and node.value.elts[1].args[0].func.value.id == "sympy"
+        and node.value.elts[1].args[0].func.attr == "Integer"
+        for node in returns
+    )
+    if not has_integer_serialization:
+        reasons.append(
+            "planned generator must return "
+            "`problem, str(sympy.Integer(answer))`"
+        )
+
+    return reasons
+
+
 def lint_problem_instance(instance: ProblemInstance) -> list[str]:
     """Reject obviously poor training examples."""
     reasons: list[str] = []

@@ -1,0 +1,27 @@
+Task: implement the approved metacognitive in-breadth plan.
+
+Transfer the exact target_reasoning_move into a different valid CONCEPT_GROUP.
+Change the mathematical object, domain-specific operation, and surface
+vocabulary; do not create a disguised parent problem. Implement every
+parameter guard and all three routes. Treat the plan as a specification, but
+reject any plan detail that conflicts with the system contracts.
+
+$few_shot_examples
+
+---
+
+PARENT_PROGRAM:
+```python
+$parent_source
+
+CONCEPT_GROUP = "$parent_concept_group"
+CONCEPT_TYPE = "$parent_concept_type"
+```
+
+MUTATION_PLAN_ID: $plan_id
+MUTATION_PLAN:
+```json
+$mutation_plan
+```
+
+CHILD_PROGRAM:

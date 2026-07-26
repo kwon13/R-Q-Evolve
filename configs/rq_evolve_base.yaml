@@ -41,6 +41,28 @@ evolution:
   # evaluator_max_output_tokens: 4096
   # evaluator_concurrency: 8
 
+metacognition:
+  # Reuse the existing R_Q rollouts: store at most one shortest-correct and one
+  # lowest-entropy-wrong trace, then plan before generating Python. This creates
+  # telemetry/controller state only; MAP-Elites remains the sole archive.
+  enabled: true
+  trace_storage_max_tokens: 4096
+  monitoring_total_trace_tokens: 4096
+  plan_max_output_tokens: 1024
+  # Empty/one-sided evidence is expected during bootstrap. The planner must
+  # state that uncertainty; if its JSON is invalid, keep the run alive through
+  # the legacy mutation prompt rather than spending extra Solver rollouts.
+  require_contrast_pair: false
+  fallback_to_legacy_mutation: true
+  require_assert: true
+  reject_trivial_assert: true
+  reject_unbounded_sampling: true
+  # Attribute pre-update delta-p to the operator that created each champion,
+  # then softly bias future operator sampling without eliminating exploration.
+  adaptive_operator: true
+  operator_min_probability: 0.2
+  operator_ema_alpha: 0.2
+
 training_data:
   instances_per_program: 8
   training_budget: null

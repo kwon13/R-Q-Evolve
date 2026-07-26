@@ -1,0 +1,81 @@
+MUTATION_PLAN_EXAMPLE:
+```json
+{
+  "operator": "in_depth",
+  "target_reasoning_move": "test a theorem precondition before selecting an exponent reduction",
+  "insight_route": "factor m and reduce modulo phi(m)",
+  "brute_route": "pow(a,b,m) over the full exponent",
+  "decoy_route": "reduce modulo m-1 without checking primality"
+}
+```
+
+CHILD_PROGRAM_EXAMPLE:
+```python
+"""Metacognitive in-depth mutation of modular reduction.
+
+TARGET REASONING MOVE
+    Test a theorem precondition before selecting an exponent reduction.
+
+MONITORED FAILURE
+    Blind Fermat reduction produces an in-range, confident wrong residue.
+
+ROUTES
+    PATH A insight: factor m, compute phi(m), then reduce the exponent.
+    PATH B brute: pow(a, b, m) without computing a totient.
+    PATH C decoy: reduce the exponent modulo m-1.
+"""
+
+import random
+import sympy
+
+MAX_ATTEMPTS = 200
+
+
+def generate(seed):
+    rng = random.Random(seed)
+
+    for _ in range(MAX_ATTEMPTS):
+        m = rng.choice([12, 15, 21, 22, 25, 33, 35])
+        a = rng.randint(2, m - 1)
+        if sympy.gcd(a, m) != 1:
+            continue
+        b = rng.randint(m ** 2, m ** 3)
+
+        # PATH A: insight.
+        phi = int(sympy.totient(m))
+        reduced = b % phi
+        if reduced in (0, 1):
+            continue
+        answer_insight = pow(a, reduced, m)
+
+        # PATH B: independent full-exponent computation.
+        answer_brute = pow(a, b, m)
+        assert answer_insight == answer_brute
+
+        # PATH C: the observed blind-Fermat error.
+        decoy = pow(a, b % (m - 1), m)
+        if decoy == answer_insight:
+            continue
+        assert decoy != answer_insight
+        assert 0 <= decoy < m
+
+        if answer_insight in (0, 1, m - 1):
+            continue
+        answer = answer_insight
+        break
+    else:
+        raise RuntimeError(
+            f"generator exhausted MAX_ATTEMPTS={MAX_ATTEMPTS} for seed={seed}"
+        )
+
+    problem = (
+        f"Compute the remainder when {a}^{b} is divided by {m}. "
+        f"State only the remainder as an integer between 0 and {m - 1}."
+    )
+    return problem, str(sympy.Integer(answer))
+
+
+CONCEPT_REASON = "The solver must test whether the modulus satisfies a theorem's precondition before reducing a large exponent; blind reduction modulo m-1 yields a plausible in-range wrong residue."
+CONCEPT_GROUP = "number_theory"
+CONCEPT_TYPE = "number_theory.modular_reduction"
+```

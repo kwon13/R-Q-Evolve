@@ -72,8 +72,16 @@ class VerlPolicyBackend(EvolutionBackend):
             return []
         prompts = [task.prompt for task in tasks]
         messages = [getattr(task, "messages", None) for task in tasks]
+        limits = {
+            int(task.max_output_tokens)
+            for task in tasks
+            if task.max_output_tokens is not None
+        }
+        max_tokens = min(limits) if limits else None
         output, _ = self._generate_with_batch(
-            prompts, messages=messages if any(messages) else None
+            prompts,
+            messages=messages if any(messages) else None,
+            max_tokens=max_tokens,
         )
         responses = output.batch.get("responses")
         if responses is None:
@@ -401,7 +409,11 @@ class VerlPolicyBackend(EvolutionBackend):
         return self.finalize_rollouts(pending)
 
     def _generate_with_batch(
-        self, prompts: list[str], n_repeat: int = 1, messages: list | None = None
+        self,
+        prompts: list[str],
+        n_repeat: int = 1,
+        messages: list | None = None,
+        max_tokens: int | None = None,
     ):
         trainer = self._require_trainer()
         batch = self._make_prompt_batch(prompts, messages=messages)
@@ -420,6 +432,11 @@ class VerlPolicyBackend(EvolutionBackend):
         )
         if n_repeat > 1:
             gen_batch = gen_batch.repeat(repeat_times=n_repeat, interleave=True)
+        if max_tokens is not None:
+            # verl's rollout workers accept per-call vLLM sampling overrides
+            # through DataProto.meta_info. Response tensors remain padded to the
+            # configured response length, so downstream shapes are unchanged.
+            gen_batch.meta_info["max_tokens"] = max(1, int(max_tokens))
 
         # verl 0.7.x retired vLLM SPMD; actor_rollout_wg.generate_sequences raises
         # NotImplementedError for the vLLM rollout. The trainer instead routes
@@ -491,11 +508,10 @@ class VerlPolicyBackend(EvolutionBackend):
     def _truncate_to_chat_budget(self, prompt: str, max_prompt_length: int) -> str:
         """Cap ``prompt`` so the chat-templated form fits ``max_prompt_length``.
 
-        Keeps the head (the instructions / output-format spec live at the start
-        of both the mutation and solver prompts) and drops trailing content
-        (the parent example program), which is the safe end to clip. Verifies
-        against the real chat-template length and trims further if token-merge
-        effects at the boundary still overflow.
+        Keeps both the head (instructions/schema) and tail (the live parent,
+        evidence/plan, and generation cue), dropping the middle few-shot material
+        first. Verifies against the real chat-template length and trims further
+        if token-merge effects at the boundaries still overflow.
         """
         if self._chat_template_len(prompt) <= max_prompt_length:
             return prompt
@@ -506,11 +522,32 @@ class VerlPolicyBackend(EvolutionBackend):
         margin = 16
         content_ids = tok.encode(prompt, add_special_tokens=False)
         budget = max(0, max_prompt_length - overhead - margin)
-        truncated = tok.decode(content_ids[:budget], skip_special_tokens=True)
+
+        def render(keep: int) -> str:
+            if keep >= len(content_ids):
+                return prompt
+            head = max(1, int(keep * 0.55))
+            tail = max(0, keep - head)
+            head_text = tok.decode(
+                content_ids[:head],
+                skip_special_tokens=True,
+            )
+            tail_text = (
+                tok.decode(content_ids[-tail:], skip_special_tokens=True)
+                if tail
+                else ""
+            )
+            return (
+                head_text
+                + "\n\n...[middle truncated; live request preserved]...\n\n"
+                + tail_text
+            )
+
+        truncated = render(budget)
         # re-check: decode/re-encode round trips can shift the count slightly
         while budget > 0 and self._chat_template_len(truncated) > max_prompt_length:
             budget = max(0, budget - 64)
-            truncated = tok.decode(content_ids[:budget], skip_special_tokens=True)
+            truncated = render(budget)
         return truncated
 
     def _truncate_messages_to_budget(self, messages: list[dict], max_prompt_length: int) -> list[dict]:
@@ -555,8 +592,44 @@ class VerlPolicyBackend(EvolutionBackend):
             _, i = max(sizes)
             ids = tok.encode(msgs[i]["content"], add_special_tokens=False)
             keep = max(0, len(ids) - max(64, over + 16))
-            clipped = tok.decode(ids[:keep], skip_special_tokens=True) if keep else ""
+            if keep and len(msgs) == 2 and i == len(msgs) - 1:
+                head = max(1, int(keep * 0.55))
+                tail = max(0, keep - head)
+                clipped = tok.decode(ids[:head], skip_special_tokens=True)
+                if tail:
+                    clipped += (
+                        "\n...[middle truncated]...\n"
+                        + tok.decode(ids[-tail:], skip_special_tokens=True)
+                    )
+            else:
+                clipped = (
+                    tok.decode(ids[:keep], skip_special_tokens=True)
+                    if keep
+                    else ""
+                )
             msgs[i]["content"] = (clipped + "\n...[truncated]...") if keep else "...[truncated]..."
+        # If system + final live request alone still overflow, retain both ends
+        # of the final turn. The head holds task/parent context; the tail holds
+        # evidence/plan conclusions and the generation cue.
+        for _ in range(256):
+            over = total(msgs) - max_prompt_length
+            if over <= 0 or len(msgs) < 2:
+                break
+            i = len(msgs) - 1
+            ids = tok.encode(msgs[i]["content"], add_special_tokens=False)
+            keep = max(0, len(ids) - max(64, over + 16))
+            if not keep:
+                msgs[i]["content"] = "...[truncated]..."
+                continue
+            head = max(1, int(keep * 0.55))
+            tail = max(0, keep - head)
+            clipped = tok.decode(ids[:head], skip_special_tokens=True)
+            if tail:
+                clipped += (
+                    "\n...[middle truncated; live request preserved]...\n"
+                    + tok.decode(ids[-tail:], skip_special_tokens=True)
+                )
+            msgs[i]["content"] = clipped
         return msgs
 
     def _make_prompt_batch(self, prompts: list[str], messages: list | None = None):

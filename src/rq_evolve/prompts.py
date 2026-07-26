@@ -1,9 +1,12 @@
+import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from string import Template
 
 from .code_utils import strip_module_docstring
+from .metacognition import mutation_plan_id, validate_mutation_plan
 from .program import ProblemProgram
 
 SOLVER_SYSTEM_PROMPT = (
@@ -42,6 +45,41 @@ MUTATION_SYSTEM_PROMPT = (
     "Please reason step by step, and put your final program within ```python ```"
 )
 
+METACOGNITIVE_PLAN_SYSTEM_PROMPT = (
+    "You are the metacognitive planner for an evolving competition-math "
+    "generator. Analyze the current Solver's observed reasoning evidence and "
+    "write an executable mutation specification, not Python code.\n"
+    "Return exactly one JSON object with schema_version 2. The plan must identify "
+    "a concrete confident-wrong route, preserve or transfer one explicit "
+    "target_reasoning_move, specify bounded deterministic sampling, define "
+    "independent insight and brute routes, and define a live integer-valued decoy "
+    "route that differs from the answer.\n"
+    "Do not fabricate observed facts that are absent from the evidence. When the "
+    "evidence is sparse, state the uncertainty in failure_summary but still make "
+    "the proposed generator mechanically testable."
+)
+
+PLANNED_MUTATION_SYSTEM_PROMPT = (
+    "You implement a validated metacognitive mutation plan as a deterministic "
+    "Python competition-math problem generator.\n\n"
+    "Output exactly one full program in a ```python``` block. The program must:\n"
+    "  1. import only collections, fractions, functools, itertools, math, random, sympy;\n"
+    "  2. define MAX_ATTEMPTS = 200 and `generate(seed)`;\n"
+    "  3. use only `rng = random.Random(seed)` for randomness;\n"
+    "  4. sample with a bounded `for _ in range(MAX_ATTEMPTS)` loop and raise "
+    "RuntimeError in the loop's `else` clause;\n"
+    "  5. compute genuinely independent `answer_insight` and `answer_brute` "
+    "routes and assert their equality;\n"
+    "  6. compute the planned decoy route, resample if it accidentally equals "
+    "the answer, then assert that the accepted decoy differs;\n"
+    "  7. return exactly one problem and a base-10 integer string serialized as "
+    "`str(sympy.Integer(answer))`;\n"
+    "  8. finish with CONCEPT_REASON, CONCEPT_GROUP, CONCEPT_TYPE in that order.\n\n"
+    f"CONCEPT_GROUP must be exactly one of: {groups}\n"
+    "Never reveal the answer, intended insight, decoy, theorem choice, or "
+    "intermediate computed values in the problem text."
+)
+
 EVALUATOR_SYSTEM_PROMPT = (
     "You are an evaluator for math word problems.\n"
     "Your task is to determine whether the problem statement itself is internally coherent.\n\n"
@@ -61,6 +99,11 @@ class MutationTask:
     # When set, the backend renders this full chat conversation as the prompt
     # (multi-turn self-fix) instead of wrapping ``prompt`` as a single user msg.
     messages: list[dict] | None = None
+    stage: str = "code"
+    mutation_plan: dict | None = None
+    plan_id: str | None = None
+    plan_status: str = "legacy"
+    max_output_tokens: int | None = None
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -77,6 +120,16 @@ PROMPT_TEMPLATE_FILES = {
     "in_breadth": "in_breadth.txt",
 }
 SHOT_TEMPLATE_FILES = PROMPT_TEMPLATE_FILES
+
+METACOGNITIVE_SHOT_TEMPLATE_FILES = {
+    "in_depth": "metacognitive_in_depth.txt",
+    "in_breadth": "metacognitive_in_breadth.txt",
+}
+
+PLANNED_PROMPT_TEMPLATE_FILES = {
+    "in_depth": "planned_in_depth.txt",
+    "in_breadth": "planned_in_breadth.txt",
+}
 
 
 def build_mutation_task(
@@ -98,14 +151,211 @@ def build_mutation_task(
     )
 
 
+def build_metacognitive_plan_task(
+    op: str,
+    parent: ProblemProgram,
+    *,
+    evidence: list[dict],
+    meta_progress: dict,
+    max_output_tokens: int | None = None,
+) -> MutationTask:
+    if op not in PROMPT_TEMPLATE_FILES:
+        raise ValueError(f"unknown mutation op: {op}")
+    template = (PROMPT_TEMPLATE_DIR / "metacognitive_plan.txt").read_text(
+        encoding="utf-8"
+    )
+    constraint = (
+        "Preserve both CONCEPT_GROUP and CONCEPT_TYPE."
+        if op == "in_depth"
+        else (
+            "Change CONCEPT_GROUP, mathematical object, domain-specific operation, "
+            "and surface vocabulary while preserving the abstract "
+            "target_reasoning_move."
+        )
+    )
+    inherited_reasoning_move = str(
+        (
+            (parent.metadata or {}).get("mutation_plan") or {}
+        ).get("target_reasoning_move", "")
+    )
+    shots = _load_named_shots(METACOGNITIVE_SHOT_TEMPLATE_FILES[op])
+    context = {
+        **_template_context(op=op, parent=parent),
+        "operator": op,
+        "operator_contract": constraint,
+        "inherited_reasoning_move": inherited_reasoning_move,
+        "behavioral_evidence": json.dumps(
+            evidence,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        "meta_progress": json.dumps(
+            meta_progress,
+            ensure_ascii=False,
+            indent=2,
+        ),
+    }
+    user = Template(template).safe_substitute(
+        {**context, "few_shot_examples": shots}
+    )
+    live_user = Template(template).safe_substitute(
+        {**context, "few_shot_examples": ""}
+    )
+    messages = [{"role": "system", "content": METACOGNITIVE_PLAN_SYSTEM_PROMPT}]
+    if shots:
+        messages.extend(
+            [
+                {"role": "user", "content": shots},
+                {
+                    "role": "assistant",
+                    "content": (
+                        "I will follow the demonstrated schema and grounding "
+                        "rules for the live request."
+                    ),
+                },
+            ]
+        )
+    messages.append({"role": "user", "content": live_user})
+    return MutationTask(
+        op=op,
+        prompt=f"{METACOGNITIVE_PLAN_SYSTEM_PROMPT}\n\n{user}",
+        parent=parent,
+        messages=messages,
+        stage="plan",
+        plan_status="requested",
+        max_output_tokens=max_output_tokens,
+    )
+
+
+def parse_mutation_plan(
+    output: str | None,
+    op: str,
+    *,
+    required_target_reasoning_move: str = "",
+) -> tuple[dict | None, str]:
+    text = str(output or "").strip()
+    if not text:
+        return None, "empty plan output"
+
+    candidates = [
+        match.group(1).strip()
+        for match in re.finditer(
+            r"```json[ \t]*\n(.*?)```",
+            text,
+            re.DOTALL | re.IGNORECASE,
+        )
+    ]
+    start, end = text.find("{"), text.rfind("}")
+    if start >= 0 and end > start:
+        candidates.append(text[start : end + 1])
+    candidates.append(text)
+
+    last_error = "no JSON object"
+    decoded: list[object] = []
+    for candidate in candidates:
+        try:
+            decoded.append(json.loads(candidate))
+        except json.JSONDecodeError as exc:
+            last_error = f"invalid plan JSON: {exc}"
+
+    # Qwen-style reasoning may put prose or unrelated braces before an otherwise
+    # valid bare JSON plan. Recover complete objects without accepting partial
+    # JSON fragments or changing the strict schema check below.
+    decoder = json.JSONDecoder()
+    for match in list(re.finditer(r"\{", text))[:32]:
+        try:
+            payload, _end = decoder.raw_decode(text[match.start() :])
+        except json.JSONDecodeError:
+            continue
+        decoded.append(payload)
+
+    for payload in decoded:
+        if not isinstance(payload, dict):
+            last_error = "plan JSON must be an object"
+            continue
+        errors = validate_mutation_plan(payload, op)
+        if errors:
+            last_error = "; ".join(errors[:5])
+            continue
+        if (
+            required_target_reasoning_move
+            and str(payload.get("target_reasoning_move", ""))
+            != required_target_reasoning_move
+        ):
+            reason = (
+                "target_reasoning_move must exactly match the inherited "
+                "breadth transfer join key"
+            )
+            return None, reason
+        return payload, ""
+    return None, last_error
+
+
+def build_planned_mutation_task(
+    op: str,
+    parent: ProblemProgram,
+    plan: dict,
+) -> MutationTask:
+    if op not in PLANNED_PROMPT_TEMPLATE_FILES:
+        raise ValueError(f"unknown mutation op: {op}")
+    path = PROMPT_TEMPLATE_DIR / PLANNED_PROMPT_TEMPLATE_FILES[op]
+    template = path.read_text(encoding="utf-8")
+    plan_id = mutation_plan_id(plan)
+    shots = _load_named_shots(PLANNED_PROMPT_TEMPLATE_FILES[op])
+    context = {
+        **_template_context(op=op, parent=parent),
+        "mutation_plan": json.dumps(plan, ensure_ascii=False, indent=2),
+        "plan_id": plan_id,
+    }
+    user = Template(template).safe_substitute(
+        {**context, "few_shot_examples": shots}
+    )
+    live_user = Template(template).safe_substitute(
+        {**context, "few_shot_examples": ""}
+    )
+    messages = [{"role": "system", "content": PLANNED_MUTATION_SYSTEM_PROMPT}]
+    if shots:
+        messages.extend(
+            [
+                {"role": "user", "content": shots},
+                {
+                    "role": "assistant",
+                    "content": (
+                        "I will preserve this program structure while "
+                        "implementing only the live plan."
+                    ),
+                },
+            ]
+        )
+    messages.append({"role": "user", "content": live_user})
+    return MutationTask(
+        op=op,
+        prompt=f"{PLANNED_MUTATION_SYSTEM_PROMPT}\n\n{user}",
+        parent=parent,
+        messages=messages,
+        stage="code",
+        mutation_plan=plan,
+        plan_id=plan_id,
+        plan_status="planned",
+    )
+
+
 def build_fix_task(
     task: MutationTask,
     failed_output: str,
     reason: str,
 ) -> MutationTask:
-    original_user = task.prompt
-    if original_user.startswith(MUTATION_SYSTEM_PROMPT):
-        original_user = original_user[len(MUTATION_SYSTEM_PROMPT):].lstrip("\n")
+    system_prompt = (
+        PLANNED_MUTATION_SYSTEM_PROMPT
+        if task.mutation_plan is not None
+        else MUTATION_SYSTEM_PROMPT
+    )
+    if task.messages:
+        original_user = str(task.messages[-1].get("content", ""))
+    else:
+        original_user = task.prompt
+        if original_user.startswith(system_prompt):
+            original_user = original_user[len(system_prompt):].lstrip("\n")
 
     fix_request = (
         "Your program above was REJECTED by the validator.\n"
@@ -114,7 +364,7 @@ def build_fix_task(
         "Output the corrected full program in one ```python ``` block."
     )
     messages = [
-        {"role": "system", "content": MUTATION_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": original_user},
         {"role": "assistant", "content": failed_output},
         {"role": "user", "content": fix_request},
@@ -124,6 +374,11 @@ def build_fix_task(
         prompt=f"{failed_output}\n\n{fix_request}",  # flat fallback only
         parent=task.parent,
         messages=messages,
+        stage=task.stage,
+        mutation_plan=task.mutation_plan,
+        plan_id=task.plan_id,
+        plan_status=task.plan_status,
+        max_output_tokens=task.max_output_tokens,
     )
 
 
@@ -134,7 +389,10 @@ def _load_evaluator_shots() -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-def build_evaluator_messages(problem_text: str) -> list[dict]:
+def build_evaluator_messages(
+    problem_text: str,
+    mutation_plan: dict | None = None,
+) -> list[dict]:
     """Render the coherence-check conversation for one problem.
 
     The shot file demonstrates the ``Problem: ... Answer: reason: ... verdict:``
@@ -147,27 +405,47 @@ def build_evaluator_messages(problem_text: str) -> list[dict]:
     blocks: list[str] = []
     if shots:
         blocks.append(shots)
-    blocks.append(
+    review = (
         "Now evaluate the following problem.\n\n"
-        f"Problem:\n{problem_text.strip()}\n\n"
-        "Answer:"
+        f"Problem:\n{problem_text.strip()}\n"
     )
+    if mutation_plan:
+        review += (
+            "\nThe generator was produced from this mutation plan. In addition "
+            "to coherence, mark INVALID if the problem leaks the intended move, "
+            "does not plausibly require it, or violates the stated problem/answer "
+            "contract.\n\nMutation plan:\n"
+            + json.dumps(mutation_plan, ensure_ascii=False, indent=2)
+            + "\n"
+        )
+    blocks.append(f"{review}\nAnswer:")
     return [
         {"role": "system", "content": EVALUATOR_SYSTEM_PROMPT},
         {"role": "user", "content": "\n\n".join(blocks)},
     ]
 
 
-def build_evaluator_task(program: ProblemProgram, problem_text: str) -> MutationTask:
+def build_evaluator_task(
+    program: ProblemProgram,
+    problem_text: str,
+    mutation_plan: dict | None = None,
+) -> MutationTask:
     """Wrap an evaluator query as a MutationTask so ``backend.mutate`` can run it.
 
     Reuses the existing batched generate path (mutate reads ``messages``); no new
     backend method is needed. ``parent`` carries the program under review purely
     for reporting -- mutate only consumes ``messages``/``prompt``.
     """
-    messages = build_evaluator_messages(problem_text)
+    messages = build_evaluator_messages(problem_text, mutation_plan)
     flat = f"{messages[0]['content']}\n\n{messages[1]['content']}"
-    return MutationTask(op="evaluate", prompt=flat, parent=program, messages=messages)
+    return MutationTask(
+        op="evaluate",
+        prompt=flat,
+        parent=program,
+        messages=messages,
+        stage="evaluate",
+        mutation_plan=mutation_plan,
+    )
 
 
 def parse_evaluator_verdict(output: str) -> tuple[bool, str]:
@@ -210,6 +488,16 @@ def _load_prompt_template(op: str) -> str:
 
 def _load_shot_examples(op: str) -> str:
     path = SHOT_TEMPLATE_DIR / SHOT_TEMPLATE_FILES[op]
+    if not path.exists():
+        return ""
+    text = path.read_text(encoding="utf-8").strip()
+    if not text:
+        return ""
+    return f"Few-shot examples:\n\n{text}"
+
+
+def _load_named_shots(filename: str) -> str:
+    path = SHOT_TEMPLATE_DIR / filename
     if not path.exists():
         return ""
     text = path.read_text(encoding="utf-8").strip()

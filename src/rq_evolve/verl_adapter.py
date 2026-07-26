@@ -122,6 +122,11 @@ class EvolvingSampler:
             "map_payload": {
                 "archive": ev.archive.to_payload(),
                 "used_seeds": {pid: sorted(s) for pid, s in ev.used_seeds.items()},
+                "metacognition": {
+                    "last_meta_progress": ev.last_meta_progress,
+                    "operator_ema": ev.operator_ema,
+                    "current_iteration": ev.current_iteration,
+                },
             },
         }
 
@@ -146,6 +151,15 @@ class EvolvingSampler:
             ev.used_seeds = {
                 pid: set(s) for pid, s in (payload.get("used_seeds") or {}).items()
             }
+            meta = payload.get("metacognition") or {}
+            ev.last_meta_progress = dict(meta.get("last_meta_progress") or {})
+            ev.operator_ema = {
+                str(key): float(value)
+                for key, value in (meta.get("operator_ema") or {}).items()
+            }
+            ev.current_iteration = int(
+                meta.get("current_iteration", ev.current_iteration)
+            )
             ev.refresh_dataset()
             print(
                 f"[RQ-Evolve] resume: restored MAP from data.pt ({n} champions, "
@@ -769,6 +783,7 @@ class VerlTrainerAdapter:
             archive=archive,
             backend=backend,
             evolution_config=self.rq_config.evolution,
+            metacognition_config=self.rq_config.metacognition,
             training_config=self.rq_config.training_data,
         )
 

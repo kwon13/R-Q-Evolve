@@ -25,12 +25,42 @@
 4. `p_hat`, uncertainty, and `R_Q` are computed.
 5. The program competes for a MAP-Elites cell.
 6. Parent programs are sampled from occupied cells.
-7. A mutation prompt is built.
-8. The backend returns generated Python source.
-9. The child is verified, evaluated, and inserted if elite.
+7. Existing R_Q rollouts contribute at most one shortest-correct and one
+   lowest-entropy-wrong trace; no additional Solver rollout is requested.
+8. The mutation model first produces a validated `MutationPlan` JSON and then
+   implements that plan as Python.
+9. The child is verified, evaluated against its plan, and inserted if elite.
 10. Frontier champions render new training examples.
 11. The installed `verl` trainer consumes those examples and updates the solver.
-12. The next outer iteration re-scores champions under the updated solver.
+12. The next outer iteration snapshots champion pass rates, re-scores the fixed
+    cohort, computes delta-p, and only then moves/replaces/removes champions.
+
+## Metacognitive Control
+
+`metacognition.enabled=true` does not create a second archive. The single live
+MAP remains the curriculum and fitness state; the extra data is telemetry
+attached to its programs plus a small operator EMA.
+
+```text
+existing G rollouts
+  -> shortest correct + lowest-entropy wrong (each <= 4096 tokens)
+  -> Monitoring + MutationPlan JSON
+  -> planned Python generator
+  -> static/runtime/LLM evaluation
+  -> existing R_Q insertion rule
+
+next Solver update
+  -> snapshot p_hat for the current champion cohort
+  -> re-evaluate that same cohort
+  -> compute delta-p globally/by group/by type/by creating operator
+  -> update depth/breadth EMA
+  -> only now re-bin, replace, or remove R_Q=0 champions
+```
+
+The plan schema requires independent insight/brute routes, a live
+confident-wrong decoy, `MAX_ATTEMPTS=200`, seed-local deterministic randomness,
+and one base-10 integer answer. Accidental `decoy == answer` collisions are
+resampled before the accepted instance asserts inequality.
 
 ## Evolution Candidate State
 
@@ -68,6 +98,7 @@ shape를 거칩니다:
                       │
         모든 rollout reject ─────────────► {report: rollout_failed}
         p_hat <= 0 ──────────────────────► {report: p_hat_zero}
+        R_Q <= 0 (other boundary) ───────► {report: rq_zero}
         archive.try_insert()
               ├── elite ───────────────────► {report: inserted}
               └── non-elite ───────────────► {report: rejected_non_elite}
@@ -77,7 +108,8 @@ parent가 없으면 batch 진입 직후 `{report: no_parent}` 하나로 조기 �
 
 **`CandidateReport.status` 전체 어휘** ([`evolution.py:29`](../src/rq_evolve/evolution.py#L29)):
 `no_parent`, `mutation_failed`, `no_code`, `verify_failed`, `evaluator_error`,
-`evaluator_rejected`, `rollout_failed`, `p_hat_zero`, `inserted`, `rejected_non_elite`.
+`evaluator_rejected`, `rollout_failed`, `p_hat_zero`, `rq_zero`, `inserted`,
+`rejected_non_elite`.
 모든 report는 `append_evolution_log`가 `evolution_log.jsonl`에 append합니다.
 
 ## Implementation Milestones

@@ -1,0 +1,60 @@
+Task: write a metacognitive mutation plan for the current parent generator.
+
+The plan must be grounded in the supplied Solver evidence. A shortest correct
+trace shows a route that is currently available; a lowest-entropy wrong trace
+shows a confident failure worth targeting. Missing evidence is not permission
+to invent a Solver behavior: state the uncertainty and make a mechanically
+testable proposal.
+
+Operator: $operator
+Operator contract: $operator_contract
+Inherited target_reasoning_move (empty means derive it from evidence):
+$inherited_reasoning_move
+
+The plan must obey these contracts:
+- answer is one base-10 integer string, serialized by
+  str(sympy.Integer(answer)); reformulate inherently non-integer quantities;
+- use MAX_ATTEMPTS = 200 and bounded deterministic sampling only;
+- use rng = random.Random(seed), never global random state;
+- insight and brute routes compute the same answer independently;
+- a decoy implements the monitored confident-wrong route and has the same
+  integer form as the answer;
+- if a sampled decoy equals the answer accidentally, reject that sample with
+  continue; after accepting a sample, assert decoy != answer;
+- problem_text reveals neither answer, intermediate values, intended insight,
+  decoy, nor theorem choice.
+
+Return exactly one JSON object with every schema_version 2 field shown by the
+example. `heldout_evaluation` must first specify a pass-rate comparison; trace
+or confidence checks may be listed only as phase-2 diagnostics.
+
+$few_shot_examples
+
+---
+
+PARENT_PROGRAM:
+```python
+$parent_source
+
+CONCEPT_GROUP = "$parent_concept_group"
+CONCEPT_TYPE = "$parent_concept_type"
+```
+
+PARENT_SCORE:
+```text
+p_hat = $parent_p_hat
+h_score = $parent_h_score
+rq_score = $parent_rq_score
+```
+
+OBSERVED_REASONING_EVIDENCE:
+```json
+$behavioral_evidence
+```
+
+PRE_UPDATE_META_PROGRESS:
+```json
+$meta_progress
+```
+
+MUTATION_PLAN:

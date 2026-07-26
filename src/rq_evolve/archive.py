@@ -115,6 +115,11 @@ class MAPElitesArchive:
 
         # --- Safety gates (ported from evo-sample), applied at EVERY archive
         # entry, including champion re-evaluation. ---
+        # 0. The live MAP is the frontier archive: problems at p=0 or p=1 have
+        #    R_Q=0 and must not occupy a niche.
+        if float(rq_score) <= 0.0:
+            program.metadata["archive_status"] = "rq_zero_rejected"
+            return False
         # 1. Strict seed-variation: block near-constant / thin-rewording
         #    generators before they pollute the archive and mutation chain.
         if not self._passes_seed_variation(program):
@@ -162,6 +167,32 @@ class MAPElitesArchive:
             )
             return True
         return False
+
+    def target_cell(
+        self,
+        program: ProblemProgram,
+        *,
+        h_value: float,
+        problem_text: str = "",
+    ) -> tuple[int, int]:
+        """Return the cell a scored program would target without mutating MAP."""
+        return (
+            self.h_to_bin(h_value),
+            self.program_to_div_bin(program, problem_text),
+        )
+
+    def remove_program(self, program_id: str) -> list[tuple[int, int]]:
+        """Remove one champion identity from the single live MAP archive."""
+        removed: list[tuple[int, int]] = []
+        for key, niche in self.grid.items():
+            if (
+                niche.champion is not None
+                and niche.champion.program_id == program_id
+            ):
+                niche.champion = None
+                niche.champion_rq = -1.0
+                removed.append(key)
+        return removed
 
     # ------------------------------------------------------------------
     # Safety gates (ported from evo-sample map_elites / mutation)

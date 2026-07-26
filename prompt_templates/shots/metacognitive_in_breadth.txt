@@ -1,0 +1,56 @@
+PARENT_PROGRAM_EXAMPLE:
+```python
+import random
+import sympy
+
+def generate(seed):
+    rng = random.Random(seed)
+    n = rng.randint(300, 3000)
+    factors = sympy.factorint(n)
+    answer = 1
+    for exponent in sorted(factors.values()):
+        answer *= exponent + 1
+    return f"How many positive divisors does {n} have?", str(sympy.Integer(answer))
+
+CONCEPT_GROUP = "number_theory"
+CONCEPT_TYPE = "number_theory.divisor_count"
+```
+
+OBSERVED_REASONING_EVIDENCE_EXAMPLE:
+```text
+[CORRECT | shortest] 2^3*3^2*5 gives (3+1)(2+1)(1+1)=24.
+[WRONG | lowest entropy] A 12 by 9 grid gives C(12,2)C(9,2).
+```
+
+META_PROGRESS_EXAMPLE:
+```text
+delta_p_group[number_theory]=+0.11; delta_p_group[combinatorics]=+0.01
+```
+
+MUTATION_PLAN_EXAMPLE:
+```json
+{
+  "schema_version": 2,
+  "operator": "in_breadth",
+  "failure_summary": "The Solver transfers multiplicative decomposition to a grid but counts cells instead of boundary planes, losing the same plus-one convention it uses for divisor exponents.",
+  "target_reasoning_move": "decompose into independent components and multiply counts after deriving one extra boundary choice per component",
+  "correct_wrong_contrast": "Both traces multiply per-component counts; only the correct trace re-derives why each apparent size contributes size plus one choices.",
+  "preserve": ["the exact target_reasoning_move", "one integer count"],
+  "change": ["number-theory object to a 3D unit-cell grid", "factor exponents to boundary-plane pairs", "CONCEPT_GROUP to combinatorics"],
+  "forbidden_changes": ["divisor or factor vocabulary", "a disguised product of exponent-plus-one values"],
+  "parameters": [{"name": "a,b,c", "domain": "unit-cell dimensions 3..8"}],
+  "guards": ["box count is nontrivial", "cell-based off-by-one decoy differs from the answer"],
+  "max_sampling_attempts": 200,
+  "insight_route": "choose two of a+1, b+1, c+1 boundary planes and multiply the three counts",
+  "brute_route": "enumerate all ordered lower and upper boundary-index triples",
+  "equivalence_assertion": "assert answer_insight == answer_brute",
+  "route_independence_reason": "the insight route uses combinations; the brute route enumerates every boundary tuple",
+  "decoy_route": "choose from a, b, c as though cell counts were boundary counts",
+  "decoy_assertion": "guard decoy == answer with continue, then assert decoy != answer_insight",
+  "problem_output_contract": {"states": ["three grid dimensions"], "withholds": ["boundary-plane model", "counting formula"], "closing_instruction": "State only the integer count."},
+  "answer_output_contract": {"type": "integer", "range": "positive", "serialization": "str(sympy.Integer(answer))"},
+  "predicted_pre_behavior": "The Solver multiplies C(a,2)C(b,2)C(c,2).",
+  "predicted_post_behavior": "The Solver first converts cell counts to boundary-plane counts.",
+  "heldout_evaluation": "Phase 1: compare fixed-family pass-rate change here and on the parent family. Phase 2 diagnostic: check whether correct traces explicitly derive the boundary plus one."
+}
+```

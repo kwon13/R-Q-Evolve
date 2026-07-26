@@ -81,6 +81,40 @@ class EvolutionConfig:
 
 
 @dataclass(slots=True)
+class MetacognitionConfig:
+    """Monitoring/planning layered over the existing single MAP archive."""
+
+    enabled: bool = False
+    trace_storage_max_tokens: int = 4096
+    monitoring_total_trace_tokens: int = 4096
+    plan_max_output_tokens: int = 1024
+    require_contrast_pair: bool = False
+    fallback_to_legacy_mutation: bool = True
+    require_assert: bool = True
+    reject_trivial_assert: bool = True
+    reject_unbounded_sampling: bool = True
+    adaptive_operator: bool = False
+    operator_min_probability: float = 0.2
+    operator_ema_alpha: float = 0.2
+
+    def __post_init__(self) -> None:
+        if self.trace_storage_max_tokens < 1:
+            raise ValueError("metacognition.trace_storage_max_tokens must be >= 1")
+        if self.monitoring_total_trace_tokens < 1:
+            raise ValueError(
+                "metacognition.monitoring_total_trace_tokens must be >= 1"
+            )
+        if self.plan_max_output_tokens < 1:
+            raise ValueError("metacognition.plan_max_output_tokens must be >= 1")
+        if not 0.0 <= self.operator_min_probability < 0.5:
+            raise ValueError(
+                "metacognition.operator_min_probability must be in [0, 0.5)"
+            )
+        if not 0.0 < self.operator_ema_alpha <= 1.0:
+            raise ValueError("metacognition.operator_ema_alpha must be in (0, 1]")
+
+
+@dataclass(slots=True)
 class TrainingDataConfig:
     instances_per_program: int = 8
     training_budget: int | None = None
@@ -277,6 +311,7 @@ class MathEvalConfig:
 class RQEvolveConfig:
     archive: ArchiveConfig = field(default_factory=ArchiveConfig)
     evolution: EvolutionConfig = field(default_factory=EvolutionConfig)
+    metacognition: MetacognitionConfig = field(default_factory=MetacognitionConfig)
     training_data: TrainingDataConfig = field(default_factory=TrainingDataConfig)
     verl: VerlConfig = field(default_factory=VerlConfig)
     math_eval: MathEvalConfig = field(default_factory=MathEvalConfig)

@@ -1,5 +1,6 @@
 import json
 import random
+import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -9,19 +10,32 @@ from .backends import EvolutionBackend, RolloutRecord
 from .code_utils import (
     extract_generator_code,
     lint_generator_source,
+    lint_metacognitive_generator_source,
     lint_problem_instance,
 )
 from .concepts import validate_concept_decl
-from .config import EvolutionConfig, TrainingDataConfig
+from .config import EvolutionConfig, MetacognitionConfig, TrainingDataConfig
 from .dataset import DynamicProblemDataset, build_training_examples
+from .metacognition import (
+    adaptive_depth_probability,
+    collect_planning_evidence,
+    compute_meta_progress,
+    progress_context,
+    select_reasoning_evidence,
+    update_operator_ema,
+)
 from .openai_evaluator import OpenAIEvaluatorConfig, evaluate_messages_with_openai
 from .program import ProblemInstance, ProblemProgram
 from .prompts import (
+    MutationTask,
     build_evaluator_messages,
     build_evaluator_task,
     build_fix_task,
+    build_metacognitive_plan_task,
     build_mutation_task,
+    build_planned_mutation_task,
     parse_evaluator_verdict,
+    parse_mutation_plan,
 )
 from .scoring import RQResult, compute_rq_full, is_frontier
 
@@ -35,6 +49,8 @@ class CandidateReport:
     p_hat: float = 0.0
     uncertainty: float = 0.0
     reason: str | None = None
+    plan_id: str | None = None
+    plan_status: str = "legacy"
 
 
 @dataclass
@@ -44,6 +60,9 @@ class RQEvolver:
     archive: MAPElitesArchive
     backend: EvolutionBackend
     evolution_config: EvolutionConfig = field(default_factory=EvolutionConfig)
+    metacognition_config: MetacognitionConfig = field(
+        default_factory=MetacognitionConfig
+    )
     training_config: TrainingDataConfig = field(default_factory=TrainingDataConfig)
     dataset: DynamicProblemDataset = field(default_factory=DynamicProblemDataset)
     used_seeds: dict[str, set[int]] = field(default_factory=dict)
@@ -59,6 +78,9 @@ class RQEvolver:
     # Persisted into evolution_log.jsonl so the learnability/curriculum filter
     # is observable (which champions fed the training set, and why not).
     last_frontier: list[dict] = field(default_factory=list)
+    last_meta_progress: dict = field(default_factory=dict)
+    operator_ema: dict[str, float] = field(default_factory=dict)
+    current_iteration: int = -1
 
     def load_seed_programs(self, seed_dir: str | Path) -> list[ProblemProgram]:
         programs: list[ProblemProgram] = []
@@ -100,7 +122,7 @@ class RQEvolver:
                 )
                 continue
             result = self.evaluate_instance(program, inst)
-            if result is None or result.p_hat <= 0.0:
+            if result is None or result.rq_score <= 0.0:
                 continue
             if self.archive.try_insert(
                 program=program,
@@ -120,6 +142,19 @@ class RQEvolver:
         """Multi-seed execution and cheap mathematical sanity checks."""
         n = n_seeds or self.evolution_config.verify_seeds
         source_errors = lint_generator_source(program.source_code)
+        if self.metacognition_config.enabled and program.metadata.get("mutation_plan"):
+            source_errors.extend(
+                lint_metacognitive_generator_source(
+                    program.source_code,
+                    require_assert=self.metacognition_config.require_assert,
+                    reject_trivial_assert=(
+                        self.metacognition_config.reject_trivial_assert
+                    ),
+                    reject_unbounded_sampling=(
+                        self.metacognition_config.reject_unbounded_sampling
+                    ),
+                )
+            )
         if source_errors:
             return None, "; ".join(source_errors[:3])
 
@@ -140,6 +175,15 @@ class RQEvolver:
             instance_errors = lint_problem_instance(inst)
             if instance_errors:
                 return None, "; ".join(instance_errors[:3])
+            if (
+                self.metacognition_config.enabled
+                and program.metadata.get("mutation_plan")
+                and re.fullmatch(r"-?\d+", inst.answer.strip()) is None
+            ):
+                return None, (
+                    "planned generator answer must be a base-10 integer string: "
+                    f"{inst.answer!r}"
+                )
             if not _answer_parseable(inst.answer):
                 return None, f"answer is not parseable: {inst.answer!r}"
             first = first or inst
@@ -150,6 +194,7 @@ class RQEvolver:
         return first, None
 
     def run_outer_iteration(self, outer_iteration: int) -> dict:
+        self.current_iteration = int(outer_iteration)
         attempted = 0
         inserted = 0
         reports: list[CandidateReport] = []
@@ -186,6 +231,12 @@ class RQEvolver:
             "frontier_out": len(self.last_frontier) - frontier_in,
             **stats,
         }
+        if self.last_meta_progress:
+            result["meta_delta_p_global"] = float(
+                (self.last_meta_progress.get("global_progress") or {}).get(
+                    "delta_p", 0.0
+                )
+            )
         self.last_reports = reports
         self.events.append({"event": "outer_iteration_done", **result})
         return result
@@ -207,23 +258,31 @@ class RQEvolver:
         archived into a terminal CandidateReport. See docs/PIPELINE.md
         ("Evolution Candidate State") for the diagram and full status vocabulary.
         """
-        tasks = []
+        requests: list[tuple[str, ProblemProgram]] = []
         for _ in range(batch_size):
             parent = self.archive.sample_parent()
             if parent is None:
                 return [CandidateReport(status="no_parent", op="none")]
 
-            op = self._sample_operator()
-            tasks.append(build_mutation_task(op, parent))
+            op = self._sample_operator(parent)
+            requests.append((op, parent))
 
         # One vLLM wake for the whole batch: the mutation generate and every
         # solver generate run while vLLM is awake; entropy (actor forward) is
         # deferred until after end_session (vLLM asleep) inside finalize_rollouts.
         self.backend.begin_session()
         try:
+            prepared = self._prepare_mutation_tasks(requests)
+            tasks = [item for item in prepared if isinstance(item, MutationTask)]
             outputs = self.backend.mutate(tasks)
             entries: list[dict] = []
-            for task, output in zip(tasks, outputs):
+            output_iter = iter(outputs)
+            for item in prepared:
+                if isinstance(item, CandidateReport):
+                    entries.append({"report": item})
+                    continue
+                task = item
+                output = next(output_iter, None)
                 child, inst, reason, source = self._make_child_from_output(
                     task, output
                 )
@@ -238,7 +297,16 @@ class RQEvolver:
                     )
                 else:
                     status = "mutation_failed" if not output else "no_code"
-                    entries.append({"report": CandidateReport(status=status, op=task.op)})
+                    entries.append(
+                        {
+                            "report": CandidateReport(
+                                status=status,
+                                op=task.op,
+                                plan_id=task.plan_id,
+                                plan_status=task.plan_status,
+                            )
+                        }
+                    )
 
             # One-shot Reflexion self-fix: show the model its rejected program +
             # reason and re-verify. Runs inside the open vLLM session so the extra
@@ -287,24 +355,32 @@ class RQEvolver:
                         op=task.op,
                         child_id=child.program_id,
                         reason=max(reasons, key=reasons.get),
+                        plan_id=task.plan_id,
+                        plan_status=task.plan_status,
                     )
                 )
                 continue
-            result = self._score_from_rollouts(child, rollouts)
-            if result.p_hat <= 0.0:
+            result = self._score_from_rollouts(child, rollouts, instance=inst)
+            if result.rq_score <= 0.0:
                 reports.append(
                     CandidateReport(
-                        status="p_hat_zero",
+                        status=(
+                            "p_hat_zero"
+                            if result.p_hat <= 0.0
+                            else "rq_zero"
+                        ),
                         op=task.op,
                         child_id=child.program_id,
                         rq_score=result.rq_score,
                         p_hat=result.p_hat,
                         uncertainty=result.uncertainty,
+                        plan_id=task.plan_id,
+                        plan_status=task.plan_status,
                     )
                 )
                 continue
 
-            inserted = self.archive.try_insert(
+            inserted = self._try_insert_with_telemetry(
                 program=child,
                 h_value=result.uncertainty,
                 problem_text=inst.problem,
@@ -318,11 +394,143 @@ class RQEvolver:
                     rq_score=result.rq_score,
                     p_hat=result.p_hat,
                     uncertainty=result.uncertainty,
+                    plan_id=task.plan_id,
+                    plan_status=task.plan_status,
                 )
             )
         return reports
 
-    def _make_child_from_output(self, task, output):
+    def _prepare_mutation_tasks(
+        self,
+        requests: list[tuple[str, ProblemProgram]],
+    ) -> list[MutationTask | CandidateReport]:
+        """Build legacy tasks or run one batched monitoring/planning pass.
+
+        Planning reuses reasoning evidence collected by the existing R_Q
+        rollouts. It adds no Solver rollout; only the mutation model performs one
+        additional generation before code generation.
+        """
+        if not self.metacognition_config.enabled:
+            return [build_mutation_task(op, parent) for op, parent in requests]
+
+        tokenizer = getattr(self.backend, "tokenizer", None)
+        champions = list(self.archive.champions())
+        plan_inputs: list[tuple[str, ProblemProgram, list[dict]]] = []
+        prepared: list[MutationTask | CandidateReport | None] = []
+
+        for op, parent in requests:
+            evidence = collect_planning_evidence(
+                parent,
+                op,
+                champions,
+                total_tokens=(
+                    self.metacognition_config.monitoring_total_trace_tokens
+                ),
+                tokenizer=tokenizer,
+            )
+            if self.metacognition_config.require_contrast_pair and len(evidence) < 2:
+                if self.metacognition_config.fallback_to_legacy_mutation:
+                    task = build_mutation_task(op, parent)
+                    task.plan_status = "fallback_no_evidence"
+                    prepared.append(task)
+                else:
+                    prepared.append(
+                        CandidateReport(
+                            status="mutation_failed",
+                            op=op,
+                            reason="metacognitive planning requires two evidence traces",
+                            plan_status="missing_evidence",
+                        )
+                    )
+                continue
+            plan_inputs.append((op, parent, evidence))
+            prepared.append(None)
+
+        if not plan_inputs:
+            return [item for item in prepared if item is not None]
+
+        plan_tasks = [
+            build_metacognitive_plan_task(
+                op,
+                parent,
+                evidence=evidence,
+                meta_progress=progress_context(self.last_meta_progress, parent),
+                max_output_tokens=(
+                    self.metacognition_config.plan_max_output_tokens
+                ),
+            )
+            for op, parent, evidence in plan_inputs
+        ]
+        plan_outputs = self.backend.mutate(plan_tasks)
+        planned_iter = iter(
+            (
+                plan_input,
+                plan_outputs[index] if index < len(plan_outputs) else None,
+            )
+            for index, plan_input in enumerate(plan_inputs)
+        )
+
+        finalized: list[MutationTask | CandidateReport] = []
+        for item in prepared:
+            if item is not None:
+                finalized.append(item)
+                continue
+            (op, parent, _), output = next(planned_iter)
+            inherited_move = ""
+            if op == "in_breadth":
+                inherited_move = str(
+                    (
+                        (parent.metadata or {}).get("mutation_plan") or {}
+                    ).get("target_reasoning_move", "")
+                )
+            plan, reason = parse_mutation_plan(
+                output,
+                op,
+                required_target_reasoning_move=inherited_move,
+            )
+            if plan is not None:
+                task = build_planned_mutation_task(op, parent, plan)
+                finalized.append(task)
+                self.events.append(
+                    {
+                        "event": "mutation_plan_created",
+                        "program_id": parent.program_id,
+                        "op": op,
+                        "plan_id": task.plan_id,
+                    }
+                )
+                continue
+            self.events.append(
+                {
+                    "event": "mutation_plan_failed",
+                    "program_id": parent.program_id,
+                    "op": op,
+                    "reason": reason,
+                }
+            )
+            if (
+                self.metacognition_config.fallback_to_legacy_mutation
+                and not inherited_move
+            ):
+                task = build_mutation_task(op, parent)
+                task.plan_status = "fallback_invalid_plan"
+                finalized.append(task)
+            else:
+                finalized.append(
+                    CandidateReport(
+                        status="mutation_failed",
+                        op=op,
+                        reason=f"metacognitive plan rejected: {reason}",
+                        plan_status="invalid_plan",
+                    )
+                )
+        return finalized
+
+    def _make_child_from_output(
+        self,
+        task: MutationTask,
+        output: str | None,
+    ):
         """Extract -> build -> verify a child from one model output.
 
         Returns ``(child, inst, reason, source)``. On success ``inst`` is the
@@ -338,10 +546,56 @@ class RQEvolver:
             source_code=source,
             parent_id=task.parent.program_id,
             generation=task.parent.generation + 1,
-            metadata={"op": task.op},
+            metadata={
+                "op": task.op,
+                "plan_status": task.plan_status,
+                **(
+                    {
+                        "mutation_plan": task.mutation_plan,
+                        "plan_id": task.plan_id,
+                    }
+                    if task.mutation_plan is not None
+                    else {}
+                ),
+            },
         )
         inst, reason = self.verify_program(child)
+        if inst is not None:
+            reason = self._validate_mutation_contract(task, child)
+            if reason is not None:
+                inst = None
         return child, inst, reason, source
+
+    @staticmethod
+    def _validate_mutation_contract(
+        task: MutationTask,
+        child: ProblemProgram,
+    ) -> str | None:
+        """Enforce the structural part of a valid metacognitive plan."""
+        if task.mutation_plan is None:
+            return None
+        if task.op == "in_depth":
+            if child.get_concept_group() != task.parent.get_concept_group():
+                return (
+                    "planned in-depth mutation changed CONCEPT_GROUP: "
+                    f"{task.parent.get_concept_group()!r} -> "
+                    f"{child.get_concept_group()!r}"
+                )
+            if child.get_concept_type() != task.parent.get_concept_type():
+                return (
+                    "planned in-depth mutation changed CONCEPT_TYPE: "
+                    f"{task.parent.get_concept_type()!r} -> "
+                    f"{child.get_concept_type()!r}"
+                )
+        elif (
+            task.op == "in_breadth"
+            and child.get_concept_group() == task.parent.get_concept_group()
+        ):
+            return (
+                "planned in-breadth mutation must change CONCEPT_GROUP from "
+                f"{task.parent.get_concept_group()!r}"
+            )
+        return None
 
     def _resolve_retries(self, entries: list[dict]) -> None:
         """Finalize every ``_retry`` entry into a success or a report entry.
@@ -372,7 +626,11 @@ class RQEvolver:
             task = info["task"]
             if not enabled:
                 e["report"] = CandidateReport(
-                    status="verify_failed", op=task.op, reason=info["reason"]
+                    status="verify_failed",
+                    op=task.op,
+                    reason=info["reason"],
+                    plan_id=task.plan_id,
+                    plan_status=task.plan_status,
                 )
                 continue
             child, inst, reason, _ = self._make_child_from_output(task, output)
@@ -385,6 +643,8 @@ class RQEvolver:
                     op=task.op,
                     child_id=child.program_id if child else "",
                     reason=f"[after fix] {reason}",
+                    plan_id=task.plan_id,
+                    plan_status=task.plan_status,
                 )
 
     def _apply_evaluator(self, entries: list[dict]) -> None:
@@ -410,7 +670,16 @@ class RQEvolver:
             outputs = self._run_openai_evaluator(targets)
         else:
             eval_tasks = [
-                build_evaluator_task(e["child"], e["inst"].problem) for e in targets
+                build_evaluator_task(
+                    e["child"],
+                    e["inst"].problem,
+                    mutation_plan=getattr(
+                        e["task"],
+                        "mutation_plan",
+                        None,
+                    ),
+                )
+                for e in targets
             ]
             outputs = self.backend.mutate(eval_tasks)
         for e, output in zip(targets, outputs):
@@ -422,6 +691,8 @@ class RQEvolver:
                     op=task.op,
                     child_id=child.program_id,
                     reason=str(output)[:300],
+                    plan_id=getattr(task, "plan_id", None),
+                    plan_status=getattr(task, "plan_status", "legacy"),
                 )
                 continue
             is_valid, reason = parse_evaluator_verdict(output or "")
@@ -434,6 +705,8 @@ class RQEvolver:
                 op=task.op,
                 child_id=child.program_id,
                 reason=reason,
+                plan_id=getattr(task, "plan_id", None),
+                plan_status=getattr(task, "plan_status", "legacy"),
             )
 
     def _run_openai_evaluator(self, targets: list[dict]) -> list[str | Exception]:
@@ -443,8 +716,16 @@ class RQEvolver:
             timeout_s=self.evolution_config.evaluator_timeout_s,
             max_output_tokens=self.evolution_config.evaluator_max_output_tokens,
         )
+
         def evaluate_one(e: dict) -> str | Exception:
-            messages = build_evaluator_messages(e["inst"].problem)
+            messages = build_evaluator_messages(
+                e["inst"].problem,
+                mutation_plan=getattr(
+                    e["task"],
+                    "mutation_plan",
+                    None,
+                ),
+            )
             try:
                 return evaluate_messages_with_openai(messages, cfg)
             except Exception as exc:
@@ -458,6 +739,8 @@ class RQEvolver:
         self,
         program: ProblemProgram,
         rollouts: list[RolloutRecord],
+        *,
+        instance: ProblemInstance | None = None,
     ) -> RQResult:
         # Streamed rollouts carry a status: rejected samples (timeout / stale /
         # overlong / ...) leave the p_hat estimate entirely -- they are logged
@@ -476,6 +759,21 @@ class RQEvolver:
         program.h_score = result.uncertainty
         program.rq_score = result.rq_score
         program.fitness = result.rq_score
+        if self.metacognition_config.enabled and instance is not None:
+            evidence = select_reasoning_evidence(
+                rollouts,
+                program=program,
+                instance=instance,
+                iteration=self.current_iteration,
+                max_tokens=self.metacognition_config.trace_storage_max_tokens,
+                tokenizer=getattr(self.backend, "tokenizer", None),
+            )
+            if evidence:
+                # This is telemetry attached to the single live archive entry,
+                # not a second archive and not an additional Solver rollout.
+                program.metadata["reasoning_evidence"] = [
+                    asdict(item) for item in evidence
+                ]
         return result
 
     def evaluate_instances(
@@ -506,7 +804,7 @@ class RQEvolver:
             self.backend.end_session()
         grouped = self.backend.finalize_rollouts(pending)
         results: list[RQResult | None] = []
-        for program, rollouts in zip(programs, grouped):
+        for program, instance, rollouts in zip(programs, instances, grouped):
             accepted = [
                 r for r in rollouts if getattr(r, "status", "accepted") == "accepted"
             ]
@@ -526,7 +824,13 @@ class RQEvolver:
                 )
                 results.append(None)
                 continue
-            results.append(self._score_from_rollouts(program, rollouts))
+            results.append(
+                self._score_from_rollouts(
+                    program,
+                    rollouts,
+                    instance=instance,
+                )
+            )
         return results
 
     def evaluate_instance(
@@ -549,20 +853,116 @@ class RQEvolver:
             pairs.append((champion, inst))
         if not pairs:
             return
+        pre_scores = {
+            champion.program_id: {
+                "p_hat": float(champion.p_hat),
+                "concept_group": champion.get_concept_group(),
+                "concept_type": champion.get_concept_type(),
+                "operator": (champion.metadata or {}).get("op", "seed"),
+            }
+            for champion, _instance in pairs
+        }
         results = self.evaluate_instances(
             [p for p, _ in pairs], [i for _, i in pairs]
         )
+
+        if self.metacognition_config.enabled:
+            progress = compute_meta_progress(
+                pre_scores,
+                [program for program, _instance in pairs],
+                results,
+                iteration=self.current_iteration,
+            )
+            self.last_meta_progress = progress.to_dict()
+            if self.metacognition_config.adaptive_operator:
+                self.operator_ema = update_operator_ema(
+                    self.operator_ema,
+                    self.last_meta_progress,
+                    alpha=self.metacognition_config.operator_ema_alpha,
+                )
+            self.events.append(
+                {
+                    "event": "meta_progress_measured",
+                    **self.last_meta_progress,
+                    "operator_ema": dict(self.operator_ema),
+                }
+            )
+
         for (champion, inst), result in zip(pairs, results):
             if result is None:
                 # all rollouts rejected (transient timeout/worker error) --
                 # keep the champion's previous scores and niche untouched.
                 continue
-            self.archive.try_insert(
+            # Delta-p above was measured on the fixed pre-update cohort. Only
+            # now may a champion move to a new H cell, replace another champion,
+            # or disappear when R_Q has reached zero.
+            self.archive.remove_program(champion.program_id)
+            if result.rq_score <= 0.0:
+                self.events.append(
+                    {
+                        "event": "champion_removed_after_reevaluation",
+                        "program_id": champion.program_id,
+                        "reason": "rq_zero",
+                        "p_hat": result.p_hat,
+                    }
+                )
+                continue
+            inserted = self._try_insert_with_telemetry(
                 program=champion,
                 h_value=result.uncertainty,
                 problem_text=inst.problem,
                 rq_score=result.rq_score,
+                source="champion_reevaluation",
             )
+            if not inserted:
+                self.events.append(
+                    {
+                        "event": "champion_removed_after_reevaluation",
+                        "program_id": champion.program_id,
+                        "reason": "lost_target_bin_competition",
+                        "p_hat": result.p_hat,
+                        "rq_score": result.rq_score,
+                    }
+                )
+
+    def _try_insert_with_telemetry(
+        self,
+        *,
+        program: ProblemProgram,
+        h_value: float,
+        problem_text: str,
+        rq_score: float,
+        source: str = "mutation",
+    ) -> bool:
+        target_cell = self.archive.target_cell(
+            program,
+            h_value=h_value,
+            problem_text=problem_text,
+        )
+        incumbent = self.archive.grid[target_cell].champion
+        inserted = self.archive.try_insert(
+            program=program,
+            h_value=h_value,
+            problem_text=problem_text,
+            rq_score=rq_score,
+        )
+        if (
+            inserted
+            and incumbent is not None
+            and incumbent.program_id != program.program_id
+        ):
+            self.events.append(
+                {
+                    "event": "champion_replaced",
+                    "source": source,
+                    "target_cell": list(target_cell),
+                    "incoming_program_id": program.program_id,
+                    "incoming_rq": float(rq_score),
+                    "evicted_program_id": incumbent.program_id,
+                    "evicted_rq": float(incumbent.rq_score),
+                }
+            )
+        return inserted
 
     def refresh_dataset(self) -> None:
         # Record each champion's frontier decision (the learnability filter that
@@ -605,6 +1005,7 @@ class RQEvolver:
         self.dataset_refresh_count += 1
 
     _USED_SEEDS_FILE = "rq_used_seeds.json"
+    _METACOGNITION_FILE = "rq_metacognition.json"
 
     def save_state(self, directory: str | Path, iteration: int | None = None) -> None:
         """Persist the MAP-Elites archive + used_seeds for restart.
@@ -642,6 +1043,18 @@ class RQEvolver:
             ),
             encoding="utf-8",
         )
+        (directory / self._METACOGNITION_FILE).write_text(
+            json.dumps(
+                {
+                    "last_meta_progress": self.last_meta_progress,
+                    "operator_ema": self.operator_ema,
+                    "current_iteration": self.current_iteration,
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
 
     def append_evolution_log(
         self,
@@ -656,7 +1069,7 @@ class RQEvolver:
         full evolution trajectory is preserved: per-iteration metrics plus every
         candidate report. ``CandidateReport.status`` is one of: no_parent,
         mutation_failed, no_code, verify_failed, evaluator_error,
-        evaluator_rejected, rollout_failed, p_hat_zero, inserted,
+        evaluator_rejected, rollout_failed, p_hat_zero, rq_zero, inserted,
         rejected_non_elite (each with op, rq_score, p_hat, uncertainty; see
         docs/PIPELINE.md "Evolution Candidate State"). ``reports`` defaults to
         ``self.last_reports``.
@@ -669,6 +1082,8 @@ class RQEvolver:
             "metrics": metrics,
             "reports": [asdict(r) for r in reports],
             "frontier": self.last_frontier,
+            "meta_progress": self.last_meta_progress,
+            "operator_ema": self.operator_ema,
         }
         with (directory / "evolution_log.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -691,15 +1106,41 @@ class RQEvolver:
                 pid: set(seeds)
                 for pid, seeds in payload.get("used_seeds", {}).items()
             }
+        metacognition_file = directory / self._METACOGNITION_FILE
+        if metacognition_file.exists():
+            payload = json.loads(metacognition_file.read_text(encoding="utf-8"))
+            self.last_meta_progress = dict(
+                payload.get("last_meta_progress") or {}
+            )
+            self.operator_ema = {
+                str(key): float(value)
+                for key, value in (payload.get("operator_ema") or {}).items()
+            }
+            self.current_iteration = int(
+                payload.get("current_iteration", self.current_iteration)
+            )
         self.refresh_dataset()
         self.events.append(
             {"event": "archive_restored", "champions": n_champions}
         )
         return True
 
-    def _sample_operator(self) -> str:
+    def _sample_operator(self, parent: ProblemProgram | None = None) -> str:
+        del parent  # reserved for future per-concept controllers
+        depth_probability = self.evolution_config.in_depth_ratio
+        if (
+            self.metacognition_config.enabled
+            and self.metacognition_config.adaptive_operator
+        ):
+            depth_probability = adaptive_depth_probability(
+                self.operator_ema,
+                fallback=depth_probability,
+                min_probability=(
+                    self.metacognition_config.operator_min_probability
+                ),
+            )
         roll = random.random()
-        if roll < self.evolution_config.in_depth_ratio:
+        if roll < depth_probability:
             return "in_depth"
         return "in_breadth"
 

@@ -28,5 +28,5 @@ def test_in_breadth_template_uses_breadth_shots():
     parent = _program("algebra", 3)
     task = build_mutation_task("in_breadth", parent)
     assert "Task: write a generator in a different mathematical domain" in task.prompt
-    assert "MUTATED_PROGRAM_EXAMPLE" in task.prompt
+    assert "CHILD_PROGRAM_EXAMPLE" in task.prompt
     assert "chord geometry" in task.prompt

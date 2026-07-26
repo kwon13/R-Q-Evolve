@@ -11,7 +11,7 @@ import random
 
 
 def generate(seed):
-    return "What is {value} + {{seed}}?", str({value} + seed)
+    return f"What is {value} + {{seed}}?", str({value} + seed)
 
 
 CONCEPT_GROUP = "{group}"

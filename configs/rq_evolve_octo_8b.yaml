@@ -12,16 +12,22 @@ evolution:
   inner_iterations: 32
   inner_iteration_batch_size: 32
   num_rollouts: 10
+  select_ignores_uncertainty: false
+  select_ignores_variance: false
   in_depth_ratio: 0.5        # -> in_breadth = 1 - 0.5 = 0.5  (50/50 depth/breadth)
   verify_seeds: 5
   frontier_p_hat_range: [0.0, 1.0]
   fix_retry: false
   use_evaluator: true
+  evaluator_provider: policy
 
 training_data:
   instances_per_program: 8
   training_budget: null
   strict_anti_reuse: true
+  select_lowest_rq_first: false
+  select_random_order: False
+  select_random_seed: 0
 
 verl:
   enabled: true
@@ -36,6 +42,30 @@ math_eval:
   sample_seed: 42
   inflate_x32: false
   grader: sympy
+
+async_rollout:
+  streaming_enabled: true
+  chunk_size: 1
+  max_in_flight_chunks: 8
+  request_timeout_s: 900
+  max_retries: 1
+  verify_workers: 4
+  queue_maxsize: 32
+  # strict = every sample must be from the current policy_version;
+  # bounded = lag <= max_policy_lag allowed. Evolve-phase weights are static
+  # (lag 0 by construction) -- this is the invariant gate for future overlap.
+  staleness_mode: bounded
+  max_policy_lag: 1
+  log_samples: true
+  entropy_mode: deferred
+
+lora:
+  enabled: false
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  sync_mode: auto
 
 verl_config:
   data:

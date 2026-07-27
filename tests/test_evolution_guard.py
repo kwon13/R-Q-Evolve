@@ -13,6 +13,12 @@ from rq_evolve.archive import MAPElitesArchive
 from rq_evolve.backends import PendingRollouts, RolloutRecord
 from rq_evolve.config import ArchiveConfig, EvolutionConfig
 from rq_evolve.evolution import RQEvolver
+from rq_evolve.openai_evaluator import (
+    EvaluatorConfigurationError,
+    EvaluatorRuntimeError,
+    load_project_dotenv,
+    validate_openai_evaluator_environment,
+)
 from rq_evolve.program import ProblemInstance, ProblemProgram
 
 
@@ -168,7 +174,7 @@ def test_openai_evaluator_preserves_target_order(monkeypatch):
     assert len(seen) == 2
 
 
-def test_openai_evaluator_error_becomes_report(monkeypatch):
+def test_openai_evaluator_error_aborts_evolution(monkeypatch):
     def fake_openai(messages, config):
         raise RuntimeError("missing OPENAI_API_KEY")
 
@@ -181,6 +187,27 @@ def test_openai_evaluator_error_becomes_report(monkeypatch):
         "child": child,
         "inst": ProblemInstance(problem="p", answer="4", program_id="child", seed=0),
     }
-    evolver._apply_evaluator([entry])
-    assert entry["report"].status == "evaluator_error"
-    assert "OPENAI_API_KEY" in entry["report"].reason
+    import pytest
+
+    with pytest.raises(EvaluatorRuntimeError, match="OPENAI_API_KEY"):
+        evolver._apply_evaluator([entry])
+
+
+def test_openai_evaluator_missing_key_fails_preflight(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    import pytest
+
+    with pytest.raises(EvaluatorConfigurationError, match="OPENAI_API_KEY"):
+        validate_openai_evaluator_environment()
+
+
+def test_project_dotenv_loads_key_without_logging_or_overwriting(tmp_path, monkeypatch):
+    (tmp_path / ".env").write_text(
+        "OPENAI_API_KEY=from-dotenv\nOTHER_VALUE='hello'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OTHER_VALUE", "from-shell")
+    load_project_dotenv(tmp_path)
+    assert __import__("os").environ["OPENAI_API_KEY"] == "from-dotenv"
+    assert __import__("os").environ["OTHER_VALUE"] == "from-shell"

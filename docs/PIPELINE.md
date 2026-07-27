@@ -92,7 +92,7 @@ shape를 거칩니다:
               └───────┬────────┘
                 _apply_evaluator()   (INVALID 판정 시)
                       │  ├────────────────► {report: evaluator_rejected}
-                      │  └── 예외 ─────────► {report: evaluator_error}
+                      │  └── evaluator 오류 ─► 즉시 중단 (예외 전파)
                       │ (valid → child 유지)
               generate_rollouts(child)
                       │
@@ -107,9 +107,10 @@ shape를 거칩니다:
 parent가 없으면 batch 진입 직후 `{report: no_parent}` 하나로 조기 반환됩니다.
 
 **`CandidateReport.status` 전체 어휘** ([`evolution.py:29`](../src/rq_evolve/evolution.py#L29)):
-`no_parent`, `mutation_failed`, `no_code`, `verify_failed`, `evaluator_error`,
+`no_parent`, `mutation_failed`, `no_code`, `verify_failed`,
 `evaluator_rejected`, `rollout_failed`, `p_hat_zero`, `rq_zero`, `inserted`,
 `rejected_non_elite`.
+Evaluator 인증·호출 오류는 report로 기록하지 않고 실험을 즉시 중단한다.
 모든 report는 `append_evolution_log`가 `evolution_log.jsonl`에 append합니다.
 
 ## Implementation Milestones

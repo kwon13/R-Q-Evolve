@@ -24,7 +24,11 @@ from .metacognition import (
     select_reasoning_evidence,
     update_operator_ema,
 )
-from .openai_evaluator import OpenAIEvaluatorConfig, evaluate_messages_with_openai
+from .openai_evaluator import (
+    EvaluatorRuntimeError,
+    OpenAIEvaluatorConfig,
+    evaluate_messages_with_openai,
+)
 from .program import ProblemInstance, ProblemProgram
 from .prompts import (
     MutationTask,
@@ -659,7 +663,10 @@ class RQEvolver:
         With ``evaluator_provider=policy``, one batched ``mutate`` over all
         targets runs inside the already-open vLLM session. With
         ``evaluator_provider=openai``, the same evaluator messages are sent to
-        the OpenAI Responses API using ``evaluator_model``.
+        the OpenAI Responses API using ``evaluator_model``. Evaluator
+        configuration or runtime failures raise immediately; they are never
+        converted into candidate reports because continuing would invalidate
+        the resulting curriculum.
         """
         if not self.evolution_config.use_evaluator:
             return
@@ -681,20 +688,19 @@ class RQEvolver:
                 )
                 for e in targets
             ]
-            outputs = self.backend.mutate(eval_tasks)
+            try:
+                outputs = self.backend.mutate(eval_tasks)
+            except Exception as exc:
+                raise EvaluatorRuntimeError(
+                    "Evaluator backend failed; aborting R_Q-Evolve instead of "
+                    f"continuing with an invalid curriculum: {exc}"
+                ) from exc
         for e, output in zip(targets, outputs):
             if isinstance(output, Exception):
-                task, child = e["task"], e["child"]
-                e.clear()
-                e["report"] = CandidateReport(
-                    status="evaluator_error",
-                    op=task.op,
-                    child_id=child.program_id,
-                    reason=str(output)[:300],
-                    plan_id=getattr(task, "plan_id", None),
-                    plan_status=getattr(task, "plan_status", "legacy"),
-                )
-                continue
+                raise EvaluatorRuntimeError(
+                    "Evaluator call failed; aborting R_Q-Evolve instead of "
+                    f"discarding the candidate and continuing: {output}"
+                ) from output
             is_valid, reason = parse_evaluator_verdict(output or "")
             if is_valid:
                 continue
@@ -1068,8 +1074,8 @@ class RQEvolver:
         Unlike the archive (latest snapshot only), this is append-only, so the
         full evolution trajectory is preserved: per-iteration metrics plus every
         candidate report. ``CandidateReport.status`` is one of: no_parent,
-        mutation_failed, no_code, verify_failed, evaluator_error,
-        evaluator_rejected, rollout_failed, p_hat_zero, rq_zero, inserted,
+        mutation_failed, no_code, verify_failed, evaluator_rejected,
+        rollout_failed, p_hat_zero, rq_zero, inserted,
         rejected_non_elite (each with op, rq_score, p_hat, uncertainty; see
         docs/PIPELINE.md "Evolution Candidate State"). ``reports`` defaults to
         ``self.last_reports``.

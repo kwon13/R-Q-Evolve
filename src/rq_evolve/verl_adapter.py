@@ -12,6 +12,10 @@ from .archive import MAPElitesArchive
 from .config import RQEvolveConfig
 from .dataset import VerlDynamicDataset
 from .evolution import RQEvolver
+from .openai_evaluator import (
+    load_project_dotenv,
+    validate_openai_evaluator_environment,
+)
 from .verl_backend import VerlPolicyBackend
 
 
@@ -299,6 +303,12 @@ class VerlTrainerAdapter:
         self.config = config
         self.rq_config = rq_config
         self.project_root = Path(project_root)
+        if (
+            self.rq_config.evolution.use_evaluator
+            and self.rq_config.evolution.evaluator_provider == "openai"
+        ):
+            load_project_dotenv(self.project_root)
+            validate_openai_evaluator_environment()
 
     def assert_verl_available(self) -> None:
         if importlib.util.find_spec("verl") is None:

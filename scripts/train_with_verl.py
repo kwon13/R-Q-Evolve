@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from rq_evolve.config import load_config
+from rq_evolve.openai_evaluator import load_project_dotenv
 from rq_evolve.verl_adapter import (
     VerlAdapterConfig,
     VerlTrainerAdapter,
@@ -48,6 +49,9 @@ def main() -> None:
         os.environ.setdefault("WANDB_MODE", "offline")
 
     _warn_if_project_venv_exists()
+    # Keep training consistent with the evaluation scripts: load the project
+    # .env before config/adapter construction, without overwriting shell vars.
+    load_project_dotenv(ROOT)
     config = load_config(args.config)
 
     if not config.verl.enabled:

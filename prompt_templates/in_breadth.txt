@@ -1,8 +1,21 @@
 Task: write a generator in a different mathematical domain from the parent.
 
+Change CONCEPT_GROUP, mathematical object, domain-specific operation, surface
+vocabulary, and parameter names. Do not reuse the domain, formulas,
+CONCEPT_TYPE, or object shown by the parent or a few-shot example. The new
+problem must nevertheless preserve one explicitly stated abstract reasoning
+move; unrelated novelty is not a valid breadth mutation.
+
 Inside generate, the answer must be cross-checked through two genuinely independent computational routes to prove that the conceptual fusion is real. The first route is the INSIGHT route, which corresponds to the short or collapsed reasoning path that the solver is expected to discover. The second route is the BRUTE route, which corresponds to a naive or expanded computation that does not use the intended insight. The final answer should be assigned from one of these routes, and the implementation must assert that it agrees with the other route.
 A valid cross-check requires that the two routes compute the same mathematical quantity through genuinely different procedures. Trivial checks such as assert answer == answer, recomputing the exact same expression twice, or comparing the result against a hard-coded literal are invalid and indicate that the fusion has failed. In that case, the generator design itself must be revised rather than merely changing the assertion. If two independent routes that necessarily agree cannot be written, then the two concepts are not truly fused into a single object, and the generator should not be submitted until it is redesigned.
 The generator should also include appropriate guards to avoid degenerate choices of parameters such as (r), (n), or cases where the answer can be guessed by inspection. These guards should ensure that the brute-force route remains finite and checkable, while still being sufficiently unattractive compared to the intended insight route.
+Use MAX_ATTEMPTS = 200 and bounded deterministic sampling. Ensure all guards
+are jointly satisfiable and that seeds 0 through 4 terminate.
+
+Problem/code equivalence is mandatory: the literal mathematical definition in
+problem_text must be the same definition used by both answer routes. The brute
+route must reconstruct the answer from the stated definition rather than reuse
+an insight-side intermediate.
 
 Output rules for the generated problem_text:
 - Never state the answer or any intermediate value (no "= <number>" lines, no
@@ -19,9 +32,6 @@ $few_shot_examples
 PARENT_PROGRAM:
 ```python
 $parent_source
-
-CONCEPT_GROUP = "$parent_concept_group"
-CONCEPT_TYPE = "$parent_concept_type"
 ```
 
 CHILD_PROGRAM:

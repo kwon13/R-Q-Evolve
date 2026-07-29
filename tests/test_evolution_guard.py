@@ -20,6 +20,7 @@ from rq_evolve.openai_evaluator import (
     validate_openai_evaluator_environment,
 )
 from rq_evolve.program import ProblemInstance, ProblemProgram
+from rq_evolve.prompts import build_evaluator_messages
 
 
 class ScriptedBackend:
@@ -118,6 +119,28 @@ def test_rejected_samples_excluded_from_p_hat():
     assert result.num_rollouts == 2
 
 
+def test_p_hat_regrades_cleaned_first_conversation():
+    prog = _program("cleaned")
+    inst = ProblemInstance(problem="p", answer="4", program_id="cleaned", seed=0)
+    contaminated = RolloutRecord(
+        response=(
+            r"Correct solution: \boxed{4}."
+            "\nAssistant: user\nUnrelated problem. "
+            r"\boxed{9}"
+        ),
+        predicted_answer="9",
+        correct=False,
+        entropy=1.0,
+    )
+    evolver = _evolver([[contaminated]])
+
+    result = evolver.evaluate_instances([prog], [inst])[0]
+
+    assert result is not None
+    assert result.p_hat == 1.0
+    assert result.num_correct == 1
+
+
 def test_openai_evaluator_rejects_invalid(monkeypatch):
     def fake_openai(messages, config):
         assert config.model == "gpt-5.4-mini"
@@ -136,6 +159,17 @@ def test_openai_evaluator_rejects_invalid(monkeypatch):
     evolver._apply_evaluator([entry])
     assert entry["report"].status == "evaluator_rejected"
     assert entry["report"].child_id == "child"
+
+
+def test_evaluator_receives_answer_and_generator_source():
+    messages = build_evaluator_messages(
+        "Compute 2+2.",
+        answer_text="4",
+        program_source='def generate(seed): return "Compute 2+2.", "4"',
+    )
+    content = messages[-1]["content"]
+    assert "Generated answer:\n4" in content
+    assert "Generator source:" in content
 
 
 def test_openai_evaluator_preserves_target_order(monkeypatch):

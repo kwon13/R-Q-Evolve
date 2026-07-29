@@ -17,6 +17,14 @@ Put few-shot examples here:
 - `shots/planned_in_depth.txt`
 - `shots/planned_in_breadth.txt`
 
+Few-shots are format references, not reusable mutation content. Live legacy
+and plan-conditioned code generation intentionally omit code-rich shots from
+the chat conversation to prevent greedy decoding from copying an example.
+Metacognitive planning keeps a schema example, but only runs when one clean
+correct/wrong evidence pair is available. Schema version 3 specifies one
+executable `answer_route`; the wrong trace is planning evidence rather than a
+second computation embedded in the child generator.
+
 The code reads this directory by default. To use another directory, set:
 
 ```bash
@@ -54,3 +62,9 @@ Metacognitive templates additionally receive:
 - `$meta_progress`
 - `$mutation_plan`
 - `$plan_id`
+
+Mutation sampling is separate from solver rollout sampling. Configure
+`evolution.plan_temperature`, `evolution.code_temperature`, and
+`evolution.evaluator_temperature` (plus their `*_top_p` values) in the R_Q
+config. Solver diversity continues to use
+`verl_config.actor_rollout_ref.rollout.temperature`.

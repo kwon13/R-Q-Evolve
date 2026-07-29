@@ -57,10 +57,10 @@ next Solver update
   -> only now re-bin, replace, or remove R_Q=0 champions
 ```
 
-The plan schema requires independent insight/brute routes, a live
-confident-wrong decoy, `MAX_ATTEMPTS=200`, seed-local deterministic randomness,
-and one base-10 integer answer. Accidental `decoy == answer` collisions are
-resampled before the accepted instance asserts inequality.
+Plan schema v3 requires one executable `answer_route`, `MAX_ATTEMPTS=200`,
+seed-local deterministic randomness, and one base-10 integer answer. The
+correct/wrong trace contrast selects the mutation target, but the generated
+program does not reproduce the wrong trace as another answer computation.
 
 ## Evolution Candidate State
 

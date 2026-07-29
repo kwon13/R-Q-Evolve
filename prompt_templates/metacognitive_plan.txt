@@ -3,8 +3,18 @@ Task: write a metacognitive mutation plan for the current parent generator.
 The plan must be grounded in the supplied Solver evidence. A shortest correct
 trace shows a route that is currently available; a lowest-entropy wrong trace
 shows a confident failure worth targeting. Missing evidence is not permission
-to invent a Solver behavior: state the uncertainty and make a mechanically
-testable proposal.
+to invent a Solver behavior or copy an example. A live metacognitive request is
+expected to contain one clean correct/wrong contrast; if either side is absent,
+do not claim an observed failure.
+
+Evidence integrity rules:
+- use only reasoning that addresses exactly the `problem` field paired with it;
+- ignore any suffix beginning with User:, Assistant:, a repeated solver
+  instruction, a second problem, or an unrelated question/answer;
+- ground failure_summary and correct_wrong_contrast in specific cleaned trace
+  steps, not predicted_answer alone;
+- never import a mathematical domain, parameter set, target move, or wording
+  from the few-shot example into the live plan.
 
 Operator: $operator
 Operator contract: $operator_contract
@@ -16,17 +26,22 @@ The plan must obey these contracts:
   str(sympy.Integer(answer)); reformulate inherently non-integer quantities;
 - use MAX_ATTEMPTS = 200 and bounded deterministic sampling only;
 - use rng = random.Random(seed), never global random state;
-- insight and brute routes compute the same answer independently;
-- a decoy implements the monitored confident-wrong route and has the same
-  integer form as the answer;
-- if a sampled decoy equals the answer accidentally, reject that sample with
-  continue; after accepting a sample, assert decoy != answer;
-- problem_text reveals neither answer, intermediate values, intended insight,
-  decoy, nor theorem choice.
+- answer_route must state one deterministic, executable computation from sampled
+  parameters to the returned integer answer;
+- the observed wrong trace determines the mutation target only; do not reproduce
+  it as a second executable answer computation;
+- problem_text reveals neither answer, intermediate values, intended reasoning
+  move, nor theorem choice.
+- `change` must not violate `forbidden_changes`; for in_depth, parameter scaling
+  alone is invalid; for in_breadth, describe changes relative to the LIVE
+  parent's group and object.
+- the closing instruction must request exactly one integer and match the answer
+  contract.
 
-Return exactly one JSON object with every schema_version 2 field shown by the
-example. `heldout_evaluation` must first specify a pass-rate comparison; trace
-or confidence checks may be listed only as phase-2 diagnostics.
+Return exactly one JSON object with every schema_version 3 field shown by the
+example and no additional fields. `heldout_evaluation` must first specify a
+pass-rate comparison; trace or confidence checks may be listed only as phase-2
+diagnostics.
 
 $few_shot_examples
 
@@ -35,9 +50,6 @@ $few_shot_examples
 PARENT_PROGRAM:
 ```python
 $parent_source
-
-CONCEPT_GROUP = "$parent_concept_group"
-CONCEPT_TYPE = "$parent_concept_type"
 ```
 
 PARENT_SCORE:

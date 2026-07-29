@@ -18,6 +18,7 @@ from .config import EvolutionConfig, MetacognitionConfig, TrainingDataConfig
 from .dataset import DynamicProblemDataset, build_training_examples
 from .metacognition import (
     adaptive_depth_probability,
+    clean_and_grade_solver_rollout,
     collect_planning_evidence,
     compute_meta_progress,
     progress_context,
@@ -146,17 +147,43 @@ class RQEvolver:
         """Multi-seed execution and cheap mathematical sanity checks."""
         n = n_seeds or self.evolution_config.verify_seeds
         source_errors = lint_generator_source(program.source_code)
-        if self.metacognition_config.enabled and program.metadata.get("mutation_plan"):
+        is_generated_mutation = program.metadata.get("op") in {
+            "in_depth",
+            "in_breadth",
+        }
+        mutation_plan = program.metadata.get("mutation_plan")
+        try:
+            plan_schema_version = int(
+                mutation_plan.get("schema_version", 0)
+                if isinstance(mutation_plan, dict)
+                else 0
+            )
+        except (TypeError, ValueError):
+            plan_schema_version = 0
+        is_schema_v3_plan = plan_schema_version == 3
+        if is_schema_v3_plan:
             source_errors.extend(
                 lint_metacognitive_generator_source(
                     program.source_code,
-                    require_assert=self.metacognition_config.require_assert,
-                    reject_trivial_assert=(
-                        self.metacognition_config.reject_trivial_assert
-                    ),
+                    require_assert=False,
+                    reject_trivial_assert=True,
                     reject_unbounded_sampling=(
                         self.metacognition_config.reject_unbounded_sampling
                     ),
+                    require_answer_routes=False,
+                )
+            )
+        elif is_generated_mutation:
+            # Legacy mutations retain their independent insight/brute
+            # cross-check. Schema-v3 planned mutations above deliberately use
+            # one answer route instead.
+            source_errors.extend(
+                lint_metacognitive_generator_source(
+                    program.source_code,
+                    require_assert=True,
+                    reject_trivial_assert=True,
+                    reject_unbounded_sampling=True,
+                    require_answer_routes=True,
                 )
             )
         if source_errors:
@@ -415,7 +442,15 @@ class RQEvolver:
         additional generation before code generation.
         """
         if not self.metacognition_config.enabled:
-            return [build_mutation_task(op, parent) for op, parent in requests]
+            return [
+                build_mutation_task(
+                    op,
+                    parent,
+                    temperature=self.evolution_config.code_temperature,
+                    top_p=self.evolution_config.code_top_p,
+                )
+                for op, parent in requests
+            ]
 
         tokenizer = getattr(self.backend, "tokenizer", None)
         champions = list(self.archive.champions())
@@ -434,7 +469,12 @@ class RQEvolver:
             )
             if self.metacognition_config.require_contrast_pair and len(evidence) < 2:
                 if self.metacognition_config.fallback_to_legacy_mutation:
-                    task = build_mutation_task(op, parent)
+                    task = build_mutation_task(
+                        op,
+                        parent,
+                        temperature=self.evolution_config.code_temperature,
+                        top_p=self.evolution_config.code_top_p,
+                    )
                     task.plan_status = "fallback_no_evidence"
                     prepared.append(task)
                 else:
@@ -462,6 +502,8 @@ class RQEvolver:
                 max_output_tokens=(
                     self.metacognition_config.plan_max_output_tokens
                 ),
+                temperature=self.evolution_config.plan_temperature,
+                top_p=self.evolution_config.plan_top_p,
             )
             for op, parent, evidence in plan_inputs
         ]
@@ -493,7 +535,13 @@ class RQEvolver:
                 required_target_reasoning_move=inherited_move,
             )
             if plan is not None:
-                task = build_planned_mutation_task(op, parent, plan)
+                task = build_planned_mutation_task(
+                    op,
+                    parent,
+                    plan,
+                    temperature=self.evolution_config.code_temperature,
+                    top_p=self.evolution_config.code_top_p,
+                )
                 finalized.append(task)
                 self.events.append(
                     {
@@ -516,7 +564,12 @@ class RQEvolver:
                 self.metacognition_config.fallback_to_legacy_mutation
                 and not inherited_move
             ):
-                task = build_mutation_task(op, parent)
+                task = build_mutation_task(
+                    op,
+                    parent,
+                    temperature=self.evolution_config.code_temperature,
+                    top_p=self.evolution_config.code_top_p,
+                )
                 task.plan_status = "fallback_invalid_plan"
                 finalized.append(task)
             else:
@@ -685,6 +738,10 @@ class RQEvolver:
                         "mutation_plan",
                         None,
                     ),
+                    answer_text=e["inst"].answer,
+                    program_source=e["child"].source_code,
+                    temperature=self.evolution_config.evaluator_temperature,
+                    top_p=self.evolution_config.evaluator_top_p,
                 )
                 for e in targets
             ]
@@ -731,6 +788,8 @@ class RQEvolver:
                     "mutation_plan",
                     None,
                 ),
+                answer_text=e["inst"].answer,
+                program_source=e["child"].source_code,
             )
             try:
                 return evaluate_messages_with_openai(messages, cfg)
@@ -754,7 +813,12 @@ class RQEvolver:
         accepted = [
             r for r in rollouts if getattr(r, "status", "accepted") == "accepted"
         ]
-        flags = [r.correct for r in accepted]
+        flags = [
+            clean_and_grade_solver_rollout(record, instance)[2]
+            if instance is not None
+            else bool(record.correct)
+            for record in accepted
+        ]
         uncertainty = (
             sum(r.entropy for r in accepted) / len(accepted)
             if accepted

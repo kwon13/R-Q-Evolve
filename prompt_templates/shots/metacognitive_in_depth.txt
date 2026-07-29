@@ -1,3 +1,7 @@
+REFERENCE FORMAT ONLY.
+The live plan must use its own cleaned evidence and parent. Do not reuse this
+example's domain, target move, formulas, parameters, or wording.
+
 PARENT_PROGRAM_EXAMPLE:
 ```python
 import random
@@ -5,9 +9,9 @@ import sympy
 
 def generate(seed):
     rng = random.Random(seed)
-    m = rng.choice([7, 11, 13, 17, 19])
-    n = rng.randint(100, 9000)
-    return f"Compute the remainder when {n} is divided by {m}.", str(sympy.Integer(n % m))
+    a, b, m = rng.choice([(2, 20, 21)])
+    problem = f"Compute the remainder when {a}^{b} is divided by {m}."
+    return problem, str(sympy.Integer(pow(a, b, m)))
 
 CONCEPT_GROUP = "number_theory"
 CONCEPT_TYPE = "number_theory.modular_reduction"
@@ -15,9 +19,10 @@ CONCEPT_TYPE = "number_theory.modular_reduction"
 
 OBSERVED_REASONING_EVIDENCE_EXAMPLE:
 ```text
-[CORRECT | shortest] 343 mod 12 = 7. Answer: 7
-[WRONG | lowest entropy] By Fermat, reduce the exponent modulo 20
-for modulus 21, giving 1. Answer: 1
+[PROBLEM] Compute the remainder when 2^20 is divided by 21.
+[CORRECT | shortest] Since phi(21)=12, reduce 20 to 8; 2^8 mod 21 = 4. Answer: 4
+[WRONG | lowest entropy] Treat 21 as prime and reduce 20 modulo 20,
+giving exponent 0 and residue 1. Answer: 1
 ```
 
 META_PROGRESS_EXAMPLE:
@@ -28,23 +33,18 @@ delta_p_global=+0.06; delta_p_type[number_theory.modular_reduction]=+0.02
 MUTATION_PLAN_EXAMPLE:
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "operator": "in_depth",
   "failure_summary": "The wrong trace applies Fermat without testing whether the modulus is prime; its modular arithmetic is otherwise fluent.",
   "target_reasoning_move": "test a theorem precondition before selecting an exponent reduction",
   "correct_wrong_contrast": "The divergence occurs at theorem selection, before the shared final modular arithmetic.",
   "preserve": ["CONCEPT_GROUP number_theory", "CONCEPT_TYPE number_theory.modular_reduction"],
-  "change": ["use an unstated composite modulus", "make direct exponentiation unattractive"],
+  "change": ["use a composite modulus whose factorization must be recognized", "make direct exponentiation unattractive"],
   "forbidden_changes": ["parameter scaling without a decision point", "naming Fermat or Euler in problem_text"],
-  "parameters": [{"name": "m", "domain": "composite 12..35"}, {"name": "b", "domain": "m^2..m^3"}],
-  "guards": ["gcd(a,m)=1", "blind-Fermat decoy differs from the answer"],
+  "parameters": [{"name": "m", "domain": "composite 12..35"}, {"name": "a", "domain": "2..m-1 with gcd(a,m)=1"}, {"name": "b", "domain": "m^2..m^3"}],
+  "guards": ["gcd(a,m)=1", "answer avoids trivial residues 0, 1, and m-1", "seeds 0 through 4 terminate"],
   "max_sampling_attempts": 200,
-  "insight_route": "factor m, compute phi(m), reduce b modulo phi(m), then use modular exponentiation",
-  "brute_route": "compute pow(a,b,m) without forming phi(m)",
-  "equivalence_assertion": "assert answer_insight == answer_brute",
-  "route_independence_reason": "one route depends on phi(m); the other processes the full exponent and never computes a totient",
-  "decoy_route": "reduce b modulo m-1 as if m were prime",
-  "decoy_assertion": "guard decoy == answer with continue, then assert decoy != answer_insight",
+  "answer_route": "factor m, compute phi(m), reduce b modulo phi(m), then compute pow(a, reduced_exponent, m)",
   "problem_output_contract": {"states": ["a", "b", "m"], "withholds": ["factorization", "theorem choice"], "closing_instruction": "State only the integer remainder."},
   "answer_output_contract": {"type": "integer", "range": "[0,m-1]", "serialization": "str(sympy.Integer(answer))"},
   "predicted_pre_behavior": "The Solver reduces modulo m-1 without checking primality.",

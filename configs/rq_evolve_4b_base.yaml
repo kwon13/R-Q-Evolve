@@ -20,6 +20,27 @@ evolution:
   fix_retry: false
   use_evaluator: true
   evaluator_provider: policy
+  plan_temperature: 0.7
+  plan_top_p: 0.95
+  code_temperature: 0.2
+  code_top_p: 0.95
+  evaluator_temperature: 0.0
+  evaluator_top_p: 1.0
+
+metacognition:
+  enabled: true
+  trace_storage_max_tokens: 4096
+  monitoring_total_trace_tokens: 4096
+  plan_max_output_tokens: 2048
+
+  require_contrast_pair: true
+  fallback_to_legacy_mutation: true
+
+  reject_unbounded_sampling: true
+
+  adaptive_operator: true
+  operator_min_probability: 0.2
+  operator_ema_alpha: 0.2
 
 training_data:
   instances_per_program: 8
@@ -101,7 +122,7 @@ verl_config:
 
     ref:
       log_prob_micro_batch_size: null
-      log_prob_micro_batch_size_per_gpu: 2
+      log_prob_micro_batch_size_per_gpu: 4
       fsdp_config:
         param_offload: true
 
@@ -123,7 +144,7 @@ verl_config:
       free_cache_engine: false
       enable_sleep_mode: false
       log_prob_micro_batch_size: null
-      log_prob_micro_batch_size_per_gpu: 2
+      log_prob_micro_batch_size_per_gpu: 4
 
   critic:
     ppo_mini_batch_size: 32
@@ -159,7 +180,7 @@ verl_config:
       - console
       - wandb
     nnodes: 1
-    n_gpus_per_node: 8
+    n_gpus_per_node: 4
     val_before_train: false
     test_freq: 32
     save_freq: 32

@@ -77,11 +77,28 @@ class VerlPolicyBackend(EvolutionBackend):
             for task in tasks
             if task.max_output_tokens is not None
         }
+        temperatures = {
+            float(task.temperature)
+            for task in tasks
+            if task.temperature is not None
+        }
+        top_ps = {
+            float(task.top_p)
+            for task in tasks
+            if task.top_p is not None
+        }
+        if len(temperatures) > 1 or len(top_ps) > 1:
+            raise ValueError(
+                "one mutation batch must use one temperature/top_p pair; "
+                "group tasks by stage before calling mutate()"
+            )
         max_tokens = min(limits) if limits else None
         output, _ = self._generate_with_batch(
             prompts,
             messages=messages if any(messages) else None,
             max_tokens=max_tokens,
+            temperature=next(iter(temperatures), None),
+            top_p=next(iter(top_ps), None),
         )
         responses = output.batch.get("responses")
         if responses is None:
@@ -414,6 +431,8 @@ class VerlPolicyBackend(EvolutionBackend):
         n_repeat: int = 1,
         messages: list | None = None,
         max_tokens: int | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
     ):
         trainer = self._require_trainer()
         batch = self._make_prompt_batch(prompts, messages=messages)
@@ -437,6 +456,13 @@ class VerlPolicyBackend(EvolutionBackend):
             # through DataProto.meta_info. Response tensors remain padded to the
             # configured response length, so downstream shapes are unchanged.
             gen_batch.meta_info["max_tokens"] = max(1, int(max_tokens))
+        if temperature is not None:
+            gen_batch.meta_info["temperature"] = max(0.0, float(temperature))
+        if top_p is not None:
+            top_p_value = float(top_p)
+            if not 0.0 < top_p_value <= 1.0:
+                raise ValueError("top_p must be in (0, 1]")
+            gen_batch.meta_info["top_p"] = top_p_value
 
         # verl 0.7.x retired vLLM SPMD; actor_rollout_wg.generate_sequences raises
         # NotImplementedError for the vLLM rollout. The trainer instead routes

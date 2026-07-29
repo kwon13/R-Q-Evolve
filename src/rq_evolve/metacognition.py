@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
@@ -73,17 +74,21 @@ REQUIRED_PLAN_FIELDS: tuple[str, ...] = (
     "parameters",
     "guards",
     "max_sampling_attempts",
+    "answer_route",
+    "problem_output_contract",
+    "answer_output_contract",
+    "predicted_pre_behavior",
+    "predicted_post_behavior",
+    "heldout_evaluation",
+)
+
+REMOVED_PLAN_FIELDS: tuple[str, ...] = (
     "insight_route",
     "brute_route",
     "equivalence_assertion",
     "route_independence_reason",
     "decoy_route",
     "decoy_assertion",
-    "problem_output_contract",
-    "answer_output_contract",
-    "predicted_pre_behavior",
-    "predicted_post_behavior",
-    "heldout_evaluation",
 )
 
 
@@ -143,6 +148,113 @@ def truncate_text_tokens(
     )
 
 
+_TRACE_BOUNDARY_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\n\s*(?:user|assistant)\s*:", re.IGNORECASE),
+    re.compile(
+        r"\n\s*please\s+reason\s+step\s+by\s+step\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"<\|im_start\|>\s*(?:user|assistant)\b", re.IGNORECASE),
+)
+
+# Standalone vLLM can stop before emitting these common second-chat markers.
+# ``sanitize_solver_trace`` remains the backend-independent fallback for
+# completions produced by training/rollout stacks that cannot accept stop
+# strings per request.
+SOLVER_CHAT_BOUNDARY_STOPS: tuple[str, ...] = (
+    "\nPlease reason step by step",
+    "\nUser:",
+    "\nuser:",
+    "\nAssistant: user",
+    "\nassistant: user",
+    "<|im_start|>user",
+)
+
+
+def sanitize_solver_trace(response: str) -> str:
+    """Drop chat-template spillover or a second conversation from a rollout.
+
+    A rollout used as metacognitive evidence must describe exactly one supplied
+    problem. Some base-model generations continue after their first answer by
+    emitting a fresh User:/Assistant: exchange. Without this boundary check, a
+    correct first solution can be mislabeled as a confident failure about an
+    unrelated second problem.
+    """
+    text = str(response or "").strip()
+    if not text:
+        return ""
+    boundaries = [
+        match.start()
+        for pattern in _TRACE_BOUNDARY_PATTERNS
+        for match in pattern.finditer(text)
+        if match.start() > 0
+    ]
+    if boundaries:
+        text = text[: min(boundaries)].rstrip()
+    return text
+
+
+def clean_and_grade_solver_rollout(
+    record: RolloutRecord,
+    instance: ProblemInstance,
+) -> tuple[str, str | None, bool]:
+    """Return one-chat response text and a grade derived from that text.
+
+    The raw rollout stays untouched for diagnostics. When a model spills into a
+    second conversation, scoring and metacognitive evidence must nevertheless
+    agree on the first supplied problem instead of grading the last boxed answer
+    from an unrelated suffix.
+    """
+    original = str(record.response or "").strip()
+    cleaned = sanitize_solver_trace(original)
+    predicted = record.predicted_answer
+    is_correct = bool(record.correct)
+    if cleaned != original:
+        from .reward import answers_match, extract_boxed
+
+        predicted = extract_boxed(cleaned)
+        is_correct = bool(
+            predicted is not None
+            and answers_match(predicted, instance.answer)
+        )
+    return cleaned, predicted, is_correct
+
+
+def _clean_stored_evidence(
+    item: dict[str, Any],
+    program: ProblemProgram,
+) -> dict[str, Any] | None:
+    """Sanitize persisted evidence and re-grade it if spillover was removed."""
+    copied = dict(item)
+    original = str(copied.get("response", ""))
+    cleaned = sanitize_solver_trace(original)
+    if not cleaned:
+        return None
+    copied["response"] = cleaned
+
+    try:
+        instance = program.execute(int(copied.get("seed", 0)))
+    except (TypeError, ValueError):
+        instance = None
+    if instance is None:
+        return None
+    if str(copied.get("problem", "")).strip() != instance.problem.strip():
+        return None
+
+    if cleaned != original.strip():
+        from .reward import answers_match, extract_boxed
+
+        predicted = extract_boxed(cleaned)
+        correct = bool(
+            predicted is not None
+            and answers_match(predicted, instance.answer)
+        )
+        copied["predicted_answer"] = predicted
+        copied["correct"] = correct
+        copied["role"] = "success" if correct else "failure"
+    return copied
+
+
 def select_reasoning_evidence(
     rollouts: Iterable[RolloutRecord],
     *,
@@ -153,49 +265,74 @@ def select_reasoning_evidence(
     tokenizer=None,
 ) -> list[ReasoningEvidence]:
     """Select one concise success and one confident failure at zero rollout cost."""
-    accepted = [
-        r
-        for r in rollouts
-        if getattr(r, "status", "accepted") == "accepted" and str(r.response or "").strip()
-    ]
-    correct = [r for r in accepted if bool(r.correct)]
-    wrong = [r for r in accepted if not bool(r.correct)]
+    cleaned_records: list[dict[str, Any]] = []
+    for record in rollouts:
+        if getattr(record, "status", "accepted") != "accepted":
+            continue
+        cleaned, predicted, is_correct = clean_and_grade_solver_rollout(
+            record,
+            instance,
+        )
+        if not cleaned:
+            continue
+        cleaned_records.append(
+            {
+                "record": record,
+                "response": cleaned,
+                "predicted_answer": predicted,
+                "correct": is_correct,
+            }
+        )
+
+    correct = [item for item in cleaned_records if item["correct"]]
+    wrong = [item for item in cleaned_records if not item["correct"]]
     if not correct or not wrong:
         return []
 
-    def response_len(record: RolloutRecord) -> int:
-        if int(getattr(record, "response_tokens", 0) or 0) > 0:
+    def response_len(item: dict[str, Any]) -> int:
+        record = item["record"]
+        original = str(record.response or "").strip()
+        if (
+            item["response"] == original
+            and int(getattr(record, "response_tokens", 0) or 0) > 0
+        ):
             return int(record.response_tokens)
         if tokenizer is not None:
             try:
-                return len(tokenizer.encode(record.response, add_special_tokens=False))
+                return len(
+                    tokenizer.encode(
+                        item["response"],
+                        add_special_tokens=False,
+                    )
+                )
             except (AttributeError, RuntimeError, TypeError, ValueError):
-                return len(str(record.response).split())
-        return len(str(record.response).split())
+                return len(str(item["response"]).split())
+        return len(str(item["response"]).split())
 
     success = min(correct, key=response_len)
     # Low-entropy wrong answers are the strongest "confident wrong" signal.
-    def entropy_value(record: RolloutRecord) -> float:
+    def entropy_value(item: dict[str, Any]) -> float:
         try:
-            return float(record.entropy)
+            return float(item["record"].entropy)
         except (TypeError, ValueError):
             return math.inf
 
     failure = min(wrong, key=lambda r: (entropy_value(r), response_len(r)))
 
-    def make(record: RolloutRecord, role: str) -> ReasoningEvidence:
+    def make(item: dict[str, Any], role: str) -> ReasoningEvidence:
+        record = item["record"]
         return ReasoningEvidence(
             source="observed",
             role=role,
             problem=instance.problem,
             response=truncate_text_tokens(
-                record.response,
+                item["response"],
                 max_tokens,
                 tokenizer=tokenizer,
             ),
-            predicted_answer=record.predicted_answer,
-            correct=bool(record.correct),
-            entropy=entropy_value(record),
+            predicted_answer=item["predicted_answer"],
+            correct=bool(item["correct"]),
+            entropy=entropy_value(item),
             origin_program_id=program.program_id,
             origin_concept_group=str(program.get_concept_group() or ""),
             origin_concept_type=str(program.get_concept_type() or ""),
@@ -238,7 +375,11 @@ def collect_planning_evidence(
     tokenizer=None,
 ) -> list[dict[str, Any]]:
     """Use same-program contrast for depth; allow cross-domain failure for breadth."""
-    own = list((parent.metadata or {}).get("reasoning_evidence") or [])
+    own = [
+        cleaned
+        for item in (parent.metadata or {}).get("reasoning_evidence") or []
+        if (cleaned := _clean_stored_evidence(dict(item), parent)) is not None
+    ]
     success = next((e for e in own if e.get("role") == "success"), None)
     failure = next((e for e in own if e.get("role") == "failure"), None)
 
@@ -258,8 +399,9 @@ def collect_planning_evidence(
             if champion.get_concept_group() == parent_group:
                 continue
             for item in (champion.metadata or {}).get("reasoning_evidence") or []:
-                if item.get("role") == "failure":
-                    cross_failures.append(dict(item))
+                cleaned = _clean_stored_evidence(dict(item), champion)
+                if cleaned is not None and cleaned.get("role") == "failure":
+                    cross_failures.append(cleaned)
         if cross_failures:
             cross_failures.sort(
                 key=lambda e: (
@@ -352,12 +494,24 @@ def validate_mutation_plan(plan: dict[str, Any], op: str) -> list[str]:
             errors.append(f"missing plan field: {field_name}")
     if errors:
         return errors
+    for field_name in REMOVED_PLAN_FIELDS:
+        if field_name in plan:
+            errors.append(
+                f"removed schema_version 3 plan field: {field_name}"
+            )
+    unexpected_fields = sorted(
+        set(plan) - set(REQUIRED_PLAN_FIELDS) - set(REMOVED_PLAN_FIELDS)
+    )
+    for field_name in unexpected_fields:
+        errors.append(
+            f"unexpected schema_version 3 plan field: {field_name}"
+        )
     try:
         schema_version = int(plan.get("schema_version", 0))
     except (TypeError, ValueError):
         schema_version = 0
-    if schema_version != 2:
-        errors.append("schema_version must be 2")
+    if schema_version != 3:
+        errors.append("schema_version must be 3")
     if str(plan.get("operator")) != op:
         errors.append(f"plan operator must be {op}")
     try:
@@ -370,12 +524,7 @@ def validate_mutation_plan(plan: dict[str, Any], op: str) -> list[str]:
         "failure_summary",
         "target_reasoning_move",
         "correct_wrong_contrast",
-        "insight_route",
-        "brute_route",
-        "equivalence_assertion",
-        "route_independence_reason",
-        "decoy_route",
-        "decoy_assertion",
+        "answer_route",
         "predicted_pre_behavior",
         "predicted_post_behavior",
         "heldout_evaluation",
@@ -391,21 +540,16 @@ def validate_mutation_plan(plan: dict[str, Any], op: str) -> list[str]:
     ):
         if not isinstance(plan.get(name), list) or not plan[name]:
             errors.append(f"plan field must be a non-empty list: {name}")
-    if str(plan.get("insight_route", "")).strip().lower() == str(
-        plan.get("decoy_route", "")
-    ).strip().lower():
-        errors.append("decoy_route must differ from insight_route")
-    equivalence = str(plan.get("equivalence_assertion", ""))
-    if "assert" not in equivalence or "==" not in equivalence:
-        errors.append("equivalence_assertion must contain an equality assert")
-    decoy_assertion = str(plan.get("decoy_assertion", ""))
-    if "assert" not in decoy_assertion or "!=" not in decoy_assertion:
-        errors.append("decoy_assertion must contain a non-equality assert")
-    if "continue" not in decoy_assertion:
-        errors.append("decoy_assertion must describe collision resampling with continue")
     for name in ("problem_output_contract", "answer_output_contract"):
         if not isinstance(plan.get(name), dict):
             errors.append(f"{name} must be an object")
+    problem_contract = plan.get("problem_output_contract")
+    if isinstance(problem_contract, dict):
+        closing = str(problem_contract.get("closing_instruction", "")).lower()
+        if "integer" not in closing:
+            errors.append(
+                "problem_output_contract.closing_instruction must request one integer"
+            )
     answer_contract = plan.get("answer_output_contract")
     if isinstance(answer_contract, dict):
         if str(answer_contract.get("type", "")).lower() != "integer":

@@ -1,11 +1,14 @@
+REFERENCE FORMAT ONLY.
+Do not reuse this example's mathematical object, formulas, parameters, labels,
+or code body for the live plan.
+
 MUTATION_PLAN_EXAMPLE:
 ```json
 {
+  "schema_version": 3,
   "operator": "in_breadth",
   "target_reasoning_move": "decompose into independent components and multiply counts after deriving one extra boundary choice per component",
-  "insight_route": "multiply boundary-plane pair counts",
-  "brute_route": "enumerate all lower and upper boundary tuples",
-  "decoy_route": "choose from cell counts instead of boundary counts"
+  "answer_route": "multiply the three boundary-plane pair counts"
 }
 ```
 
@@ -22,13 +25,10 @@ WHAT CHANGES
     values becomes selecting pairs of boundary planes. The vocabulary and
     CONCEPT_GROUP change from number theory to combinatorics.
 
-ROUTES
-    PATH A insight: C(a+1,2)C(b+1,2)C(c+1,2).
-    PATH B brute: enumerate every valid six-boundary tuple.
-    PATH C decoy: C(a,2)C(b,2)C(c,2).
+ANSWER ROUTE
+    Compute C(a+1,2)C(b+1,2)C(c+1,2).
 """
 
-import itertools
 import random
 import sympy
 
@@ -43,36 +43,13 @@ def generate(seed):
         b = rng.randint(4, 8)
         c = rng.randint(3, 7)
 
-        # PATH A: independent choices of two boundary planes on each axis.
-        answer_insight = int(
+        answer = int(
             sympy.binomial(a + 1, 2)
             * sympy.binomial(b + 1, 2)
             * sympy.binomial(c + 1, 2)
         )
-
-        # PATH B: literal enumeration, with no combination formula.
-        answer_brute = 0
-        for x0, x1 in itertools.combinations(range(a + 1), 2):
-            for y0, y1 in itertools.combinations(range(b + 1), 2):
-                for z0, z1 in itertools.combinations(range(c + 1), 2):
-                    if x0 < x1 and y0 < y1 and z0 < z1:
-                        answer_brute += 1
-        assert answer_insight == answer_brute
-
-        # PATH C: the live off-by-one error uses cells as boundary planes.
-        decoy = int(
-            sympy.binomial(a, 2)
-            * sympy.binomial(b, 2)
-            * sympy.binomial(c, 2)
-        )
-        if decoy == answer_insight:
+        if answer < 100:
             continue
-        assert decoy != answer_insight
-        assert decoy > 0
-
-        if answer_insight < 100:
-            continue
-        answer = answer_insight
         break
     else:
         raise RuntimeError(

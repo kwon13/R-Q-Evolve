@@ -188,11 +188,14 @@ def lint_metacognitive_generator_source(
     require_assert: bool = True,
     reject_trivial_assert: bool = True,
     reject_unbounded_sampling: bool = True,
+    require_answer_routes: bool = True,
 ) -> list[str]:
-    """Extra static contract for children generated from a MutationPlan.
+    """Extra static contract for generated mutation children.
 
-    This deliberately applies only to planned children; legacy seeds and legacy
-    mutations retain their historical validation behavior.
+    Schema-version 3 planned children use one executable ``answer`` route, so
+    callers disable ``require_answer_routes`` and ``require_assert`` for them.
+    Legacy mutation prompts can retain the historical independent
+    ``answer_insight``/``answer_brute`` cross-check.
     """
     try:
         tree = ast.parse(source_code)
@@ -226,11 +229,11 @@ def lint_metacognitive_generator_source(
         None,
     )
     if max_attempts != 200:
-        reasons.append("planned generator requires top-level MAX_ATTEMPTS = 200")
+        reasons.append("generated mutation requires top-level MAX_ATTEMPTS = 200")
 
     assertions = [node for node in ast.walk(generate) if isinstance(node, ast.Assert)]
     if require_assert and not assertions:
-        reasons.append("planned generator requires an assert inside generate()")
+        reasons.append("generated mutation requires an assert inside generate()")
 
     if reject_trivial_assert:
         for assertion in assertions:
@@ -249,7 +252,7 @@ def lint_metacognitive_generator_source(
                 and isinstance(node.test, ast.Constant)
                 and node.test.value is True
             ):
-                reasons.append("planned generator may not use while True")
+                reasons.append("generated mutation may not use while True")
                 break
         has_bounded_sampler = any(
             isinstance(node, ast.For)
@@ -272,86 +275,95 @@ def lint_metacognitive_generator_source(
         )
         if not has_bounded_sampler:
             reasons.append(
-                "planned generator requires `for ... in range(MAX_ATTEMPTS)` "
+                "generated mutation requires `for ... in range(MAX_ATTEMPTS)` "
                 "with an exhaustion else clause that raises RuntimeError"
             )
 
-    assigned_names = {
-        target.id
-        for node in ast.walk(generate)
-        if isinstance(node, (ast.Assign, ast.AnnAssign))
-        for target in (
-            list(node.targets)
-            if isinstance(node, ast.Assign)
-            else [node.target]
-        )
-        if isinstance(target, ast.Name)
-    }
-    if not any("decoy" in name.lower() for name in assigned_names):
-        reasons.append("planned generator must compute a named decoy value")
-    for route_name in ("answer_insight", "answer_brute"):
-        if route_name not in assigned_names:
-            reasons.append(f"planned generator must assign `{route_name}`")
-
-    has_route_equivalence_assert = any(
-        isinstance(assertion.test, ast.Compare)
-        and any(isinstance(op, ast.Eq) for op in assertion.test.ops)
-        and {
-            part.id
-            for part in [assertion.test.left, *assertion.test.comparators]
-            if isinstance(part, ast.Name)
+    if require_answer_routes:
+        assigned_names = {
+            target.id
+            for node in ast.walk(generate)
+            if isinstance(node, (ast.Assign, ast.AnnAssign))
+            for target in (
+                list(node.targets)
+                if isinstance(node, ast.Assign)
+                else [node.target]
+            )
+            if isinstance(target, ast.Name)
         }
-        >= {"answer_insight", "answer_brute"}
-        for assertion in assertions
-    )
-    if not has_route_equivalence_assert:
-        reasons.append(
-            "planned generator must assert "
-            "`answer_insight == answer_brute`"
-        )
+        for route_name in ("answer_insight", "answer_brute"):
+            if route_name not in assigned_names:
+                reasons.append(f"generated mutation must assign `{route_name}`")
 
-    decoy_collision_guards = [
-        node
-        for node in ast.walk(generate)
-        if isinstance(node, ast.If)
-        and isinstance(node.test, ast.Compare)
-        and any(isinstance(op, ast.Eq) for op in node.test.ops)
-        and any(
-            isinstance(part, ast.Name) and "decoy" in part.id.lower()
-            for part in [node.test.left, *node.test.comparators]
-        )
-        and any(
-            isinstance(part, ast.Name) and "answer" in part.id.lower()
-            for part in [node.test.left, *node.test.comparators]
-        )
-        and any(isinstance(child, ast.Continue) for child in ast.walk(node))
-    ]
-    if not decoy_collision_guards:
-        reasons.append(
-            "planned generator must resample accidental decoy collisions "
-            "with `if decoy == answer: continue` before asserting inequality"
-        )
+        route_assignments: dict[str, list[ast.AST]] = {
+            "answer_insight": [],
+            "answer_brute": [],
+        }
+        for node in ast.walk(generate):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            targets = (
+                list(node.targets)
+                if isinstance(node, ast.Assign)
+                else [node.target]
+            )
+            for target in targets:
+                if (
+                    isinstance(target, ast.Name)
+                    and target.id in route_assignments
+                ):
+                    route_assignments[target.id].append(node.value)
 
-    decoy_inequality_asserts = [
-        assertion
-        for assertion in assertions
-        if isinstance(assertion.test, ast.Compare)
-        and any(isinstance(op, ast.NotEq) for op in assertion.test.ops)
-        and any(
-            isinstance(part, ast.Name) and "decoy" in part.id.lower()
-            for part in [assertion.test.left, *assertion.test.comparators]
+        # Catch the common false cross-check where both route variables are
+        # aliases for one precomputed value. Restrict identical-RHS rejection
+        # to the single-assignment case so independent accumulators that both
+        # initialize at zero remain valid.
+        insight_values = route_assignments["answer_insight"]
+        brute_values = route_assignments["answer_brute"]
+        if len(insight_values) == 1 and len(brute_values) == 1:
+            if ast.dump(
+                insight_values[0],
+                include_attributes=False,
+            ) == ast.dump(
+                brute_values[0],
+                include_attributes=False,
+            ):
+                reasons.append(
+                    "answer_insight and answer_brute have identical assignments"
+                )
+        for route_name, other_name in (
+            ("answer_insight", "answer_brute"),
+            ("answer_brute", "answer_insight"),
+        ):
+            if any(
+                isinstance(child, ast.Name) and child.id == other_name
+                for value in route_assignments[route_name]
+                for child in ast.walk(value)
+            ):
+                reasons.append(
+                    f"`{route_name}` may not be computed from `{other_name}`"
+                )
+                break
+
+        has_route_equivalence_assert = any(
+            isinstance(assertion.test, ast.Compare)
+            and any(isinstance(op, ast.Eq) for op in assertion.test.ops)
+            and {
+                part.id
+                for part in [
+                    assertion.test.left,
+                    *assertion.test.comparators,
+                ]
+                if isinstance(part, ast.Name)
+            }
+            >= {"answer_insight", "answer_brute"}
+            for assertion in assertions
         )
-        and any(
-            isinstance(part, ast.Name) and "answer" in part.id.lower()
-            for part in [assertion.test.left, *assertion.test.comparators]
-        )
-    ]
-    if not decoy_inequality_asserts:
-        reasons.append("planned generator must assert that decoy != answer")
-    elif decoy_collision_guards and min(
-        node.lineno for node in decoy_collision_guards
-    ) > min(node.lineno for node in decoy_inequality_asserts):
-        reasons.append("decoy collision guard must appear before inequality assert")
+        if not has_route_equivalence_assert:
+            reasons.append(
+                "generated mutation must assert "
+                "`answer_insight == answer_brute`"
+            )
 
     # Randomness must flow through the seed-local rng. Creating Random(seed) is
     # required, and direct module-level random calls inside generate are rejected.
@@ -369,7 +381,7 @@ def lint_metacognitive_generator_source(
         for node in ast.walk(generate)
     )
     if not has_local_rng:
-        reasons.append("planned generator requires `rng = random.Random(seed)`")
+        reasons.append("generated mutation requires `rng = random.Random(seed)`")
     for node in ast.walk(generate):
         if (
             isinstance(node, ast.Call)
@@ -411,7 +423,7 @@ def lint_metacognitive_generator_source(
     )
     if not has_integer_serialization:
         reasons.append(
-            "planned generator must return "
+            "generated mutation must return "
             "`problem, str(sympy.Integer(answer))`"
         )
 

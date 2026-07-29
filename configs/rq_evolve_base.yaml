@@ -35,6 +35,14 @@ evolution:
   fix_retry: false
   use_evaluator: true        # LLM coherence gate on seed-0 problem before archive
   evaluator_provider: policy # policy = current rollout model; openai = OpenAI API
+  # Stage-specific sampling: solver rollouts keep the verl rollout temperature
+  # below; mutation planning gets diversity while code/evaluation stay stable.
+  plan_temperature: 0.7
+  plan_top_p: 0.95
+  code_temperature: 0.2
+  code_top_p: 0.95
+  evaluator_temperature: 0.0
+  evaluator_top_p: 1.0
   # evaluator_model: gpt-5.4-mini
   # evaluator_reasoning_effort: low
   # evaluator_timeout_s: 30
@@ -49,13 +57,11 @@ metacognition:
   trace_storage_max_tokens: 4096
   monitoring_total_trace_tokens: 4096
   plan_max_output_tokens: 1024
-  # Empty/one-sided evidence is expected during bootstrap. The planner must
-  # state that uncertainty; if its JSON is invalid, keep the run alive through
-  # the legacy mutation prompt rather than spending extra Solver rollouts.
-  require_contrast_pair: false
+  # Empty/one-sided evidence is expected during bootstrap. Do not ask the
+  # metacognitive planner to invent a failure; keep the run alive through the
+  # legacy mutation prompt rather than spending extra Solver rollouts.
+  require_contrast_pair: true
   fallback_to_legacy_mutation: true
-  require_assert: true
-  reject_trivial_assert: true
   reject_unbounded_sampling: true
   # Attribute pre-update delta-p to the operator that created each champion,
   # then softly bias future operator sampling without eliminating exploration.

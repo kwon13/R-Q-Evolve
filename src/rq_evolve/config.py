@@ -44,6 +44,16 @@ class EvolutionConfig:
     evaluator_timeout_s: float = 60.0
     evaluator_max_output_tokens: int = 512
     evaluator_concurrency: int = 8
+    # Solver rollouts keep using actor_rollout_ref.rollout.{temperature,top_p}.
+    # Mutation stages are deliberately decoupled: planning benefits from some
+    # diversity, while code and evaluator outputs are contract-heavy and should
+    # be much more deterministic.
+    plan_temperature: float = 0.7
+    plan_top_p: float = 0.95
+    code_temperature: float = 0.2
+    code_top_p: float = 0.95
+    evaluator_temperature: float = 0.0
+    evaluator_top_p: float = 1.0
     # Ablation: drop the H/uncertainty term ONLY from the priority that drives
     # evolution -- which champions are picked as mutation parents and which are
     # drained into the training batch -- so those decisions rank by s(1-s)
@@ -78,6 +88,17 @@ class EvolutionConfig:
             raise ValueError("evolution.evaluator_max_output_tokens must be >= 1")
         if self.evaluator_concurrency < 1:
             raise ValueError("evolution.evaluator_concurrency must be >= 1")
+        for name in (
+            "plan_temperature",
+            "code_temperature",
+            "evaluator_temperature",
+        ):
+            if float(getattr(self, name)) < 0.0:
+                raise ValueError(f"evolution.{name} must be >= 0")
+        for name in ("plan_top_p", "code_top_p", "evaluator_top_p"):
+            value = float(getattr(self, name))
+            if not 0.0 < value <= 1.0:
+                raise ValueError(f"evolution.{name} must be in (0, 1]")
 
 
 @dataclass(slots=True)
@@ -88,10 +109,11 @@ class MetacognitionConfig:
     trace_storage_max_tokens: int = 4096
     monitoring_total_trace_tokens: int = 4096
     plan_max_output_tokens: int = 1024
-    require_contrast_pair: bool = False
+    # A metacognitive plan must be grounded in one clean correct/wrong pair.
+    # During bootstrap, fall back to the legacy mutation prompt rather than
+    # letting a sparse-evidence planner copy a content-rich few-shot example.
+    require_contrast_pair: bool = True
     fallback_to_legacy_mutation: bool = True
-    require_assert: bool = True
-    reject_trivial_assert: bool = True
     reject_unbounded_sampling: bool = True
     adaptive_operator: bool = False
     operator_min_probability: float = 0.2

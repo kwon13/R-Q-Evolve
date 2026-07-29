@@ -7,7 +7,9 @@ from rq_evolve.code_utils import lint_metacognitive_generator_source
 from rq_evolve.config import MetacognitionConfig
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.metacognition import (
+    clean_and_grade_solver_rollout,
     compute_meta_progress,
+    sanitize_solver_trace,
     select_reasoning_evidence,
 )
 from rq_evolve.program import ProblemProgram
@@ -112,6 +114,62 @@ def test_evidence_reuses_one_correct_and_one_confident_wrong_trace():
     assert len(evidence[1].response.split()) <= 4  # marker is inside the budget
 
 
+def test_evidence_trims_second_chat_and_regrades_first_answer():
+    program = _program()
+    instance = program.execute(0)
+    assert instance is not None
+    contaminated = _record(
+        (
+            r"Correct route gives \boxed{11}."
+            "\nPlease reason step by step, and put your final answer within boxed."
+            "\nAssistant: user\nUnrelated problem. "
+            r"\boxed{12}"
+        ),
+        False,
+        0.05,
+    )
+    contaminated.predicted_answer = "12"
+    actual_wrong = _record(r"Wrong arithmetic gives \boxed{12}.", False, 0.2)
+
+    evidence = select_reasoning_evidence(
+        [contaminated, actual_wrong],
+        program=program,
+        instance=instance,
+        iteration=0,
+        max_tokens=100,
+    )
+
+    assert [item.role for item in evidence] == ["success", "failure"]
+    assert evidence[0].predicted_answer == "11"
+    assert "Unrelated problem" not in evidence[0].response
+    assert sanitize_solver_trace(contaminated.response).endswith(r"\boxed{11}.")
+
+
+def test_cleaned_rollout_grade_uses_first_conversation_answer():
+    program = _program()
+    instance = program.execute(0)
+    assert instance is not None
+    contaminated = _record(
+        (
+            r"Correct route gives \boxed{11}."
+            "\nAssistant: user\nUnrelated problem. "
+            r"\boxed{12}"
+        ),
+        False,
+        0.05,
+    )
+    contaminated.predicted_answer = "12"
+
+    cleaned, predicted, correct = clean_and_grade_solver_rollout(
+        contaminated,
+        instance,
+    )
+
+    assert cleaned == r"Correct route gives \boxed{11}."
+    assert predicted == "11"
+    assert correct is True
+
+
 def test_meta_progress_uses_pre_update_fixed_cohort():
     first = _program("first")
     second = _program("second")
@@ -212,7 +270,7 @@ def test_metacognitive_controller_state_round_trips_with_archive(tmp_path):
     assert restored.current_iteration == 9
 
 
-def test_synthetic_plan_shots_follow_schema_v2():
+def test_synthetic_plan_shots_follow_schema_v3_without_comparison_routes():
     shot_dir = Path("prompt_templates/shots")
     for filename, op in (
         ("metacognitive_in_depth.txt", "in_depth"),
@@ -223,8 +281,16 @@ def test_synthetic_plan_shots_follow_schema_v2():
             op,
         )
         assert plan is not None, reason
-        assert plan["schema_version"] == 2
-        assert "continue" in plan["decoy_assertion"]
+        assert plan["schema_version"] == 3
+        assert plan["answer_route"]
+        assert not {
+            "insight_route",
+            "brute_route",
+            "equivalence_assertion",
+            "route_independence_reason",
+            "decoy_route",
+            "decoy_assertion",
+        } & plan.keys()
 
 
 def test_breadth_plan_preserves_inherited_reasoning_move_as_exact_join_key():
@@ -247,7 +313,31 @@ def test_plan_parser_skips_reasoning_braces_before_valid_json():
     output = '<think>{"draft": true}</think>\n' + shot
     plan, reason = parse_mutation_plan(output, "in_depth")
     assert plan is not None, reason
-    assert plan["schema_version"] == 2
+    assert plan["schema_version"] == 3
+
+
+def test_plan_parser_rejects_removed_or_unexpected_route_fields():
+    shot = Path(
+        "prompt_templates/shots/metacognitive_in_depth.txt"
+    ).read_text(encoding="utf-8")
+    plan, reason = parse_mutation_plan(shot, "in_depth")
+    assert plan is not None, reason
+
+    import json
+
+    for field_name, expected_reason in (
+        ("brute_route", "removed schema_version 3 plan field"),
+        ("decoy", "unexpected schema_version 3 plan field"),
+        ("answer_brute", "unexpected schema_version 3 plan field"),
+        ("wrong_answer_route", "unexpected schema_version 3 plan field"),
+    ):
+        contaminated = {**plan, field_name: "obsolete extra computation"}
+        rejected, reason = parse_mutation_plan(
+            json.dumps(contaminated),
+            "in_depth",
+        )
+        assert rejected is None
+        assert f"{expected_reason}: {field_name}" in reason
 
 
 def test_prepare_mutation_runs_planning_before_code_task_without_solver_rollout():
@@ -284,30 +374,64 @@ def test_prepare_mutation_runs_planning_before_code_task_without_solver_rollout(
     assert len(backend.mutation_batches) == 1
     assert backend.mutation_batches[0][0].stage == "plan"
     assert backend.mutation_batches[0][0].max_output_tokens == 1024
+    assert backend.mutation_batches[0][0].temperature == 0.7
+    assert backend.mutation_batches[0][0].top_p == 0.95
     assert backend.mutation_batches[0][0].messages[-1]["role"] == "user"
     assert "PARENT_PROGRAM:" in backend.mutation_batches[0][0].messages[-1]["content"]
     assert "Few-shot examples:" not in backend.mutation_batches[0][0].messages[-1]["content"]
     assert tasks[0].stage == "code"
-    assert tasks[0].mutation_plan["schema_version"] == 2
+    assert tasks[0].temperature == 0.2
+    assert tasks[0].top_p == 0.95
+    assert tasks[0].mutation_plan["schema_version"] == 3
     assert tasks[0].plan_status == "planned"
     assert tasks[0].messages[-1]["content"].rstrip().endswith("CHILD_PROGRAM:")
+    planned_prompt = "\n".join(message["content"] for message in tasks[0].messages)
+    assert "answer_route" in planned_prompt
+    assert "answer_brute" not in planned_prompt
+    assert "decoy_route" not in planned_prompt
 
 
-def test_planned_lint_requires_decoy_collision_resampling():
-    valid = '''
+def test_planned_lint_accepts_one_answer_route_without_crosscheck_or_assert():
+    source = '''
 import random
 import sympy
 MAX_ATTEMPTS = 200
 def generate(seed):
     rng = random.Random(seed)
     for _ in range(MAX_ATTEMPTS):
-        answer_insight = rng.randint(2, 20)
-        answer_brute = sum(1 for _ in range(answer_insight))
+        n = rng.randint(5, 20)
+        answer = n * (n + 1) // 2
+        problem = f"Find the sum of the integers from 1 through {n}."
+        return problem, str(sympy.Integer(answer))
+    else:
+        raise RuntimeError("exhausted")
+CONCEPT_REASON = "count"
+CONCEPT_GROUP = "combinatorics"
+CONCEPT_TYPE = "combinatorics.count"
+'''
+    assert lint_metacognitive_generator_source(
+        source,
+        require_assert=False,
+        require_answer_routes=False,
+    ) == []
+    assert any(
+        "answer_insight" in reason
+        for reason in lint_metacognitive_generator_source(source)
+    )
+
+
+def test_legacy_lint_still_rejects_identical_route_assignments():
+    source = '''
+import random
+import sympy
+MAX_ATTEMPTS = 200
+def generate(seed):
+    rng = random.Random(seed)
+    for _ in range(MAX_ATTEMPTS):
+        value = rng.randint(2, 20)
+        answer_insight = value
+        answer_brute = value
         assert answer_insight == answer_brute
-        decoy = answer_insight - 1
-        if decoy == answer_insight:
-            continue
-        assert decoy != answer_insight
         answer = answer_insight
         break
     else:
@@ -317,12 +441,49 @@ CONCEPT_REASON = "count"
 CONCEPT_GROUP = "combinatorics"
 CONCEPT_TYPE = "combinatorics.count"
 '''
-    assert lint_metacognitive_generator_source(valid) == []
-    invalid = valid.replace(
-        "        if decoy == answer_insight:\n            continue\n",
-        "",
-    )
     assert any(
-        "resample accidental decoy collisions" in reason
-        for reason in lint_metacognitive_generator_source(invalid)
+        "identical assignments" in reason
+        for reason in lint_metacognitive_generator_source(source)
     )
+
+
+def test_verify_program_uses_v3_plan_contract_even_when_planning_is_disabled():
+    source = '''
+import random
+import sympy
+
+MAX_ATTEMPTS = 200
+
+def generate(seed):
+    rng = random.Random(seed)
+    for _ in range(MAX_ATTEMPTS):
+        n = rng.randint(5, 20)
+        answer = n * (n + 1) // 2
+        problem = (
+            f"Find the sum of all positive integers from 1 through {n}. "
+            "State only the integer."
+        )
+        return problem, str(sympy.Integer(answer))
+    else:
+        raise RuntimeError("exhausted")
+
+CONCEPT_REASON = "Sum a finite arithmetic sequence."
+CONCEPT_GROUP = "sequence"
+CONCEPT_TYPE = "sequence.arithmetic_sum"
+'''
+    child = ProblemProgram(
+        source_code=source,
+        metadata={
+            "op": "in_depth",
+            "mutation_plan": {"schema_version": 3, "answer_route": "sum 1..n"},
+        },
+    )
+    evolver = RQEvolver(
+        archive=MAPElitesArchive(),
+        backend=ScriptedBackend([]),
+        metacognition_config=MetacognitionConfig(enabled=False),
+    )
+
+    instance, reason = evolver.verify_program(child, n_seeds=5)
+
+    assert instance is not None, reason

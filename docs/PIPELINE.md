@@ -43,9 +43,10 @@ attached to its programs plus a small operator EMA.
 
 ```text
 existing G rollouts
-  -> shortest correct + lowest-entropy wrong (each <= 4096 tokens)
-  -> Monitoring + MutationPlan JSON
-  -> planned Python generator
+  -> shortest clean correct + lowest-entropy completed clean wrong
+     (same problem/seed/policy; decoding loops and truncation excluded)
+  -> Monitoring + schema-v5 MutationPlan JSON
+  -> registered family compiler (or quarantined free-form diagnostic)
   -> static/runtime/LLM evaluation
   -> existing R_Q insertion rule
 
@@ -57,10 +58,33 @@ next Solver update
   -> only now re-bin, replace, or remove R_Q=0 champions
 ```
 
-Plan schema v3 requires one executable `answer_route`, `MAX_ATTEMPTS=200`,
-seed-local deterministic randomness, and one base-10 integer answer. The
-correct/wrong trace contrast selects the mutation target, but the generated
-program does not reproduce the wrong trace as another answer computation.
+Plan schema v5 keeps one executable `answer_route`, exact target labels, and a
+checkable `necessity:` witness, then selects a registered `generator_family`
+with typed `family_config`. Python owns `MAX_ATTEMPTS=200`, seed-local
+randomness, the canonical `instance_data` shape, rendering, answer
+serialization, and family-specific mathematical assertions. This removes those
+mechanical constraints from the model's creative planning task. Unknown
+families and legacy schema-v4 plans are explicitly quarantined: hybrid mode may
+generate and score them as diagnostics, but they cannot enter the archive or
+training data. Compiler/spec failures are terminal and never trigger a
+lint-feedback retry.
+
+The standalone hypothesis comparison is stricter than the historical legacy
+comparison: both plain and reasoning-informed conditions receive the same
+registered family route and run one plan call. Registered plans are compiled
+without a code-model call; unsupported free-form plans are quarantined. Plain
+planning receives the parent only; reasoning-informed planning receives the
+additional clean contrast. Neutral padding length-matches the two plan inputs.
+The manifest records generation path, family, compiler version/source hash, and
+actual call count so paired-route parity can be audited before confirmatory
+analysis.
+
+All repository-owned standalone vLLM evaluation/comparison entry points default
+to `--vllm-sampler-backend pytorch`.
+FlashInfer 0.6.x attempts to JIT-compile CUDA 12-only sampling extensions, while
+some hosts use a CUDA 12 PyTorch wheel with an older CUDA 11.8 system `nvcc`.
+The native sampler avoids that engine-startup failure; the selected backend is
+recorded in the run manifest.
 
 ## Evolution Candidate State
 
@@ -126,7 +150,8 @@ Evaluator 인증·호출 오류는 report로 기록하지 않고 실험을 즉�
 ### Milestone 2: Mutation Quality
 
 - Edit `prompt_templates/in_depth.txt` and `prompt_templates/in_breadth.txt`.
-- Edit `prompt_templates/shots/in_depth.txt` and `prompt_templates/shots/in_breadth.txt` for mutation-specific few-shot examples.
+- Keep `prompt_templates/shots/*.txt` as offline fixtures; live mutation calls
+  omit content-rich shots to avoid example copying.
 - Add score-aware feedback from parent `p_hat` and uncertainty.
 - Add execution-failure feedback for rejected children.
 

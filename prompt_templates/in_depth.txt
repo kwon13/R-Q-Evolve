@@ -6,16 +6,31 @@ statement. Merely increasing ranges, using larger numbers, renaming variables,
 adding hidden coefficients, or making the statement harder to parse is not an
 in-depth mutation.
 
-Inside generate, the answer must be cross-checked through two genuinely independent computational routes to prove that the conceptual fusion is real. The first route is the INSIGHT route, which corresponds to the short or collapsed reasoning path that the solver is expected to discover. The second route is the BRUTE route, which corresponds to a naive or expanded computation that does not use the intended insight. The final answer should be assigned from one of these routes, and the implementation must assert that it agrees with the other route.
-A valid cross-check requires that the two routes compute the same mathematical quantity through genuinely different procedures. Trivial checks such as assert answer == answer, recomputing the exact same expression twice, or comparing the result against a hard-coded literal are invalid and indicate that the fusion has failed. In that case, the generator design itself must be revised rather than merely changing the assertion. If two independent routes that necessarily agree cannot be written, then the two concepts are not truly fused into a single object, and the generator should not be submitted until it is redesigned.
-The generator should also include appropriate guards to avoid degenerate choices of parameters such as (r), (n), or cases where the answer can be guessed by inspection. These guards should ensure that the brute-force route remains finite and checkable, while still being sufficiently unattractive compared to the intended insight route.
+Make that move mathematically or information-critical, not merely faster,
+simpler, or less error-prone. The ordinary parent route must be structurally
+insufficient, ambiguous, or inapplicable while the added move uniquely
+determines the requested integer. For aggregate or invariant targets, prefer a
+construction where the full latent state is not unique but the requested
+integer is unique; do not emit a fully determined generic instance that can
+bypass the move.
+
+Inside generate, compute one integer-valued `answer` from the mathematical object
+stated in problem_text. One answer computation is sufficient. Include appropriate
+guards to avoid degenerate parameter choices or cases where the answer can be
+guessed by inspection.
 Use MAX_ATTEMPTS = 200 and bounded deterministic sampling. Ensure all guards
-are jointly satisfiable and that seeds 0 through 4 terminate.
+are jointly satisfiable, seeds 0 through 4 terminate, and at least two distinct
+visible problem instances occur across those seeds. A mathematically valid
+constant answer is allowed when the reasoning remains nontrivial.
 
 Problem/code equivalence is mandatory: the literal mathematical definition in
-problem_text must be the same definition used by both answer routes. The brute
-route must reconstruct the answer from the stated definition rather than reuse
-an insight-side intermediate.
+problem_text must be the same definition used by the answer computation. Every
+quantity used to compute the answer must be visible or unambiguously defined in
+the problem. After all transformations, store the final visible object once in
+`instance_data`; compute `answer` from it, render `problem` from it, and include
+one non-trivial semantic comparison linking `instance_data` and `answer`
+through an identity different from the answer assignment. Never format from
+stale pre-transformation aliases.
 
 Output rules for the generated problem_text:
 - Never state the answer or any intermediate value (no "= <number>" lines, no
@@ -33,5 +48,7 @@ PARENT_PROGRAM:
 ```python
 $parent_source
 ```
+
+$reasoning_evidence
 
 CHILD_PROGRAM:

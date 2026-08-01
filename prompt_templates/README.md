@@ -4,7 +4,8 @@ Edit these files to control mutation prompts:
 
 - `in_depth.txt`: same-domain deeper mutation
 - `in_breadth.txt`: different-domain breadth mutation
-- `metacognitive_plan.txt`: monitoring evidence + pre-update delta-p to JSON plan
+- `metacognitive_plan.txt`: shared plain/reasoning planning schema; reasoning
+  condition additionally receives monitoring evidence
 - `planned_in_depth.txt`: validated in-depth plan to Python
 - `planned_in_breadth.txt`: validated in-breadth plan to Python
 
@@ -17,13 +18,19 @@ Put few-shot examples here:
 - `shots/planned_in_depth.txt`
 - `shots/planned_in_breadth.txt`
 
-Few-shots are format references, not reusable mutation content. Live legacy
-and plan-conditioned code generation intentionally omit code-rich shots from
-the chat conversation to prevent greedy decoding from copying an example.
-Metacognitive planning keeps a schema example, but only runs when one clean
-correct/wrong evidence pair is available. Schema version 3 specifies one
-executable `answer_route`; the wrong trace is planning evidence rather than a
-second computation embedded in the child generator.
+Few-shots are offline format fixtures, not reusable mutation content. Live
+generation omits content-rich shots from the chat conversation to prevent
+greedy decoding from copying an example. The paired comparison uses the same
+schema-v5 family catalog and resolver for both conditions: plain planning sees
+only the parent, while reasoning-informed planning additionally receives one
+clean same-problem correct/wrong pair. Schema version 5 adds
+`generator_family` and typed `family_config` to the single `answer_route`
+contract. Registered families are compiled into the mechanical Python
+generator skeleton and checked by family-specific mathematical validators, so
+no code-generation model call is needed. Unknown `free_form.*` ideas may be
+retained for diagnostics in hybrid mode, but are quarantined from the archive
+and training data. Legacy schema-v4 plans remain parseable only for this
+quarantined compatibility path.
 
 The code reads this directory by default. To use another directory, set:
 
@@ -57,9 +64,14 @@ Metacognitive templates additionally receive:
 
 - `$operator`
 - `$operator_contract`
+- `$target_label_contract`
+- `$necessity_contract`
+- `$planning_condition`
+- `$evidence_contract`
 - `$inherited_reasoning_move`
 - `$behavioral_evidence`
 - `$meta_progress`
+- `$registered_generator_families`
 - `$mutation_plan`
 - `$plan_id`
 

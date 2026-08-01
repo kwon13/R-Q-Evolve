@@ -36,16 +36,21 @@ delta_p_group[number_theory]=+0.11; delta_p_group[combinatorics]=+0.01
 MUTATION_PLAN_EXAMPLE:
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 5,
   "operator": "in_breadth",
   "failure_summary": "The wrong trace multiplies the prime exponents themselves and omits the zero-through-exponent choices that create one extra option per factor.",
   "target_reasoning_move": "decompose into independent components and multiply counts after deriving one extra boundary choice per component",
   "correct_wrong_contrast": "Both traces factor 360 and multiply per-prime counts; only the correct trace derives that exponent 0 is also available, changing each e to e+1.",
+  "target_concept_group": "combinatorics",
+  "target_concept_type": "combinatorics.grid_box_count",
+  "generator_family": "free_form.grid_box_count",
+  "family_config": {},
+  "why_target_reasoning_move_is_necessary": "The problem states unit-cell dimensions but asks for boxes determined by boundary planes, so counting directly from the cell values omits one boundary per axis and gives a different result.",
   "preserve": ["the exact target_reasoning_move", "one integer count"],
   "change": ["number-theory object to a 3D unit-cell grid", "factor exponents to boundary-plane pairs", "CONCEPT_GROUP to combinatorics"],
   "forbidden_changes": ["divisor or factor vocabulary", "a disguised product of exponent-plus-one values"],
   "parameters": [{"name": "a,b,c", "domain": "unit-cell dimensions 3..8"}],
-  "guards": ["box count is nontrivial", "each dimension is at least 3", "seeds 0 through 4 terminate"],
+  "guards": ["necessity: cell dimensions undercount boundary choices unless each axis is converted to its boundary-plane count", "box count is nontrivial", "each dimension is at least 3", "seeds 0 through 4 terminate"],
   "max_sampling_attempts": 200,
   "answer_route": "choose two of a+1, b+1, and c+1 boundary planes on each axis, then multiply the three pair counts",
   "problem_output_contract": {"states": ["three grid dimensions"], "withholds": ["boundary-plane model", "counting formula"], "closing_instruction": "State only the integer count."},

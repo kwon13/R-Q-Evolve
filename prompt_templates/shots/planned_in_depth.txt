@@ -5,9 +5,14 @@ or code body for the live plan.
 MUTATION_PLAN_EXAMPLE:
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 5,
   "operator": "in_depth",
   "target_reasoning_move": "test a theorem precondition before selecting an exponent reduction",
+  "target_concept_group": "number_theory",
+  "target_concept_type": "number_theory.modular_reduction",
+  "generator_family": "free_form.modular_exponent_reduction",
+  "family_config": {},
+  "why_target_reasoning_move_is_necessary": "The composite modulus makes prime-only exponent reduction return a different residue.",
   "answer_route": "factor m, reduce b modulo phi(m), and compute the modular power"
 }
 ```

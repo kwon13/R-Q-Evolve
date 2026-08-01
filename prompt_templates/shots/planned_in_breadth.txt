@@ -5,9 +5,14 @@ or code body for the live plan.
 MUTATION_PLAN_EXAMPLE:
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 5,
   "operator": "in_breadth",
   "target_reasoning_move": "decompose into independent components and multiply counts after deriving one extra boundary choice per component",
+  "target_concept_group": "combinatorics",
+  "target_concept_type": "combinatorics.grid_rectangular_boxes",
+  "generator_family": "free_form.grid_rectangular_boxes",
+  "family_config": {},
+  "why_target_reasoning_move_is_necessary": "Cell counts must be converted to boundary-plane counts before independent axis choices can be multiplied.",
   "answer_route": "multiply the three boundary-plane pair counts"
 }
 ```

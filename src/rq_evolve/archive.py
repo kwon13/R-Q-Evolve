@@ -11,6 +11,11 @@ from .concepts import DEFAULT_CONCEPT_TYPES, CONCEPT_GROUPS
 from .program import ProblemProgram
 from .scoring import selection_priority
 
+# Attribution sub-cells reserved per concept type on the belief-keyed D axis.
+# Fixed rather than derived from the live catalog so the grid shape -- and with
+# it archive capacity -- stays identical across experimental conditions.
+MAX_HYPOTHESES_PER_TYPE = 4
+
 
 @dataclass
 class Niche:
@@ -42,7 +47,12 @@ class MAPElitesArchive:
         select_ignores_uncertainty: bool = False,
         select_ignores_variance: bool = False,
     ) -> None:
-        if diversity_axis not in {"concept_group", "concept_type", "hash"}:
+        if diversity_axis not in {
+            "concept_group",
+            "concept_type",
+            "attributed_hypothesis",
+            "hash",
+        }:
             raise ValueError(f"unknown diversity_axis: {diversity_axis}")
         if selection_strategy not in {"ucb", "random"}:
             raise ValueError(f"unknown selection_strategy: {selection_strategy}")
@@ -57,6 +67,10 @@ class MAPElitesArchive:
             n_div_bins = len(CONCEPT_GROUPS)
         elif diversity_axis == "concept_type":
             n_div_bins = len(DEFAULT_CONCEPT_TYPES)
+        elif diversity_axis == "attributed_hypothesis":
+            # One cell per (concept_type, attributed attitude). The attribution
+            # only chooses the cell; R_Q alone still decides its champion.
+            n_div_bins = len(DEFAULT_CONCEPT_TYPES) * MAX_HYPOTHESES_PER_TYPE
 
         self.n_h_bins = int(n_h_bins)
         self.n_div_bins = int(n_div_bins)
@@ -95,6 +109,35 @@ class MAPElitesArchive:
             if concept_type not in DEFAULT_CONCEPT_TYPES:
                 return _stable_hash(concept_type or problem_text) % self.n_div_bins
             return DEFAULT_CONCEPT_TYPES.index(concept_type)
+        if self.diversity_axis == "attributed_hypothesis":
+            concept_type = program.get_concept_type()
+            hypothesis = str(
+                (program.metadata or {}).get("attributed_hypothesis") or ""
+            )
+            if concept_type in DEFAULT_CONCEPT_TYPES:
+                base = DEFAULT_CONCEPT_TYPES.index(concept_type)
+            else:
+                base = _stable_hash(concept_type or problem_text) % len(
+                    DEFAULT_CONCEPT_TYPES
+                )
+            offset = 0
+            if hypothesis:
+                from .belief_probe import hypothesis_slot
+
+                slot = hypothesis_slot(hypothesis)
+                # Fall back to hashing only for an id outside the catalog; a
+                # registered attribution always gets its own distinct sub-cell.
+                offset = (
+                    slot
+                    if slot is not None
+                    else _stable_hash(hypothesis) % MAX_HYPOTHESES_PER_TYPE
+                )
+                if not 0 <= offset < MAX_HYPOTHESES_PER_TYPE:
+                    raise ValueError(
+                        f"hypothesis slot {offset} exceeds the reserved "
+                        f"{MAX_HYPOTHESES_PER_TYPE} sub-cells per concept type"
+                    )
+            return base * MAX_HYPOTHESES_PER_TYPE + offset
         return _stable_hash(problem_text or program.program_id) % self.n_div_bins
 
     def try_insert(
@@ -302,13 +345,13 @@ class MAPElitesArchive:
         return purged
 
     def _passes_seed_variation(self, program: ProblemProgram, n_seeds: int = 5) -> bool:
-        """Strict seed-variation gate (evo-sample champion_passes_validity).
+        """Require valid execution and visible variation across verification seeds.
 
-        Reject unless ALL n_seeds produce a valid instance AND the problems are
-        all distinct AND the answers are all distinct. Near-constant or
-        thin-rewording generators are blocked. ``lint_problem_instance`` stands
-        in for evo-sample's domain-specific ``looks_broken``. Cached by
-        rq_score, so champion re-evaluation (which changes rq_score) re-runs it.
+        Constant answers can be mathematically legitimate (for example an
+        invariant or feasibility family), so answer diversity is diagnostic
+        rather than a validity requirement. Hidden seed-dependent answers behind
+        one unchanged problem are rejected because the visible instances must
+        themselves vary.
         """
         rq_now = float(getattr(program, "rq_score", 0.0) or 0.0)
         cache = (program.metadata or {}).get("validity_check")
@@ -327,17 +370,15 @@ class MAPElitesArchive:
             if not answer or lint_problem_instance(inst):
                 n_broken += 1
                 continue
-            problems.append((inst.problem or "").strip())
+            problems.append(" ".join((inst.problem or "").split()))
             answers.append(answer)
 
         n_total = n_seeds
-        if len(answers) == n_total:
-            seed_invariant = (
-                len(set(problems)) < n_total or len(set(answers)) < n_total
-            )
-        else:
-            seed_invariant = len(answers) >= 2 and len(set(answers)) == 1
-        passed = n_broken == 0 and not seed_invariant and len(answers) == n_total
+        passed = (
+            n_broken == 0
+            and len(answers) == n_total
+            and (n_total <= 1 or len(set(problems)) >= 2)
+        )
 
         program.metadata["validity_check"] = {
             "passed": passed,

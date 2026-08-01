@@ -33,16 +33,21 @@ delta_p_global=+0.06; delta_p_type[number_theory.modular_reduction]=+0.02
 MUTATION_PLAN_EXAMPLE:
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 5,
   "operator": "in_depth",
   "failure_summary": "The wrong trace applies Fermat without testing whether the modulus is prime; its modular arithmetic is otherwise fluent.",
   "target_reasoning_move": "test a theorem precondition before selecting an exponent reduction",
   "correct_wrong_contrast": "The divergence occurs at theorem selection, before the shared final modular arithmetic.",
+  "target_concept_group": "number_theory",
+  "target_concept_type": "number_theory.modular_reduction",
+  "generator_family": "free_form.modular_exponent_reduction",
+  "family_config": {},
+  "why_target_reasoning_move_is_necessary": "The visible modulus is composite and the exponent is too large for direct expansion; treating it as prime gives a different residue, so the solver must test the reduction theorem's precondition.",
   "preserve": ["CONCEPT_GROUP number_theory", "CONCEPT_TYPE number_theory.modular_reduction"],
   "change": ["use a composite modulus whose factorization must be recognized", "make direct exponentiation unattractive"],
   "forbidden_changes": ["parameter scaling without a decision point", "naming Fermat or Euler in problem_text"],
   "parameters": [{"name": "m", "domain": "composite 12..35"}, {"name": "a", "domain": "2..m-1 with gcd(a,m)=1"}, {"name": "b", "domain": "m^2..m^3"}],
-  "guards": ["gcd(a,m)=1", "answer avoids trivial residues 0, 1, and m-1", "seeds 0 through 4 terminate"],
+  "guards": ["necessity: the visible composite modulus makes prime-only reduction invalid while factorization and Euler reduction determine one residue", "gcd(a,m)=1", "answer avoids trivial residues 0, 1, and m-1", "seeds 0 through 4 terminate"],
   "max_sampling_attempts": 200,
   "answer_route": "factor m, compute phi(m), reduce b modulo phi(m), then compute pow(a, reduced_exponent, m)",
   "problem_output_contract": {"states": ["a", "b", "m"], "withholds": ["factorization", "theorem choice"], "closing_instruction": "State only the integer remainder."},

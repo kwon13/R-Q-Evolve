@@ -25,10 +25,31 @@ class EvolutionConfig:
     in_depth_ratio: float = 0.5
     verify_seeds: int = 5
     frontier_p_hat_range: tuple[float, float] = (0.1, 0.9)
+    # Planned mutations can be compiled by a trusted registered family instead
+    # of asking the policy to reproduce boilerplate Python contracts.
+    #
+    # freeform      -> historical plan-to-code LLM path;
+    # hybrid        -> compile registered families, quarantine unsupported
+    #                  free-form exploration;
+    # compiler_only -> reject/quarantine every unsupported family without a
+    #                  code-model call.
+    mutation_code_backend: str = "freeform"
+    # How reasoning evidence reaches the mutation.
+    #
+    # planned -> the evidence is summarised into a structured plan first, and
+    #            the plan drives generation (the historical path);
+    # direct  -> the correct/wrong solver traces are placed in the code-writing
+    #            prompt itself, with no plan step. Chosen because summarising
+    #            was where the information was lost: a plan described "the
+    #            solver incorrectly adds the equations" when the addition was
+    #            arithmetically fine. The direct path costs one fewer model
+    #            call and relaxes the compiler-shaped notation lint, so it
+    #            leans on execution-level verification instead.
+    mutation_contract: str = "planned"
     # When True, a child that parses but fails verification gets ONE multi-turn
     # self-fix attempt: the model is shown its own program + the rejection reason
     # and asked to fix only that issue.
-    fix_retry: bool = True
+    fix_retry: bool = False
     # When True, every lint-verified child (including fix-retry survivors) passes
     # an LLM coherence gate on its seed-0 problem before solver rollout / archive
     # insertion. A problem the evaluator marks INVALID is discarded -- a final
@@ -72,6 +93,31 @@ class EvolutionConfig:
     select_ignores_variance: bool = False
 
     def __post_init__(self) -> None:
+        if self.mutation_code_backend not in (
+            "freeform",
+            "hybrid",
+            "compiler_only",
+        ):
+            raise ValueError(
+                "evolution.mutation_code_backend must be one of "
+                "freeform|hybrid|compiler_only"
+            )
+        if self.mutation_contract not in ("planned", "direct"):
+            raise ValueError(
+                "evolution.mutation_contract must be 'planned' or 'direct', "
+                f"got {self.mutation_contract!r}"
+            )
+        if self.mutation_contract == "direct" and not self.use_evaluator:
+            # The direct path waives the notation lint, including the checks
+            # that would have caught a problem whose text omits a quantity its
+            # answer depends on. Only the evaluator sees that, so running
+            # without it removes the replacement guarantee rather than a
+            # redundant one.
+            raise ValueError(
+                "evolution.mutation_contract='direct' requires "
+                "use_evaluator=true: it is the only check that catches a "
+                "problem whose statement does not determine its answer"
+            )
         if self.evaluator_provider not in ("policy", "openai"):
             raise ValueError(
                 "evolution.evaluator_provider must be 'policy' or 'openai', "
@@ -107,11 +153,14 @@ class MetacognitionConfig:
 
     enabled: bool = False
     trace_storage_max_tokens: int = 4096
-    monitoring_total_trace_tokens: int = 4096
+    # Twice trace_storage: this budgets the correct+wrong pair together, and the
+    # old equal default meant one trace at its cap could consume all of it,
+    # dropping the pair and leaving planning with no evidence.
+    monitoring_total_trace_tokens: int = 8192
     plan_max_output_tokens: int = 1024
     # A metacognitive plan must be grounded in one clean correct/wrong pair.
     # During bootstrap, fall back to the legacy mutation prompt rather than
-    # letting a sparse-evidence planner copy a content-rich few-shot example.
+    # asking a sparse-evidence planner to invent an unsupported failure contrast.
     require_contrast_pair: bool = True
     fallback_to_legacy_mutation: bool = True
     reject_unbounded_sampling: bool = True
@@ -125,6 +174,21 @@ class MetacognitionConfig:
         if self.monitoring_total_trace_tokens < 1:
             raise ValueError(
                 "metacognition.monitoring_total_trace_tokens must be >= 1"
+            )
+        if (
+            self.monitoring_total_trace_tokens
+            < 2 * self.trace_storage_max_tokens
+        ):
+            # The monitoring budget holds the correct+wrong pair together while
+            # trace_storage caps each trace alone. When they are equal a single
+            # trace that runs to its cap consumes the whole budget and the pair
+            # is dropped -- observed as 0 selected traces out of 250 rollouts,
+            # which silently left the reasoning condition with no evidence.
+            raise ValueError(
+                "metacognition.monitoring_total_trace_tokens must be at least "
+                "twice trace_storage_max_tokens because it budgets a pair of "
+                f"traces: got {self.monitoring_total_trace_tokens} for two "
+                f"traces of up to {self.trace_storage_max_tokens} each"
             )
         if self.plan_max_output_tokens < 1:
             raise ValueError("metacognition.plan_max_output_tokens must be >= 1")
@@ -152,6 +216,45 @@ class TrainingDataConfig:
     # runs are reproducible while still varying across outer iterations.
     select_random_order: bool = False
     select_random_seed: int = 0
+    # Expansion-study mode: train on one frozen JSONL instead of constructing a
+    # MAP archive or invoking the Evolver.  The file is condition-specific and
+    # must contain stable run/parent/generator/sample identifiers.
+    static_training_jsonl: str | None = None
+    static_condition: str | None = None
+    # Pin the audited source file shape so a stale/regenerated JSONL cannot
+    # silently change a run.  These may be null only for --audit-static-data;
+    # fit() requires both values.
+    static_expected_rows: int | None = None
+    static_expected_tokens: int | None = None
+    # Exact number of complete passes over the fixed file.  VERL's configured
+    # total steps must equal rows / generation_batch_size * static_epochs.
+    static_epochs: int = 1
+
+    def __post_init__(self) -> None:
+        if self.static_epochs < 1:
+            raise ValueError("training_data.static_epochs must be >= 1")
+        for name in ("static_expected_rows", "static_expected_tokens"):
+            value = getattr(self, name)
+            if value is not None and value < 1:
+                raise ValueError(f"training_data.{name} must be >= 1 or null")
+        if self.static_training_jsonl:
+            if self.static_condition not in ("plain", "reasoning"):
+                raise ValueError(
+                    "training_data.static_condition must be 'plain' or "
+                    "'reasoning' when static_training_jsonl is set"
+                )
+        elif self.static_epochs != 1 or any(
+            value is not None
+            for value in (
+                self.static_condition,
+                self.static_expected_rows,
+                self.static_expected_tokens,
+            )
+        ):
+            raise ValueError(
+                "training_data.static_training_jsonl is required when any "
+                "other static training field is set"
+            )
 
 
 @dataclass(slots=True)

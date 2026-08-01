@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "generation_linkage": {
+    "independent_run_id": "run01",
+    "solver_checkpoint_id": "/absolute/path/to/frozen-pi-t",
+    "solver_checkpoint_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "generation_report_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation_experiment_manifest_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "generation_generator_manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "generation_instance_manifest_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "source_run_manifest_sha256": [
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    ]
+  },
+  "conditions": {
+    "plain": {
+      "independent_run_id": "run01",
+      "base_checkpoint": "/absolute/path/to/frozen-pi-t",
+      "base_checkpoint_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "training_data": "/absolute/path/to/training_plain.jsonl",
+      "training_data_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "training_log": "/absolute/path/to/plain_training.log",
+      "training_log_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "training_instance_count": 1024,
+      "training_token_count": 524288,
+      "optimizer": "adamw",
+      "learning_rate": 1e-06,
+      "update_steps": 128,
+      "batch_size": 32,
+      "batch_composition": "generator-balanced paired schedule v1",
+      "verifier": "rq_evolve.math_eval.grade_eval",
+      "max_rollout_length": 4096,
+      "total_compute": "8xA100-80GB; 128 updates; fixed rollout budget",
+      "resume_mode": "disable",
+      "output_checkpoint": "/absolute/path/to/pi-t-plus-1-plain",
+      "output_checkpoint_provenance": {
+        "artifact_id": "pi-t-plus-1-plain-run01",
+        "immutable_ref": "registry://solver/plain/run01@sha256:<digest>"
+      }
+    },
+    "reasoning": {
+      "independent_run_id": "run01",
+      "base_checkpoint": "/absolute/path/to/frozen-pi-t",
+      "base_checkpoint_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "training_data": "/absolute/path/to/training_reasoning.jsonl",
+      "training_data_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "training_log": "/absolute/path/to/reasoning_training.log",
+      "training_log_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "training_instance_count": 1024,
+      "training_token_count": 524288,
+      "optimizer": "adamw",
+      "learning_rate": 1e-06,
+      "update_steps": 128,
+      "batch_size": 32,
+      "batch_composition": "generator-balanced paired schedule v1",
+      "verifier": "rq_evolve.math_eval.grade_eval",
+      "max_rollout_length": 4096,
+      "total_compute": "8xA100-80GB; 128 updates; fixed rollout budget",
+      "resume_mode": "disable",
+      "output_checkpoint": "/absolute/path/to/pi-t-plus-1-reasoning",
+      "output_checkpoint_provenance": {
+        "artifact_id": "pi-t-plus-1-reasoning-run01",
+        "immutable_ref": "registry://solver/reasoning/run01@sha256:<digest>"
+      }
+    }
+  }
+}

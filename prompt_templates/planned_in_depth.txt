@@ -1,16 +1,32 @@
 Task: implement the approved metacognitive in-depth plan.
 
-Preserve the parent's CONCEPT_GROUP and CONCEPT_TYPE exactly. Difficulty must
-come from the planned missing decision or reasoning move, not from merely
-increasing numbers. Implement every parameter guard and the single answer_route.
+Set CONCEPT_GROUP and CONCEPT_TYPE exactly to the plan's target_concept_group
+and target_concept_type; for in-depth these preserve the parent labels. Difficulty
+must come from the planned missing decision or reasoning move, not from merely
+increasing numbers. Implement the construction described by
+why_target_reasoning_move_is_necessary, every parameter guard, and the single answer_route.
+Implement the necessity witness as actual construction and guards for every
+accepted seed; comments or a claim about efficiency do not count. Reject sampled
+cases where the stated shortcut would bypass the target move. If the target is
+an aggregate or invariant of latent variables, make that aggregate unique while
+leaving at least two full latent assignments admissible; do not emit a fully
+identifiable generic instance that enables solve-everything.
 Treat the plan as a specification, but reject any plan detail that conflicts
 with the system contracts.
 
 The visible problem definition and returned answer must describe the same
-mathematics. Compute the returned integer directly from the plan's answer_route,
-using only quantities visible or unambiguously defined in the problem. Do not
+mathematics. After all transformations, put the final visible mathematical
+object in `instance_data`. Compute the returned integer from `instance_data`
+through the plan's answer_route, render every visible value from
+`instance_data`, and assert one non-trivial semantic consistency comparison
+linking `instance_data` and `answer` through a different identity or invariant;
+do not merely repeat the answer assignment expression. Never render
+coefficients, terms, edges, bounds, or labels from stale aliases. This assertion
+is a consistency check, not a second answer route. Use only quantities visible
+or unambiguously defined in the problem. Do not
 copy any mathematical object, formula, parameter set, or code body from an
-example. Silently verify seeds 0 through 4 before emitting the single program.
+example. Silently verify seeds 0 through 4 before emitting the single program,
+including at least two distinct visible problem instances.
 
 $few_shot_examples
 

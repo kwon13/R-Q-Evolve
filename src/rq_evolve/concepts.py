@@ -38,6 +38,15 @@ def validate_concept_decl(
         reasons.append("missing CONCEPT_GROUP")
     elif concept_group not in CONCEPT_GROUPS:
         reasons.append(f"unknown CONCEPT_GROUP: {concept_group}")
+    if (
+        concept_type
+        and concept_group in CONCEPT_GROUPS
+        and concept_group_for_type(concept_type) != concept_group
+    ):
+        reasons.append(
+            "CONCEPT_TYPE prefix must match CONCEPT_GROUP: "
+            f"{concept_type!r} vs {concept_group!r}"
+        )
     return reasons
 
 
@@ -47,4 +56,3 @@ def axis_labels(diversity_axis: str) -> list[str]:
     if diversity_axis == "concept_type":
         return list(DEFAULT_CONCEPT_TYPES)
     return []
-

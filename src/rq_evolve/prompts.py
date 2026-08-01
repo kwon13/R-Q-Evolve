@@ -4,9 +4,14 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from string import Template
+from typing import Any, Mapping
 
 from .code_utils import strip_module_docstring
 from .metacognition import mutation_plan_id, validate_mutation_plan
+from .mutation_compiler import (
+    registered_family_catalog as _registered_family_catalog,
+    registered_family_descriptor,
+)
 from .program import ProblemProgram
 
 SOLVER_SYSTEM_PROMPT = (
@@ -39,38 +44,10 @@ def generate(seed):
         <sample primitive parameters>
         if <degenerate condition>:
             continue
-        answer_insight = <insight computation>
-        answer_brute = <independent brute computation>
-        assert answer_insight == answer_brute
-        answer = answer_insight
-        problem = <one visible problem statement>
-        return problem, str(sympy.Integer(answer))
-    else:
-        raise RuntimeError("failed to sample a valid instance")
-
-CONCEPT_REASON = "<visible reasoning required by the problem>"
-CONCEPT_GROUP = "<allowed group>"
-CONCEPT_TYPE = "<group.snake_case_name>"
-```
-"""
-
-PLANNED_CODE_SKELETON = """
-Required structural skeleton (replace every <...> placeholder; this is not a
-mathematical example and must not be returned with placeholders):
-```python
-import random
-import sympy
-
-MAX_ATTEMPTS = 200
-
-def generate(seed):
-    rng = random.Random(seed)
-    for _ in range(MAX_ATTEMPTS):
-        <sample the plan's primitive parameters>
-        if <degenerate condition>:
-            continue
-        answer = <the plan's executable answer_route>
-        problem = <one visible problem statement>
+        instance_data = <one canonical visible mathematical object after all transformations>
+        answer = <one executable integer-valued computation>
+        assert <independent semantic comparison involving instance_data and answer>
+        problem = <one visible problem statement rendered only from instance_data>
         return problem, str(sympy.Integer(answer))
     else:
         raise RuntimeError("failed to sample a valid instance")
@@ -116,45 +93,64 @@ MUTATION_SYSTEM_PROMPT = (
     "  - The answer may depend only on quantities stated or unambiguously "
     "defined in problem_text. Hidden coefficients, unstated transformations, "
     "unused sampled variables, and mislabeled sequences are forbidden.\n"
-    "  - `answer_insight` and `answer_brute` may share sampled primitive "
-    "parameters, but they may not share a derived target quantity. Direct "
-    "assignment between the routes, identical right-hand sides, and the same "
-    "formula under renamed variables are forbidden.\n"
-    "  - The brute route must reconstruct the answer by literal enumeration, "
-    "recurrence, direct substitution, or another algorithm that does not use "
-    "the insight route's identity or intermediates.\n"
+    "  - Compute one integer-valued `answer` from the mathematical object stated "
+    "in problem_text; one answer computation is sufficient.\n"
+    "  - After every sampled-object transformation, assign the final visible "
+    "mathematical object once to `instance_data`. Compute `answer` from "
+    "`instance_data`, render `problem` from `instance_data`, and add one "
+    "non-trivial comparison assert that links `instance_data` to `answer` and "
+    "does not merely repeat the answer assignment expression. This assert is a "
+    "consistency check, not another answer route.\n"
+    "  - Never calculate with a transformed list/matrix/graph while formatting "
+    "problem_text from stale pre-transformation scalar aliases.\n"
     "  - Every guard must be jointly satisfiable. No derived-variable definition "
     "may make a later guard always true or always false.\n"
+    "  - Seeds 0 through 4 must contain at least two distinct visible problem "
+    "instances. A mathematically valid constant answer is allowed when the "
+    "reasoning remains nontrivial.\n"
     "\n"
     f"{MUTATION_CODE_SKELETON}\n"
     "Before emitting code, silently verify: exactly one Python block; seeds 0 "
     "through 4 terminate; problem_text and answer describe the same mathematics; "
-    "the two routes are genuinely independent; assertions pass; the result is "
-    "not copied from a few-shot example; and CONCEPT_REASON describes the visible "
-    "problem. If any check fails, redesign before answering."
+    "the result is not copied from a few-shot example; and CONCEPT_REASON describes "
+    "the visible problem. If any check fails, redesign before answering."
 )
 
 METACOGNITIVE_PLAN_SYSTEM_PROMPT = (
-    "You are the metacognitive planner for an evolving competition-math "
-    "generator. Analyze the current Solver's observed reasoning evidence and "
-    "write an executable mutation specification, not Python code.\n"
-    "Return exactly one JSON object with schema_version 3, using only the fields "
-    "demonstrated by the reference schema. The plan must ground one concrete "
-    "observed failure step, preserve or transfer one explicit "
-    "target_reasoning_move, specify bounded deterministic sampling, define "
-    "one executable integer-valued `answer_route`, and keep the visible problem "
-    "consistent with that route.\n"
-    "First validate evidence integrity. Ignore any suffix beginning with a new "
-    "User:/Assistant: role, a repeated solver instruction, a second problem, or "
-    "an unrelated question/answer. A claimed failure must be supported by a "
-    "specific step in the cleaned wrong trace and contrasted with a specific "
-    "step in the correct trace. Do not infer behavior from predicted_answer "
-    "alone. Do not fabricate observed facts, and never reuse a few-shot domain, "
-    "formula, parameter set, or target move merely because evidence is sparse."
+    "You are the mutation planner for an evolving competition-math generator. "
+    "Write an executable mutation specification, not Python code.\n"
+    "Return exactly one JSON object with schema_version 5, using only the fields "
+    "listed in the live request. Both experimental conditions use the same "
+    "schema, registered-family catalog, resolver, and compiler. In the "
+    "reasoning-informed condition, "
+    "ground the target move in one clean observed correct/wrong contrast. In the "
+    "plain condition, use only the parent structure and set every observation-only "
+    "field requested by the live prompt to JSON null; never invent Solver "
+    "behavior.\n"
+    "The plan must name the exact target CONCEPT_GROUP and CONCEPT_TYPE, preserve "
+    "or transfer one explicit target_reasoning_move, explain why that move is "
+    "identification-critical rather than merely helpful, specify one falsifiable "
+    "`necessity:` guard that excludes the ordinary bypass, define one executable "
+    "integer-valued `answer_route`, and keep the visible problem consistent with "
+    "that route.\n"
+    "Select the registered `generator_family` fixed by the live request when its "
+    "guarantees implement the intended move. Put only typed construction knobs "
+    "in `family_config`; never put Python or problem prose there. If the request "
+    "has no compatible registered family, use `free_form.<descriptive_slug>` "
+    "with an empty config. Free-form ideas are retained for exploration but are "
+    "quarantined from archive/training until a Python verifier is registered.\n"
+    "When evidence is supplied, first validate its integrity. Ignore any suffix "
+    "beginning with a new User:/Assistant: role, a repeated solver instruction, "
+    "a second problem, or an unrelated question/answer. A claimed failure must "
+    "be supported by a specific step in the cleaned wrong trace and contrasted "
+    "with a specific step in the correct trace. Do not infer behavior from "
+    "predicted_answer alone. Do not fabricate observed facts, and never reuse a "
+    "few-shot domain, formula, parameter set, or target move merely because "
+    "evidence is sparse."
 )
 
 PLANNED_MUTATION_SYSTEM_PROMPT = (
-    "You implement a validated metacognitive mutation plan as a deterministic "
+    "You implement a validated mutation plan as a deterministic "
     "Python competition-math problem generator.\n\n"
     "Think silently. Output exactly one full program in one ```python``` block "
     "and no other text. Do not repeat the plan, parent, examples, analysis, JSON, "
@@ -176,11 +172,23 @@ PLANNED_MUTATION_SYSTEM_PROMPT = (
     "compute `answer`; no hidden parameters or mislabeled structures;\n"
     "  - implement every parameter and guard required by the plan, and do not "
     "introduce unstated quantities into the answer computation;\n"
+    "  - after all transformations, store the one final visible mathematical "
+    "object in `instance_data`; both `answer` and `problem` must depend on that "
+    "same object, and one non-trivial assert must link `instance_data` and "
+    "`answer` through a different identity or invariant without introducing a "
+    "second answer route or repeating the answer assignment;\n"
+    "  - never render problem coefficients, edges, terms, bounds, or labels from "
+    "stale aliases that differ from the object used by the answer computation;\n"
     "  - all guards must be jointly satisfiable and seeds 0 through 4 must "
-    "terminate without assertion failure;\n"
+    "terminate successfully;\n"
+    "  - seeds 0 through 4 must contain at least two distinct visible problem "
+    "instances; a mathematically valid constant answer is allowed only when the "
+    "planned target move remains genuinely necessary;\n"
+    "  - CONCEPT_GROUP and CONCEPT_TYPE must exactly match the plan's "
+    "target_concept_group and target_concept_type;\n"
     "  - do not copy the mathematical object, formulas, parameter names, or "
     "CONCEPT_TYPE of a few-shot example.\n\n"
-    f"{PLANNED_CODE_SKELETON}\n"
+    f"{MUTATION_CODE_SKELETON}\n"
     "Before emitting code, silently audit output shape, seed termination, "
     "problem/answer equivalence, plan coverage, novelty, and concept-label "
     "accuracy. Redesign instead of emitting a failing program."
@@ -192,14 +200,35 @@ EVALUATOR_SYSTEM_PROMPT = (
     "Determine whether the problem is internally coherent, whether the supplied "
     "answer solves the visible problem, and—when source is supplied—whether the "
     "code computes exactly the mathematics stated in problem_text.\n\n"
+    "Recompute from the literal values printed in the visible problem; do not "
+    "trust source comments, intended formulas, or the supplied answer. If source "
+    "overwrites a list, matrix, graph, sequence, bound, or coefficient object, "
+    "mark INVALID when problem_text is formatted from stale pre-overwrite aliases "
+    "while the answer is computed from the updated object.\n\n"
     "Mark the problem as INVALID if any stated condition, theorem, system, recurrence, optimization, or variable definition is not logically connected to the final question (even if the answer can still be computed by ignoring it), if the statement combines two or more independent problems or poses multiple unrelated final questions, if the same variable name is reused for unrelated objects in an ambiguous way, or if the final requested answer does not follow from the stated problem; otherwise, check for contradictory conditions, irrelevant conditions, inapplicable claims about solution methods, and extraneous assumptions.\n"
     "Also mark INVALID if the returned answer is wrong, the code uses hidden "
     "quantities or a different mathematical object than the problem states, "
     "the code's declared answer checks are internally inconsistent, bounded "
     "sampling cannot terminate, or the program copies an example instead of mutating the live "
     "parent.\n"
+    "When a mutation plan is supplied, independently decide whether the visible "
+    "problem and source make the plan's target_reasoning_move necessary. Mark "
+    "target_move_required: NO when a shortcut, leaked value, homogeneous/trivial "
+    "construction, or answer-by-inspection bypasses the move, even if the answer "
+    "is mathematically correct. Judge the abstract invariant, decision, or "
+    "precondition named by the plan rather than demanding one literal algorithm: "
+    "an alternative calculation is not a bypass when it necessarily establishes "
+    "that same invariant or precondition. A constant-answer family is not "
+    "automatically invalid, but its stated necessity must still be real.\n"
+    "When a verified family contract block is supplied, that contract states the "
+    "move you must judge, because a registered family compiler builds the "
+    "problem. Judge the contract's target_reasoning_move against the visible "
+    "problem and source only. Still answer NO when the visible problem lets the "
+    "contract's move be bypassed; a contract does not entitle a problem to "
+    "pass.\n"
     "Return:\n"
     "- reason: concise explanation\n"
+    "- target_move_required: YES or NO (required only when a mutation plan is supplied)\n"
     "- verdict: VALID or INVALID"
 )
 
@@ -217,6 +246,15 @@ class MutationTask:
     mutation_plan: dict | None = None
     plan_id: str | None = None
     plan_status: str = "legacy"
+    precompiled_source: str | None = None
+    generation_path: str = "freeform"
+    generator_family: str | None = None
+    compiler_version: str | None = None
+    compiler_diagnostics: dict | None = None
+    # Registry-owned, compiler-verified reasoning contract for a registered
+    # family. Authoritative input to the evaluator's necessity judgement.
+    family_contract: Mapping[str, Any] | None = None
+    quarantined: bool = False
     max_output_tokens: int | None = None
     temperature: float | None = None
     top_p: float | None = None
@@ -237,21 +275,63 @@ PROMPT_TEMPLATE_FILES = {
 }
 SHOT_TEMPLATE_FILES = PROMPT_TEMPLATE_FILES
 
-METACOGNITIVE_SHOT_TEMPLATE_FILES = {
-    "in_depth": "metacognitive_in_depth.txt",
-    "in_breadth": "metacognitive_in_breadth.txt",
-}
-
 PLANNED_PROMPT_TEMPLATE_FILES = {
     "in_depth": "planned_in_depth.txt",
     "in_breadth": "planned_in_breadth.txt",
 }
 
 
+def render_reasoning_contrast(evidence: Any) -> str:
+    """Render the correct/wrong solver traces for the direct mutation prompt.
+
+    The direct contract hands these straight to the code-writing call instead of
+    routing them through a plan schema. Earlier designs summarised the pair into
+    structured fields first, and the summary is where the information was lost:
+    a 22-field plan described "the solver incorrectly adds the equations" when
+    the addition was arithmetically fine. Showing the traces verbatim leaves the
+    reading to the model that is about to write the mutation.
+    """
+    rows = list(evidence or [])
+    if not rows:
+        return ""
+    def _pick(role: str, correct: bool) -> dict | None:
+        for row in rows:
+            item = dict(row)
+            if item.get("role") == role or bool(item.get("correct")) is correct:
+                return item
+        return None
+
+    success = _pick("success", True)
+    failure = _pick("failure", False)
+    if success is None or failure is None:
+        return ""
+    blocks = [
+        "Observed solver behaviour on one parent instance.",
+        "",
+        f"Problem:\n{str(success.get('problem', '')).strip()}",
+        f"\nCorrect answer: {str(success.get('predicted_answer', '')).strip()}",
+        "",
+        "A solution that reached the correct answer:",
+        str(success.get("response", "")).strip(),
+        "",
+        "A solution that reached "
+        f"{str(failure.get('predicted_answer', 'a wrong answer')).strip()} instead:",
+        str(failure.get("response", "")).strip(),
+        "",
+        "Read the two solutions and identify what the failing one actually got "
+        "wrong -- the step where its reasoning stopped being valid, not merely "
+        "where its arithmetic differs. Then design a variant that makes that "
+        "specific weakness decide the answer. Do not mention the traces, the "
+        "solver, or this analysis anywhere in the generated program.",
+    ]
+    return "\n".join(blocks)
+
+
 def build_mutation_task(
     op: str,
     parent: ProblemProgram,
     *,
+    reasoning_evidence: Any = None,
     temperature: float | None = None,
     top_p: float | None = None,
 ) -> MutationTask:
@@ -261,7 +341,11 @@ def build_mutation_task(
     template = _load_prompt_template(op)
     context = _template_context(op=op, parent=parent)
     live_user = Template(template).safe_substitute(
-        {**context, "few_shot_examples": ""}
+        {
+            **context,
+            "few_shot_examples": "",
+            "reasoning_evidence": render_reasoning_contrast(reasoning_evidence),
+        }
     )
 
     return MutationTask(
@@ -285,6 +369,7 @@ def build_metacognitive_plan_task(
     *,
     evidence: list[dict],
     meta_progress: dict,
+    reasoning_informed: bool = True,
     max_output_tokens: int | None = None,
     temperature: float | None = None,
     top_p: float | None = None,
@@ -295,24 +380,87 @@ def build_metacognitive_plan_task(
         encoding="utf-8"
     )
     constraint = (
-        "Preserve both CONCEPT_GROUP and CONCEPT_TYPE."
+        "Preserve both CONCEPT_GROUP and CONCEPT_TYPE exactly."
         if op == "in_depth"
         else (
-            "Change CONCEPT_GROUP, mathematical object, domain-specific operation, "
-            "and surface vocabulary while preserving the abstract "
-            "target_reasoning_move."
+            "Choose a target CONCEPT_GROUP from the explicit allowed alternatives; "
+            "change the mathematical object, domain-specific operation, and "
+            "surface vocabulary while preserving the abstract target_reasoning_move."
         )
     )
+    parent_group = str(parent.get_concept_group() or "")
+    parent_type = str(parent.get_concept_type() or "")
+    allowed_breadth_groups = [
+        group for group in CONCEPT_GROUPS if group != parent_group
+    ]
+    registered_descriptor = registered_family_descriptor(parent, op)
+    if op == "in_depth":
+        target_label_contract = (
+            f'target_concept_group must equal "{parent_group}" and '
+            f'target_concept_type must equal "{parent_type}".'
+        )
+        necessity_contract = (
+            "Make the target move identification-critical: the ordinary parent "
+            "route or the observed wrong route must be structurally insufficient, "
+            "ambiguous, or inapplicable, while the target move uniquely determines "
+            "the requested integer. For systems with hidden states, prefer partial "
+            "identifiability (the requested invariant is unique although the full "
+            "state is not) over a fully determined generic instance. The first "
+            "guard must begin `necessity:` and state the executable structural test."
+        )
+    else:
+        if registered_descriptor is not None:
+            target_label_contract = (
+                f'target_concept_group "{parent_group}" is forbidden. The paired '
+                "registered compiler route requires "
+                f'target_concept_group="{registered_descriptor.concept_group}" '
+                "and target_concept_type="
+                f'"{registered_descriptor.concept_type}". Do not choose the '
+                "execution route differently between conditions."
+            )
+        else:
+            target_label_contract = (
+                f'target_concept_group "{parent_group}" is forbidden. Choose '
+                f"exactly one of: {', '.join(allowed_breadth_groups)}. The target "
+                "type must use that chosen group as its prefix and must describe "
+                "a different mathematical object."
+            )
+        necessity_contract = (
+            "After cross-domain transfer, make the same abstract target move "
+            "identification-critical rather than decorative. The first guard must "
+            "begin `necessity:` and state why the new domain's ordinary shortcut "
+            "cannot determine the requested integer without that move."
+        )
     inherited_reasoning_move = str(
         (
             (parent.metadata or {}).get("mutation_plan") or {}
         ).get("target_reasoning_move", "")
     )
-    shots = _load_named_shots(METACOGNITIVE_SHOT_TEMPLATE_FILES[op])
+    planning_condition = (
+        "reasoning_informed" if reasoning_informed else "plain"
+    )
+    evidence_contract = (
+        "Use the supplied clean same-problem success/failure pair. All four "
+        "observation-only fields must be grounded in those traces."
+        if reasoning_informed
+        else (
+            "No Solver evidence is available in this control condition. Set "
+            "failure_summary, correct_wrong_contrast, predicted_pre_behavior, "
+            "and predicted_post_behavior to JSON null."
+        )
+    )
     context = {
         **_template_context(op=op, parent=parent),
         "operator": op,
         "operator_contract": constraint,
+        "target_label_contract": target_label_contract,
+        "necessity_contract": necessity_contract,
+        "registered_generator_families": _registered_family_catalog(
+            parent,
+            op,
+        ),
+        "planning_condition": planning_condition,
+        "evidence_contract": evidence_contract,
         "inherited_reasoning_move": inherited_reasoning_move,
         "behavioral_evidence": json.dumps(
             evidence,
@@ -325,34 +473,43 @@ def build_metacognitive_plan_task(
             indent=2,
         ),
     }
-    user = Template(template).safe_substitute(
-        {**context, "few_shot_examples": shots}
-    )
     live_user = Template(template).safe_substitute(
         {**context, "few_shot_examples": ""}
     )
-    messages = [{"role": "system", "content": METACOGNITIVE_PLAN_SYSTEM_PROMPT}]
-    if shots:
-        messages.extend(
-            [
-                {"role": "user", "content": shots},
-                {
-                    "role": "assistant",
-                    "content": (
-                        "I will follow the demonstrated schema and grounding "
-                        "rules for the live request."
-                    ),
-                },
-            ]
-        )
-    messages.append({"role": "user", "content": live_user})
+    messages = [
+        {"role": "system", "content": METACOGNITIVE_PLAN_SYSTEM_PROMPT},
+        {"role": "user", "content": live_user},
+    ]
     return MutationTask(
         op=op,
-        prompt=f"{METACOGNITIVE_PLAN_SYSTEM_PROMPT}\n\n{user}",
+        prompt=f"{METACOGNITIVE_PLAN_SYSTEM_PROMPT}\n\n{live_user}",
         parent=parent,
         messages=messages,
         stage="plan",
-        plan_status="requested",
+        plan_status=f"{planning_condition}_plan_requested",
+        max_output_tokens=max_output_tokens,
+        temperature=temperature,
+        top_p=top_p,
+    )
+
+
+def build_plain_plan_task(
+    op: str,
+    parent: ProblemProgram,
+    *,
+    meta_progress: dict,
+    max_output_tokens: int | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+) -> MutationTask:
+    """Build the parent-only control task with the shared plan schema."""
+
+    return build_metacognitive_plan_task(
+        op,
+        parent,
+        evidence=[],
+        meta_progress=meta_progress,
+        reasoning_informed=False,
         max_output_tokens=max_output_tokens,
         temperature=temperature,
         top_p=top_p,
@@ -364,6 +521,9 @@ def parse_mutation_plan(
     op: str,
     *,
     required_target_reasoning_move: str = "",
+    reasoning_informed: bool = True,
+    parent: ProblemProgram | None = None,
+    required_schema_version: int | None = None,
 ) -> tuple[dict | None, str]:
     text = str(output or "").strip()
     if not text:
@@ -406,7 +566,26 @@ def parse_mutation_plan(
         if not isinstance(payload, dict):
             last_error = "plan JSON must be an object"
             continue
-        errors = validate_mutation_plan(payload, op)
+        errors = validate_mutation_plan(
+            payload,
+            op,
+            reasoning_informed=reasoning_informed,
+            parent_concept_group=(
+                parent.get_concept_group() if parent is not None else None
+            ),
+            parent_concept_type=(
+                parent.get_concept_type() if parent is not None else None
+            ),
+        )
+        if (
+            required_schema_version is not None
+            and int(payload.get("schema_version", 0))
+            != required_schema_version
+        ):
+            errors.append(
+                f"live mutation plan schema_version must be "
+                f"{required_schema_version}"
+            )
         if errors:
             if best_schema_errors is None or len(errors) < len(best_schema_errors):
                 best_schema_errors = errors
@@ -506,10 +685,25 @@ def build_fix_task(
         mutation_plan=task.mutation_plan,
         plan_id=task.plan_id,
         plan_status=task.plan_status,
+        generation_path=task.generation_path,
+        generator_family=task.generator_family,
+        compiler_version=task.compiler_version,
+        compiler_diagnostics=task.compiler_diagnostics,
+        family_contract=task.family_contract,
+        quarantined=task.quarantined,
         max_output_tokens=task.max_output_tokens,
         temperature=task.temperature,
         top_p=task.top_p,
     )
+
+
+def _json_ready_payload(value: Any) -> Any:
+    """Normalize mappings/tuples so the contract renders as real JSON."""
+    if isinstance(value, Mapping):
+        return {str(key): _json_ready_payload(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_ready_payload(item) for item in value]
+    return value
 
 
 def _load_evaluator_shots() -> str:
@@ -525,8 +719,24 @@ def build_evaluator_messages(
     *,
     answer_text: str | None = None,
     program_source: str | None = None,
+    family_contract: Mapping[str, Any] | None = None,
 ) -> list[dict]:
-    """Render the semantic generator review conversation for one problem."""
+    """Render the semantic generator review conversation for one problem.
+
+    ``family_contract`` is the registered-family reasoning contract the compiler
+    owns and has already verified deterministically. When it is present it
+    *replaces* the plan entirely: a fixed family compiler cannot implement
+    arbitrary planner prose, so judging that prose asks the evaluator about a
+    construction nobody built.
+
+    The plan is dropped rather than demoted to background. Labelling it "ignore
+    this" did not work -- with byte-identical problem text and generator source,
+    plain narration passed 4/5 seeds while reasoning narration passed 0/5, so the
+    text the evaluator was told to ignore was in fact driving the verdict. On the
+    registered path the evaluator input is now a function of the problem, the
+    source, and the compiler-verified contract only, which also makes the input
+    byte-identical across experimental conditions that compile the same family.
+    """
     blocks: list[str] = []
     review = (
         "Now evaluate the following problem.\n\n"
@@ -540,12 +750,32 @@ def build_evaluator_messages(
             + str(program_source).strip()
             + "\n```\n"
         )
-    if mutation_plan:
+    if family_contract:
+        review += (
+            "\nThis generator was built by a registered family compiler, not "
+            "written from the plan text. The contract below is the authoritative "
+            "statement of the reasoning move under test; judge it against the "
+            "visible problem and source. Output `target_move_required: YES` only "
+            "if the contract's target_reasoning_move is genuinely required by "
+            "this problem, and NO with verdict INVALID if the visible problem "
+            "admits a shortcut that bypasses it, leaks the answer, or contradicts "
+            "the contract.\n\nVerified family contract:\n"
+            + json.dumps(
+                _json_ready_payload(family_contract),
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
+    elif mutation_plan:
         review += (
             "\nThe generator was produced from this mutation plan. In addition "
             "to coherence, mark INVALID if the problem leaks the intended move, "
-            "does not plausibly require it, or violates the stated problem/answer "
-            "contract.\n\nMutation plan:\n"
+            "does not make it necessary, admits an obvious shortcut that bypasses "
+            "it, or violates the stated problem/answer contract. You must output "
+            "`target_move_required: YES` only when the move is genuinely required; "
+            "otherwise output NO and mark the verdict INVALID.\n\nMutation plan:\n"
             + json.dumps(mutation_plan, ensure_ascii=False, indent=2)
             + "\n"
         )
@@ -563,6 +793,7 @@ def build_evaluator_task(
     *,
     answer_text: str | None = None,
     program_source: str | None = None,
+    family_contract: Mapping[str, Any] | None = None,
     temperature: float | None = None,
     top_p: float | None = None,
 ) -> MutationTask:
@@ -577,6 +808,7 @@ def build_evaluator_task(
         mutation_plan,
         answer_text=answer_text,
         program_source=program_source,
+        family_contract=family_contract,
     )
     flat = f"{messages[0]['content']}\n\n{messages[1]['content']}"
     return MutationTask(
@@ -591,7 +823,11 @@ def build_evaluator_task(
     )
 
 
-def parse_evaluator_verdict(output: str) -> tuple[bool, str]:
+def parse_evaluator_verdict(
+    output: str,
+    *,
+    require_target_move: bool = False,
+) -> tuple[bool, str]:
     """Parse an evaluator response into ``(is_valid, reason)``.
 
     A candidate passes ONLY on an explicit VALID verdict. Reads the ``verdict:`` /
@@ -604,12 +840,15 @@ def parse_evaluator_verdict(output: str) -> tuple[bool, str]:
     text = output or ""
     reason = ""
     verdict = ""
+    target_move_required = ""
     for line in text.splitlines():
         low = line.strip().lower()
         if low.startswith("reason:"):
             reason = line.split(":", 1)[1].strip()
         elif low.startswith("verdict:"):
             verdict = line.split(":", 1)[1].strip().upper()
+        elif low.startswith("target_move_required:"):
+            target_move_required = line.split(":", 1)[1].strip().upper()
     if not verdict:
         upper = text.upper()
         if "INVALID" in upper:
@@ -617,6 +856,14 @@ def parse_evaluator_verdict(output: str) -> tuple[bool, str]:
         elif "VALID" in upper:
             verdict = "VALID"
     is_valid = verdict.startswith("VALID")  # INVALID / missing / off-format -> discard
+    if require_target_move and not target_move_required.startswith("YES"):
+        is_valid = False
+        missing_reason = (
+            "target reasoning move was not explicitly judged necessary"
+            if not target_move_required
+            else "target reasoning move is not necessary"
+        )
+        reason = f"{missing_reason}; {reason}".strip("; ")
     if not reason:
         reason = text.strip()[:300] or "no explicit VALID verdict"
     return is_valid, reason
@@ -639,27 +886,21 @@ def _load_shot_examples(op: str) -> str:
     return f"Few-shot examples:\n\n{text}"
 
 
-def _load_named_shots(filename: str) -> str:
-    path = SHOT_TEMPLATE_DIR / filename
-    if not path.exists():
-        return ""
-    text = path.read_text(encoding="utf-8").strip()
-    if not text:
-        return ""
-    return f"Few-shot examples:\n\n{text}"
-
-
 def _template_context(
     op: str,
     parent: ProblemProgram,
 ) -> dict[str, str]:
+    parent_group = str(parent.get_concept_group() or "")
     return {
         "few_shot_examples": _load_shot_examples(op),
         "parent_id": parent.program_id,
         "parent_generation": str(parent.generation),
         "parent_source": strip_module_docstring(parent.source_code),
-        "parent_concept_group": str(parent.get_concept_group() or ""),
+        "parent_concept_group": parent_group,
         "parent_concept_type": str(parent.get_concept_type() or ""),
+        "allowed_breadth_groups": ", ".join(
+            group for group in CONCEPT_GROUPS if group != parent_group
+        ),
         "parent_p_hat": f"{float(getattr(parent, 'p_hat', 0.0) or 0.0):.3f}",
         "parent_h_score": f"{float(getattr(parent, 'h_score', 0.0) or 0.0):.3f}",
         "parent_rq_score": f"{float(getattr(parent, 'rq_score', 0.0) or 0.0):.6f}",

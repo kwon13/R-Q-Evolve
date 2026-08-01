@@ -32,26 +32,11 @@ evolution:
   in_depth_ratio: 0.5        # -> in_breadth = 1 - 0.5 = 0.5  (50/50 depth/breadth)
   verify_seeds: 5
   frontier_p_hat_range: [0.0, 1.0]
-  # Registered plans are compiled by trusted Python family backends. Unknown
-  # free-form ideas remain visible as quarantined exploration and cannot enter
-  # the archive/training set until a family verifier is registered.
-  mutation_code_backend: hybrid
-  # planned -> evidence is summarised into a plan, and the plan drives codegen.
-  # direct  -> the correct/wrong solver traces go straight into the code-writing
-  #            prompt; no plan call. Costs one fewer model call and waives the
-  #            compiler-shaped notation lint, so it leans on execution checks:
-  #            every verified instance must yield an integer answer and the
-  #            evaluator must agree the statement determines it.
-  mutation_contract: direct
   fix_retry: false
   use_evaluator: true        # LLM coherence gate on seed-0 problem before archive
   evaluator_provider: policy # policy = current rollout model; openai = OpenAI API
   # Stage-specific sampling: solver rollouts keep the verl rollout temperature
-  # below; mutation planning gets diversity while code/evaluation stay stable.
-  # Unused while mutation_contract is direct: that path makes no plan call.
-  # Kept so switching back to planned needs no other edit.
-  plan_temperature: 0.7
-  plan_top_p: 0.95
+  # below; the code and evaluator stages stay deterministic.
   code_temperature: 0.0
   code_top_p: 1.0
   evaluator_temperature: 0.0
@@ -61,31 +46,6 @@ evolution:
   # evaluator_timeout_s: 30
   # evaluator_max_output_tokens: 4096
   # evaluator_concurrency: 8
-
-metacognition:
-  # Reuse the existing R_Q rollouts: store at most one shortest clean correct
-  # and one completed clean wrong trace from the same problem/seed/policy.
-  # Formatting misses, truncation, and repetitive decoding loops are excluded
-  # from planning evidence but still count in ordinary Solver scoring.
-  enabled: true
-  trace_storage_max_tokens: 4096
-  # Budgets the correct+wrong pair *together*, so it must hold two traces that
-  # may each run to trace_storage_max_tokens. At 4096 a single long failure
-  # trace consumed the whole budget and the pair was dropped, which silently
-  # left the reasoning condition with no evidence at all.
-  monitoring_total_trace_tokens: 8192
-  plan_max_output_tokens: 1024
-  # Empty/one-sided evidence is expected during bootstrap. Do not ask the
-  # metacognitive planner to invent a failure; keep the run alive through the
-  # legacy mutation prompt rather than spending extra Solver rollouts.
-  require_contrast_pair: true
-  fallback_to_legacy_mutation: true
-  reject_unbounded_sampling: true
-  # Attribute pre-update delta-p to the operator that created each champion,
-  # then softly bias future operator sampling without eliminating exploration.
-  adaptive_operator: true
-  operator_min_probability: 0.2
-  operator_ema_alpha: 0.2
 
 training_data:
   instances_per_program: 8

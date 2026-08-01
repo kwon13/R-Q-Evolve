@@ -11,11 +11,6 @@ from .concepts import DEFAULT_CONCEPT_TYPES, CONCEPT_GROUPS
 from .program import ProblemProgram
 from .scoring import selection_priority
 
-# Attribution sub-cells reserved per concept type on the belief-keyed D axis.
-# Fixed rather than derived from the live catalog so the grid shape -- and with
-# it archive capacity -- stays identical across experimental conditions.
-MAX_HYPOTHESES_PER_TYPE = 4
-
 
 @dataclass
 class Niche:
@@ -47,12 +42,7 @@ class MAPElitesArchive:
         select_ignores_uncertainty: bool = False,
         select_ignores_variance: bool = False,
     ) -> None:
-        if diversity_axis not in {
-            "concept_group",
-            "concept_type",
-            "attributed_hypothesis",
-            "hash",
-        }:
+        if diversity_axis not in {"concept_group", "concept_type", "hash"}:
             raise ValueError(f"unknown diversity_axis: {diversity_axis}")
         if selection_strategy not in {"ucb", "random"}:
             raise ValueError(f"unknown selection_strategy: {selection_strategy}")
@@ -67,10 +57,6 @@ class MAPElitesArchive:
             n_div_bins = len(CONCEPT_GROUPS)
         elif diversity_axis == "concept_type":
             n_div_bins = len(DEFAULT_CONCEPT_TYPES)
-        elif diversity_axis == "attributed_hypothesis":
-            # One cell per (concept_type, attributed attitude). The attribution
-            # only chooses the cell; R_Q alone still decides its champion.
-            n_div_bins = len(DEFAULT_CONCEPT_TYPES) * MAX_HYPOTHESES_PER_TYPE
 
         self.n_h_bins = int(n_h_bins)
         self.n_div_bins = int(n_div_bins)
@@ -109,35 +95,6 @@ class MAPElitesArchive:
             if concept_type not in DEFAULT_CONCEPT_TYPES:
                 return _stable_hash(concept_type or problem_text) % self.n_div_bins
             return DEFAULT_CONCEPT_TYPES.index(concept_type)
-        if self.diversity_axis == "attributed_hypothesis":
-            concept_type = program.get_concept_type()
-            hypothesis = str(
-                (program.metadata or {}).get("attributed_hypothesis") or ""
-            )
-            if concept_type in DEFAULT_CONCEPT_TYPES:
-                base = DEFAULT_CONCEPT_TYPES.index(concept_type)
-            else:
-                base = _stable_hash(concept_type or problem_text) % len(
-                    DEFAULT_CONCEPT_TYPES
-                )
-            offset = 0
-            if hypothesis:
-                from .belief_probe import hypothesis_slot
-
-                slot = hypothesis_slot(hypothesis)
-                # Fall back to hashing only for an id outside the catalog; a
-                # registered attribution always gets its own distinct sub-cell.
-                offset = (
-                    slot
-                    if slot is not None
-                    else _stable_hash(hypothesis) % MAX_HYPOTHESES_PER_TYPE
-                )
-                if not 0 <= offset < MAX_HYPOTHESES_PER_TYPE:
-                    raise ValueError(
-                        f"hypothesis slot {offset} exceeds the reserved "
-                        f"{MAX_HYPOTHESES_PER_TYPE} sub-cells per concept type"
-                    )
-            return base * MAX_HYPOTHESES_PER_TYPE + offset
         return _stable_hash(problem_text or program.program_id) % self.n_div_bins
 
     def try_insert(

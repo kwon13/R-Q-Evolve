@@ -17,32 +17,13 @@ evolution:
   in_depth_ratio: 0.5
   verify_seeds: 5
   frontier_p_hat_range: [0.0, 1.0]
-  mutation_code_backend: hybrid
-  mutation_contract: direct
   fix_retry: false
   use_evaluator: true
   evaluator_provider: policy
-  plan_temperature: 0.7
-  plan_top_p: 0.95
   code_temperature: 0.0
   code_top_p: 1.0
   evaluator_temperature: 0.0
   evaluator_top_p: 1.0
-
-metacognition:
-  enabled: true
-  trace_storage_max_tokens: 4096
-  monitoring_total_trace_tokens: 8192
-  plan_max_output_tokens: 1024
-
-  require_contrast_pair: true
-  fallback_to_legacy_mutation: true
-
-  reject_unbounded_sampling: true
-
-  adaptive_operator: true
-  operator_min_probability: 0.2
-  operator_ema_alpha: 0.2
 
 training_data:
   instances_per_program: 8

@@ -182,7 +182,7 @@ def lint_generator_source(source_code: str) -> list[str]:
     return reasons
 
 
-def lint_metacognitive_generator_source(
+def lint_mutation_generator_source(
     source_code: str,
     *,
     require_assert: bool = False,
@@ -192,12 +192,11 @@ def lint_metacognitive_generator_source(
     require_canonical_instance_data: bool = False,
     require_mechanical_shape: bool = True,
 ) -> list[str]:
-    """Extra static contract for generated mutation children.
+    """Extra static contract for model-generated mutation children.
 
-    The standard contract uses one executable ``answer`` route for both
-    one-stage and plan-conditioned mutations. The historical independent
-    ``answer_insight``/``answer_brute`` check remains available only when a
-    compatibility caller explicitly enables both route-related flags.
+    The standard contract uses one executable ``answer`` route. The historical
+    independent ``answer_insight``/``answer_brute`` check remains available only
+    when a caller explicitly enables both route-related flags.
     """
     try:
         tree = ast.parse(source_code)

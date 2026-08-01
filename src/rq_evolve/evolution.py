@@ -10,29 +10,12 @@ from .backends import EvolutionBackend, RolloutRecord
 from .code_utils import (
     extract_generator_code,
     lint_generator_source,
-    lint_metacognitive_generator_source,
+    lint_mutation_generator_source,
     lint_problem_instance,
 )
 from .concepts import validate_concept_decl
-from .config import EvolutionConfig, MetacognitionConfig, TrainingDataConfig
+from .config import EvolutionConfig, TrainingDataConfig
 from .dataset import DynamicProblemDataset, build_training_examples
-from .metacognition import (
-    adaptive_depth_probability,
-    clean_and_grade_solver_rollout,
-    collect_planning_evidence,
-    compute_meta_progress,
-    mutation_plan_id,
-    progress_context,
-    select_reasoning_evidence,
-    update_operator_ema,
-)
-from .mutation_compiler import (
-    MUTATION_FAMILY_REGISTRY_VERSION,
-    CompilationStatus,
-    compile_mutation_plan,
-    family_contract_payload,
-    validate_compiled_family_semantics,
-)
 from .openai_evaluator import (
     EvaluatorRuntimeError,
     OpenAIEvaluatorConfig,
@@ -44,13 +27,11 @@ from .prompts import (
     build_evaluator_messages,
     build_evaluator_task,
     build_fix_task,
-    build_metacognitive_plan_task,
     build_mutation_task,
-    build_planned_mutation_task,
     parse_evaluator_verdict,
-    parse_mutation_plan,
 )
 from .scoring import RQResult, compute_rq_full, is_frontier
+from .solver_trace import clean_and_grade_solver_rollout
 
 
 @dataclass(slots=True)
@@ -62,24 +43,6 @@ class CandidateReport:
     p_hat: float = 0.0
     uncertainty: float = 0.0
     reason: str | None = None
-    plan_id: str | None = None
-    plan_status: str = "legacy"
-    generation_path: str = "freeform"
-    generator_family: str | None = None
-    compiler_version: str | None = None
-    quarantined: bool = False
-
-
-def _task_report_metadata(task: MutationTask) -> dict:
-    """Copy mutation-route provenance into a terminal candidate report."""
-    return {
-        "plan_id": getattr(task, "plan_id", None),
-        "plan_status": getattr(task, "plan_status", "legacy"),
-        "generation_path": getattr(task, "generation_path", "freeform"),
-        "generator_family": getattr(task, "generator_family", None),
-        "compiler_version": getattr(task, "compiler_version", None),
-        "quarantined": bool(getattr(task, "quarantined", False)),
-    }
 
 
 @dataclass
@@ -89,9 +52,6 @@ class RQEvolver:
     archive: MAPElitesArchive
     backend: EvolutionBackend
     evolution_config: EvolutionConfig = field(default_factory=EvolutionConfig)
-    metacognition_config: MetacognitionConfig = field(
-        default_factory=MetacognitionConfig
-    )
     training_config: TrainingDataConfig = field(default_factory=TrainingDataConfig)
     dataset: DynamicProblemDataset = field(default_factory=DynamicProblemDataset)
     used_seeds: dict[str, set[int]] = field(default_factory=dict)
@@ -107,8 +67,6 @@ class RQEvolver:
     # Persisted into evolution_log.jsonl so the learnability/curriculum filter
     # is observable (which champions fed the training set, and why not).
     last_frontier: list[dict] = field(default_factory=list)
-    last_meta_progress: dict = field(default_factory=dict)
-    operator_ema: dict[str, float] = field(default_factory=dict)
     current_iteration: int = -1
 
     def load_seed_programs(self, seed_dir: str | Path) -> list[ProblemProgram]:
@@ -176,52 +134,28 @@ class RQEvolver:
             "in_breadth",
         }
         if is_generated_mutation:
-            # One-stage and plan-conditioned mutations share the same final-code
-            # contract. Planning is the treatment under comparison; requiring
-            # extra insight/brute routes only for one-stage generation would
-            # confound method quality with code-shape difficulty.
+            # Determinism only: a seeded `rng`, no direct `random.*` calls, and
+            # sorted() around dict/set iteration, so a program yields the same
+            # instance in the verifier and in every later rollout process.
+            #
+            # Every notation flag stays OFF. MAX_ATTEMPTS = 200, the canonical
+            # `instance_data` assignment and the `str(sympy.Integer(answer))`
+            # wrapper were contracts a registered family compiler satisfied by
+            # construction; free-form generation does not. Enforcing them here
+            # rejected mathematically sound programs on shape alone -- observed
+            # on 20/20 candidates for instance_data and on 9 of 14 rejections
+            # for the notation pair. Execution-level checks carry the guarantee
+            # instead: every verified seed must yield an integer answer below,
+            # and the evaluator gates coherence before the archive.
             source_errors.extend(
-                lint_metacognitive_generator_source(
+                lint_mutation_generator_source(
                     program.source_code,
                     require_assert=False,
-                    reject_trivial_assert=True,
-                    reject_unbounded_sampling=(
-                        self.metacognition_config.reject_unbounded_sampling
-                        # The bounded-retry requirement presumes rejection
-                        # sampling. A direct generator that samples once has no
-                        # such loop, so the check would reject it on shape; the
-                        # sandbox timeout still bounds every execution.
-                        and not program.metadata.get("free_form_direct")
-                    ),
+                    reject_trivial_assert=False,
+                    reject_unbounded_sampling=False,
                     require_answer_routes=False,
-                    # Registered compilers always satisfy the canonical
-                    # instance-data shape. Unsupported family ideas can still
-                    # be executed for diagnostics in hybrid mode, but they are
-                    # quarantined before evaluation/archive insertion, so do
-                    # not make that mechanical shape a prerequisite for
-                    # observing why the free-form idea failed.
-                    # The canonical instance_data shape was designed for the
-                    # registered compiler, which emits it by construction. A
-                    # free-form generator that samples without rejection has no
-                    # loop to canonicalize inside, so demanding the shape there
-                    # rejects mathematically correct programs for form alone --
-                    # observed on 20/20 direct candidates. Those paths opt out
-                    # explicitly and rely on execution-level checks instead.
-                    require_canonical_instance_data=not bool(
-                        program.metadata.get("quarantined")
-                        or program.metadata.get("free_form_direct")
-                    ),
-                    # MAX_ATTEMPTS = 200 and the sympy.Integer return wrapper
-                    # are notation contracts the compiler satisfies for free.
-                    # Free-form code failed them 9 times out of 14 rejections
-                    # while the mathematics was sound, so the direct path drops
-                    # them and relies on executing the program instead: the
-                    # instance lint below rejects non-finite, empty and
-                    # multi-part answers whatever the return expression looked
-                    # like.
-                    require_mechanical_shape=not bool(
-                        program.metadata.get("free_form_direct")
-                    ),
+                    require_canonical_instance_data=False,
+                    require_mechanical_shape=False,
                 )
             )
         if source_errors:
@@ -245,23 +179,14 @@ class RQEvolver:
             if instance_errors:
                 return None, "; ".join(instance_errors[:3])
             if (
-                self.metacognition_config.enabled
-                and program.metadata.get("mutation_plan")
+                is_generated_mutation
                 and re.fullmatch(r"-?\d+", inst.answer.strip()) is None
             ):
+                # The static `str(sympy.Integer(answer))` contract is checked on
+                # the source above; this takes the same guarantee from the
+                # executed output, which the source text cannot prove.
                 return None, (
-                    "planned generator answer must be a base-10 integer string: "
-                    f"{inst.answer!r}"
-                )
-            if (
-                program.metadata.get("free_form_direct")
-                and re.fullmatch(r"-?\d+", inst.answer.strip()) is None
-            ):
-                # The static `str(sympy.Integer(answer))` contract is waived on
-                # this path, so the same guarantee is taken from the executed
-                # output instead of the source text.
-                return None, (
-                    "direct generator answer must be a base-10 integer string: "
+                    "generated answer must be a base-10 integer string: "
                     f"{inst.answer!r} at seed={seed}"
                 )
             if not _answer_parseable(inst.answer):
@@ -311,12 +236,6 @@ class RQEvolver:
             "frontier_out": len(self.last_frontier) - frontier_in,
             **stats,
         }
-        if self.last_meta_progress:
-            result["meta_delta_p_global"] = float(
-                (self.last_meta_progress.get("global_progress") or {}).get(
-                    "delta_p", 0.0
-                )
-            )
         self.last_reports = reports
         self.events.append({"event": "outer_iteration_done", **result})
         return result
@@ -352,130 +271,45 @@ class RQEvolver:
         # deferred until after end_session (vLLM asleep) inside finalize_rollouts.
         self.backend.begin_session()
         try:
-            prepared = self._prepare_mutation_tasks(requests)
-            # A registered compiler supplies its source locally. Keep those
-            # tasks in the ordered pipeline, but do not spend a second policy
-            # call asking the model to reproduce compiler-owned boilerplate.
-            code_tasks = [
-                item
-                for item in prepared
-                if isinstance(item, MutationTask)
-                and item.precompiled_source is None
-            ]
-            outputs = self.backend.mutate(code_tasks) if code_tasks else []
-            entries: list[dict] = []
-            output_iter = iter(outputs)
-            for item in prepared:
-                if isinstance(item, CandidateReport):
-                    entries.append({"report": item})
-                    continue
-                task = item
-                output = (
-                    None
-                    if task.precompiled_source is not None
-                    else next(output_iter, None)
+            tasks = [
+                build_mutation_task(
+                    op,
+                    parent,
+                    temperature=self.evolution_config.code_temperature,
+                    top_p=self.evolution_config.code_top_p,
                 )
+                for op, parent in requests
+            ]
+            outputs = self.backend.mutate(tasks) if tasks else []
+            entries: list[dict] = []
+            for task, output in zip(tasks, outputs):
                 child, inst, reason, source = self._make_child_from_output(
                     task, output
                 )
                 if inst is not None:
-                    if task.quarantined:
-                        # Hybrid free-form generation is diagnostic only. Even
-                        # a lint-valid program cannot consume evaluator/rollout
-                        # compute and can never reach the archive or training
-                        # dataset.
-                        self.events.append(
-                            {
-                                "event": "mutation_quarantined",
-                                "program_id": child.program_id,
-                                "parent_id": task.parent.program_id,
-                                "op": task.op,
-                                "generator_family": task.generator_family,
-                                "reason": (
-                                    "unsupported family generated a valid "
-                                    "diagnostic program"
-                                ),
-                            }
-                        )
-                        entries.append(
-                            {
-                                "report": CandidateReport(
-                                    status="quarantined_freeform",
-                                    op=task.op,
-                                    child_id=child.program_id,
-                                    reason=(
-                                        "unsupported family is diagnostic-only "
-                                        "and cannot enter archive/training"
-                                    ),
-                                    **_task_report_metadata(task),
-                                )
-                            }
-                        )
-                    else:
-                        entries.append(
-                            {"task": task, "child": child, "inst": inst}
-                        )
+                    entries.append({"task": task, "child": child, "inst": inst})
                 elif source is not None:
-                    if task.precompiled_source is not None:
-                        # A compiler output failing the shared runtime verifier
-                        # is a compiler defect, not something to send back to
-                        # the model as a lint-feedback retry.
-                        entries.append(
-                            {
-                                "report": CandidateReport(
-                                    status="compiler_error",
-                                    op=task.op,
-                                    child_id=child.program_id if child else None,
-                                    reason=(
-                                        "compiled source failed verification: "
-                                        f"{reason}"
-                                    ),
-                                    **_task_report_metadata(task),
-                                )
+                    # Parses but failed verification -> eligible for one
+                    # self-fix. Keep the raw output: it becomes the assistant
+                    # turn in the multi-turn fix prompt.
+                    entries.append(
+                        {
+                            "_retry": {
+                                "task": task,
+                                "output": output,
+                                "reason": reason,
                             }
-                        )
-                    elif task.quarantined:
-                        entries.append(
-                            {
-                                "report": CandidateReport(
-                                    status="quarantined_freeform",
-                                    op=task.op,
-                                    child_id=child.program_id if child else None,
-                                    reason=(
-                                        "diagnostic free-form source failed "
-                                        f"verification: {reason}"
-                                    ),
-                                    **_task_report_metadata(task),
-                                )
-                            }
-                        )
-                    else:
-                        # Parses but failed verification -> eligible for one
-                        # self-fix. Keep the raw output: it becomes the
-                        # assistant turn in the multi-turn fix prompt.
-                        entries.append(
-                            {
-                                "_retry": {
-                                    "task": task,
-                                    "output": output,
-                                    "reason": reason,
-                                }
-                            }
-                        )
+                        }
+                    )
                 else:
-                    if task.precompiled_source is not None:
-                        status = "compiler_error"
-                    elif task.quarantined:
-                        status = "quarantined_freeform"
-                    else:
-                        status = "mutation_failed" if not output else "no_code"
                     entries.append(
                         {
                             "report": CandidateReport(
-                                status=status,
+                                status=(
+                                    "mutation_failed" if not output else "no_code"
+                                ),
                                 op=task.op,
                                 reason=reason,
-                                **_task_report_metadata(task),
                             )
                         }
                     )
@@ -527,7 +361,6 @@ class RQEvolver:
                         op=task.op,
                         child_id=child.program_id,
                         reason=max(reasons, key=reasons.get),
-                        **_task_report_metadata(task),
                     )
                 )
                 continue
@@ -545,7 +378,6 @@ class RQEvolver:
                         rq_score=result.rq_score,
                         p_hat=result.p_hat,
                         uncertainty=result.uncertainty,
-                        **_task_report_metadata(task),
                     )
                 )
                 continue
@@ -564,465 +396,9 @@ class RQEvolver:
                     rq_score=result.rq_score,
                     p_hat=result.p_hat,
                     uncertainty=result.uncertainty,
-                    **_task_report_metadata(task),
                 )
             )
         return reports
-
-    def _prepare_mutation_tasks(
-        self,
-        requests: list[tuple[str, ProblemProgram]],
-    ) -> list[MutationTask | CandidateReport]:
-        """Build legacy tasks or run one batched monitoring/planning pass.
-
-        Planning reuses reasoning evidence collected by the existing R_Q
-        rollouts. It adds no Solver rollout; only the mutation model performs one
-        additional generation before code generation.
-        """
-        if not self.metacognition_config.enabled:
-            return [
-                build_mutation_task(
-                    op,
-                    parent,
-                    temperature=self.evolution_config.code_temperature,
-                    top_p=self.evolution_config.code_top_p,
-                )
-                for op, parent in requests
-            ]
-
-        tokenizer = getattr(self.backend, "tokenizer", None)
-
-        if self.evolution_config.mutation_contract == "direct":
-            # One call: the traces go into the code-writing prompt and the model
-            # writes the generator. No plan, so nothing summarises the contrast
-            # before the mutation sees it.
-            direct_prepared: list[MutationTask | CandidateReport] = []
-            for op, parent in requests:
-                evidence = collect_planning_evidence(
-                    parent,
-                    op,
-                    list(self.archive.champions()),
-                    total_tokens=(
-                        self.metacognition_config.monitoring_total_trace_tokens
-                    ),
-                    tokenizer=tokenizer,
-                )
-                if len(evidence) < 2:
-                    # Without the pair this is not the direct treatment at all,
-                    # it is an ordinary free-form mutation. Letting it through
-                    # would quietly mix two conditions in one run, so the
-                    # mutation is refused and reported instead.
-                    direct_prepared.append(
-                        CandidateReport(
-                            status="direct_contrast_missing",
-                            op=op,
-                            reason=(
-                                "mutation_contract=direct needs one clean "
-                                "correct/wrong trace pair on the same parent "
-                                f"instance; found {len(evidence)}"
-                            ),
-                            plan_status="direct_contrast_missing",
-                            generation_path="direct_freeform",
-                        )
-                    )
-                    self.events.append(
-                        {
-                            "event": "direct_contrast_missing",
-                            "program_id": parent.program_id,
-                            "op": op,
-                            "evidence_traces": len(evidence),
-                        }
-                    )
-                    continue
-                task = build_mutation_task(
-                    op,
-                    parent,
-                    reasoning_evidence=evidence,
-                    temperature=self.evolution_config.code_temperature,
-                    top_p=self.evolution_config.code_top_p,
-                )
-                task.plan_status = "direct_with_contrast"
-                task.generation_path = "direct_freeform"
-                direct_prepared.append(task)
-                self.events.append(
-                    {
-                        "event": "direct_mutation_prepared",
-                        "program_id": parent.program_id,
-                        "op": op,
-                        "evidence_traces": len(evidence),
-                        "sees_reasoning_traces": True,
-                    }
-                )
-            return direct_prepared
-        champions = list(self.archive.champions())
-        code_backend = self.evolution_config.mutation_code_backend
-        plan_inputs: list[tuple[str, ProblemProgram, list[dict]]] = []
-        prepared: list[MutationTask | CandidateReport | None] = []
-
-        for op, parent in requests:
-            evidence = collect_planning_evidence(
-                parent,
-                op,
-                champions,
-                total_tokens=(
-                    self.metacognition_config.monitoring_total_trace_tokens
-                ),
-                tokenizer=tokenizer,
-            )
-            if self.metacognition_config.require_contrast_pair and len(evidence) < 2:
-                if self.metacognition_config.fallback_to_legacy_mutation:
-                    if code_backend == "compiler_only":
-                        prepared.append(
-                            CandidateReport(
-                                status="quarantined_unsupported_family",
-                                op=op,
-                                reason=(
-                                    "no valid mutation plan/evidence is "
-                                    "available for the compiler"
-                                ),
-                                plan_status="missing_evidence",
-                                generation_path="free_form_quarantine",
-                                generator_family="legacy_free_form",
-                                compiler_version=str(
-                                    MUTATION_FAMILY_REGISTRY_VERSION
-                                ),
-                                quarantined=True,
-                            )
-                        )
-                    else:
-                        task = build_mutation_task(
-                            op,
-                            parent,
-                            temperature=self.evolution_config.code_temperature,
-                            top_p=self.evolution_config.code_top_p,
-                        )
-                        task.plan_status = "fallback_no_evidence"
-                        if code_backend == "hybrid":
-                            task.generation_path = "free_form_quarantine"
-                            task.generator_family = "legacy_free_form"
-                            task.compiler_version = str(
-                                MUTATION_FAMILY_REGISTRY_VERSION
-                            )
-                            task.compiler_diagnostics = {
-                                "status": CompilationStatus.UNSUPPORTED.value,
-                                "reasons": [
-                                    "missing evidence prevented a typed "
-                                    "registered-family plan"
-                                ],
-                            }
-                            task.quarantined = True
-                        prepared.append(task)
-                else:
-                    prepared.append(
-                        CandidateReport(
-                            status="mutation_failed",
-                            op=op,
-                            reason="metacognitive planning requires two evidence traces",
-                            plan_status="missing_evidence",
-                        )
-                    )
-                continue
-            plan_inputs.append((op, parent, evidence))
-            prepared.append(None)
-
-        if not plan_inputs:
-            return [item for item in prepared if item is not None]
-
-        plan_tasks = [
-            build_metacognitive_plan_task(
-                op,
-                parent,
-                evidence=evidence,
-                meta_progress=progress_context(self.last_meta_progress, parent),
-                max_output_tokens=(
-                    self.metacognition_config.plan_max_output_tokens
-                ),
-                temperature=self.evolution_config.plan_temperature,
-                top_p=self.evolution_config.plan_top_p,
-            )
-            for op, parent, evidence in plan_inputs
-        ]
-        plan_outputs = self.backend.mutate(plan_tasks)
-        planned_iter = iter(
-            (
-                plan_input,
-                plan_outputs[index] if index < len(plan_outputs) else None,
-            )
-            for index, plan_input in enumerate(plan_inputs)
-        )
-
-        finalized: list[MutationTask | CandidateReport] = []
-        for item in prepared:
-            if item is not None:
-                finalized.append(item)
-                continue
-            (op, parent, _), output = next(planned_iter)
-            inherited_move = ""
-            if op == "in_breadth":
-                inherited_move = str(
-                    (
-                        (parent.metadata or {}).get("mutation_plan") or {}
-                    ).get("target_reasoning_move", "")
-                )
-            plan, reason = parse_mutation_plan(
-                output,
-                op,
-                required_target_reasoning_move=inherited_move,
-                reasoning_informed=True,
-                parent=parent,
-            )
-            if plan is not None:
-                task = build_planned_mutation_task(
-                    op,
-                    parent,
-                    plan,
-                    temperature=self.evolution_config.code_temperature,
-                    top_p=self.evolution_config.code_top_p,
-                )
-                if code_backend == "freeform":
-                    finalized.append(task)
-                    self.events.append(
-                        {
-                            "event": "mutation_plan_created",
-                            "program_id": parent.program_id,
-                            "op": op,
-                            "plan_id": task.plan_id,
-                            "generation_path": task.generation_path,
-                        }
-                    )
-                    continue
-
-                try:
-                    compilation = compile_mutation_plan(
-                        plan,
-                        parent=parent,
-                        operator=op,
-                    )
-                except Exception as exc:
-                    # Unexpected compiler exceptions are terminal. They are
-                    # never converted into a code-model repair request.
-                    plan_identifier = mutation_plan_id(plan)
-                    finalized.append(
-                        CandidateReport(
-                            status="compiler_error",
-                            op=op,
-                            reason=f"mutation compiler raised: {exc}",
-                            plan_id=plan_identifier,
-                            plan_status="compiler_error",
-                            generation_path="registered_compiled",
-                            generator_family=str(
-                                plan.get("generator_family") or ""
-                            )
-                            or None,
-                            compiler_version=str(
-                                MUTATION_FAMILY_REGISTRY_VERSION
-                            ),
-                        )
-                    )
-                    self.events.append(
-                        {
-                            "event": "mutation_compile_failed",
-                            "program_id": parent.program_id,
-                            "op": op,
-                            "plan_id": plan_identifier,
-                            "status": "compiler_error",
-                            "reason": str(exc),
-                        }
-                    )
-                    continue
-
-                diagnostics = {
-                    "status": compilation.status.value,
-                    "reasons": list(compilation.reasons),
-                    "source_hash": compilation.source_hash,
-                    "family_config": dict(compilation.family_config),
-                    "concept_group": compilation.concept_group,
-                    "concept_type": compilation.concept_type,
-                }
-                task.generator_family = compilation.generator_family
-                task.compiler_version = str(MUTATION_FAMILY_REGISTRY_VERSION)
-                task.compiler_diagnostics = diagnostics
-
-                if compilation.status is CompilationStatus.COMPILED:
-                    # Deterministic family-semantic gate before any LLM
-                    # evaluator: the answer oracle and the contract's necessity
-                    # are checked separately on every verification seed.
-                    semantics = validate_compiled_family_semantics(
-                        compilation,
-                        range(self.evolution_config.verify_seeds),
-                    )
-                    diagnostics["family_semantics"] = dict(
-                        semantics.to_payload()
-                    )
-                    if not semantics.valid:
-                        finalized.append(
-                            CandidateReport(
-                                status="family_semantics_rejected",
-                                op=op,
-                                reason="; ".join(semantics.reasons),
-                                plan_id=task.plan_id,
-                                plan_status="family_semantics_rejected",
-                                generation_path="registered_compiled",
-                                generator_family=compilation.generator_family,
-                                compiler_version=str(
-                                    MUTATION_FAMILY_REGISTRY_VERSION
-                                ),
-                            )
-                        )
-                        self.events.append(
-                            {
-                                "event": "family_semantics_rejected",
-                                "program_id": parent.program_id,
-                                "op": op,
-                                "plan_id": task.plan_id,
-                                "generator_family": (
-                                    compilation.generator_family
-                                ),
-                                "reasons": list(semantics.reasons),
-                            }
-                        )
-                        continue
-                    task.family_contract = family_contract_payload(
-                        compilation,
-                        semantics,
-                    )
-                    task.precompiled_source = compilation.source_code
-                    task.generation_path = "registered_compiled"
-                    task.plan_status = "compiled_family"
-                    finalized.append(task)
-                    self.events.append(
-                        {
-                            "event": "mutation_plan_compiled",
-                            "program_id": parent.program_id,
-                            "op": op,
-                            "plan_id": task.plan_id,
-                            "generator_family": compilation.generator_family,
-                            "compiler_version": (
-                                MUTATION_FAMILY_REGISTRY_VERSION
-                            ),
-                            "compiler_source_hash": compilation.source_hash,
-                            "family_config": dict(compilation.family_config),
-                        }
-                    )
-                    continue
-
-                if compilation.status is CompilationStatus.UNSUPPORTED:
-                    task.generation_path = "free_form_quarantine"
-                    task.plan_status = "quarantined_freeform"
-                    task.quarantined = True
-                    reason_text = "; ".join(compilation.reasons)
-                    self.events.append(
-                        {
-                            "event": "mutation_plan_quarantined",
-                            "program_id": parent.program_id,
-                            "op": op,
-                            "plan_id": task.plan_id,
-                            "generator_family": compilation.generator_family,
-                            "reason": reason_text,
-                            "code_backend": code_backend,
-                        }
-                    )
-                    if code_backend == "compiler_only":
-                        finalized.append(
-                            CandidateReport(
-                                status="quarantined_unsupported_family",
-                                op=op,
-                                reason=reason_text,
-                                **_task_report_metadata(task),
-                            )
-                        )
-                    else:
-                        # Hybrid mode may generate the idea for diagnostics.
-                        # task.quarantined prevents evaluator/rollout/archive
-                        # and therefore training-data entry.
-                        finalized.append(task)
-                    continue
-
-                terminal_status = (
-                    "invalid_spec"
-                    if compilation.status is CompilationStatus.INVALID_SPEC
-                    else "compiler_error"
-                )
-                task.generation_path = "registered_compiled"
-                task.plan_status = terminal_status
-                reason_text = "; ".join(compilation.reasons)
-                finalized.append(
-                    CandidateReport(
-                        status=terminal_status,
-                        op=op,
-                        reason=reason_text,
-                        **_task_report_metadata(task),
-                    )
-                )
-                self.events.append(
-                    {
-                        "event": "mutation_compile_failed",
-                        "program_id": parent.program_id,
-                        "op": op,
-                        "plan_id": task.plan_id,
-                        "generator_family": compilation.generator_family,
-                        "status": terminal_status,
-                        "reason": reason_text,
-                    }
-                )
-                continue
-            self.events.append(
-                {
-                    "event": "mutation_plan_failed",
-                    "program_id": parent.program_id,
-                    "op": op,
-                    "reason": reason,
-                }
-            )
-            if (
-                self.metacognition_config.fallback_to_legacy_mutation
-                and not inherited_move
-            ):
-                if code_backend == "compiler_only":
-                    finalized.append(
-                        CandidateReport(
-                            status="invalid_spec",
-                            op=op,
-                            reason=f"metacognitive plan rejected: {reason}",
-                            plan_status="invalid_plan",
-                            generation_path="free_form_quarantine",
-                            generator_family="legacy_free_form",
-                            compiler_version=str(
-                                MUTATION_FAMILY_REGISTRY_VERSION
-                            ),
-                            quarantined=True,
-                        )
-                    )
-                else:
-                    task = build_mutation_task(
-                        op,
-                        parent,
-                        temperature=self.evolution_config.code_temperature,
-                        top_p=self.evolution_config.code_top_p,
-                    )
-                    task.plan_status = "fallback_invalid_plan"
-                    if code_backend == "hybrid":
-                        task.generation_path = "free_form_quarantine"
-                        task.generator_family = "legacy_free_form"
-                        task.compiler_version = str(
-                            MUTATION_FAMILY_REGISTRY_VERSION
-                        )
-                        task.compiler_diagnostics = {
-                            "status": CompilationStatus.INVALID_SPEC.value,
-                            "reasons": [str(reason)],
-                        }
-                        task.quarantined = True
-                    finalized.append(task)
-            else:
-                finalized.append(
-                    CandidateReport(
-                        status="mutation_failed",
-                        op=op,
-                        reason=f"metacognitive plan rejected: {reason}",
-                        plan_status="invalid_plan",
-                    )
-                )
-        return finalized
 
     def _make_child_from_output(
         self,
@@ -1035,44 +411,13 @@ class RQEvolver:
         verified instance; on failure ``inst`` is None and ``source`` is the
         parsed program (None if the output had no parseable ``generate``).
         """
-        if task.precompiled_source is not None:
-            source = task.precompiled_source
-        else:
-            if not output:
-                return None, None, "empty model output", None
-            source = extract_generator_code(output)
-            if source is None:
-                return None, None, "no parseable generate() in output", None
+        if not output:
+            return None, None, "empty model output", None
+        source = extract_generator_code(output)
+        if source is None:
+            return None, None, "no parseable generate() in output", None
 
-        metadata = {
-            "op": task.op,
-            "plan_status": task.plan_status,
-            "generation_path": task.generation_path,
-            "generator_family": task.generator_family,
-            "compiler_version": task.compiler_version,
-            "compiler_diagnostics": task.compiler_diagnostics,
-            "quarantined": task.quarantined,
-            # Opts this child out of the compiler-shaped notation lint. The
-            # replacement guarantees are dynamic: verify_program requires an
-            # integer answer on every verified seed, and the evaluator checks
-            # the problem actually determines it.
-            "free_form_direct": task.generation_path == "direct_freeform",
-            **(
-                {
-                    "mutation_plan": task.mutation_plan,
-                    "plan_id": task.plan_id,
-                }
-                if task.mutation_plan is not None
-                else {}
-            ),
-        }
-        if task.compiler_diagnostics:
-            metadata["family_config"] = dict(
-                task.compiler_diagnostics.get("family_config") or {}
-            )
-            metadata["compiler_source_hash"] = (
-                task.compiler_diagnostics.get("source_hash")
-            )
+        metadata = {"op": task.op}
         child = ProblemProgram(
             source_code=source,
             parent_id=task.parent.program_id,
@@ -1095,13 +440,13 @@ class RQEvolver:
         if task.op == "in_depth":
             if child.get_concept_group() != task.parent.get_concept_group():
                 return (
-                    "planned in-depth mutation changed CONCEPT_GROUP: "
+                    "in-depth mutation changed CONCEPT_GROUP: "
                     f"{task.parent.get_concept_group()!r} -> "
                     f"{child.get_concept_group()!r}"
                 )
             if child.get_concept_type() != task.parent.get_concept_type():
                 return (
-                    "planned in-depth mutation changed CONCEPT_TYPE: "
+                    "in-depth mutation changed CONCEPT_TYPE: "
                     f"{task.parent.get_concept_type()!r} -> "
                     f"{child.get_concept_type()!r}"
                 )
@@ -1110,23 +455,9 @@ class RQEvolver:
             and child.get_concept_group() == task.parent.get_concept_group()
         ):
             return (
-                "planned in-breadth mutation must change CONCEPT_GROUP from "
+                "in-breadth mutation must change CONCEPT_GROUP from "
                 f"{task.parent.get_concept_group()!r}"
             )
-        plan = task.mutation_plan
-        if plan is not None:
-            target_group = str(plan.get("target_concept_group", ""))
-            target_type = str(plan.get("target_concept_type", ""))
-            if child.get_concept_group() != target_group:
-                return (
-                    "planned mutation did not implement target_concept_group: "
-                    f"{target_group!r} -> {child.get_concept_group()!r}"
-                )
-            if child.get_concept_type() != target_type:
-                return (
-                    "planned mutation did not implement target_concept_type: "
-                    f"{target_type!r} -> {child.get_concept_type()!r}"
-                )
         return None
 
     def _resolve_retries(self, entries: list[dict]) -> None:
@@ -1161,7 +492,6 @@ class RQEvolver:
                     status="verify_failed",
                     op=task.op,
                     reason=info["reason"],
-                    **_task_report_metadata(task),
                 )
                 continue
             child, inst, reason, _ = self._make_child_from_output(task, output)
@@ -1174,7 +504,6 @@ class RQEvolver:
                     op=task.op,
                     child_id=child.program_id if child else "",
                     reason=f"[after fix] {reason}",
-                    **_task_report_metadata(task),
                 )
 
     def _apply_evaluator(self, entries: list[dict]) -> None:
@@ -1206,18 +535,8 @@ class RQEvolver:
                 build_evaluator_task(
                     e["child"],
                     e["inst"].problem,
-                    mutation_plan=getattr(
-                        e["task"],
-                        "mutation_plan",
-                        None,
-                    ),
                     answer_text=e["inst"].answer,
                     program_source=e["child"].source_code,
-                    family_contract=getattr(
-                        e["task"],
-                        "family_contract",
-                        None,
-                    ),
                     temperature=self.evolution_config.evaluator_temperature,
                     top_p=self.evolution_config.evaluator_top_p,
                 )
@@ -1236,12 +555,7 @@ class RQEvolver:
                     "Evaluator call failed; aborting R_Q-Evolve instead of "
                     f"discarding the candidate and continuing: {output}"
                 ) from output
-            is_valid, reason = parse_evaluator_verdict(
-                output or "",
-                require_target_move=bool(
-                    getattr(e["task"], "mutation_plan", None)
-                ),
-            )
+            is_valid, reason = parse_evaluator_verdict(output or "")
             if is_valid:
                 continue
             task, child = e["task"], e["child"]
@@ -1251,7 +565,6 @@ class RQEvolver:
                 op=task.op,
                 child_id=child.program_id,
                 reason=reason,
-                **_task_report_metadata(task),
             )
 
     def _run_openai_evaluator(self, targets: list[dict]) -> list[str | Exception]:
@@ -1265,11 +578,6 @@ class RQEvolver:
         def evaluate_one(e: dict) -> str | Exception:
             messages = build_evaluator_messages(
                 e["inst"].problem,
-                mutation_plan=getattr(
-                    e["task"],
-                    "mutation_plan",
-                    None,
-                ),
                 answer_text=e["inst"].answer,
                 program_source=e["child"].source_code,
             )
@@ -1311,21 +619,6 @@ class RQEvolver:
         program.h_score = result.uncertainty
         program.rq_score = result.rq_score
         program.fitness = result.rq_score
-        if self.metacognition_config.enabled and instance is not None:
-            evidence = select_reasoning_evidence(
-                rollouts,
-                program=program,
-                instance=instance,
-                iteration=self.current_iteration,
-                max_tokens=self.metacognition_config.trace_storage_max_tokens,
-                tokenizer=getattr(self.backend, "tokenizer", None),
-            )
-            if evidence:
-                # This is telemetry attached to the single live archive entry,
-                # not a second archive and not an additional Solver rollout.
-                program.metadata["reasoning_evidence"] = [
-                    asdict(item) for item in evidence
-                ]
         return result
 
     def evaluate_instances(
@@ -1405,49 +698,17 @@ class RQEvolver:
             pairs.append((champion, inst))
         if not pairs:
             return
-        pre_scores = {
-            champion.program_id: {
-                "p_hat": float(champion.p_hat),
-                "concept_group": champion.get_concept_group(),
-                "concept_type": champion.get_concept_type(),
-                "operator": (champion.metadata or {}).get("op", "seed"),
-            }
-            for champion, _instance in pairs
-        }
         results = self.evaluate_instances(
             [p for p, _ in pairs], [i for _, i in pairs]
         )
-
-        if self.metacognition_config.enabled:
-            progress = compute_meta_progress(
-                pre_scores,
-                [program for program, _instance in pairs],
-                results,
-                iteration=self.current_iteration,
-            )
-            self.last_meta_progress = progress.to_dict()
-            if self.metacognition_config.adaptive_operator:
-                self.operator_ema = update_operator_ema(
-                    self.operator_ema,
-                    self.last_meta_progress,
-                    alpha=self.metacognition_config.operator_ema_alpha,
-                )
-            self.events.append(
-                {
-                    "event": "meta_progress_measured",
-                    **self.last_meta_progress,
-                    "operator_ema": dict(self.operator_ema),
-                }
-            )
 
         for (champion, inst), result in zip(pairs, results):
             if result is None:
                 # all rollouts rejected (transient timeout/worker error) --
                 # keep the champion's previous scores and niche untouched.
                 continue
-            # Delta-p above was measured on the fixed pre-update cohort. Only
-            # now may a champion move to a new H cell, replace another champion,
-            # or disappear when R_Q has reached zero.
+            # Every champion is rescored against the same weights before any of
+            # them moves, so re-binning cannot depend on the order of this loop.
             self.archive.remove_program(champion.program_id)
             if result.rq_score <= 0.0:
                 self.events.append(
@@ -1557,7 +818,7 @@ class RQEvolver:
         self.dataset_refresh_count += 1
 
     _USED_SEEDS_FILE = "rq_used_seeds.json"
-    _METACOGNITION_FILE = "rq_metacognition.json"
+    _ITERATION_FILE = "rq_iteration.json"
 
     def save_state(self, directory: str | Path, iteration: int | None = None) -> None:
         """Persist the MAP-Elites archive + used_seeds for restart.
@@ -1595,13 +856,9 @@ class RQEvolver:
             ),
             encoding="utf-8",
         )
-        (directory / self._METACOGNITION_FILE).write_text(
+        (directory / self._ITERATION_FILE).write_text(
             json.dumps(
-                {
-                    "last_meta_progress": self.last_meta_progress,
-                    "operator_ema": self.operator_ema,
-                    "current_iteration": self.current_iteration,
-                },
+                {"current_iteration": self.current_iteration},
                 indent=2,
                 ensure_ascii=False,
             ),
@@ -1634,8 +891,6 @@ class RQEvolver:
             "metrics": metrics,
             "reports": [asdict(r) for r in reports],
             "frontier": self.last_frontier,
-            "meta_progress": self.last_meta_progress,
-            "operator_ema": self.operator_ema,
         }
         with (directory / "evolution_log.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -1658,16 +913,9 @@ class RQEvolver:
                 pid: set(seeds)
                 for pid, seeds in payload.get("used_seeds", {}).items()
             }
-        metacognition_file = directory / self._METACOGNITION_FILE
-        if metacognition_file.exists():
-            payload = json.loads(metacognition_file.read_text(encoding="utf-8"))
-            self.last_meta_progress = dict(
-                payload.get("last_meta_progress") or {}
-            )
-            self.operator_ema = {
-                str(key): float(value)
-                for key, value in (payload.get("operator_ema") or {}).items()
-            }
+        iteration_file = directory / self._ITERATION_FILE
+        if iteration_file.exists():
+            payload = json.loads(iteration_file.read_text(encoding="utf-8"))
             self.current_iteration = int(
                 payload.get("current_iteration", self.current_iteration)
             )
@@ -1680,17 +928,6 @@ class RQEvolver:
     def _sample_operator(self, parent: ProblemProgram | None = None) -> str:
         del parent  # reserved for future per-concept controllers
         depth_probability = self.evolution_config.in_depth_ratio
-        if (
-            self.metacognition_config.enabled
-            and self.metacognition_config.adaptive_operator
-        ):
-            depth_probability = adaptive_depth_probability(
-                self.operator_ema,
-                fallback=depth_probability,
-                min_probability=(
-                    self.metacognition_config.operator_min_probability
-                ),
-            )
         roll = random.random()
         if roll < depth_probability:
             return "in_depth"

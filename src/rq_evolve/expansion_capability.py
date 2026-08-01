@@ -516,7 +516,7 @@ def evaluate_checkpoint_vllm(
     # math_eval has heavyweight optional benchmark dependencies, so import its
     # production measurement grader only on the actual evaluation path.
     from .math_eval import grade_eval
-    from .metacognition import SOLVER_CHAT_BOUNDARY_STOPS
+    from .solver_trace import SOLVER_CHAT_BOUNDARY_STOPS
     from .reward import extract_boxed
 
     checkpoint_path = os.fspath(checkpoint)

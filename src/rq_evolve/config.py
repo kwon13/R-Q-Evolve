@@ -25,27 +25,6 @@ class EvolutionConfig:
     in_depth_ratio: float = 0.5
     verify_seeds: int = 5
     frontier_p_hat_range: tuple[float, float] = (0.1, 0.9)
-    # Planned mutations can be compiled by a trusted registered family instead
-    # of asking the policy to reproduce boilerplate Python contracts.
-    #
-    # freeform      -> historical plan-to-code LLM path;
-    # hybrid        -> compile registered families, quarantine unsupported
-    #                  free-form exploration;
-    # compiler_only -> reject/quarantine every unsupported family without a
-    #                  code-model call.
-    mutation_code_backend: str = "freeform"
-    # How reasoning evidence reaches the mutation.
-    #
-    # planned -> the evidence is summarised into a structured plan first, and
-    #            the plan drives generation (the historical path);
-    # direct  -> the correct/wrong solver traces are placed in the code-writing
-    #            prompt itself, with no plan step. Chosen because summarising
-    #            was where the information was lost: a plan described "the
-    #            solver incorrectly adds the equations" when the addition was
-    #            arithmetically fine. The direct path costs one fewer model
-    #            call and relaxes the compiler-shaped notation lint, so it
-    #            leans on execution-level verification instead.
-    mutation_contract: str = "planned"
     # When True, a child that parses but fails verification gets ONE multi-turn
     # self-fix attempt: the model is shown its own program + the rejection reason
     # and asked to fix only that issue.
@@ -66,11 +45,8 @@ class EvolutionConfig:
     evaluator_max_output_tokens: int = 512
     evaluator_concurrency: int = 8
     # Solver rollouts keep using actor_rollout_ref.rollout.{temperature,top_p}.
-    # Mutation stages are deliberately decoupled: planning benefits from some
-    # diversity, while code and evaluator outputs are contract-heavy and should
-    # be much more deterministic.
-    plan_temperature: float = 0.7
-    plan_top_p: float = 0.95
+    # The mutation stages are deliberately decoupled: code and evaluator
+    # outputs are contract-heavy and should be much more deterministic.
     code_temperature: float = 0.2
     code_top_p: float = 0.95
     evaluator_temperature: float = 0.0
@@ -93,31 +69,6 @@ class EvolutionConfig:
     select_ignores_variance: bool = False
 
     def __post_init__(self) -> None:
-        if self.mutation_code_backend not in (
-            "freeform",
-            "hybrid",
-            "compiler_only",
-        ):
-            raise ValueError(
-                "evolution.mutation_code_backend must be one of "
-                "freeform|hybrid|compiler_only"
-            )
-        if self.mutation_contract not in ("planned", "direct"):
-            raise ValueError(
-                "evolution.mutation_contract must be 'planned' or 'direct', "
-                f"got {self.mutation_contract!r}"
-            )
-        if self.mutation_contract == "direct" and not self.use_evaluator:
-            # The direct path waives the notation lint, including the checks
-            # that would have caught a problem whose text omits a quantity its
-            # answer depends on. Only the evaluator sees that, so running
-            # without it removes the replacement guarantee rather than a
-            # redundant one.
-            raise ValueError(
-                "evolution.mutation_contract='direct' requires "
-                "use_evaluator=true: it is the only check that catches a "
-                "problem whose statement does not determine its answer"
-            )
         if self.evaluator_provider not in ("policy", "openai"):
             raise ValueError(
                 "evolution.evaluator_provider must be 'policy' or 'openai', "
@@ -134,70 +85,13 @@ class EvolutionConfig:
             raise ValueError("evolution.evaluator_max_output_tokens must be >= 1")
         if self.evaluator_concurrency < 1:
             raise ValueError("evolution.evaluator_concurrency must be >= 1")
-        for name in (
-            "plan_temperature",
-            "code_temperature",
-            "evaluator_temperature",
-        ):
+        for name in ("code_temperature", "evaluator_temperature"):
             if float(getattr(self, name)) < 0.0:
                 raise ValueError(f"evolution.{name} must be >= 0")
-        for name in ("plan_top_p", "code_top_p", "evaluator_top_p"):
+        for name in ("code_top_p", "evaluator_top_p"):
             value = float(getattr(self, name))
             if not 0.0 < value <= 1.0:
                 raise ValueError(f"evolution.{name} must be in (0, 1]")
-
-
-@dataclass(slots=True)
-class MetacognitionConfig:
-    """Monitoring/planning layered over the existing single MAP archive."""
-
-    enabled: bool = False
-    trace_storage_max_tokens: int = 4096
-    # Twice trace_storage: this budgets the correct+wrong pair together, and the
-    # old equal default meant one trace at its cap could consume all of it,
-    # dropping the pair and leaving planning with no evidence.
-    monitoring_total_trace_tokens: int = 8192
-    plan_max_output_tokens: int = 1024
-    # A metacognitive plan must be grounded in one clean correct/wrong pair.
-    # During bootstrap, fall back to the legacy mutation prompt rather than
-    # asking a sparse-evidence planner to invent an unsupported failure contrast.
-    require_contrast_pair: bool = True
-    fallback_to_legacy_mutation: bool = True
-    reject_unbounded_sampling: bool = True
-    adaptive_operator: bool = False
-    operator_min_probability: float = 0.2
-    operator_ema_alpha: float = 0.2
-
-    def __post_init__(self) -> None:
-        if self.trace_storage_max_tokens < 1:
-            raise ValueError("metacognition.trace_storage_max_tokens must be >= 1")
-        if self.monitoring_total_trace_tokens < 1:
-            raise ValueError(
-                "metacognition.monitoring_total_trace_tokens must be >= 1"
-            )
-        if (
-            self.monitoring_total_trace_tokens
-            < 2 * self.trace_storage_max_tokens
-        ):
-            # The monitoring budget holds the correct+wrong pair together while
-            # trace_storage caps each trace alone. When they are equal a single
-            # trace that runs to its cap consumes the whole budget and the pair
-            # is dropped -- observed as 0 selected traces out of 250 rollouts,
-            # which silently left the reasoning condition with no evidence.
-            raise ValueError(
-                "metacognition.monitoring_total_trace_tokens must be at least "
-                "twice trace_storage_max_tokens because it budgets a pair of "
-                f"traces: got {self.monitoring_total_trace_tokens} for two "
-                f"traces of up to {self.trace_storage_max_tokens} each"
-            )
-        if self.plan_max_output_tokens < 1:
-            raise ValueError("metacognition.plan_max_output_tokens must be >= 1")
-        if not 0.0 <= self.operator_min_probability < 0.5:
-            raise ValueError(
-                "metacognition.operator_min_probability must be in [0, 0.5)"
-            )
-        if not 0.0 < self.operator_ema_alpha <= 1.0:
-            raise ValueError("metacognition.operator_ema_alpha must be in (0, 1]")
 
 
 @dataclass(slots=True)
@@ -436,7 +330,6 @@ class MathEvalConfig:
 class RQEvolveConfig:
     archive: ArchiveConfig = field(default_factory=ArchiveConfig)
     evolution: EvolutionConfig = field(default_factory=EvolutionConfig)
-    metacognition: MetacognitionConfig = field(default_factory=MetacognitionConfig)
     training_data: TrainingDataConfig = field(default_factory=TrainingDataConfig)
     verl: VerlConfig = field(default_factory=VerlConfig)
     math_eval: MathEvalConfig = field(default_factory=MathEvalConfig)

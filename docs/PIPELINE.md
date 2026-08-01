@@ -25,59 +25,40 @@
 4. `p_hat`, uncertainty, and `R_Q` are computed.
 5. The program competes for a MAP-Elites cell.
 6. Parent programs are sampled from occupied cells.
-7. Existing R_Q rollouts contribute at most one shortest-correct and one
-   lowest-entropy-wrong trace; no additional Solver rollout is requested.
-8. The mutation model first produces a validated `MutationPlan` JSON and then
-   implements that plan as Python.
-9. The child is verified, evaluated against its plan, and inserted if elite.
-10. Frontier champions render new training examples.
-11. The installed `verl` trainer consumes those examples and updates the solver.
-12. The next outer iteration snapshots champion pass rates, re-scores the fixed
-    cohort, computes delta-p, and only then moves/replaces/removes champions.
+7. The mutation model is shown the parent source under the `in_depth` or
+   `in_breadth` template and writes the child generator directly. One model
+   call, no planning stage.
+8. The child is verified statically and by execution, gated by the LLM
+   coherence evaluator, scored, and inserted if elite.
+9. Frontier champions render new training examples.
+10. The installed `verl` trainer consumes those examples and updates the solver.
+11. The next outer iteration re-scores every champion against the new weights
+    before any of them is re-binned, replaced, or removed.
 
-## Metacognitive Control
+## Mutation Contract
 
-`metacognition.enabled=true` does not create a second archive. The single live
-MAP remains the curriculum and fitness state; the extra data is telemetry
-attached to its programs plus a small operator EMA.
+Mutation is one-stage and free-form. `build_mutation_task` renders the parent
+source into `in_depth.txt` / `in_breadth.txt` and the model returns the child
+generator in one ```python``` block. There is no plan schema, no registered
+family compiler, and no quarantine path.
 
-```text
-existing G rollouts
-  -> shortest clean correct + lowest-entropy completed clean wrong
-     (same problem/seed/policy; decoding loops and truncation excluded)
-  -> Monitoring + schema-v5 MutationPlan JSON
-  -> registered family compiler (or quarantined free-form diagnostic)
-  -> static/runtime/LLM evaluation
-  -> existing R_Q insertion rule
+Three gates stand between a generated child and the archive:
 
-next Solver update
-  -> snapshot p_hat for the current champion cohort
-  -> re-evaluate that same cohort
-  -> compute delta-p globally/by group/by type/by creating operator
-  -> update depth/breadth EMA
-  -> only now re-bin, replace, or remove R_Q=0 champions
-```
-
-Plan schema v5 keeps one executable `answer_route`, exact target labels, and a
-checkable `necessity:` witness, then selects a registered `generator_family`
-with typed `family_config`. Python owns `MAX_ATTEMPTS=200`, seed-local
-randomness, the canonical `instance_data` shape, rendering, answer
-serialization, and family-specific mathematical assertions. This removes those
-mechanical constraints from the model's creative planning task. Unknown
-families and legacy schema-v4 plans are explicitly quarantined: hybrid mode may
-generate and score them as diagnostics, but they cannot enter the archive or
-training data. Compiler/spec failures are terminal and never trigger a
-lint-feedback retry.
-
-The standalone hypothesis comparison is stricter than the historical legacy
-comparison: both plain and reasoning-informed conditions receive the same
-registered family route and run one plan call. Registered plans are compiled
-without a code-model call; unsupported free-form plans are quarantined. Plain
-planning receives the parent only; reasoning-informed planning receives the
-additional clean contrast. Neutral padding length-matches the two plan inputs.
-The manifest records generation path, family, compiler version/source hash, and
-actual call count so paired-route parity can be audited before confirmatory
-analysis.
+1. **Static lint** — `lint_generator_source` plus the determinism checks in
+   `lint_mutation_generator_source`: a seeded `rng = random.Random(seed)`, no
+   direct `random.*` calls, and `sorted()` around dict/set iteration, so a
+   program yields the same instance in the verifier and in every rollout
+   process. The compiler-notation flags (`MAX_ATTEMPTS = 200`, canonical
+   `instance_data`, `str(sympy.Integer(answer))`) stay OFF: free-form
+   generation does not satisfy them, and enforcing them rejected sound
+   programs on shape alone.
+2. **Execution** — `verify_program` runs seeds 0..N-1, requires a base-10
+   integer answer from every generated mutation, and rejects a program whose
+   visible problem does not vary across seeds. This carries the guarantee the
+   static notation contract used to.
+3. **Operator contract + evaluator** — `in_depth` must preserve the parent's
+   CONCEPT_GROUP and CONCEPT_TYPE, `in_breadth` must change CONCEPT_GROUP, and
+   `use_evaluator` gates seed-0 coherence before any solver rollout is spent.
 
 All repository-owned standalone vLLM evaluation/comparison entry points default
 to `--vllm-sampler-backend pytorch`.

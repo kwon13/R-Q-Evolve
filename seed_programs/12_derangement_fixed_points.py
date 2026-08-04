@@ -21,6 +21,16 @@ def generate(seed):
 
     answer = sum(math.comb(n, j) * _derangement(n - j) for j in range(k, n + 1))
 
+    # Two independent routes. First: every redistribution has some number of
+    # fixed points, so the exact-j counts must sum to n! -- this is what pins
+    # _derangement itself. Second: reach the same total from the complement,
+    # counting the redistributions with fewer than k own cards and subtracting.
+    assert sum(math.comb(n, j) * _derangement(n - j) for j in range(n + 1)) == math.factorial(n)
+    check = math.factorial(n) - sum(
+        math.comb(n, j) * _derangement(n - j) for j in range(k)
+    )
+    assert answer == check, f"answer={answer} check={check}"
+
     problem = (
         f"{n} people each write their name on a card. The cards are shuffled "
         f"and redistributed. In how many redistributions do at least {k} people "
@@ -29,5 +39,5 @@ def generate(seed):
 
     return problem, str(answer)
 
-CONCEPT_GROUP = "combinatorics"
-CONCEPT_TYPE = "combinatorics.derangement_fixed_points"
+GROUP = "combinatorics"
+SKILL = "counting"

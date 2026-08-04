@@ -4,7 +4,9 @@ from rq_evolve.archive import MAPElitesArchive
 from rq_evolve.program import ProblemProgram
 
 
-def _program(group: str, value: int) -> ProblemProgram:
+def _program(
+    group: str, value: int, skill: str = "transformation"
+) -> ProblemProgram:
     return ProblemProgram(
         source_code=f'''
 import random
@@ -14,8 +16,8 @@ def generate(seed):
     return f"What is {value} + {{seed}}?", str({value} + seed)
 
 
-CONCEPT_GROUP = "{group}"
-CONCEPT_TYPE = "{group}.toy"
+GROUP = "{group}"
+SKILL = "{skill}"
 '''
     )
 
@@ -45,8 +47,8 @@ def test_seed_variation_allows_varied_problems_with_constant_answer():
 def generate(seed):
     return f"Find the value of {seed} - {seed}.", "0"
 
-CONCEPT_GROUP = "algebra"
-CONCEPT_TYPE = "algebra.cancellation"
+GROUP = "algebra"
+SKILL = "invariant"
 '''
     )
     archive = MAPElitesArchive()
@@ -62,8 +64,8 @@ def test_seed_variation_rejects_unchanged_visible_problem_with_hidden_answers():
 def generate(seed):
     return "Find the hidden number.", str(seed)
 
-CONCEPT_GROUP = "algebra"
-CONCEPT_TYPE = "algebra.hidden_number"
+GROUP = "algebra"
+SKILL = "construction"
 '''
     )
     archive = MAPElitesArchive()

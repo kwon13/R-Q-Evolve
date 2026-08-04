@@ -690,6 +690,16 @@ def lint_mutation_generator_source(
     return reasons
 
 
+# A competition-math statement that runs past this is not a hard problem, it is
+# a generator dumping its sampled object into the prose. The bound matters
+# operationally, not just aesthetically: problem_text is concatenated into the
+# evaluator prompt, the solver prompt, and every training row, so one runaway
+# statement can exceed the rollout context and take the whole run down. Real
+# instances (14 seeds + 8 verified fixtures, 110 samples) top out at 397 chars,
+# so this leaves an order of magnitude of headroom.
+MAX_PROBLEM_TEXT_CHARS = 4000
+
+
 def lint_problem_instance(instance: ProblemInstance) -> list[str]:
     """Reject obviously poor training examples."""
     reasons: list[str] = []
@@ -698,6 +708,11 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
 
     if len(problem) < 10:
         reasons.append("problem text too short")
+    if len(problem) > MAX_PROBLEM_TEXT_CHARS:
+        reasons.append(
+            f"problem text too long: {len(problem)} chars "
+            f"(limit {MAX_PROBLEM_TEXT_CHARS})"
+        )
     if not answer:
         reasons.append("empty answer")
     if any(token in answer.lower() for token in ("nan", "inf", "undefined")):

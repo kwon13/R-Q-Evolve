@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from .archive import MAPElitesArchive
+from .ast_contract import check_generator_contract, check_problem_text
 from .backends import EvolutionBackend, RolloutRecord
 from .code_utils import (
     extract_generator_code,
@@ -13,7 +14,7 @@ from .code_utils import (
     lint_mutation_generator_source,
     lint_problem_instance,
 )
-from .concepts import validate_concept_decl
+from .concepts import validate_label_decl
 from .config import EvolutionConfig, TrainingDataConfig
 from .dataset import DynamicProblemDataset, build_training_examples
 from .openai_evaluator import (
@@ -34,6 +35,13 @@ from .scoring import RQResult, compute_rq_full, is_frontier
 from .solver_trace import clean_and_grade_solver_rollout
 
 
+# A rejected child is discarded the moment its report is written, so without
+# this the source behind "execute failed at seed=0" is gone. Across six runs
+# that left ~7,000 rejections whose programs cannot be recovered, and no way to
+# measure a new gate's false-positive rate against the population it rejects.
+_MAX_LOGGED_SOURCE_CHARS = 8000
+
+
 @dataclass(slots=True)
 class CandidateReport:
     status: str
@@ -43,6 +51,21 @@ class CandidateReport:
     p_hat: float = 0.0
     uncertainty: float = 0.0
     reason: str | None = None
+    source_code: str | None = None
+    ast_findings: list[str] = field(default_factory=list)
+
+
+def _logged_source(source: str | None) -> str | None:
+    if source is None:
+        return None
+    return source[:_MAX_LOGGED_SOURCE_CHARS]
+
+
+def _ast_findings(program: "ProblemProgram | None") -> list[str]:
+    if program is None:
+        return []
+    verdict = program.metadata.get("ast_contract") or {}
+    return list(verdict.get("findings") or [])
 
 
 @dataclass
@@ -129,6 +152,7 @@ class RQEvolver:
         """Multi-seed execution and cheap mathematical sanity checks."""
         n = n_seeds or self.evolution_config.verify_seeds
         source_errors = lint_generator_source(program.source_code)
+        mode = self.evolution_config.ast_contract
         is_generated_mutation = program.metadata.get("op") in {
             "in_depth",
             "in_breadth",
@@ -158,26 +182,56 @@ class RQEvolver:
                     require_mechanical_shape=False,
                 )
             )
+            # The structural contract on the child's own cross-check. This is a
+            # dataflow predicate, not one of the shape predicates above, and it
+            # lives in its own module for that reason: the flags overhead are
+            # all OFF and must stay that way, and a single ON flag among six OFF
+            # ones invites the next reader to flip them as a batch.
+            #
+            # The verdict is always recorded so a shadow run costs no plumbing;
+            # only "enforce" turns it into a rejection.
+            if mode != "off":
+                findings = check_generator_contract(program.source_code)
+                program.metadata["ast_contract"] = {
+                    "verdict": "flagged" if findings else "clean",
+                    "findings": [str(f) for f in findings],
+                }
+                if findings and mode == "enforce":
+                    source_errors.extend(str(f) for f in findings)
         if source_errors:
             return None, "; ".join(source_errors[:3])
 
-        concept_type = program.declared_concept_type()
-        concept_group = program.declared_concept_group()
-        concept_errors = validate_concept_decl(concept_type, concept_group)
-        if concept_errors:
-            return None, "; ".join(concept_errors)
-        program.metadata["concept_type"] = concept_type
-        program.metadata["concept_group"] = concept_group
+        group = program.declared_group()
+        skill = program.declared_skill()
+        label_errors = validate_label_decl(group, skill)
+        if label_errors:
+            return None, "; ".join(label_errors)
+        # Resolve the two axis labels into metadata once, so a program keeps
+        # them after an archive round-trip without re-parsing its source.
+        program.metadata["group"] = group
+        program.metadata["skill"] = skill
 
         first: ProblemInstance | None = None
         seen_problems: set[str] = set()
         for seed in range(n):
             inst = program.execute(seed=seed)
             if inst is None:
-                return None, f"execute failed at seed={seed}"
+                # Name the failure. "execute failed" was the single largest
+                # rejection reason in a run where 58% of candidates died here,
+                # and it cannot distinguish the child's own AssertionError --
+                # its cross-check working as designed -- from broken code.
+                why = program.last_execution_error or "unknown"
+                return None, f"execute failed at seed={seed}: {why}"
             instance_errors = lint_problem_instance(inst)
             if instance_errors:
                 return None, "; ".join(instance_errors[:3])
+            if is_generated_mutation and mode == "enforce":
+                # A statement that names its own technique makes the declared
+                # SKILL untrue: the reasoning is quoted, not forced. Needs the
+                # rendered text, so it cannot live with the source rules.
+                handed_over = check_problem_text(inst.problem)
+                if handed_over:
+                    return None, str(handed_over[0])
             if (
                 is_generated_mutation
                 and re.fullmatch(r"-?\d+", inst.answer.strip()) is None
@@ -292,12 +346,26 @@ class RQEvolver:
                     # Parses but failed verification -> eligible for one
                     # self-fix. Keep the raw output: it becomes the assistant
                     # turn in the multi-turn fix prompt.
+                    # ``source`` and ``child_id`` ride INSIDE the payload on
+                    # purpose. _resolve_retries writes e["report"] without
+                    # calling e.clear(), so a top-level "child" key would
+                    # survive into _apply_evaluator's selector and desync the
+                    # zip(to_eval, grouped) that attributes rollout groups.
                     entries.append(
                         {
                             "_retry": {
                                 "task": task,
                                 "output": output,
                                 "reason": reason,
+                                "source": source,
+                                "child_id": child.program_id if child else None,
+                                "ast_findings": list(
+                                    (child.metadata.get("ast_contract") or {}).get(
+                                        "findings", []
+                                    )
+                                )
+                                if child
+                                else [],
                             }
                         }
                     )
@@ -361,6 +429,8 @@ class RQEvolver:
                         op=task.op,
                         child_id=child.program_id,
                         reason=max(reasons, key=reasons.get),
+                        source_code=_logged_source(child.source_code),
+                        ast_findings=_ast_findings(child),
                     )
                 )
                 continue
@@ -378,6 +448,8 @@ class RQEvolver:
                         rq_score=result.rq_score,
                         p_hat=result.p_hat,
                         uncertainty=result.uncertainty,
+                        source_code=_logged_source(child.source_code),
+                        ast_findings=_ast_findings(child),
                     )
                 )
                 continue
@@ -396,6 +468,8 @@ class RQEvolver:
                     rq_score=result.rq_score,
                     p_hat=result.p_hat,
                     uncertainty=result.uncertainty,
+                    source_code=_logged_source(child.source_code),
+                    ast_findings=_ast_findings(child),
                 )
             )
         return reports
@@ -436,28 +510,36 @@ class RQEvolver:
         task: MutationTask,
         child: ProblemProgram,
     ) -> str | None:
-        """Enforce the requested operator for every mutation condition."""
+        """Enforce the requested operator: one axis held, the other moved.
+
+        Each operator has to be checked on BOTH axes. Requiring only the move
+        lets a child drift on the axis that was supposed to stay fixed, and
+        requiring only the hold lets a child return the parent's own label on
+        the axis that was supposed to move -- which is the whole mutation.
+        """
+        parent_group = task.parent.get_group()
+        parent_skill = task.parent.get_skill()
+        child_group = child.get_group()
+        child_skill = child.get_skill()
+
         if task.op == "in_depth":
-            if child.get_concept_group() != task.parent.get_concept_group():
+            # Operator A: same GROUP, different SKILL.
+            if child_group != parent_group:
                 return (
-                    "in-depth mutation changed CONCEPT_GROUP: "
-                    f"{task.parent.get_concept_group()!r} -> "
-                    f"{child.get_concept_group()!r}"
+                    "in_depth must keep GROUP: "
+                    f"{parent_group!r} -> {child_group!r}"
                 )
-            if child.get_concept_type() != task.parent.get_concept_type():
+            if child_skill == parent_skill:
+                return f"in_depth must change SKILL from {parent_skill!r}"
+        elif task.op == "in_breadth":
+            # Operator B: same SKILL, different GROUP.
+            if child_skill != parent_skill:
                 return (
-                    "in-depth mutation changed CONCEPT_TYPE: "
-                    f"{task.parent.get_concept_type()!r} -> "
-                    f"{child.get_concept_type()!r}"
+                    "in_breadth must keep SKILL: "
+                    f"{parent_skill!r} -> {child_skill!r}"
                 )
-        elif (
-            task.op == "in_breadth"
-            and child.get_concept_group() == task.parent.get_concept_group()
-        ):
-            return (
-                "in-breadth mutation must change CONCEPT_GROUP from "
-                f"{task.parent.get_concept_group()!r}"
-            )
+            if child_group == parent_group:
+                return f"in_breadth must change GROUP from {parent_group!r}"
         return None
 
     def _resolve_retries(self, entries: list[dict]) -> None:
@@ -491,10 +573,13 @@ class RQEvolver:
                 e["report"] = CandidateReport(
                     status="verify_failed",
                     op=task.op,
+                    child_id=info.get("child_id"),
                     reason=info["reason"],
+                    source_code=_logged_source(info.get("source")),
+                    ast_findings=list(info.get("ast_findings") or []),
                 )
                 continue
-            child, inst, reason, _ = self._make_child_from_output(task, output)
+            child, inst, reason, source = self._make_child_from_output(task, output)
             if inst is not None:
                 child.metadata["fixed_after_retry"] = True
                 e["task"], e["child"], e["inst"] = task, child, inst
@@ -504,6 +589,8 @@ class RQEvolver:
                     op=task.op,
                     child_id=child.program_id if child else "",
                     reason=f"[after fix] {reason}",
+                    source_code=_logged_source(source or info.get("source")),
+                    ast_findings=_ast_findings(child),
                 )
 
     def _apply_evaluator(self, entries: list[dict]) -> None:
@@ -522,10 +609,20 @@ class RQEvolver:
         configuration or runtime failures raise immediately; they are never
         converted into candidate reports because continuing would invalidate
         the resulting curriculum.
+
+        A candidate whose own evaluator prompt is too large is the exception:
+        that is a fact about one child, not a broken evaluator, so it is
+        dropped here rather than allowed to reach the backend. Batched
+        generation fails as a unit, so a single oversized prompt would
+        otherwise raise for the whole batch and abort a run that has nothing
+        wrong with it.
         """
         if not self.evolution_config.use_evaluator:
             return
         targets = [e for e in entries if "child" in e]
+        if not targets:
+            return
+        targets = self._drop_oversized_evaluator_inputs(targets)
         if not targets:
             return
         if self.evolution_config.evaluator_provider == "openai":
@@ -555,7 +652,14 @@ class RQEvolver:
                     "Evaluator call failed; aborting R_Q-Evolve instead of "
                     f"discarding the candidate and continuing: {output}"
                 ) from output
-            is_valid, reason = parse_evaluator_verdict(output or "")
+            # The SKILL gate applies to generated children only. A seed's label
+            # is hand-written and already trusted; a child's is a claim the
+            # model made about its own output, and nothing else in the pipeline
+            # tests whether it is true.
+            is_valid, reason = parse_evaluator_verdict(
+                output or "",
+                require_skill=bool(e["child"].metadata.get("op")),
+            )
             if is_valid:
                 continue
             task, child = e["task"], e["child"]
@@ -565,7 +669,64 @@ class RQEvolver:
                 op=task.op,
                 child_id=child.program_id,
                 reason=reason,
+                source_code=_logged_source(child.source_code),
+                ast_findings=_ast_findings(child),
             )
+
+    def _drop_oversized_evaluator_inputs(self, targets: list[dict]) -> list[dict]:
+        """Convert candidates with an over-budget evaluator prompt into reports.
+
+        The budget is read off the backend's own context window when it exposes
+        one, so this tracks ``rollout.max_model_len`` instead of duplicating it.
+        Without a window to read, nothing is dropped: refusing to guess is
+        better than silently rejecting valid children on an invented limit.
+        """
+        budget = getattr(self.backend, "max_prompt_chars", None)
+        if budget is None:
+            window = getattr(self.backend, "max_model_len", None)
+            if not window:
+                return targets
+            # Reserve room for the verdict itself, then convert the token
+            # window to characters at a deliberately conservative ratio -- 2
+            # chars/token is below anything real text produces, so the guard
+            # trips early rather than one token too late.
+            budget = max(0, int(window) - 512) * 2
+        kept: list[dict] = []
+        for entry in targets:
+            task = build_evaluator_task(
+                entry["child"],
+                entry["inst"].problem,
+                answer_text=entry["inst"].answer,
+                program_source=entry["child"].source_code,
+            )
+            size = sum(len(m.get("content", "")) for m in task.messages or [])
+            if size <= budget:
+                kept.append(entry)
+                continue
+            mutation_task, child = entry["task"], entry["child"]
+            self.events.append(
+                {
+                    "event": "evaluator_input_too_large",
+                    "program_id": child.program_id,
+                    "op": mutation_task.op,
+                    "prompt_chars": size,
+                    "budget_chars": budget,
+                }
+            )
+            entry.clear()
+            entry["report"] = CandidateReport(
+                status="evaluator_input_too_large",
+                op=mutation_task.op,
+                child_id=child.program_id,
+                reason=(
+                    f"evaluator prompt is {size} chars, over the {budget}-char "
+                    "context budget; dropping this candidate instead of "
+                    "failing the batch"
+                ),
+                source_code=_logged_source(child.source_code),
+                ast_findings=_ast_findings(child),
+            )
+        return kept
 
     def _run_openai_evaluator(self, targets: list[dict]) -> list[str | Exception]:
         cfg = OpenAIEvaluatorConfig(
@@ -747,12 +908,12 @@ class RQEvolver:
         rq_score: float,
         source: str = "mutation",
     ) -> bool:
-        target_cell = self.archive.target_cell(
-            program,
-            h_value=h_value,
-            problem_text=problem_text,
+        target_cell = self.archive.target_cell(program)
+        incumbent = (
+            self.archive.grid[target_cell].champion
+            if target_cell is not None
+            else None
         )
-        incumbent = self.archive.grid[target_cell].champion
         inserted = self.archive.try_insert(
             program=program,
             h_value=h_value,
@@ -769,6 +930,7 @@ class RQEvolver:
                     "event": "champion_replaced",
                     "source": source,
                     "target_cell": list(target_cell),
+                    "target_labels": list(self.archive.cell_labels(target_cell)),
                     "incoming_program_id": program.program_id,
                     "incoming_rq": float(rq_score),
                     "evicted_program_id": incumbent.program_id,
@@ -800,8 +962,6 @@ class RQEvolver:
             instances_per_program=self.training_config.instances_per_program,
             training_budget=self.training_config.training_budget,
             frontier_p_hat_range=self.evolution_config.frontier_p_hat_range,
-            n_h_bins=self.archive.n_h_bins,
-            n_div_bins=self.archive.n_div_bins,
             used_seeds=self.used_seeds,
             strict_anti_reuse=self.training_config.strict_anti_reuse,
             select_lowest_rq_first=self.training_config.select_lowest_rq_first,
@@ -878,9 +1038,15 @@ class RQEvolver:
         full evolution trajectory is preserved: per-iteration metrics plus every
         candidate report. ``CandidateReport.status`` is one of: no_parent,
         mutation_failed, no_code, verify_failed, evaluator_rejected,
-        rollout_failed, p_hat_zero, rq_zero, inserted,
-        rejected_non_elite (each with op, rq_score, p_hat, uncertainty; see
-        docs/PIPELINE.md "Evolution Candidate State"). ``reports`` defaults to
+        evaluator_input_too_large, rollout_failed, p_hat_zero, rq_zero,
+        inserted, rejected_non_elite (each with op, rq_score, p_hat,
+        uncertainty; see docs/PIPELINE.md "Evolution Candidate State").
+
+        Each report also carries ``source_code`` (truncated at
+        ``_MAX_LOGGED_SOURCE_CHARS``) and ``ast_findings``. Only champions land
+        in the archive snapshots, so without those two a rejected child's
+        program is unrecoverable and a gate's false-positive rate cannot be
+        measured against the population it rejects. ``reports`` defaults to
         ``self.last_reports``.
         """
         directory = Path(directory)

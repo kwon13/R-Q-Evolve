@@ -441,8 +441,8 @@ class VerlDynamicDataset:
             "rq_score": row.get("rq_score"),
             "p_hat": row.get("p_hat"),
             "h_score": row.get("h_score"),
-            "h_bin": row.get("h_bin"),
-            "d_bin": row.get("d_bin"),
+            "group_bin": row.get("group_bin"),
+            "skill_bin": row.get("skill_bin"),
         }
         # Fixed expansion-study datasets carry explicit experimental units.
         # Preserve them in extra_info so rollout logs can be joined back to the
@@ -493,8 +493,6 @@ def build_training_examples(
     instances_per_program: int,
     training_budget: int | None,
     frontier_p_hat_range: tuple[float, float],
-    n_h_bins: int,
-    n_div_bins: int,
     used_seeds: dict[str, set[int]] | None = None,
     strict_anti_reuse: bool = True,
     select_lowest_rq_first: bool = False,
@@ -555,7 +553,9 @@ def build_training_examples(
     emitted_per_program: dict[str, int] = {}
     emitted_signatures: set[tuple[str, str]] = set()
 
-    def _try_emit(champ: ProblemProgram, h_bin: int, d_bin: int) -> tuple[bool, bool]:
+    def _try_emit(
+        champ: ProblemProgram, group_bin: int, skill_bin: int
+    ) -> tuple[bool, bool]:
         """Emit one instance. Returns (appended, advanced).
 
         ``advanced`` means a seed was consumed (execute may still have failed),
@@ -587,8 +587,8 @@ def build_training_examples(
                 "rq_score": champ.rq_score,
                 "p_hat": champ.p_hat,
                 "h_score": champ.h_score,
-                "h_bin": h_bin,
-                "d_bin": d_bin,
+                "group_bin": group_bin,
+                "skill_bin": skill_bin,
             }
         )
         emitted_per_program[pid] = emitted_per_program.get(pid, 0) + 1
@@ -596,13 +596,13 @@ def build_training_examples(
 
     MAX_FAILED_ATTEMPTS = 2
     for champ in ranked_champions:
-        h_bin = int(getattr(champ, "niche_h", -1))
-        d_bin = int(getattr(champ, "niche_div", -1))
+        group_bin = int(getattr(champ, "niche_group", -1))
+        skill_bin = int(getattr(champ, "niche_skill", -1))
         failed_attempts = 0
         while len(examples) < budget:
             if emitted_per_program.get(champ.program_id, 0) >= instances_per_program:
                 break
-            appended, advanced = _try_emit(champ, h_bin, d_bin)
+            appended, advanced = _try_emit(champ, group_bin, skill_bin)
             if appended:
                 failed_attempts = 0
                 continue

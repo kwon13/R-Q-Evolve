@@ -34,6 +34,10 @@ class VerlPolicyBackend(EvolutionBackend):
         self.tokenizer = tokenizer
         self.max_prompt_length = max_prompt_length
         self.truncation = truncation
+        # Rollout context window, read from config in ``bind``. The evaluator
+        # gate uses it to drop a candidate whose prompt would not fit, instead
+        # of letting the batched generate raise and abort the run.
+        self.max_model_len: int | None = None
         # When True, ``_generate_with_batch`` skips its per-call vLLM wake/sleep:
         # the surrounding session woke vLLM once and will sleep it once at the
         # end (see ``begin_session`` / ``end_session``).
@@ -66,6 +70,8 @@ class VerlPolicyBackend(EvolutionBackend):
         free_cache_engine = bool(getattr(rollout_cfg, "free_cache_engine", True))
         enable_sleep_mode = bool(getattr(rollout_cfg, "enable_sleep_mode", True))
         self._sleep_enabled = free_cache_engine and enable_sleep_mode
+        window = getattr(rollout_cfg, "max_model_len", None)
+        self.max_model_len = int(window) if window else None
 
     def mutate(self, tasks: list[MutationTask]) -> list[str | None]:
         if not tasks:
@@ -514,7 +520,14 @@ class VerlPolicyBackend(EvolutionBackend):
         values: list[float] = []
         for row, mask in zip(entropy, response_mask):
             valid = row[mask.bool()]
-            values.append(float(valid.mean().item()) if valid.numel() else 0.0)
+            # Total entropy over the trajectory, NOT the per-token mean: H is
+            # the exploration cost the solver actually paid, so a problem that
+            # keeps it uncertain for 800 tokens is worth more than one that
+            # does so for 80. Dividing by the length T would price those the
+            # same. R_Q still averages over the N rollouts in
+            # RQEvolver._score_from_rollouts; only the length normalisation is
+            # dropped.
+            values.append(float(valid.sum().item()) if valid.numel() else 0.0)
         return values
 
     def _chat_template_len(self, text: str) -> int:

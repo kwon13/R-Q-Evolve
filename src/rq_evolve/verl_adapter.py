@@ -1128,11 +1128,12 @@ class VerlTrainerAdapter:
 
         MUST be called AFTER backend.bind(trainer): evaluate_instance runs a
         solver rollout, which needs the worker group. Real R_Q gives each seed a
-        real h_score, so seeds land in their true H bins rather than collapsing
-        into one placeholder bin. Seeds still compete per niche, so two seeds in
-        the same (H bin, concept_group) cell keep only the higher-R_Q one — a
-        MAP-Elites property, not a bug. Then refresh the training dataset so
-        epoch 0 trains on these seeds (with evolve_on_first_epoch=false).
+        real h_score, which decides who holds a cell -- H is no longer a grid
+        coordinate, so a placeholder score would silently hand cells to whoever
+        was inserted first. Seeds still compete per niche, so two seeds sharing
+        a (GROUP, SKILL) cell keep only the higher-R_Q one — a MAP-Elites
+        property, not a bug. Then refresh the training dataset so epoch 0
+        trains on these seeds (with evolve_on_first_epoch=false).
         """
         seed_dir = Path(self.rq_config.evolution.seed_programs_dir)
         if not seed_dir.is_absolute():
@@ -1180,7 +1181,8 @@ class VerlTrainerAdapter:
         print(
             f"[RQ-Evolve] bootstrapped {inserted}/{len(seeds)} seeds with real R_Q; "
             f"{len(evolver.archive.champions())} champions on a "
-            f"{evolver.archive.n_h_bins}x{evolver.archive.n_div_bins} grid"
+            f"{evolver.archive.n_group_bins}x{evolver.archive.n_skill_bins} "
+            f"GROUP x SKILL grid"
         )
         evolver.refresh_dataset()
         if len(evolver.dataset.snapshot()) == 0:

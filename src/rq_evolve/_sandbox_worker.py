@@ -84,8 +84,20 @@ def main() -> None:
             resp = {"ok": out is not None}
             if out is not None:
                 resp.update(out)
-        except BaseException:
-            resp = {"ok": False}
+            else:
+                resp["error"] = "generate returned no usable (problem, answer)"
+        except BaseException as exc:
+            # Carry the failure back. Collapsing every failure into a bare
+            # ok=False made "execute failed at seed=0" the single largest
+            # rejection reason in a run with 58% of candidates dying here,
+            # with no way to tell an AssertionError (the child's own
+            # cross-check catching a real problem/answer mismatch) from a
+            # NameError (broken code) or a guarded import.
+            resp = {
+                "ok": False,
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:300],
+            }
         protocol.write(json.dumps(resp) + "\n")
         protocol.flush()
 

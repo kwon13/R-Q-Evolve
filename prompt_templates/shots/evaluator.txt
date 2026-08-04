@@ -5,6 +5,7 @@ Compute the value of the sum C(14,0) + C(14,1)*2^1 + C(14,2)*2^2 + C(14,3)*2^3 +
 
 Answer:
 reason: The flaw is in the final sentence. The statement "The system is solved using the Chinese Remainder Theorem" has nothing to do with this problem. This is a single-sum computation, and since there is no system of congruences, there is nothing for the CRT to be applied to. It appears that an irrelevant solution-method phrase was erroneously inserted from the generation program's seed/template.
+skill_required: NO
 verdict: INVALID
 
 Example 2
@@ -14,6 +15,7 @@ Given the sequence a(0) = 3 and the recurrence relation a(n) = 3 * a(n-1) + 1 fo
 
 Answer:
 reason: There is no contradiction in the problem itself. The initial value a(0) = 3 and the recurrence relation a(n) = 3 * a(n-1) + 1 for n >= 1 are consistent with each other, and there is sufficient information to compute the final question, a(9). The additional sentence is also consistent with the direction of the solution.
+skill_required: YES
 verdict: VALID
 
 Example 3
@@ -23,6 +25,7 @@ Two lines are defined by 2x + 3y = -18 and -2x + 6y = 11. Find the exact distanc
 
 Answer:
 reason: reason: The two lines are clearly defined, there are no irrelevant or contradictory conditions, no combination of independent problems, and no ambiguous reuse of variable names. The final question—the distance from the intersection point to the origin—follows directly and unambiguously from the stated conditions.
+skill_required: YES
 verdict: VALID
 
 Example 4
@@ -32,6 +35,7 @@ A positive integer N satisfies the system of congruences: N ≡ 14 (mod 19) and 
 
 Answer:
 reason: Multiple unrelated conditions are mixed into a single problem—the congruences (N ≡ 14 mod 19, N ≡ 2 mod 25), the binomial coefficient condition (N = C(52,10)), and the a+b+c=15 optimization—yet the only thing asked is C(52,10), making the rest superfluous. They are also mutually incompatible: C(52,10) = 15820024220 does not yield 14 and 2 mod 19 and mod 25, so the premise that N = C(52,10) satisfies those congruences is false. This combination of unrelated and contradictory conditions falls under the INVALID criteria.
+skill_required: NO
 verdict: INVALID
 
 Example 5
@@ -41,4 +45,5 @@ Given the quadratic equation x^2 + -6x + -7 = 0 with roots r1 and r2, let u = 2 
 
 Answer:
 reason: Two independent problems are artificially combined, and the final "Compute the sum of these two values" asks for two mathematically unrelated quantities (the x-coefficient of a monic quadratic from a root transformation, and a count of N satisfying congruences) to be added together, which is meaningless. This combination of independent problems with unrelated final questions falls under the INVALID criteria.
+skill_required: NO
 verdict: INVALID

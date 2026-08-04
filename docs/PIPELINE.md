@@ -7,7 +7,7 @@
 | evo-sample | R-Q-Evolve | 역할 |
 |---|---|---|
 | `rq_questioner/program.py` | `src/rq_evolve/program.py` | `generate(seed)` 프로그램 실행 단위 |
-| `rq_questioner/map_elites.py` | `src/rq_evolve/archive.py` | H×D MAP-Elites archive |
+| `rq_questioner/map_elites.py` | `src/rq_evolve/archive.py` | GROUP×SKILL MAP-Elites archive |
 | `rq_questioner/rq_score.py` | `src/rq_evolve/scoring.py` | `R_Q = p(1-p)U` |
 | `prompts/*` | `src/rq_evolve/prompts.py`, `prompt_templates/` | mutation / solver prompt 생성 |
 | `rq_questioner/code_utils.py` | `src/rq_evolve/code_utils.py` | LLM 코드 추출과 lint |
@@ -23,7 +23,8 @@
 2. Each program is verified across multiple seeds.
 3. The backend generates G solver rollouts for one representative instance.
 4. `p_hat`, uncertainty, and `R_Q` are computed.
-5. The program competes for a MAP-Elites cell.
+5. The program competes for its MAP-Elites cell, which is exactly its declared
+   (GROUP, SKILL) pair.
 6. Parent programs are sampled from occupied cells.
 7. The mutation model is shown the parent source under the `in_depth` or
    `in_breadth` template and writes the child generator directly. One model
@@ -35,6 +36,38 @@
 11. The next outer iteration re-scores every champion against the new weights
     before any of them is re-binned, replaced, or removed.
 
+## Archive Axes
+
+The grid is GROUP x SKILL: 6 mathematical domains by 8 reasoning skills, 48
+cells. Both coordinates are read off the program's own top-level `GROUP` and
+`SKILL` constants, so a cell is a (domain, reasoning) pair and each mutation
+operator moves exactly one coordinate -- `in_depth` holds GROUP and changes
+SKILL, `in_breadth` holds SKILL and changes GROUP. There are no bin counts to
+configure; the shape is the two vocabularies in `concepts.py`.
+
+Uncertainty is not an axis. H remains the uncertainty factor of
+`R_Q = p(1-p)H`, which decides who holds a cell and which champion is drawn as
+a mutation parent. It was dropped as a coordinate because no operator can aim
+at it: a child lands in an H bin only as a side effect of how hard it turned
+out to be, so binning on it spent grid capacity on a dimension evolution could
+not steer. Champions that differ only in difficulty now compete in one cell,
+and the higher R_Q wins.
+
+A program whose GROUP or SKILL falls outside the vocabulary has no cell and is
+rejected (`archive_status: unlabelled_rejected`) rather than hashed into a
+shared bin, which would make one cell the contest for every mislabelled
+generator.
+
+`stats()` reports `group_coverage` and `skill_coverage` separately: a single
+coverage number cannot distinguish "we only ever work in two domains" from "we
+only ever exercise two reasoning moves", and those are the two failure modes
+the operators exist to fix. The 14 seed programs cover 6/6 groups but only 3/8
+skills, so operator A carries the early exploration.
+
+Snapshots written before this change store an H coordinate and no SKILL label.
+They cannot be placed and are dropped with a message at load; a resume from one
+bootstraps from `seed_programs/` instead.
+
 ## Mutation Contract
 
 Mutation is one-stage and free-form. `build_mutation_task` renders the parent
@@ -42,7 +75,7 @@ source into `in_depth.txt` / `in_breadth.txt` and the model returns the child
 generator in one ```python``` block. There is no plan schema, no registered
 family compiler, and no quarantine path.
 
-Three gates stand between a generated child and the archive:
+Four gates stand between a generated child and the archive:
 
 1. **Static lint** — `lint_generator_source` plus the determinism checks in
    `lint_mutation_generator_source`: a seeded `rng = random.Random(seed)`, no
@@ -52,13 +85,31 @@ Three gates stand between a generated child and the archive:
    `instance_data`, `str(sympy.Integer(answer))`) stay OFF: free-form
    generation does not satisfy them, and enforcing them rejected sound
    programs on shape alone.
-2. **Execution** — `verify_program` runs seeds 0..N-1, requires a base-10
+2. **Structural contract** — `ast_contract.py` decides whether the child's own
+   `assert answer == check` is a real cross-check. It never proves two routes
+   independent (undecidable); it refutes independence three ways — the routes
+   are the same program modulo renaming (A3v), the check was read off the
+   answer (A4d), or the check side is a constant (A5c) — plus "no assert at
+   all" (A1), "no assert straddles the answer" (A2), and a statement parameter
+   with no dependency path to the answer (P1). The check is *existential*: one
+   certifying assert passes the program, because seeds legitimately carry
+   guards and invariants alongside their cross-check. Measured on 456 archived
+   champions it flags 45%, and 0 of the 14 clean programs (6 seeds + 8 verified
+   fixtures). `evolution.ast_contract` is `off` | `shadow` | `enforce`; shadow
+   records the verdict in `program.metadata["ast_contract"]` without rejecting.
+   Unlike the notation flags in gate 1, this is a dataflow predicate, not a
+   shape predicate — which is why it lives in its own module and is ON.
+3. **Execution** — `verify_program` runs seeds 0..N-1, requires a base-10
    integer answer from every generated mutation, and rejects a program whose
    visible problem does not vary across seeds. This carries the guarantee the
-   static notation contract used to.
-3. **Operator contract + evaluator** — `in_depth` must preserve the parent's
-   CONCEPT_GROUP and CONCEPT_TYPE, `in_breadth` must change CONCEPT_GROUP, and
-   `use_evaluator` gates seed-0 coherence before any solver rollout is spent.
+   static notation contract used to. Under `enforce`, each rendered statement
+   is also checked for handing the solver its own technique (P2).
+4. **Operator contract + evaluator** — `in_depth` must preserve the parent's
+   GROUP and change SKILL, `in_breadth` the reverse. `use_evaluator` gates
+   seed-0 coherence and the truth of the declared SKILL before any solver
+   rollout is spent. It is the only gate that reads the rendered statement as
+   prose, so `use_evaluator: false` requires `ast_contract` to be on —
+   `EvolutionConfig.__post_init__` refuses the combination where neither runs.
 
 All repository-owned standalone vLLM evaluation/comparison entry points default
 to `--vllm-sampler-backend pytorch`.
@@ -113,8 +164,16 @@ parent가 없으면 batch 진입 직후 `{report: no_parent}` 하나로 조기 �
 
 **`CandidateReport.status` 전체 어휘** ([`evolution.py:29`](../src/rq_evolve/evolution.py#L29)):
 `no_parent`, `mutation_failed`, `no_code`, `verify_failed`,
-`evaluator_rejected`, `rollout_failed`, `p_hat_zero`, `rq_zero`, `inserted`,
-`rejected_non_elite`.
+`evaluator_rejected`, `evaluator_input_too_large`, `rollout_failed`,
+`p_hat_zero`, `rq_zero`, `inserted`, `rejected_non_elite`.
+
+각 report는 `source_code`(`_MAX_LOGGED_SOURCE_CHARS`에서 절단)와 `ast_findings`도
+함께 싣습니다. 아카이브 스냅샷에는 champion만 들어가므로, 이 두 필드가 없으면 거절된
+자식의 프로그램을 복구할 수 없고 게이트의 오탐률을 그것이 거절한 모집단에 대해 측정할
+방법이 없습니다. `{"_retry": {...}}` 페이로드도 `source`/`child_id`/`ast_findings`를
+**중첩해서** 나릅니다 — `_resolve_retries`는 `_apply_evaluator`와 달리 `e.clear()`를
+호출하지 않으므로, 최상위 `"child"` 키는 `to_eval` 선택자로 새어나가 rollout group을
+어긋나게 만듭니다.
 Evaluator 인증·호출 오류는 report로 기록하지 않고 실험을 즉시 중단한다.
 모든 report는 `append_evolution_log`가 `evolution_log.jsonl`에 append합니다.
 

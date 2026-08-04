@@ -48,6 +48,10 @@ from rq_evolve.math_eval import (  # noqa: E402
     MathBenchmarkProblem,
     load_math_benchmark,
 )
+from rq_evolve.vllm_runtime import (  # noqa: E402
+    VLLM_SAMPLER_BACKENDS,
+    configure_vllm_sampler_backend,
+)
 
 logger = logging.getLogger("eval_vllm_math")
 
@@ -263,6 +267,9 @@ def _make_sampling_params(args, tokenizer):
 
 
 def evaluate(args: argparse.Namespace) -> dict[str, Any]:
+    effective_flashinfer_sampler_env = configure_vllm_sampler_backend(
+        args.vllm_sampler_backend
+    )
     from vllm import LLM
 
     tokenizer_name = args.tokenizer or args.model
@@ -326,6 +333,8 @@ def evaluate(args: argparse.Namespace) -> dict[str, Any]:
             "top_p": args.top_p,
             "max_tokens": args.max_tokens,
             "n": args.n,
+            "vllm_sampler_backend": args.vllm_sampler_backend,
+            "vllm_use_flashinfer_sampler": effective_flashinfer_sampler_env,
         },
         "benchmarks": {},
     }
@@ -409,6 +418,16 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--dtype", default="bfloat16")
     p.add_argument("--trust_remote_code", action="store_true")
     p.add_argument("--enforce_eager", action="store_true")
+    p.add_argument(
+        "--vllm_sampler_backend",
+        "--vllm-sampler-backend",
+        choices=VLLM_SAMPLER_BACKENDS,
+        default="pytorch",
+        help=(
+            "Top-k/top-p sampler implementation; pytorch avoids FlashInfer "
+            "runtime JIT/toolkit compatibility failures."
+        ),
+    )
     p.add_argument("--system_prompt", default=MATH_EVAL_SYSTEM_PROMPT)
     p.add_argument("--no_tqdm", action="store_true")
     # GPT-4o re-check (R-Zero results_recheck.py). On by default for R-Zero parity.

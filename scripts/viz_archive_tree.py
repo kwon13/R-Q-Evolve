@@ -66,10 +66,10 @@ class Node:
     parent_id: str
     generation: int
     op: str
-    concept_group: str
-    concept_type: str
-    niche_h: int = -1
-    niche_div: int = -1
+    concept_group: str   # new snapshots: GROUP; pre-migration: CONCEPT_GROUP
+    concept_type: str    # new snapshots: SKILL;  pre-migration: CONCEPT_TYPE
+    niche_h: int = -1    # new snapshots: the GROUP coordinate
+    niche_div: int = -1  # new snapshots: the SKILL coordinate
     source_code: str = ""
     # (iteration, p_hat, rq_score, h_score), one entry per snapshot it survived.
     history: list[tuple[int, float, float, float]] = field(default_factory=list)
@@ -150,10 +150,16 @@ def _make_node(champion: dict) -> Node:
         parent_id=champion.get("parent_id") or "",
         generation=int(champion.get("generation", 0)),
         op=metadata.get("op") or OP_SEED,
-        concept_group=metadata.get("concept_group") or "?",
-        concept_type=metadata.get("concept_type") or "?",
-        niche_h=int(champion.get("niche_h", -1)),
-        niche_div=int(champion.get("niche_div", -1)),
+        # GROUP x SKILL snapshots store the labels under group/skill; the
+        # pre-migration H x diversity grid used concept_group/concept_type.
+        concept_group=(
+            metadata.get("group") or metadata.get("concept_group") or "?"
+        ),
+        concept_type=(
+            metadata.get("skill") or metadata.get("concept_type") or "?"
+        ),
+        niche_h=int(champion.get("niche_group", champion.get("niche_h", -1))),
+        niche_div=int(champion.get("niche_skill", champion.get("niche_div", -1))),
         source_code=champion.get("source_code", ""),
     )
 
@@ -177,8 +183,12 @@ def load_nodes(archive_dir: Path) -> tuple[dict[str, Node], dict, list[int]]:
                 nodes[node.program_id] = node
             # Niche assignment can move when the H-axis re-bins on re-eval, so
             # the newest snapshot wins.
-            node.niche_h = int(champion.get("niche_h", node.niche_h))
-            node.niche_div = int(champion.get("niche_div", node.niche_div))
+            node.niche_h = int(
+                champion.get("niche_group", champion.get("niche_h", node.niche_h))
+            )
+            node.niche_div = int(
+                champion.get("niche_skill", champion.get("niche_div", node.niche_div))
+            )
             node.lineages.add(
                 (int(champion.get("generation", 0)), champion.get("parent_id") or "")
             )
@@ -573,8 +583,8 @@ def _node_html(node: Node, *, root: bool, with_source: bool) -> str:
         f'<span class="spark">{esc(node.sparkline())}</span>',
         "</summary>",
         '<div class="detail"><dl>',
-        f"<dt>concept</dt><dd>{esc(node.concept_type)}</dd>",
-        f"<dt>niche (h, div)</dt><dd>({node.niche_h}, {node.niche_div})</dd>",
+        f"<dt>skill</dt><dd>{esc(node.concept_type)}</dd>",
+        f"<dt>niche (group, skill)</dt><dd>({node.niche_h}, {node.niche_div})</dd>",
         f"<dt>parent</dt><dd>{esc(node.parent_id or '— seed —')}</dd>",
         f"<dt>lifespan</dt><dd>{node.lifespan} snapshots"
         f"{' (alive)' if node.alive else ' (displaced)'}</dd>",

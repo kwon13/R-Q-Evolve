@@ -10,13 +10,51 @@ from typing import Any, Iterator
 
 from .archive import MAPElitesArchive
 from .config import RQEvolveConfig
-from .dataset import VerlDynamicDataset
+from .dataset import (
+    DynamicProblemDataset,
+    VerlDynamicDataset,
+    load_static_training_jsonl,
+    validate_static_training_schedule,
+)
 from .evolution import RQEvolver
 from .openai_evaluator import (
     load_project_dotenv,
     validate_openai_evaluator_environment,
 )
 from .verl_backend import VerlPolicyBackend
+
+
+# Ray creates Unix domain sockets inside its temp dir, and AF_UNIX paths are
+# capped at 107 bytes. The session directory plus "/sockets/plasma_store" eats
+# roughly 63 of those, so anything much over 40 characters fails at startup --
+# which is exactly how the first attempt at relocating this broke the run.
+_RAY_TEMP_DIR_BUDGET = 40
+
+
+def _ray_temp_dir(project_root: Path) -> str | None:
+    """Keep Ray's spill off the small root filesystem, without breaking startup.
+
+    Ray defaults to /tmp, which lives on the root partition; that partition hit
+    96% during a run and the raylet logged "over 95%" continuously. Returning
+    None falls back to Ray's own default, which is always preferable to failing
+    to start because the relocated path was too long for a socket.
+    """
+    configured = os.environ.get("RAY_TMPDIR")
+    candidate = (
+        Path(configured)
+        if configured
+        else project_root / ".raytmp"
+    )
+    if len(str(candidate)) > _RAY_TEMP_DIR_BUDGET:
+        print(
+            f"[RQ-Evolve] ray temp dir {candidate} is {len(str(candidate))} "
+            f"chars (> {_RAY_TEMP_DIR_BUDGET}); Unix sockets would exceed the "
+            "107-byte limit, so falling back to Ray's default under /tmp. Set "
+            "RAY_TMPDIR to a shorter path to keep spill off the root disk."
+        )
+        return None
+    candidate.mkdir(parents=True, exist_ok=True)
+    return str(candidate)
 
 
 @dataclass(slots=True)
@@ -126,11 +164,7 @@ class EvolvingSampler:
             "map_payload": {
                 "archive": ev.archive.to_payload(),
                 "used_seeds": {pid: sorted(s) for pid, s in ev.used_seeds.items()},
-                "metacognition": {
-                    "last_meta_progress": ev.last_meta_progress,
-                    "operator_ema": ev.operator_ema,
-                    "current_iteration": ev.current_iteration,
-                },
+                "current_iteration": ev.current_iteration,
             },
         }
 
@@ -155,14 +189,8 @@ class EvolvingSampler:
             ev.used_seeds = {
                 pid: set(s) for pid, s in (payload.get("used_seeds") or {}).items()
             }
-            meta = payload.get("metacognition") or {}
-            ev.last_meta_progress = dict(meta.get("last_meta_progress") or {})
-            ev.operator_ema = {
-                str(key): float(value)
-                for key, value in (meta.get("operator_ema") or {}).items()
-            }
             ev.current_iteration = int(
-                meta.get("current_iteration", ev.current_iteration)
+                payload.get("current_iteration", ev.current_iteration)
             )
             ev.refresh_dataset()
             print(
@@ -290,6 +318,79 @@ class EvolvingSampler:
         return len(self.dataset)
 
 
+class StaticTrainingSampler:
+    """Finite, stateful sampler for a pre-audited fixed training JSONL.
+
+    Unlike ``EvolvingSampler``, this class has no Evolver/archive reference and
+    cannot mutate the dataset.  It permits exactly ``epochs`` complete passes;
+    the adapter separately requires VERL's total steps to consume those passes
+    exactly, with no ``drop_last`` loss.
+    """
+
+    def __init__(
+        self,
+        dataset: VerlDynamicDataset,
+        *,
+        source_sha256: str,
+        epochs: int,
+        shuffle: bool = True,
+        seed: int = 1,
+    ) -> None:
+        self.dataset = dataset
+        self.source_sha256 = str(source_sha256)
+        self.epochs = int(epochs)
+        self.shuffle = bool(shuffle)
+        self.seed = int(seed)
+        self.epoch = 0
+        if self.epochs < 1:
+            raise ValueError("static training sampler epochs must be >= 1")
+
+    def __iter__(self) -> Iterator[int]:
+        if self.epoch >= self.epochs:
+            raise RuntimeError(
+                f"static training data exhausted after {self.epochs} complete "
+                "epoch(s); increase training_data.static_epochs explicitly"
+            )
+        n = len(self.dataset)
+        if self.shuffle:
+            import torch
+
+            generator = torch.Generator()
+            generator.manual_seed(self.seed + self.epoch)
+            indices = torch.randperm(n, generator=generator).tolist()
+        else:
+            indices = list(range(n))
+        self.epoch += 1
+        return iter(indices)
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def state_dict(self) -> dict[str, Any]:
+        return {
+            "epoch": int(self.epoch),
+            "source_sha256": self.source_sha256,
+            "epochs": self.epochs,
+        }
+
+    def load_state_dict(self, state_dict: dict) -> None:
+        if not isinstance(state_dict, dict):
+            return
+        checkpoint_hash = str(state_dict.get("source_sha256", ""))
+        if checkpoint_hash and checkpoint_hash != self.source_sha256:
+            raise RuntimeError(
+                "static training JSONL changed since the checkpoint was saved "
+                f"({checkpoint_hash} != {self.source_sha256})"
+            )
+        checkpoint_epochs = int(state_dict.get("epochs", self.epochs))
+        if checkpoint_epochs != self.epochs:
+            raise RuntimeError(
+                "training_data.static_epochs changed since the checkpoint was "
+                f"saved ({checkpoint_epochs} != {self.epochs})"
+            )
+        self.epoch = int(state_dict.get("epoch", self.epoch))
+
+
 class VerlTrainerAdapter:
     """Wire R_Q-Evolve into the installed verl PPO/GRPO trainer."""
 
@@ -304,11 +405,16 @@ class VerlTrainerAdapter:
         self.rq_config = rq_config
         self.project_root = Path(project_root)
         if (
-            self.rq_config.evolution.use_evaluator
+            not self.static_training_enabled
+            and self.rq_config.evolution.use_evaluator
             and self.rq_config.evolution.evaluator_provider == "openai"
         ):
             load_project_dotenv(self.project_root)
             validate_openai_evaluator_environment()
+
+    @property
+    def static_training_enabled(self) -> bool:
+        return bool(self.rq_config.training_data.static_training_jsonl)
 
     def assert_verl_available(self) -> None:
         if importlib.util.find_spec("verl") is None:
@@ -316,7 +422,8 @@ class VerlTrainerAdapter:
 
     def fit(self) -> None:
         ctx = self._setup()
-        self._resume_or_bootstrap(ctx)
+        if not ctx["static_training"]:
+            self._resume_or_bootstrap(ctx)
 
         # Resume: verl restores trainer.global_steps from the checkpoint, so the run
         # simply continues until global_steps reaches the configured target.
@@ -326,6 +433,25 @@ class VerlTrainerAdapter:
         _install_solver_metric_alias()
 
         ctx["trainer"].fit()
+
+    def audit_static_training_data(self) -> dict[str, Any]:
+        """Tokenize and report a fixed JSONL without starting Ray or training."""
+
+        if not self.static_training_enabled:
+            raise ValueError(
+                "training_data.static_training_jsonl is not configured"
+            )
+        from omegaconf import OmegaConf
+
+        verl_config = self._load_verl_config()
+        OmegaConf.resolve(verl_config)
+        tokenizer, _ = self._build_tokenizer_and_processor(verl_config)
+        _, report = self._load_static_rows(tokenizer)
+        return self._validate_static_schedule(
+            report,
+            verl_config,
+            require_expected=False,
+        )
 
     def _setup(self) -> dict:
         """Everything up to (excluding) archive resume/bootstrap: config, ray,
@@ -345,6 +471,25 @@ class VerlTrainerAdapter:
         self._apply_lora_config(verl_config)
         OmegaConf.resolve(verl_config)
 
+        tokenizer, processor = self._build_tokenizer_and_processor(verl_config)
+        static_training = self.static_training_enabled
+        static_report = None
+        static_rows = None
+        backend = None
+        evolver = None
+        archive_dir = None
+
+        train_batch_size = int(verl_config.data.train_batch_size)
+        if static_training:
+            static_rows, raw_report = self._load_static_rows(tokenizer)
+            static_report = self._validate_static_schedule(
+                raw_report,
+                verl_config,
+                require_expected=True,
+            )
+
+        # A stale, malformed, truncated, or compute-mismatched fixed dataset
+        # must fail above, before Ray starts and reserves CPUs/GPUs.
         if not ray.is_initialized():
             ray_init = verl_config.get("ray_init", {})
             ray.init(
@@ -362,31 +507,75 @@ class VerlTrainerAdapter:
                     },
                 },
                 num_cpus=ray_init.get("num_cpus", None),
+                _temp_dir=_ray_temp_dir(self.project_root),
             )
 
-        tokenizer, processor = self._build_tokenizer_and_processor(verl_config)
-        backend = VerlPolicyBackend()
-        evolver = self._build_evolver(backend)
+        if static_training:
+            assert static_rows is not None
+            dynamic_dataset = DynamicProblemDataset(static_rows)
+            train_dataset = VerlDynamicDataset(
+                dynamic_dataset,
+                tokenizer,
+                max_prompt_length=int(verl_config.data.max_prompt_length),
+                truncation=verl_config.data.get("truncation", "left"),
+                # Never modulo-pad a short fixed dataset. The schedule audit
+                # above requires an exact number of full batches instead.
+                min_size=1,
+                data_source=f"rq_static_{self.rq_config.training_data.static_condition}",
+            )
+            train_sampler = StaticTrainingSampler(
+                train_dataset,
+                source_sha256=static_report["source_sha256"],
+                epochs=int(self.rq_config.training_data.static_epochs),
+                shuffle=bool(
+                    verl_config.data.get("shuffle")
+                    if verl_config.data.get("shuffle") is not None
+                    else True
+                ),
+                seed=int(verl_config.data.get("seed") or 1),
+            )
+        else:
+            backend = VerlPolicyBackend()
+            evolver = self._build_evolver(backend)
 
-        # The MAP-Elites archive lives outside the verl weight checkpoint, so we
-        # persist/restore it ourselves. archive_dir is needed now (the
-        # EvolvingSampler writes here each outer iteration), but the actual
-        # resume/bootstrap is DEFERRED until after backend.bind() below — the
-        # bootstrap evaluates every seed with the live solver (real R_Q), which
-        # needs the worker group.
-        archive_dir = (
-            Path(str(verl_config.trainer.get("default_local_dir", "./rq_output/verl_ckpt")))
-            / "rq_archive"
-        )
+            # The MAP-Elites archive lives outside the verl weight checkpoint,
+            # so we persist/restore it ourselves.  This entire branch is skipped
+            # for fixed-data expansion runs.
+            archive_dir = (
+                Path(
+                    str(
+                        verl_config.trainer.get(
+                            "default_local_dir", "./rq_output/verl_ckpt"
+                        )
+                    )
+                )
+                / "rq_archive"
+            )
+            dynamic_dataset = evolver.dataset
+            train_dataset = VerlDynamicDataset(
+                dynamic_dataset,
+                tokenizer,
+                max_prompt_length=int(verl_config.data.max_prompt_length),
+                truncation=verl_config.data.get("truncation", "left"),
+                min_size=train_batch_size,
+            )
+            train_sampler = EvolvingSampler(
+                train_dataset,
+                evolver,
+                # NOTE: OmegaConf .get(key, default) returns the default ONLY
+                # when the key is absent.  VERL defines data.seed: null.
+                shuffle=bool(
+                    verl_config.data.get("shuffle")
+                    if verl_config.data.get("shuffle") is not None
+                    else True
+                ),
+                seed=int(verl_config.data.get("seed") or 1),
+                evolve_on_first_epoch=bool(
+                    self.rq_config.verl.evolve_on_first_epoch
+                ),
+                archive_dir=archive_dir,
+            )
 
-        train_batch_size = int(verl_config.data.train_batch_size)
-        train_dataset = VerlDynamicDataset(
-            evolver.dataset,
-            tokenizer,
-            max_prompt_length=int(verl_config.data.max_prompt_length),
-            truncation=verl_config.data.get("truncation", "left"),
-            min_size=train_batch_size,
-        )
         # Validation dataset: math benchmarks when enabled (one data_source per
         # benchmark -> verl reports per-benchmark accuracy via _validate); else a
         # dummy mirror of the train dataset (verl requires a non-empty val set).
@@ -401,23 +590,27 @@ class VerlTrainerAdapter:
             )
         if val_dataset is None:
             val_dataset = VerlDynamicDataset(
-                evolver.dataset,
+                dynamic_dataset,
                 tokenizer,
                 max_prompt_length=int(verl_config.data.max_prompt_length),
                 truncation=verl_config.data.get("truncation", "left"),
-                min_size=max(1, int(verl_config.data.get("val_batch_size") or train_batch_size)),
+                min_size=(
+                    1
+                    if static_training
+                    else max(
+                        1,
+                        int(
+                            verl_config.data.get("val_batch_size")
+                            or train_batch_size
+                        ),
+                    )
+                ),
+                data_source=(
+                    f"rq_static_{self.rq_config.training_data.static_condition}"
+                    if static_training
+                    else "rq_evolved"
+                ),
             )
-        train_sampler = EvolvingSampler(
-            train_dataset,
-            evolver,
-            # NOTE: OmegaConf .get(key, default) returns the default ONLY when the
-            # key is absent. verl's base ppo_trainer.yaml defines data.seed: null,
-            # so .get("seed", 1) yields None, not 1 -> guard with `or`.
-            shuffle=bool(verl_config.data.get("shuffle") if verl_config.data.get("shuffle") is not None else True),
-            seed=int(verl_config.data.get("seed") or 1),
-            evolve_on_first_epoch=bool(self.rq_config.verl.evolve_on_first_epoch),
-            archive_dir=archive_dir,
-        )
 
         trainer = self._build_trainer(
             verl_config=verl_config,
@@ -428,6 +621,38 @@ class VerlTrainerAdapter:
             train_sampler=train_sampler,
         )
         trainer.init_workers()
+        if static_training:
+            print("[RQ-Evolve] static Solver-training data audit:")
+            for key in (
+                "condition",
+                "source_path",
+                "source_sha256",
+                "source_rows",
+                "prompt_tokens",
+                "reference_answer_tokens",
+                "token_count",
+                "static_epochs",
+                "row_exposures",
+                "token_exposures",
+            ):
+                print(f"  {key}: {static_report[key]}")
+            return {
+                "trainer": trainer,
+                "backend": None,
+                "evolver": None,
+                "train_sampler": train_sampler,
+                "verl_config": verl_config,
+                "archive_dir": None,
+                "rollout_metrics": None,
+                "version_tracker": None,
+                "sample_logger": None,
+                "static_training": True,
+                "static_report": static_report,
+            }
+
+        assert backend is not None
+        assert evolver is not None
+        assert archive_dir is not None
         backend.bind(trainer)
 
         # --- async-RL instrumentation -------------------------------------
@@ -471,6 +696,8 @@ class VerlTrainerAdapter:
             "rollout_metrics": rollout_metrics,
             "version_tracker": version_tracker,
             "sample_logger": sample_logger,
+            "static_training": False,
+            "static_report": None,
         }
 
     def _resume_or_bootstrap(self, ctx: dict) -> None:
@@ -521,6 +748,11 @@ class VerlTrainerAdapter:
         blocked behind long ones, pending stays bounded, and accepted/rejected
         JSONL lines appear. Requires free GPUs.
         """
+        if self.static_training_enabled:
+            raise ValueError(
+                "dry_run_rollout exercises Evolver generation and is disabled "
+                "when static_training_jsonl is configured"
+            )
         import time as _time
 
         ctx = self._setup()
@@ -783,6 +1015,79 @@ class VerlTrainerAdapter:
         )
         return tokenizer, processor
 
+    def _load_static_rows(self, tokenizer) -> tuple[list[dict], dict[str, Any]]:
+        static_path = Path(
+            str(self.rq_config.training_data.static_training_jsonl)
+        ).expanduser()
+        if not static_path.is_absolute():
+            static_path = self.project_root / static_path
+        return load_static_training_jsonl(
+            static_path,
+            tokenizer,
+            condition=str(self.rq_config.training_data.static_condition),
+        )
+
+    def _validate_static_schedule(
+        self,
+        report: dict[str, Any],
+        verl_config,
+        *,
+        require_expected: bool,
+    ) -> dict[str, Any]:
+        data_config = self.rq_config.training_data
+        batch_size = int(
+            verl_config.data.get(
+                "gen_batch_size", verl_config.data.train_batch_size
+            )
+            or verl_config.data.train_batch_size
+        )
+        raw_total_steps = verl_config.trainer.get("total_training_steps")
+        schedule = validate_static_training_schedule(
+            report,
+            batch_size=batch_size,
+            total_training_steps=(
+                None if raw_total_steps is None else int(raw_total_steps)
+            ),
+            trainer_total_epochs=int(verl_config.trainer.total_epochs),
+            static_epochs=int(data_config.static_epochs),
+            expected_rows=data_config.static_expected_rows,
+            expected_tokens=data_config.static_expected_tokens,
+            require_expected=require_expected,
+            max_prompt_length=int(verl_config.data.max_prompt_length),
+            raise_on_error=False,
+        )
+        resume_mode = str(
+            verl_config.trainer.get("resume_mode", "auto") or "auto"
+        )
+        schedule.update(
+            {
+                "resume_mode": resume_mode,
+                "default_local_dir": str(
+                    verl_config.trainer.get(
+                        "default_local_dir", "./rq_output/verl_ckpt"
+                    )
+                ),
+                "base_model_path": str(
+                    verl_config.actor_rollout_ref.model.path
+                ),
+            }
+        )
+        if resume_mode != "disable":
+            schedule["issues"].append(
+                "trainer.resume_mode must be 'disable' for static paired "
+                "training so both conditions start from the declared base "
+                "checkpoint instead of an existing condition-specific state"
+            )
+        schedule["schedule_valid"] = not schedule["issues"]
+        if require_expected and schedule["issues"]:
+            raise ValueError(
+                "invalid static training schedule:\n"
+                + "\n".join(
+                    f"- {issue}" for issue in schedule["issues"]
+                )
+            )
+        return schedule
+
     def _build_evolver(self, backend: VerlPolicyBackend) -> RQEvolver:
         archive = MAPElitesArchive(
             **asdict(self.rq_config.archive),
@@ -793,7 +1098,6 @@ class VerlTrainerAdapter:
             archive=archive,
             backend=backend,
             evolution_config=self.rq_config.evolution,
-            metacognition_config=self.rq_config.metacognition,
             training_config=self.rq_config.training_data,
         )
 
@@ -824,11 +1128,12 @@ class VerlTrainerAdapter:
 
         MUST be called AFTER backend.bind(trainer): evaluate_instance runs a
         solver rollout, which needs the worker group. Real R_Q gives each seed a
-        real h_score, so seeds land in their true H bins rather than collapsing
-        into one placeholder bin. Seeds still compete per niche, so two seeds in
-        the same (H bin, concept_group) cell keep only the higher-R_Q one — a
-        MAP-Elites property, not a bug. Then refresh the training dataset so
-        epoch 0 trains on these seeds (with evolve_on_first_epoch=false).
+        real h_score, which decides who holds a cell -- H is no longer a grid
+        coordinate, so a placeholder score would silently hand cells to whoever
+        was inserted first. Seeds still compete per niche, so two seeds sharing
+        a (GROUP, SKILL) cell keep only the higher-R_Q one — a MAP-Elites
+        property, not a bug. Then refresh the training dataset so epoch 0
+        trains on these seeds (with evolve_on_first_epoch=false).
         """
         seed_dir = Path(self.rq_config.evolution.seed_programs_dir)
         if not seed_dir.is_absolute():
@@ -876,7 +1181,8 @@ class VerlTrainerAdapter:
         print(
             f"[RQ-Evolve] bootstrapped {inserted}/{len(seeds)} seeds with real R_Q; "
             f"{len(evolver.archive.champions())} champions on a "
-            f"{evolver.archive.n_h_bins}x{evolver.archive.n_div_bins} grid"
+            f"{evolver.archive.n_group_bins}x{evolver.archive.n_skill_bins} "
+            f"GROUP x SKILL grid"
         )
         evolver.refresh_dataset()
         if len(evolver.dataset.snapshot()) == 0:

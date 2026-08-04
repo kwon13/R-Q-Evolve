@@ -4,26 +4,22 @@ Edit these files to control mutation prompts:
 
 - `in_depth.txt`: same-domain deeper mutation
 - `in_breadth.txt`: different-domain breadth mutation
-- `metacognitive_plan.txt`: monitoring evidence + pre-update delta-p to JSON plan
-- `planned_in_depth.txt`: validated in-depth plan to Python
-- `planned_in_breadth.txt`: validated in-breadth plan to Python
 
 Put few-shot examples here:
 
 - `shots/in_depth.txt`
 - `shots/in_breadth.txt`
-- `shots/metacognitive_in_depth.txt`
-- `shots/metacognitive_in_breadth.txt`
-- `shots/planned_in_depth.txt`
-- `shots/planned_in_breadth.txt`
+- `shots/evaluator.txt`
 
-Few-shots are format references, not reusable mutation content. Live legacy
-and plan-conditioned code generation intentionally omit code-rich shots from
-the chat conversation to prevent greedy decoding from copying an example.
-Metacognitive planning keeps a schema example, but only runs when one clean
-correct/wrong evidence pair is available. Schema version 3 specifies one
-executable `answer_route`; the wrong trace is planning evidence rather than a
-second computation embedded in the child generator.
+Mutation is one-stage: the parent source goes into the code-writing prompt and
+the model returns the child generator directly. There is no planning call and
+no plan schema.
+
+Few-shots are offline format fixtures, not reusable mutation content. Live
+mutation generation substitutes `$few_shot_examples` with the empty string,
+because greedy decoding was copying an example instead of mutating the live
+parent. The evaluator shots are the exception: `shots/evaluator.txt` is injected
+into the coherence-gate conversation.
 
 The code reads this directory by default. To use another directory, set:
 
@@ -49,22 +45,12 @@ Available placeholders:
 - `$parent_source`
 - `$parent_concept_group`
 - `$parent_concept_type`
+- `$allowed_breadth_groups`
 - `$parent_p_hat`
 - `$parent_h_score`
 - `$parent_rq_score`
 
-Metacognitive templates additionally receive:
-
-- `$operator`
-- `$operator_contract`
-- `$inherited_reasoning_move`
-- `$behavioral_evidence`
-- `$meta_progress`
-- `$mutation_plan`
-- `$plan_id`
-
 Mutation sampling is separate from solver rollout sampling. Configure
-`evolution.plan_temperature`, `evolution.code_temperature`, and
-`evolution.evaluator_temperature` (plus their `*_top_p` values) in the R_Q
-config. Solver diversity continues to use
+`evolution.code_temperature` and `evolution.evaluator_temperature` (plus their
+`*_top_p` values) in the R_Q config. Solver diversity continues to use
 `verl_config.actor_rollout_ref.rollout.temperature`.

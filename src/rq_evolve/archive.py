@@ -7,15 +7,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .code_utils import lint_problem_instance
-from .concepts import DEFAULT_CONCEPT_TYPES, CONCEPT_GROUPS
+from .concepts import GROUPS, SKILLS, axis_index
 from .program import ProblemProgram
 from .scoring import selection_priority
 
 
 @dataclass
 class Niche:
-    h_bin: int
-    div_bin: int
+    group_bin: int
+    skill_bin: int
     champion: ProblemProgram | None = None
     champion_rq: float = -1.0
     selection_count: int = 0
@@ -24,26 +24,29 @@ class Niche:
 
 
 class MAPElitesArchive:
-    """Two-dimensional MAP-Elites grid.
+    """GROUP x SKILL MAP-Elites grid.
 
-    H-axis: uncertainty bins.
-    D-axis: diversity bins, usually controlled ``CONCEPT_GROUP`` labels.
+    Both axes are behavioural descriptors read off a program's own declared
+    labels: GROUP is the mathematical domain, SKILL the reasoning the visible
+    problem forces. The grid is therefore a fixed ``len(GROUPS) x len(SKILLS)``
+    and needs no bin-count configuration -- a cell is a (domain, reasoning)
+    pair, and the two mutation operators each move exactly one coordinate.
+
+    Uncertainty is NOT an axis. H stays in the fitness, ``R_Q = p(1-p)H``, which
+    decides who holds a cell and which champion is sampled as a parent. Binning
+    on H as well would have meant one grid coordinate the mutation operators
+    cannot aim at: a child lands in an H bin only as a side effect of how hard
+    it turned out to be.
     """
 
     def __init__(
         self,
-        n_h_bins: int = 6,
-        n_div_bins: int = 6,
-        h_range: tuple[float, float] = (0.0, 6.0),
-        diversity_axis: str = "concept_group",
         epsilon: float = 0.3,
         ucb_c: float = 1.0,
-        selection_strategy: str = "ucb",
+        selection_strategy: str = "random",
         select_ignores_uncertainty: bool = False,
         select_ignores_variance: bool = False,
     ) -> None:
-        if diversity_axis not in {"concept_group", "concept_type", "hash"}:
-            raise ValueError(f"unknown diversity_axis: {diversity_axis}")
         if selection_strategy not in {"ucb", "random"}:
             raise ValueError(f"unknown selection_strategy: {selection_strategy}")
         if select_ignores_uncertainty and select_ignores_variance:
@@ -52,50 +55,41 @@ class MAPElitesArchive:
                 "mutually exclusive: enabling both drops every R_Q factor and "
                 "leaves a constant (signal-free) selection priority."
             )
-        self.diversity_axis = diversity_axis
-        if diversity_axis == "concept_group":
-            n_div_bins = len(CONCEPT_GROUPS)
-        elif diversity_axis == "concept_type":
-            n_div_bins = len(DEFAULT_CONCEPT_TYPES)
-
-        self.n_h_bins = int(n_h_bins)
-        self.n_div_bins = int(n_div_bins)
-        self.h_range = (float(h_range[0]), float(h_range[1]))
+        self.n_group_bins = len(GROUPS)
+        self.n_skill_bins = len(SKILLS)
         self.epsilon = float(epsilon)
         self.ucb_c = float(ucb_c)
         self.selection_strategy = selection_strategy
         # Ablations: rank mutation parents by s(1-s) (ignore_uncertainty) or by H
-        # (ignore_variance) instead of s(1-s)*H. Neither changes what is stored /
-        # binned -- champion_rq and H bins stay real.
+        # (ignore_variance) instead of s(1-s)*H. Neither changes what is stored
+        # or binned -- champion_rq and the cell labels stay real.
         self.select_ignores_uncertainty = bool(select_ignores_uncertainty)
         self.select_ignores_variance = bool(select_ignores_variance)
         self.total_insertions = 0
         self.total_replacements = 0
         self.total_selections = 0
         self.grid: dict[tuple[int, int], Niche] = {
-            (h, d): Niche(h_bin=h, div_bin=d)
-            for h in range(self.n_h_bins)
-            for d in range(self.n_div_bins)
+            (g, s): Niche(group_bin=g, skill_bin=s)
+            for g in range(self.n_group_bins)
+            for s in range(self.n_skill_bins)
         }
 
-    def h_to_bin(self, h_value: float) -> int:
-        low, high = self.h_range
-        clipped = min(max(float(h_value), low), high)
-        width = (high - low) / self.n_h_bins
-        return min(int((clipped - low) / width), self.n_h_bins - 1)
+    def program_to_cell(self, program: ProblemProgram) -> tuple[int, int] | None:
+        """Grid coordinate from the program's own labels, None if unlabelled.
 
-    def program_to_div_bin(self, program: ProblemProgram, problem_text: str = "") -> int:
-        if self.diversity_axis == "concept_group":
-            group = program.get_concept_group()
-            if group not in CONCEPT_GROUPS:
-                raise ValueError(f"invalid concept group: {group!r}")
-            return CONCEPT_GROUPS.index(group)
-        if self.diversity_axis == "concept_type":
-            concept_type = program.get_concept_type()
-            if concept_type not in DEFAULT_CONCEPT_TYPES:
-                return _stable_hash(concept_type or problem_text) % self.n_div_bins
-            return DEFAULT_CONCEPT_TYPES.index(concept_type)
-        return _stable_hash(problem_text or program.program_id) % self.n_div_bins
+        None rather than a hashed fallback: a program whose GROUP or SKILL is
+        outside the vocabulary has no meaningful niche, and folding those into
+        one bin would make a single cell the contest for every mislabelled
+        generator.
+        """
+        group_bin = axis_index("group", program.get_group())
+        skill_bin = axis_index("skill", program.get_skill())
+        if group_bin is None or skill_bin is None:
+            return None
+        return (group_bin, skill_bin)
+
+    def cell_labels(self, cell: tuple[int, int]) -> tuple[str, str]:
+        return (GROUPS[cell[0]], SKILLS[cell[1]])
 
     def try_insert(
         self,
@@ -104,11 +98,16 @@ class MAPElitesArchive:
         problem_text: str,
         rq_score: float,
     ) -> bool:
-        h_bin = self.h_to_bin(h_value)
-        d_bin = self.program_to_div_bin(program, problem_text)
+        cell = self.program_to_cell(program)
+        if cell is None:
+            program.metadata["archive_status"] = "unlabelled_rejected"
+            return False
+        group_bin, skill_bin = cell
 
-        program.niche_h = h_bin
-        program.niche_div = d_bin
+        program.niche_group = group_bin
+        program.niche_skill = skill_bin
+        # H is no longer a coordinate, but it is still the uncertainty factor of
+        # R_Q, so it is recorded on the program exactly as before.
         program.h_score = float(h_value)
         program.rq_score = float(rq_score)
         program.fitness = float(rq_score)
@@ -138,12 +137,12 @@ class MAPElitesArchive:
             program.metadata["duplicate_of"] = tdup.program_id
             return False
 
-        niche = self.grid[(h_bin, d_bin)]
+        niche = self.grid[cell]
         # Champion competition ranks by selection priority: real R_Q in
         # production, s(1-s) under the select_ignores_uncertainty ablation
         # (program.rq_score / p_hat are already set above). The stored
-        # champion_rq and the H bin stay real, so the MAP still logs the true
-        # scores -- only the winner choice is H-blind under the ablation.
+        # champion_rq stays the real R_Q, so the MAP still logs true scores --
+        # only the winner choice is H-blind under the ablation.
         new_priority = self._select_priority(program)
         if niche.champion is None or new_priority > self._select_priority(niche.champion):
             event = "inserted" if niche.champion is None else "replaced"
@@ -163,23 +162,18 @@ class MAPElitesArchive:
             self.total_insertions += 1
             # Archive-global uniqueness: one generator occupies one cell only.
             self._purge_program_from_other_cells(
-                program.program_id, keep_cell=(h_bin, d_bin)
+                program.program_id, keep_cell=cell
             )
             return True
         return False
 
-    def target_cell(
-        self,
-        program: ProblemProgram,
-        *,
-        h_value: float,
-        problem_text: str = "",
-    ) -> tuple[int, int]:
-        """Return the cell a scored program would target without mutating MAP."""
-        return (
-            self.h_to_bin(h_value),
-            self.program_to_div_bin(program, problem_text),
-        )
+    def target_cell(self, program: ProblemProgram) -> tuple[int, int] | None:
+        """Return the cell a program would target without mutating the MAP.
+
+        None when the program carries no usable GROUP/SKILL pair, matching what
+        :meth:`try_insert` would do with it.
+        """
+        return self.program_to_cell(program)
 
     def remove_program(self, program_id: str) -> list[tuple[int, int]]:
         """Remove one champion identity from the single live MAP archive."""
@@ -302,13 +296,13 @@ class MAPElitesArchive:
         return purged
 
     def _passes_seed_variation(self, program: ProblemProgram, n_seeds: int = 5) -> bool:
-        """Strict seed-variation gate (evo-sample champion_passes_validity).
+        """Require valid execution and visible variation across verification seeds.
 
-        Reject unless ALL n_seeds produce a valid instance AND the problems are
-        all distinct AND the answers are all distinct. Near-constant or
-        thin-rewording generators are blocked. ``lint_problem_instance`` stands
-        in for evo-sample's domain-specific ``looks_broken``. Cached by
-        rq_score, so champion re-evaluation (which changes rq_score) re-runs it.
+        Constant answers can be mathematically legitimate (for example an
+        invariant or feasibility family), so answer diversity is diagnostic
+        rather than a validity requirement. Hidden seed-dependent answers behind
+        one unchanged problem are rejected because the visible instances must
+        themselves vary.
         """
         rq_now = float(getattr(program, "rq_score", 0.0) or 0.0)
         cache = (program.metadata or {}).get("validity_check")
@@ -327,17 +321,15 @@ class MAPElitesArchive:
             if not answer or lint_problem_instance(inst):
                 n_broken += 1
                 continue
-            problems.append((inst.problem or "").strip())
+            problems.append(" ".join((inst.problem or "").split()))
             answers.append(answer)
 
         n_total = n_seeds
-        if len(answers) == n_total:
-            seed_invariant = (
-                len(set(problems)) < n_total or len(set(answers)) < n_total
-            )
-        else:
-            seed_invariant = len(answers) >= 2 and len(set(answers)) == 1
-        passed = n_broken == 0 and not seed_invariant and len(answers) == n_total
+        passed = (
+            n_broken == 0
+            and len(answers) == n_total
+            and (n_total <= 1 or len(set(problems)) >= 2)
+        )
 
         program.metadata["validity_check"] = {
             "passed": passed,
@@ -421,11 +413,19 @@ class MAPElitesArchive:
     def stats(self) -> dict[str, float | int]:
         champions = self.champions()
         rqs = [p.rq_score for p in champions]
-        total = self.n_h_bins * self.n_div_bins
+        total = self.n_group_bins * self.n_skill_bins
+        # Per-axis coverage separates "we only ever work in two domains" from
+        # "we only ever exercise two reasoning moves" -- the two failure modes
+        # the operators are meant to fix, and they look identical in the single
+        # coverage number.
+        groups_hit = {p.get_group() for p in champions if p.get_group()}
+        skills_hit = {p.get_skill() for p in champions if p.get_skill()}
         return {
             "num_champions": len(champions),
             "total_niches": total,
             "coverage": len(champions) / total if total else 0.0,
+            "group_coverage": len(groups_hit) / self.n_group_bins,
+            "skill_coverage": len(skills_hit) / self.n_skill_bins,
             "mean_rq": sum(rqs) / len(rqs) if rqs else 0.0,
             "max_rq": max(rqs) if rqs else 0.0,
             "total_insertions": self.total_insertions,
@@ -439,10 +439,9 @@ class MAPElitesArchive:
         checkpoint so the grid is restored atomically with the weights."""
         return {
             "meta": {
-                "n_h_bins": self.n_h_bins,
-                "n_div_bins": self.n_div_bins,
-                "h_range": self.h_range,
-                "diversity_axis": self.diversity_axis,
+                "axes": ["group", "skill"],
+                "group_labels": list(GROUPS),
+                "skill_labels": list(SKILLS),
                 "epsilon": self.epsilon,
                 "ucb_c": self.ucb_c,
                 "selection_strategy": self.selection_strategy,
@@ -466,14 +465,13 @@ class MAPElitesArchive:
         ``load`` is a thin reader that delegates here.
         """
         meta = payload.get("meta", {})
-        if (
-            meta.get("n_h_bins") not in (None, self.n_h_bins)
-            or meta.get("n_div_bins") not in (None, self.n_div_bins)
-        ):
+        pre_migration = meta.get("axes") != ["group", "skill"]
+        if pre_migration and payload.get("champions"):
             print(
-                f"[archive.load] grid shape changed "
-                f"({meta.get('n_h_bins')}x{meta.get('n_div_bins')} -> "
-                f"{self.n_h_bins}x{self.n_div_bins}); re-binning champions"
+                "[archive.load] snapshot predates the GROUP x SKILL grid "
+                f"(axes={meta.get('axes') or 'h x diversity'}). Its champions "
+                "carry no SKILL label, so they cannot be placed on the skill "
+                "axis and are dropped; the run bootstraps from seed_programs."
             )
 
         for niche in self.grid.values():
@@ -481,41 +479,47 @@ class MAPElitesArchive:
             niche.champion_rq = -1.0
 
         placed = 0
+        unlabelled = 0
         for champ_dict in payload.get("champions", []):
             program = ProblemProgram.from_dict(champ_dict)
-            h_bin, d_bin = program.niche_h, program.niche_div
-            coords_ok = (
-                0 <= h_bin < self.n_h_bins
-                and 0 <= d_bin < self.n_div_bins
-                and (h_bin, d_bin) in self.grid
-                and meta.get("n_h_bins") == self.n_h_bins
-                and meta.get("n_div_bins") == self.n_div_bins
+            cell = self.program_to_cell(program)
+            if cell is None:
+                unlabelled += 1
+                continue
+            # The saved coordinates are re-derived rather than trusted: both
+            # axes are pure functions of the program's own labels, so a stored
+            # coordinate can only ever agree or be stale.
+            if (
+                program.niche_group,
+                program.niche_skill,
+            ) != cell:
+                program.niche_group, program.niche_skill = cell
+            niche = self.grid[cell]
+            incumbent = niche.champion
+            if incumbent is not None and self._select_priority(
+                incumbent
+            ) >= self._select_priority(program):
+                continue
+            niche.champion = program
+            niche.champion_rq = float(program.rq_score)
+            niche.update_count += 1
+            placed += 1
+        if unlabelled:
+            print(
+                f"[archive.load] dropped {unlabelled} champion(s) without a "
+                "usable GROUP/SKILL pair"
             )
-            if coords_ok:
-                niche = self.grid[(h_bin, d_bin)]
-                niche.champion = program
-                niche.champion_rq = float(program.rq_score)
-                niche.update_count += 1
-                placed += 1
-            elif self.try_insert(
-                program=program,
-                h_value=program.h_score,
-                problem_text="",
-                rq_score=program.rq_score,
-            ):
-                placed += 1
         return placed
 
     def load(self, path: str | Path) -> int:
         """Restore champions written by :meth:`save`.
 
         Returns the number of champions placed. Every niche is cleared first so
-        the restored grid reflects exactly the saved state. Champions are placed
-        directly at their saved ``(niche_h, niche_div)`` when those coordinates
-        fit the current grid (no try_insert, so validity/RQ gates are not
-        re-applied — the saved state is reproduced as-is). If the grid shape
-        changed since the snapshot, those champions are re-binned via
-        ``try_insert`` from their stored ``h_score``.
+        the restored grid reflects exactly the saved state. Each champion's cell
+        is re-derived from its own GROUP/SKILL labels rather than trusted from
+        the snapshot, because both coordinates are pure functions of those
+        labels. Validity/RQ gates are not re-applied -- the saved state is
+        reproduced as-is -- and a champion with no usable label pair is dropped.
         """
         path = Path(path)
         archive_file = path / "archive.json" if path.is_dir() else path

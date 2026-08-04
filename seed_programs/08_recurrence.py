@@ -11,6 +11,11 @@ def generate(seed):
     for _ in range(n):
         val = p * val + q
     answer = val
+
+    # Independent route: the closed form of a(n) = p*a(n-1) + q, instead of
+    # iterating the recurrence n times.
+    check = p ** n * c + q * (p ** n - 1) // (p - 1)
+    assert answer == check, f"answer={answer} check={check}"
     problem = (
         f"A sequence is defined by a(0) = {c} and "
         f"a(n) = {p} * a(n-1) + {q} for n >= 1. Find a({n})."
@@ -18,5 +23,5 @@ def generate(seed):
 
     return problem, str(answer)
 
-CONCEPT_GROUP = "sequence"
-CONCEPT_TYPE = "sequence.linear_recurrence"
+GROUP = "sequence"
+SKILL = "induction"

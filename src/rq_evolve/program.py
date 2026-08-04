@@ -6,11 +6,9 @@ import select
 import subprocess
 import sys
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
-
-from .concepts import concept_group_for_type
 
 # Absolute path to the hermetic sandbox worker. Resolved once at import so the
 # client can (re)spawn it regardless of the trainer's cwd.
@@ -57,8 +55,13 @@ class _SandboxClient:
                 pass
             self._proc = None
 
-    def run(self, source: str, seed: int, timeout: float) -> dict | None:
-        """Return ``{"problem","answer"}`` or None (bad program / timeout / crash)."""
+    def run(self, source: str, seed: int, timeout: float) -> dict:
+        """Return ``{"ok": True, "problem", "answer"}`` or ``{"ok": False, ...}``.
+
+        Failures carry ``error_type``/``error`` so a caller can tell a child's
+        own AssertionError -- its cross-check catching a real problem/answer
+        mismatch -- from broken code, a guarded import, or a timeout.
+        """
         with self._lock:
             try:
                 if self._proc is None or self._proc.poll() is not None:
@@ -67,27 +70,28 @@ class _SandboxClient:
                     json.dumps({"source": source, "seed": seed}) + "\n"
                 )
                 self._proc.stdin.flush()
-            except Exception:
+            except Exception as exc:
                 self._kill()
-                return None
+                return {"ok": False, "error_type": "SandboxWriteError",
+                        "error": str(exc)[:200]}
 
             ready, _, _ = select.select([self._proc.stdout], [], [], timeout)
             if not ready:
                 # Overran the budget -> the worker is wedged in C-level work.
                 # Kill it; the next call respawns a clean one.
                 self._kill()
-                return None
+                return {"ok": False, "error_type": "Timeout",
+                        "error": f"no result within {timeout}s"}
             line = self._proc.stdout.readline()
             if not line:  # worker died mid-request (e.g. MemoryError-killed)
                 self._kill()
-                return None
+                return {"ok": False, "error_type": "WorkerDied",
+                        "error": "worker exited mid-request (memory limit?)"}
             try:
-                resp = json.loads(line)
-            except Exception:
-                return None
-            if not resp.get("ok"):
-                return None
-            return {"problem": resp["problem"], "answer": resp["answer"]}
+                return json.loads(line)
+            except Exception as exc:
+                return {"ok": False, "error_type": "ProtocolError",
+                        "error": str(exc)[:200]}
 
 
 # Process-global client: one resident worker shared by all ProblemProgram.execute
@@ -126,8 +130,14 @@ class ProblemProgram:
     h_score: float = 0.0
     rq_score: float = 0.0
     fitness: float = 0.0
-    niche_h: int = -1
-    niche_div: int = -1
+    # Grid coordinate on the GROUP x SKILL archive. Both are derived from the
+    # program's own labels, so they are a cache of program_to_cell, never an
+    # independent fact.
+    niche_group: int = -1
+    niche_skill: int = -1
+    # Why the most recent execute() returned None. Diagnostic only, never
+    # persisted: to_dict does not carry it.
+    last_execution_error: str | None = field(default=None, compare=False)
     last_reeval_step: int = -1
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -163,21 +173,58 @@ class ProblemProgram:
                 return value_node.value.strip()
         return None
 
-    def declared_concept_type(self) -> str | None:
-        return self._top_level_string_constant("CONCEPT_TYPE")
+    # --- MAP-Elites axis labels -------------------------------------------
+    # A program declares GROUP (domain) and SKILL (reasoning move) at module
+    # top level. ``declared_*`` reads the source text; ``get_*`` prefers the
+    # value verification already resolved into metadata, so a program keeps its
+    # labels after being restored from an archive snapshot whose source may
+    # predate the current vocabulary.
+
+    def declared_group(self) -> str | None:
+        # CONCEPT_GROUP is the pre-migration spelling of the same axis, so a
+        # snapshot written before the rename still reports its domain.
+        return (
+            self._top_level_string_constant("GROUP")
+            or self._top_level_string_constant("CONCEPT_GROUP")
+        )
+
+    def declared_skill(self) -> str | None:
+        # No fallback: SKILL has no pre-migration equivalent. CONCEPT_TYPE was a
+        # refinement of the domain (``number_theory.crt_count``), not a
+        # reasoning move, so reading it here would fabricate a skill label.
+        return self._top_level_string_constant("SKILL")
+
+    def get_group(self) -> str | None:
+        return self.metadata.get("group") or self.declared_group()
+
+    def get_skill(self) -> str | None:
+        return self.metadata.get("skill") or self.declared_skill()
+
+    # --- Pre-migration accessors ------------------------------------------
+    # Still called by archive.py, evolution.py, prompts.py and
+    # expansion_experiment.py. Removed once those move to GROUP x SKILL.
 
     def declared_concept_group(self) -> str | None:
-        return self._top_level_string_constant("CONCEPT_GROUP")
-
-    def get_concept_type(self) -> str | None:
-        return self.metadata.get("concept_type") or self.declared_concept_type()
+        """LEGACY alias of :meth:`declared_group` -- same axis, old spelling."""
+        return self.declared_group()
 
     def get_concept_group(self) -> str | None:
-        return (
-            self.metadata.get("concept_group")
-            or self.declared_concept_group()
-            or concept_group_for_type(self.get_concept_type())
-        )
+        """LEGACY alias of :meth:`get_group` -- same axis, old spelling."""
+        return self.get_group()
+
+    def declared_concept_type(self) -> str | None:
+        """LEGACY. The retired CONCEPT_TYPE label; None on a GROUP/SKILL program.
+
+        NOT a stand-in for SKILL. Any comparison of two such programs' concept
+        types now compares None with None and always succeeds -- see
+        ``RQEvolver._validate_mutation_contract``, whose in-depth clause is
+        inert until it is redefined against SKILL.
+        """
+        return self._top_level_string_constant("CONCEPT_TYPE")
+
+    def get_concept_type(self) -> str | None:
+        """LEGACY. See :meth:`declared_concept_type` for the inert-comparison caveat."""
+        return self.metadata.get("concept_type") or self.declared_concept_type()
 
     def execute(self, seed: int, timeout: float = 5.0) -> ProblemInstance | None:
         """Run ``generate(seed)`` in a hard-killable sandbox subprocess.
@@ -191,8 +238,14 @@ class ProblemProgram:
         signalled it.
         """
         resp = _SANDBOX.run(self.source_code, seed, timeout)
-        if resp is None:
+        if not resp.get("ok"):
+            # Kept for the caller that wants to know WHY, without changing the
+            # None-on-failure contract every existing call site relies on.
+            self.last_execution_error = (
+                f"{resp.get('error_type', 'Unknown')}: {resp.get('error', '')}"
+            )
             return None
+        self.last_execution_error = None
         return ProblemInstance(
             problem=resp["problem"],
             answer=resp["answer"],
@@ -210,15 +263,24 @@ class ProblemProgram:
             "h_score": self.h_score,
             "rq_score": self.rq_score,
             "fitness": self.fitness,
-            "niche_h": self.niche_h,
-            "niche_div": self.niche_div,
+            "niche_group": self.niche_group,
+            "niche_skill": self.niche_skill,
             "last_reeval_step": self.last_reeval_step,
             "metadata": self.metadata,
         }
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "ProblemProgram":
-        return cls(**payload)
+        """Rebuild from :meth:`to_dict`, ignoring fields this version dropped.
+
+        Snapshots outlive schema changes: a pre-migration archive still carries
+        ``niche_h``/``niche_div`` from the retired H axis. Those coordinates are
+        meaningless on a GROUP x SKILL grid, and the archive re-derives the cell
+        from the labels anyway, so unknown keys are skipped rather than raising
+        and taking the whole resume down.
+        """
+        known = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in payload.items() if k in known})
 
     def save(self, path: str | Path) -> None:
         Path(path).write_text(

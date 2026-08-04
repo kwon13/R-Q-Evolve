@@ -1,0 +1,782 @@
+REFERENCE EXAMPLES ONLY.
+Each pair keeps SKILL fixed and moves GROUP: the parent's decisive move re-instantiates
+through a relation native to the new domain, never renamed into it. Copy only the shape --
+header block, bounded sampler, in-source shortcut guards, one instance_data, one cross-check
+assert. Reuse no example's domain, formula, parameter names, code body, or SKILL.
+
+PARENT_PROGRAM_EXAMPLE_1:
+```python
+# GROUP: sequence / SKILL: induction
+# CRUX: pin a(n) by pushing the two-term recurrence forward in residues -- the
+#       value at index n is reachable only through indices n-1 and n-2.
+# BYPASS_BLOCKED: unrolling small n -> n >= 30, only the residue mod m is asked,
+#       and a(k) mod m is computed in source for EVERY index k < n and must
+#       differ from the answer, so the least index reproducing it is n itself;
+#       pattern from the first terms -> the arithmetic, the geometric and the
+#       degree-4 fits through a(1)..a(5) are all evaluated in source, every
+#       eventual period visible in a(1)..a(12) mod m is extrapolated to index n,
+#       and the instance is resampled until every one of them misses the answer.
+"""Two-term linear recurrence: the residue of a far-out term."""
+
+import fractions
+import math
+import random
+import sympy
+
+MAX_ATTEMPTS = 200
+
+MODULUS_POOL = [1000, 4096, 9973, 65536, 100003]
+HEAD_LENGTH = 5
+PERIOD_WINDOW = 12
+
+
+def _head_terms(c1, c2, p, q, count):
+    """The first `count` true integer terms of the recurrence."""
+    seq = [c1, c2]
+    for _ in range(count - 2):
+        seq.append(p * seq[-1] + q * seq[-2])
+    return seq[:count]
+
+
+def _term_prefix(c1, c2, p, q, n, m):
+    """a(1) mod m, ..., a(n) mod m by stepping the recurrence one index at a time."""
+    prefix = [c1 % m, c2 % m]
+    for _ in range(n - 2):
+        prefix.append((p * prefix[-1] + q * prefix[-2]) % m)
+    return prefix[:n]
+
+
+def _term_mod(c1, c2, p, q, n, m):
+    """a(n) mod m by stepping the recurrence, one index at a time."""
+    prev, cur = c1 % m, c2 % m
+    for _ in range(n - 2):
+        prev, cur = cur, (p * cur + q * prev) % m
+    return cur
+
+
+def _mat_mul(x, y, m):
+    return (
+        (x[0] * y[0] + x[1] * y[2]) % m,
+        (x[0] * y[1] + x[1] * y[3]) % m,
+        (x[2] * y[0] + x[3] * y[2]) % m,
+        (x[2] * y[1] + x[3] * y[3]) % m,
+    )
+
+
+def _mat_pow(mat, exponent, m):
+    """Companion-matrix power by repeated squaring -- no index-by-index walk."""
+    result = (1 % m, 0, 0, 1 % m)
+    cur = mat
+    for _ in range(exponent.bit_length()):
+        if exponent & 1:
+            result = _mat_mul(result, cur, m)
+        cur = _mat_mul(cur, cur, m)
+        exponent >>= 1
+    return result
+
+
+def _lagrange_at(values, x):
+    """Value at x of the degree<=4 polynomial through (1, v1) ... (5, v5)."""
+    total = fractions.Fraction(0)
+    for i in range(len(values)):
+        term = fractions.Fraction(values[i])
+        for j in range(len(values)):
+            if j != i:
+                term *= fractions.Fraction(x - (j + 1), (i + 1) - (j + 1))
+        total += term
+    return total
+
+
+def _shortcut_predictions(values, n, m):
+    """What the three listed extrapolation bypasses predict for a(n) mod m."""
+    preds = []
+    first, second = values[0], values[1]
+    preds.append((first + (n - 1) * (second - first)) % m)
+    if first != 0 and second % first == 0:
+        preds.append(first * pow(second // first, n - 1, m) % m)
+    fit = _lagrange_at(values, n)
+    if math.gcd(fit.denominator, m) == 1:
+        preds.append(fit.numerator % m * pow(fit.denominator % m, -1, m) % m)
+    return preds
+
+
+def _periodic_predictions(values, x):
+    """What "the residues start repeating, so reduce the index" predicts.
+
+    Any eventual period visible in the given window is extrapolated to index x.
+    """
+    preds = []
+    window = len(values)
+    for period in range(1, window // 2 + 1):
+        for start in range(0, window - 2 * period + 1):
+            if all(values[i] == values[i + period] for i in range(start, window - period)):
+                preds.append(values[start + (x - 1 - start) % period])
+                break
+    return preds
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    for _ in range(MAX_ATTEMPTS):
+        c1 = rng.randint(1, 9)
+        c2 = rng.randint(2, 15)
+        p = rng.randint(2, 7)
+        q = rng.randint(2, 6)
+        n = rng.randint(30, 45)
+        m = rng.choice(MODULUS_POOL)
+        # Reject the degenerate start where c2/c1 already solves x^2 = p*x + q,
+        # which would make the sequence exactly geometric.
+        if c1 == c2 or c2 * c2 == p * c2 * c1 + q * c1 * c1:
+            continue
+        head = _head_terms(c1, c2, p, q, HEAD_LENGTH)
+        prefix = _term_prefix(c1, c2, p, q, n, m)
+        true_value = prefix[-1]
+        if true_value <= 100 or true_value in (c1, c2, p, q, n, m - 1):
+            continue
+        # Every listed bypass is computed and must be wrong on this instance.
+        # Unrolling: no index below n exposes the requested residue.
+        if true_value in prefix[: n - 1]:
+            continue
+        if true_value in _shortcut_predictions(head, n, m):
+            continue
+        # Pattern from the first terms: no period visible early survives to n.
+        if true_value in _periodic_predictions(prefix[:PERIOD_WINDOW], n):
+            continue
+        instance_data = {"c1": c1, "c2": c2, "p": p, "q": q, "n": n, "m": m}
+        answer = _term_mod(
+            instance_data["c1"],
+            instance_data["c2"],
+            instance_data["p"],
+            instance_data["q"],
+            instance_data["n"],
+            instance_data["m"],
+        )
+        # Independent route: the same term read off a companion-matrix power,
+        # which never visits the intermediate indices.
+        power = _mat_pow(
+            (instance_data["p"] % instance_data["m"], instance_data["q"] % instance_data["m"], 1, 0),
+            instance_data["n"] - 2,
+            instance_data["m"],
+        )
+        matrix_value = (
+            power[0] * instance_data["c2"] + power[1] * instance_data["c1"]
+        ) % instance_data["m"]
+        assert answer == matrix_value
+        problem = (
+            f"A sequence of integers is defined by a(1) = {instance_data['c1']}, "
+            f"a(2) = {instance_data['c2']}, and "
+            f"a(k) = {instance_data['p']}*a(k-1) + {instance_data['q']}*a(k-2) "
+            f"for every integer k >= 3. Find the remainder when "
+            f"a({instance_data['n']}) is divided by {instance_data['m']}."
+        )
+        return problem, str(sympy.Integer(answer))
+    else:
+        raise RuntimeError("no recurrence instance survived the bypass guards")
+
+GROUP = "sequence"
+SKILL = "induction"
+```
+
+CHILD_PROGRAM_EXAMPLE_1:
+```python
+# GROUP: number_theory / SKILL: induction
+# CRUX: carry the residue of t(k) at EVERY level of the divisibility chain
+#       M | phi(M) | phi^2(M) | ... at once and push the index up one step at a
+#       time -- level j of index k needs level j+1 of index k-1 (Euler, lifted by
+#       +phi, since bases share factors with the modulus) for the power and
+#       level j of index k-1 for the carried term, so no index may be skipped and
+#       the descent may not be cut short at any of its first seven levels.
+# NATIVE_STRUCTURE: congruence structure of Z/M -- Euler's theorem along the
+#       totient divisibility chain of M, plus the CRT split of M into coprime
+#       prime powers each running its own chain; delete the modulus and t(30) has
+#       no finite decimal value at all.
+# BYPASS_BLOCKED: unrolling small n step by step -> every height pool value is
+#       >= 30, and t(h) mod M is computed in source for EVERY h < height and must
+#       differ from the answer, so the least height reproducing the answer is the
+#       asked one; the same full prefix of the no-lift (plain Euler) descent must
+#       miss as well, closing "truncate the tower, then reduce with plain Euler";
+#       the answer is also required to move across the height pool, and the
+#       induction cold-started at every index 2 <= s < height must miss, so all
+#       30+ indices are load bearing. (No claim is made that the +phi lift changes
+#       the value at the asked height: the exponent there is a residue modulo a
+#       seven-digit totient, so it exceeds every prime-power valuation of the
+#       modulus and the lifted and unlifted descents agree. The lift is a
+#       correctness detail at the small deep moduli, never a difficulty lever, and
+#       dropping it saves a solver no work -- same indices, same chain.)
+#       extrapolating a pattern from the first terms -> t(4) onward has no
+#       writable decimal form, so the five visible first terms ARE the residues
+#       t(1)..t(5) mod M; the arithmetic, the geometric and the degree-4 fits
+#       through them are evaluated at the asked height, every eventual period
+#       detected in t(1)..t(12) mod M is extrapolated to the asked height, and the
+#       naive forward iteration that reduces each exponent mod M is run; all of
+#       them must miss.
+#       (extra) the totient descent truncated after d = 0..6 levels, which assumes
+#       the remaining exponent vanishes mod the current totient, must miss too.
+"""Accumulating exponential recursion: a far-out residue of t(k+1)=c(k+1)^t(k)+t(k)."""
+
+import fractions
+import functools
+import math
+import random
+import sympy
+
+MAX_ATTEMPTS = 200
+
+OFFSET_POOL = [1, 2, 3]
+HEIGHT_POOL = [30, 31, 32, 33, 34, 35, 36, 37]
+HEAD_LENGTH = 5
+PERIOD_WINDOW = 12
+DESCENT_PROBE = 7
+EXACT_CAP = 10 ** 18
+EXACT_EXPONENT_CAP = 200
+
+
+@functools.lru_cache(maxsize=None)
+def _phi(m):
+    return int(sympy.totient(m))
+
+
+@functools.lru_cache(maxsize=None)
+def _totient_chain(m):
+    """m, phi(m), phi(phi(m)), ..., 1 -- the moduli the descent walks down."""
+    levels = [m]
+    while levels[-1] > 1:
+        levels.append(_phi(levels[-1]))
+    return tuple(levels)
+
+
+def _base_at(offset, k):
+    """The base used at index k. Depends on k itself, not on k modulo anything."""
+    return offset + k
+
+
+def _residue_prefix(offset, height, m, depth=None, lift=True):
+    """t(1) mod m, t(2) mod m, ..., t(height) mod m.
+
+    One pass over the index k carrying, for every level j of the totient chain of
+    m, the residue of t(k) modulo phi^j(m). Level j at index k reads level j+1 at
+    index k-1 as the exponent and level j at index k-1 as the carried term.
+
+    depth = d keeps only the top d+1 chain levels and assumes the exponent is 0
+    modulo phi^(d+1)(m) below them; depth = None keeps the whole chain and is
+    exact. lift = False drops the +phi(m) correction that generalized Euler needs
+    once a base shares a prime with its modulus.
+    """
+    chain = _totient_chain(m)
+    top = len(chain) - 1 if depth is None else min(depth, len(chain) - 1)
+    residues = [(offset + 1) % chain[j] for j in range(top + 1)]
+    exact = offset + 1
+    prefix = [residues[0]]
+    for k in range(2, height + 1):
+        base = _base_at(offset, k)
+        stepped = []
+        for j in range(top + 1):
+            level = chain[j]
+            if level == 1:
+                stepped.append(0)
+            elif exact is not None:
+                stepped.append((pow(base, exact, level) + exact) % level)
+            else:
+                below = chain[j + 1]
+                if j < top:
+                    power = residues[j + 1] + below if lift else residues[j + 1]
+                else:
+                    power = below if lift else 0
+                stepped.append((pow(base, power, level) + residues[j]) % level)
+        if exact is not None:
+            grown = None if exact > EXACT_EXPONENT_CAP else base ** exact + exact
+            exact = grown if grown is not None and grown <= EXACT_CAP else None
+        residues = stepped
+        prefix.append(residues[0])
+    return prefix
+
+
+def _cold_start(offset, start, height, m):
+    """The induction restarted at index start, pretending t(start) vanishes.
+
+    A solver who only looks at the last few indices computes exactly this.
+    """
+    chain = _totient_chain(m)
+    residues = [0] * len(chain)
+    for k in range(start + 1, height + 1):
+        base = _base_at(offset, k)
+        stepped = []
+        for j in range(len(chain)):
+            level = chain[j]
+            if level == 1:
+                stepped.append(0)
+            else:
+                power = residues[j + 1] + chain[j + 1]
+                stepped.append((pow(base, power, level) + residues[j]) % level)
+        residues = stepped
+    return residues[0]
+
+
+def _naive_forward(offset, height, m):
+    """The cheap wrong route: reduce every exponent modulo m itself."""
+    value = (offset + 1) % m
+    for k in range(2, height + 1):
+        value = (pow(_base_at(offset, k), value, m) + value) % m
+    return value
+
+
+def _lagrange_at(values, x):
+    """Value at x of the degree<=4 polynomial through (1, v1) ... (5, v5)."""
+    total = fractions.Fraction(0)
+    for i in range(len(values)):
+        term = fractions.Fraction(values[i])
+        for j in range(len(values)):
+            if j != i:
+                term *= fractions.Fraction(x - (j + 1), (i + 1) - (j + 1))
+        total += term
+    return total
+
+
+def _shortcut_predictions(values, x, m):
+    """What the arithmetic, geometric and degree-4 fits predict for t(x) mod m."""
+    preds = []
+    first, second = values[0], values[1]
+    preds.append((first + (x - 1) * (second - first)) % m)
+    if first != 0 and second % first == 0:
+        preds.append(first * pow(second // first, x - 1, m) % m)
+    fit = _lagrange_at(values, x)
+    if math.gcd(fit.denominator, m) == 1:
+        preds.append(fit.numerator % m * pow(fit.denominator % m, -1, m) % m)
+    return preds
+
+
+def _periodic_predictions(values, x):
+    """What "the residues start repeating, so reduce the index" predicts.
+
+    Any eventual period visible in the given window is extrapolated to index x.
+    """
+    preds = []
+    window = len(values)
+    for period in range(1, window // 2 + 1):
+        for start in range(0, window - 2 * period + 1):
+            if all(values[i] == values[i + period] for i in range(start, window - period)):
+                preds.append(values[start + (x - 1 - start) % period])
+                break
+    return preds
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    for _ in range(MAX_ATTEMPTS):
+        offset = rng.choice(OFFSET_POOL)
+        height = rng.choice(HEIGHT_POOL)
+        modulus = rng.randint(10 ** 7, 10 ** 8)
+        parts = sorted(sympy.factorint(modulus).items())
+        if len(parts) < 2:
+            continue
+        spread = _residue_prefix(offset, max(HEIGHT_POOL), modulus)
+        true_value = spread[height - 1]
+        if true_value <= 1000 or true_value in (offset, height, modulus - 1):
+            continue
+        # Bypass 1: read the answer off a shorter, writable prefix of the sequence.
+        if true_value in spread[: height - 1]:
+            continue
+        # Size floor: the stated index has to move the answer inside the pool.
+        if len(sorted(set(spread[h - 1] for h in HEIGHT_POOL))) < 2:
+            continue
+        # Bypass 2: fit the five visible residues and evaluate at the asked index.
+        if true_value in _shortcut_predictions(spread[:HEAD_LENGTH], height, modulus):
+            continue
+        # Bypass 2: read a period off the first residues and reduce the index.
+        if true_value in _periodic_predictions(spread[:PERIOD_WINDOW], height):
+            continue
+        # Cheap wrong route: exponents reduced modulo the modulus itself.
+        if _naive_forward(offset, height, modulus) == true_value:
+            continue
+        # Truncated descent: stop after d totient levels and drop the rest.
+        if any(
+            _residue_prefix(offset, height, modulus, depth=d)[-1] == true_value
+            for d in range(DESCENT_PROBE)
+        ):
+            continue
+        # Plain Euler with no +phi lift, at every index below the asked one.
+        plain = _residue_prefix(offset, height, modulus, lift=False)
+        if true_value in plain[: height - 1]:
+            continue
+        # Truncated induction: forgetting the indices below s must never work.
+        if any(
+            _cold_start(offset, s, height, modulus) == true_value
+            for s in range(2, height)
+        ):
+            continue
+        instance_data = {"offset": offset, "height": height, "modulus": modulus}
+        answer = _residue_prefix(
+            instance_data["offset"],
+            instance_data["height"],
+            instance_data["modulus"],
+        )[-1]
+        # Independent route: split the modulus into two coprime factors and run
+        # the whole induction again inside each of them, along totient chains of
+        # different lengths; the CRT forces both residues to agree with answer.
+        split = sorted(sympy.factorint(instance_data["modulus"]).items())
+        low = split[0][0] ** split[0][1]
+        high = instance_data["modulus"] // low
+        assert answer % low == _residue_prefix(
+            instance_data["offset"], instance_data["height"], low
+        )[-1]
+        assert answer % high == _residue_prefix(
+            instance_data["offset"], instance_data["height"], high
+        )[-1]
+        problem = (
+            f"For every positive integer k let c(k) = k + "
+            f"{instance_data['offset']}. A sequence of positive integers is "
+            f"defined by t(1) = c(1) and t(k+1) = c(k+1)^(t(k)) + t(k) for every "
+            f"integer k >= 1. Find the remainder when "
+            f"t({instance_data['height']}) is divided by "
+            f"{instance_data['modulus']}."
+        )
+        return problem, str(sympy.Integer(answer))
+    else:
+        raise RuntimeError("no accumulating-tower instance survived the guards")
+
+GROUP = "number_theory"
+SKILL = "induction"
+```
+
+PARENT_PROGRAM_EXAMPLE_2:
+```python
+# GROUP: combinatorics / SKILL: counting
+# CRUX: biject the gap-free k-subsets of an initial segment onto unrestricted k-subsets of a shortened segment, then take the complement of the "all elements small" family inside that bijection.
+# BYPASS_BLOCKED: direct listing of a small set -> the size pools force the ambient family C(n, k) above 10^10 (>= 3.9e11 on the reachable pools, re-checked in source), so no enumeration of k-subsets certifies the count and nothing in this file ever walks the family; single textbook formula applied once -> the lone binomial C(n-k+1, k), the gap-free-restriction-deleted value C(n, k) - C(b, k), and the raw total C(n, k) are each computed in source and resampled against; deleting a stated restriction -> dropping "no two consecutive" gives C(n, k) - C(b, k) and dropping "at least one element greater than b" gives C(n-k+1, k), both guarded to differ from the answer.
+import collections
+import math
+import random
+
+import sympy
+
+MAX_ATTEMPTS = 200
+
+SIZE_POOL = [70, 76, 82, 88]
+PICK_POOL = [10, 11]
+
+
+def _sparse_subsets(m, k):
+    """Number of k-subsets of {1..m} with no two consecutive elements."""
+    if k < 0 or m - k + 1 < k:
+        return 0
+    return math.comb(m - k + 1, k)
+
+
+def _dp_sparse_with_high(n, k, b):
+    """Independent route: sweep positions 1..n carrying (picked, last taken, saw a high element)."""
+    states = {(0, 0, 0): 1}
+    for position in range(1, n + 1):
+        nxt = collections.defaultdict(int)
+        for (picked, prev, high), ways in sorted(states.items()):
+            nxt[(picked, 0, high)] += ways
+            if prev == 0 and picked < k:
+                seen_high = 1 if (high or position > b) else 0
+                nxt[(picked + 1, 1, seen_high)] += ways
+        states = dict(nxt)
+    return sum(
+        ways
+        for (picked, prev, high), ways in sorted(states.items())
+        if picked == k and high == 1
+    )
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    for _ in range(MAX_ATTEMPTS):
+        n = rng.choice(SIZE_POOL)
+        k = rng.choice(PICK_POOL)
+        if n < 2 * k + 6:
+            continue
+        b = rng.randint(2 * k, n - 4)
+        ambient = math.comb(n, k)
+        if ambient <= 10 ** 10:
+            continue
+        instance_data = {"n": n, "k": k, "b": b}
+        answer = _sparse_subsets(
+            instance_data["n"], instance_data["k"]
+        ) - _sparse_subsets(instance_data["b"], instance_data["k"])
+        shortcut_one_binomial = _sparse_subsets(
+            instance_data["n"], instance_data["k"]
+        )
+        shortcut_drop_gap = math.comb(
+            instance_data["n"], instance_data["k"]
+        ) - math.comb(instance_data["b"], instance_data["k"])
+        shortcut_total = math.comb(instance_data["n"], instance_data["k"])
+        if answer in (shortcut_one_binomial, shortcut_drop_gap, shortcut_total):
+            continue
+        if 5 * (shortcut_one_binomial - answer) < shortcut_one_binomial:
+            continue
+        if answer <= 100:
+            continue
+        assert _dp_sparse_with_high(
+            instance_data["n"], instance_data["k"], instance_data["b"]
+        ) == answer
+        problem = (
+            f"Call a set of integers sparse when it has exactly "
+            f"{instance_data['k']} elements, every element lies in "
+            f"{{1, 2, ..., {instance_data['n']}}}, and no two of its elements "
+            f"are consecutive integers. How many sparse sets contain at least "
+            f"one element greater than {instance_data['b']}?"
+        )
+        return problem, str(sympy.Integer(answer))
+    else:
+        raise RuntimeError("failed to sample a valid sparse-subset instance")
+
+
+GROUP = "combinatorics"
+SKILL = "counting"
+```
+
+CHILD_PROGRAM_EXAMPLE_2:
+```python
+# GROUP: geometry / SKILL: counting
+# CRUX: count a slanted collinear triple once through the unique lattice point interior to its outer segment, so an outer pair with displacement (dx, dy) carries gcd(dx, dy) - 1 triples, then strip the punctured column and the punctured row by inclusion-exclusion over the placements that meet them.
+# NATIVE_STRUCTURE: lattice-point incidence -- how many grid points an open segment actually meets, gcd(|dx|, |dy|) - 1, is the whole computation; delete the collinearity relation and every term vanishes, since no selection formula sees which segments pass through further points.
+# BYPASS_BLOCKED: direct listing of a small set -> S carries w * h >= 9000 points and the ambient triple space C(|S|, 3) is forced above 10**9 in source (>= 1.4e11 on the reachable pools), so no enumeration certifies the count; the exhaustive triple walk exists only as _brute_punctured_triples and is called solely on fixed 6x5-scale shadow grids, never on the shipped instance. single textbook formula applied once -> the plain gcd sum 2*sum (w+1-dx)(h+1-dy)(gcd(dx,dy)-1), the shaved-rectangle variant, the four-block sum, the pure selection count 6*C(w,3)*C(h,3) and the ambient C(|S|,3) are each computed in source and resampled against, and the punctured lines are guarded to remove at least 2% of the unpunctured count. deleting any stated restriction -> dropping "x != c" (row puncture only), dropping "y != r" (column puncture only), dropping collinearity (6*C(w,3)*C(h,3)), dropping the shared-x ban (adds w*C(h,3) vertical triples) and dropping the shared-y ban (adds h*C(w,3) horizontal triples) are each evaluated in source and guarded to differ from the answer.
+import itertools
+import math
+import random
+
+import sympy
+
+MAX_ATTEMPTS = 200
+
+WIDTH_POOL = [104, 113, 122, 131, 139, 148, 157]
+HEIGHT_POOL = [91, 97, 106, 115, 124, 133]
+SHADOW_CASES = ((6, 5, 2, 3), (7, 6, 3, 2), (9, 4, 4, 1))
+
+
+def _k_window(low, high, step, g):
+    """Inclusive window of interior indices k in [1, g-1] with low <= k*step <= high."""
+    return max(1, -((-low) // step)), min(g - 1, high // step)
+
+
+def _window_size(k_low, k_high):
+    return max(0, k_high - k_low + 1)
+
+
+def _slanted_triples(w, h):
+    """Middle-point double count on the full (w+1) x (h+1) grid, no punctures."""
+    total = 0
+    for dx in range(1, w + 1):
+        for dy in range(1, h + 1):
+            interior = math.gcd(dx, dy) - 1
+            if interior:
+                total += 2 * (w + 1 - dx) * (h + 1 - dy) * interior
+    return total
+
+
+def _punctured_slanted_triples(w, h, c, r):
+    """Complement plus inclusion-exclusion on top of the middle-point double count.
+
+    A displacement class (dx, dy) with g = gcd(dx, dy) carries g - 1 interior
+    indices and (w+1-dx)*(h+1-dy) placements per slope sign. Within one class the
+    triples meeting column c are the placements whose leftmost x sits at one of
+    three offsets from c, and likewise for row r, so both hit counts and their
+    intersection close in O(1) through index windows. Passing c or r outside the
+    grid switches that puncture off.
+    """
+    hits_column = 0
+    hits_row = 0
+    hits_both = 0
+    for dx in range(1, w + 1):
+        top_x = w - dx
+        free_x = top_x + 1
+        column_ends = (1 if 0 <= c <= top_x else 0) + (1 if dx <= c <= w else 0)
+        for dy in range(1, h + 1):
+            g = math.gcd(dx, dy)
+            if g < 2:
+                continue
+            top_y = h - dy
+            free_y = top_y + 1
+            step_x = dx // g
+            step_y = dy // g
+            column_window = _k_window(c - top_x, c, step_x, g)
+            column_inner = _window_size(*column_window)
+            row_ends = (1 if 0 <= r <= top_y else 0) + (1 if dy <= r <= h else 0)
+            rising_window = _k_window(r - top_y, r, step_y, g)
+            falling_window = _k_window(dy - r, h - r, step_y, g)
+            rising_inner = _window_size(*rising_window)
+            falling_inner = _window_size(*falling_window)
+            hits_column += 2 * free_y * (column_ends * (g - 1) + column_inner)
+            hits_row += free_x * (
+                2 * row_ends * (g - 1) + rising_inner + falling_inner
+            )
+            hits_both += (
+                2 * column_ends * row_ends * (g - 1)
+                + column_ends * (rising_inner + falling_inner)
+                + 2 * row_ends * column_inner
+                + _window_size(
+                    max(column_window[0], rising_window[0]),
+                    min(column_window[1], rising_window[1]),
+                )
+                + _window_size(
+                    max(column_window[0], falling_window[0]),
+                    min(column_window[1], falling_window[1]),
+                )
+            )
+    return _slanted_triples(w, h) - hits_row - hits_column + hits_both
+
+
+def _chain_punctured_triples(w, h, c, r):
+    """Independent route: primitive direction (a, b) with two step counts i < j.
+
+    Sums over direction and step pair instead of over displacement class and
+    interior index, and applies both punctures to the placement windows directly
+    rather than subtracting them afterwards.
+    """
+    total = 0
+    for a in range(1, w // 2 + 1):
+        for b in range(1, h // 2 + 1):
+            if math.gcd(a, b) != 1:
+                continue
+            span = min(w // a, h // b)
+            for j in range(2, span + 1):
+                top_x = w - j * a
+                top_y = h - j * b
+                free_x = top_x + 1
+                free_y = top_y + 1
+                for i in range(1, j):
+                    blocked_x = 0
+                    for offset in (0, i * a, j * a):
+                        if 0 <= c - offset <= top_x:
+                            blocked_x += 1
+                    blocked_rising = 0
+                    blocked_falling = 0
+                    for offset in (0, i * b, j * b):
+                        if 0 <= r - offset <= top_y:
+                            blocked_rising += 1
+                        if j * b <= r + offset <= h:
+                            blocked_falling += 1
+                    total += (free_x - blocked_x) * (
+                        2 * free_y - blocked_rising - blocked_falling
+                    )
+    return total
+
+
+def _brute_punctured_triples(w, h, c, r):
+    """Exhaustive walk over triples, for the downscaled shadow grids only."""
+    points = [
+        (x, y)
+        for x in range(w + 1)
+        for y in range(h + 1)
+        if x != c and y != r
+    ]
+    total = 0
+    for p, q, t in itertools.combinations(points, 3):
+        if len({p[0], q[0], t[0]}) < 3:
+            continue
+        if len({p[1], q[1], t[1]}) < 3:
+            continue
+        if (q[0] - p[0]) * (t[1] - p[1]) == (q[1] - p[1]) * (t[0] - p[0]):
+            total += 1
+    return total
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    for _ in range(MAX_ATTEMPTS):
+        w = rng.choice(WIDTH_POOL)
+        h = rng.choice(HEIGHT_POOL)
+        if abs(w - h) < 8:
+            continue
+        c = rng.randint(3, w - 3)
+        r = rng.randint(3, h - 3)
+        n_points = w * h
+        ambient = math.comb(n_points, 3)
+        if ambient <= 10 ** 9:
+            continue
+        instance_data = {"w": w, "h": h, "c": c, "r": r, "n_points": n_points}
+        answer = _punctured_slanted_triples(
+            instance_data["w"],
+            instance_data["h"],
+            instance_data["c"],
+            instance_data["r"],
+        )
+        shortcut_all_triples = math.comb(instance_data["n_points"], 3)
+        shortcut_one_gcd_sum = _slanted_triples(
+            instance_data["w"], instance_data["h"]
+        )
+        shortcut_selection = (
+            6
+            * math.comb(instance_data["w"], 3)
+            * math.comb(instance_data["h"], 3)
+        )
+        shortcut_shaved_grid = _slanted_triples(
+            instance_data["w"] - 1, instance_data["h"] - 1
+        )
+        shortcut_blocks = (
+            _slanted_triples(instance_data["c"] - 1, instance_data["r"] - 1)
+            + _slanted_triples(
+                instance_data["w"] - instance_data["c"] - 1,
+                instance_data["r"] - 1,
+            )
+            + _slanted_triples(
+                instance_data["c"] - 1,
+                instance_data["h"] - instance_data["r"] - 1,
+            )
+            + _slanted_triples(
+                instance_data["w"] - instance_data["c"] - 1,
+                instance_data["h"] - instance_data["r"] - 1,
+            )
+        )
+        shortcut_drop_column_rule = _punctured_slanted_triples(
+            instance_data["w"], instance_data["h"], -1, instance_data["r"]
+        )
+        shortcut_drop_row_rule = _punctured_slanted_triples(
+            instance_data["w"], instance_data["h"], instance_data["c"], -1
+        )
+        shortcut_drop_shared_x_ban = answer + instance_data["w"] * math.comb(
+            instance_data["h"], 3
+        )
+        shortcut_drop_shared_y_ban = answer + instance_data["h"] * math.comb(
+            instance_data["w"], 3
+        )
+        if answer in (
+            shortcut_all_triples,
+            shortcut_one_gcd_sum,
+            shortcut_selection,
+            shortcut_shaved_grid,
+            shortcut_blocks,
+            shortcut_drop_column_rule,
+            shortcut_drop_row_rule,
+            shortcut_drop_shared_x_ban,
+            shortcut_drop_shared_y_ban,
+        ):
+            continue
+        if 50 * (shortcut_one_gcd_sum - answer) < shortcut_one_gcd_sum:
+            continue
+        if answer <= 10 ** 4:
+            continue
+        for shadow_w, shadow_h, shadow_c, shadow_r in SHADOW_CASES:
+            assert (
+                _brute_punctured_triples(shadow_w, shadow_h, shadow_c, shadow_r)
+                == _punctured_slanted_triples(
+                    shadow_w, shadow_h, shadow_c, shadow_r
+                )
+                == _chain_punctured_triples(shadow_w, shadow_h, shadow_c, shadow_r)
+            )
+        assert _chain_punctured_triples(
+            instance_data["w"],
+            instance_data["h"],
+            instance_data["c"],
+            instance_data["r"],
+        ) == answer
+        problem = (
+            f"Let S be the set of lattice points (x, y) whose integer "
+            f"coordinates satisfy 0 <= x <= {instance_data['w']} and "
+            f"0 <= y <= {instance_data['h']}, with every point whose "
+            f"x-coordinate equals {instance_data['c']} removed and every point "
+            f"whose y-coordinate equals {instance_data['r']} removed. How many "
+            f"unordered triples of three distinct points of S are collinear "
+            f"while no two of the three points share an x-coordinate and no two "
+            f"of the three points share a y-coordinate?"
+        )
+        return problem, str(sympy.Integer(answer))
+    else:
+        raise RuntimeError("failed to sample a valid punctured lattice grid")
+
+
+GROUP = "geometry"
+SKILL = "counting"
+```

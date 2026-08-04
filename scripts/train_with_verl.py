@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -34,6 +35,15 @@ def main() -> None:
             "returns, verify the LoRA adapter checkpoint + rollout JSONL logs "
             "exist. Pair with configs/rq_evolve_smoke_lora.yaml (LoRA r32, "
             "1 training step). Requires free GPUs."
+        ),
+    )
+    parser.add_argument(
+        "--audit-static-data",
+        action="store_true",
+        help=(
+            "load static_training_jsonl with the actual training tokenizer, "
+            "print exact row/token/schedule accounting, and exit before Ray "
+            "or any model workers start"
         ),
     )
     args = parser.parse_args()
@@ -79,6 +89,11 @@ def main() -> None:
         rq_config=config,
         project_root=ROOT,
     )
+    if args.audit_static_data:
+        report = adapter.audit_static_training_data()
+        print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+        return
+
     import time as _time
 
     smoke_started_at = _time.time()

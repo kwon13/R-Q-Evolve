@@ -8,11 +8,9 @@
 seed_programs/*.py
   -> ProblemProgram.execute(seed)
   -> verify_program()
-  -> MAPElitesArchive.try_insert()
+  -> MAPElitesArchive.try_insert()   # cell = (GROUP, SKILL)
   -> parent selection
-  -> reuse correct/wrong traces from existing R_Q rollouts
-  -> metacognitive MutationPlan JSON
-  -> backend.mutate(plan)
+  -> backend.mutate(in_depth | in_breadth prompt)
   -> generated ProblemProgram
   -> backend.rollout(G)
   -> R_Q = p_hat * (1 - p_hat) * uncertainty
@@ -24,11 +22,12 @@ seed_programs/*.py
 ## What Is Abstracted
 
 - `program.py`: 문제 생성 프로그램의 실행 단위
-- `archive.py`: H축 × D축 MAP-Elites archive
+- `archive.py`: GROUP × SKILL MAP-Elites archive (6×8 = 48셀)
 - `scoring.py`: `R_Q = p(1-p)U`
 - `prompts.py`: mutation / solver prompt builder
-- `metacognition.py`: rollout evidence, pre-update delta-p, operator controller
-- `prompt_templates/`: legacy and metacognitive depth/breadth prompts + shots
+- `concepts.py`: GROUP(6) × SKILL(8) 라벨 vocabulary — 두 축은 독립
+- `solver_trace.py`: rollout 위생 처리 (chat boundary 절단 후 재채점)
+- `prompt_templates/`: depth/breadth mutation prompts + shots
 - `backends.py`: LLM mutation과 solver rollout 인터페이스
 - `evolution.py`: outer iteration, mutation, verification, scoring, dataset refresh
 - `dataset.py`: champion에서 학습 문제를 만드는 framework-free dataset

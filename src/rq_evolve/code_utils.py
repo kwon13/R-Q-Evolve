@@ -182,20 +182,21 @@ def lint_generator_source(source_code: str) -> list[str]:
     return reasons
 
 
-def lint_metacognitive_generator_source(
+def lint_mutation_generator_source(
     source_code: str,
     *,
-    require_assert: bool = True,
+    require_assert: bool = False,
     reject_trivial_assert: bool = True,
     reject_unbounded_sampling: bool = True,
-    require_answer_routes: bool = True,
+    require_answer_routes: bool = False,
+    require_canonical_instance_data: bool = False,
+    require_mechanical_shape: bool = True,
 ) -> list[str]:
-    """Extra static contract for generated mutation children.
+    """Extra static contract for model-generated mutation children.
 
-    Schema-version 3 planned children use one executable ``answer`` route, so
-    callers disable ``require_answer_routes`` and ``require_assert`` for them.
-    Legacy mutation prompts can retain the historical independent
-    ``answer_insight``/``answer_brute`` cross-check.
+    The standard contract uses one executable ``answer`` route. The historical
+    independent ``answer_insight``/``answer_brute`` check remains available only
+    when a caller explicitly enables both route-related flags.
     """
     try:
         tree = ast.parse(source_code)
@@ -228,7 +229,7 @@ def lint_metacognitive_generator_source(
         ),
         None,
     )
-    if max_attempts != 200:
+    if require_mechanical_shape and max_attempts != 200:
         reasons.append("generated mutation requires top-level MAX_ATTEMPTS = 200")
 
     assertions = [node for node in ast.walk(generate) if isinstance(node, ast.Assert)]
@@ -244,6 +245,265 @@ def lint_metacognitive_generator_source(
                 if left == right:
                     reasons.append("trivial self-comparison assert")
                     break
+
+    if require_canonical_instance_data:
+        assignments: dict[str, list[ast.AST]] = {}
+        assignment_nodes: dict[
+            str,
+            list[ast.Assign | ast.AnnAssign],
+        ] = {}
+        for node in ast.walk(generate):
+            if isinstance(node, ast.Assign):
+                targets = node.targets
+                value = node.value
+            elif isinstance(node, ast.AnnAssign):
+                targets = [node.target]
+                value = node.value
+            else:
+                continue
+            if value is None:
+                continue
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    assignments.setdefault(target.id, []).append(value)
+                    assignment_nodes.setdefault(target.id, []).append(node)
+
+        def expression_depends_on(
+            expression: ast.AST,
+            dependency: str,
+            *,
+            seen: frozenset[str] = frozenset(),
+        ) -> bool:
+            names = {
+                child.id
+                for child in ast.walk(expression)
+                if isinstance(child, ast.Name)
+                and isinstance(child.ctx, ast.Load)
+            }
+            if dependency in names:
+                return True
+            for name in names - set(seen):
+                if name == dependency:
+                    return True
+                for value in assignments.get(name, ()):
+                    if expression_depends_on(
+                        value,
+                        dependency,
+                        seen=seen | {name},
+                    ):
+                        return True
+            return False
+
+        canonical_nodes = assignment_nodes.get("instance_data", [])
+        if len(canonical_nodes) != 1:
+            reasons.append(
+                "generated mutation must assign canonical `instance_data` "
+                "exactly once after all sampled-object transformations"
+            )
+        else:
+            canonical_line = canonical_nodes[0].lineno
+            for name in ("answer", "problem"):
+                if any(
+                    node.lineno <= canonical_line
+                    for node in assignment_nodes.get(name, ())
+                ):
+                    reasons.append(
+                        f"generated mutation must assign `{name}` only after "
+                        "canonical `instance_data`"
+                    )
+
+            if not any(
+                expression_depends_on(value, "instance_data")
+                for value in assignments.get("answer", ())
+            ):
+                reasons.append(
+                    "generated mutation must compute `answer` from "
+                    "`instance_data`"
+                )
+            if not any(
+                expression_depends_on(value, "instance_data")
+                for value in assignments.get("problem", ())
+            ):
+                reasons.append(
+                    "generated mutation must render `problem` from "
+                    "`instance_data`"
+                )
+
+            helper_names = {
+                node.name
+                for node in ast.walk(generate)
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+            helper_names.update(
+                node.name
+                for node in tree.body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            )
+            harmless_names = {
+                "abs",
+                "enumerate",
+                "format",
+                "int",
+                "len",
+                "list",
+                "map",
+                "max",
+                "min",
+                "range",
+                "repr",
+                "sorted",
+                "str",
+                "sum",
+                "tuple",
+                "zip",
+                "math",
+                "sympy",
+            }
+            stale_problem_names: set[str] = set()
+            for value in assignments.get("problem", ()):
+                direct_names = {
+                    child.id
+                    for child in ast.walk(value)
+                    if isinstance(child, ast.Name)
+                    and isinstance(child.ctx, ast.Load)
+                }
+                for name in direct_names:
+                    if (
+                        name == "instance_data"
+                        or name in helper_names
+                        or name in harmless_names
+                        or any(
+                            expression_depends_on(
+                                assigned_value,
+                                "instance_data",
+                            )
+                            for assigned_value in assignments.get(name, ())
+                        )
+                    ):
+                        continue
+                    stale_problem_names.add(name)
+            if stale_problem_names:
+                reasons.append(
+                    "generated mutation renders `problem` from names outside "
+                    "canonical `instance_data`: "
+                    + ", ".join(sorted(stale_problem_names))
+                )
+
+            has_semantic_consistency_assert = False
+            answer_value_dumps = {
+                ast.dump(value, include_attributes=False)
+                for value in assignments.get("answer", ())
+            }
+            for assertion in assertions:
+                if assertion.lineno <= canonical_line:
+                    continue
+                if not isinstance(assertion.test, ast.Compare):
+                    continue
+                direct_names = {
+                    child.id
+                    for child in ast.walk(assertion.test)
+                    if isinstance(child, ast.Name)
+                    and isinstance(child.ctx, ast.Load)
+                }
+                if "answer" not in direct_names:
+                    continue
+                other_names = direct_names - {"answer"}
+                links_canonical_data = (
+                    "instance_data" in other_names
+                    or any(
+                        any(
+                            expression_depends_on(value, "instance_data")
+                            for value in assignments.get(name, ())
+                        )
+                        for name in other_names
+                    )
+                )
+                comparison_parts = [
+                    assertion.test.left,
+                    *assertion.test.comparators,
+                ]
+                non_answer_parts = [
+                    part
+                    for part in comparison_parts
+                    if not (
+                        isinstance(part, ast.Name)
+                        and part.id == "answer"
+                    )
+                ]
+                merely_repeats_answer_rhs = bool(non_answer_parts) and all(
+                    ast.dump(part, include_attributes=False)
+                    in answer_value_dumps
+                    for part in non_answer_parts
+                )
+                if links_canonical_data and not merely_repeats_answer_rhs:
+                    has_semantic_consistency_assert = True
+                    break
+            if not has_semantic_consistency_assert:
+                reasons.append(
+                    "generated mutation must assert a non-trivial semantic "
+                    "consistency comparison linking `instance_data` and "
+                    "`answer` without repeating the answer assignment"
+                )
+
+            def root_name(node: ast.AST) -> str | None:
+                current = node
+                while isinstance(current, (ast.Attribute, ast.Subscript)):
+                    current = current.value
+                return current.id if isinstance(current, ast.Name) else None
+
+            mutating_methods = {
+                "add",
+                "append",
+                "clear",
+                "discard",
+                "extend",
+                "insert",
+                "pop",
+                "remove",
+                "reverse",
+                "setdefault",
+                "sort",
+                "update",
+            }
+            canonical_source_names = {
+                child.id
+                for value in assignments.get("instance_data", ())
+                for child in ast.walk(value)
+                if isinstance(child, ast.Name)
+                and isinstance(child.ctx, ast.Load)
+                and child.id in assignments
+            }
+            protected_roots = {"instance_data", *canonical_source_names}
+            mutated_after_canonical = any(
+                (
+                    isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+                    and any(
+                        root_name(target) in protected_roots
+                        and (
+                            not isinstance(target, ast.Name)
+                            or target.id != "instance_data"
+                        )
+                        for target in (
+                            node.targets
+                            if isinstance(node, ast.Assign)
+                            else [node.target]
+                        )
+                    )
+                )
+                or (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and root_name(node.func.value) in protected_roots
+                    and node.func.attr in mutating_methods
+                )
+                for node in ast.walk(generate)
+                if getattr(node, "lineno", 0) > canonical_line
+            )
+            if mutated_after_canonical:
+                reasons.append(
+                    "generated mutation may not mutate `instance_data` after "
+                    "canonicalization"
+                )
 
     if reject_unbounded_sampling:
         for node in ast.walk(generate):
@@ -421,13 +681,23 @@ def lint_metacognitive_generator_source(
         and node.value.elts[1].args[0].func.attr == "Integer"
         for node in returns
     )
-    if not has_integer_serialization:
+    if require_mechanical_shape and not has_integer_serialization:
         reasons.append(
             "generated mutation must return "
             "`problem, str(sympy.Integer(answer))`"
         )
 
     return reasons
+
+
+# A competition-math statement that runs past this is not a hard problem, it is
+# a generator dumping its sampled object into the prose. The bound matters
+# operationally, not just aesthetically: problem_text is concatenated into the
+# evaluator prompt, the solver prompt, and every training row, so one runaway
+# statement can exceed the rollout context and take the whole run down. Real
+# instances (14 seeds + 8 verified fixtures, 110 samples) top out at 397 chars,
+# so this leaves an order of magnitude of headroom.
+MAX_PROBLEM_TEXT_CHARS = 4000
 
 
 def lint_problem_instance(instance: ProblemInstance) -> list[str]:
@@ -438,6 +708,11 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
 
     if len(problem) < 10:
         reasons.append("problem text too short")
+    if len(problem) > MAX_PROBLEM_TEXT_CHARS:
+        reasons.append(
+            f"problem text too long: {len(problem)} chars "
+            f"(limit {MAX_PROBLEM_TEXT_CHARS})"
+        )
     if not answer:
         reasons.append("empty answer")
     if any(token in answer.lower() for token in ("nan", "inf", "undefined")):

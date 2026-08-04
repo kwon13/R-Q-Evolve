@@ -1,8 +1,4 @@
 archive:
-  n_h_bins: 10
-  n_div_bins: 6
-  h_range: [0.1, 0.6]
-  diversity_axis: concept_group
   epsilon: 0.3
   ucb_c: 1.0
   selection_strategy: random
@@ -20,32 +16,23 @@ evolution:
   fix_retry: false
   use_evaluator: true
   evaluator_provider: policy
-  plan_temperature: 0.7
-  plan_top_p: 0.95
-  code_temperature: 0.2
-  code_top_p: 0.95
+  code_temperature: 0.0
+  code_top_p: 1.0
   evaluator_temperature: 0.0
   evaluator_top_p: 1.0
-
-metacognition:
-  enabled: true
-  trace_storage_max_tokens: 4096
-  monitoring_total_trace_tokens: 4096
-  plan_max_output_tokens: 2048
-
-  require_contrast_pair: true
-  fallback_to_legacy_mutation: true
-
-  reject_unbounded_sampling: true
-
-  adaptive_operator: true
-  operator_min_probability: 0.2
-  operator_ema_alpha: 0.2
 
 training_data:
   instances_per_program: 8
   training_budget: null
   strict_anti_reuse: true
+  select_lowest_rq_first: false
+  select_random_order: False
+  select_random_seed: 0
+  static_training_jsonl: null
+  static_condition: null
+  static_expected_rows: null
+  static_expected_tokens: null
+  static_epochs: 1
 
 verl:
   enabled: true
@@ -76,6 +63,11 @@ async_rollout:
 
 lora:
   enabled: false
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  sync_mode: auto
   
 verl_config:
   data:

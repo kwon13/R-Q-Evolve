@@ -26,6 +26,11 @@ def generate(seed):
     rhs = [sum(row[j] * sol[j] for j in range(3)) for row in rows]
     answer = (sum(rhs)) // k
 
+    # Independent route: the solution the system was built around, instead of
+    # summing the three equations and dividing by the common column total.
+    check = x + y + z
+    assert answer == check, f"answer={answer} check={check}"
+
     def fmt(row, rhs_val):
         parts = []
         for coef, var in zip(row, ["x", "y", "z"]):
@@ -50,5 +55,5 @@ def generate(seed):
 
     return problem, str(answer)
 
-CONCEPT_GROUP = "algebra"
-CONCEPT_TYPE = "algebra.linear_system_sum"
+GROUP = "algebra"
+SKILL = "transformation"

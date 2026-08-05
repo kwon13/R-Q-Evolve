@@ -454,6 +454,20 @@ def _load_shot_examples(op: str) -> str:
     return f"Few-shot examples:\n\n{text}"
 
 
+def _template_identifiers(template: str) -> set[str]:
+    """Names referenced by a ``$``-placeholder template.
+
+    ``Template.get_identifiers`` only exists on Python 3.11+, and the training
+    env runs 3.10, so walk the class's own pattern instead.
+    """
+    identifiers: set[str] = set()
+    for match in Template.pattern.finditer(template):
+        name = match.group("named") or match.group("braced")
+        if name is not None:
+            identifiers.add(name)
+    return identifiers
+
+
 def _render_template(template: str, context: dict[str, str]) -> str:
     """Substitute every placeholder, refusing to leave one unresolved.
 
@@ -463,7 +477,7 @@ def _render_template(template: str, context: dict[str, str]) -> str:
     ``$`` appearing inside the substituted parent source is not mistaken for
     an unresolved placeholder.
     """
-    missing = sorted(set(Template(template).get_identifiers()) - set(context))
+    missing = sorted(_template_identifiers(template) - set(context))
     if missing:
         raise KeyError(
             "prompt template references placeholders the context does not "

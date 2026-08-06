@@ -1072,6 +1072,17 @@ class RQEvolver:
         if not (directory / "archive.json").exists():
             return False
         n_champions = self.archive.load(directory)
+        if n_champions == 0:
+            # A snapshot written before the GROUP x SKILL migration carries no
+            # SKILL label, so ``archive.load`` drops every champion and hands
+            # back an empty grid. Reporting that as a successful resume made the
+            # caller skip seed bootstrapping, and the trainer then died on its
+            # first batch with "VerlDynamicDataset is empty". Nothing to resume
+            # is the same as no snapshot. Returning before ``used_seeds`` is
+            # restored matters too: those seeds belong to the run that produced
+            # the unusable archive, and carrying them over would retire seeds
+            # the bootstrap is about to need.
+            return False
         seeds_file = directory / self._USED_SEEDS_FILE
         if seeds_file.exists():
             payload = json.loads(seeds_file.read_text(encoding="utf-8"))

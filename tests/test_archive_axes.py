@@ -163,3 +163,42 @@ def test_a_pre_migration_snapshot_is_dropped_rather_than_misplaced(capsys):
     assert archive.champions() == []
     out = capsys.readouterr().out
     assert "predates the GROUP x SKILL grid" in out
+
+
+def test_a_snapshot_that_loses_every_champion_is_not_a_resume(tmp_path):
+    """A pre-migration archive drops all champions, and resuming into an empty
+    grid killed a 4B run on its first batch with "VerlDynamicDataset is empty".
+
+    ``load_state`` used to return True whenever archive.json existed, so the
+    adapter took the resume branch and never bootstrapped from seeds.
+    """
+    import json
+
+    from rq_evolve.evolution import RQEvolver
+
+    (tmp_path / "archive.json").write_text(
+        json.dumps(
+            {
+                "meta": {"axes": ["h", "diversity"]},
+                "champions": [
+                    {
+                        "source_code": "def generate(seed):\n    return 'q', '1'\n",
+                        "program_id": "old0",
+                        "niche_h": 0,
+                        "niche_div": 1,
+                        "rq_score": 0.5,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "rq_used_seeds.json").write_text(
+        json.dumps({"used_seeds": {"old0": [0, 1, 2]}}), encoding="utf-8"
+    )
+
+    evolver = RQEvolver(archive=MAPElitesArchive(), backend=None)
+    assert evolver.load_state(tmp_path) is False
+    assert evolver.archive.champions() == []
+    # The dead run's consumed seeds must not retire seeds the bootstrap needs.
+    assert evolver.used_seeds == {}

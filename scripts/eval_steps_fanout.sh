@@ -22,13 +22,29 @@ export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}
 PY="${PY:-/data1/yhoon113/miniforge3/envs/vllm/bin/python}"
 BASE="${BASE:-/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_8b}"
-# Steps to evaluate. Override with STEPS_LIST=32,64 (comma-separated).
-IFS=',' read -ra STEPS <<< "${STEPS_LIST:-32,64,96,128,160,192,224}"
-# IFS=',' read -ra STEPS <<< "${STEPS_LIST:-160,192}"
+# Steps to evaluate. Default: every global_step_N under $BASE, in numeric order.
+# A hardcoded list silently skipped step 256 when a run trained past the length
+# the list was written for. Override with STEPS_LIST=32,64 (comma-separated).
+if [[ -n "${STEPS_LIST:-}" ]]; then
+  IFS=',' read -ra STEPS <<< "$STEPS_LIST"
+else
+  mapfile -t STEPS < <(
+    find "$BASE" -maxdepth 1 -name 'global_step_*' -type d -printf '%f\n' 2>/dev/null \
+      | sed 's/^global_step_//' | sort -n
+  )
+fi
+if [[ ${#STEPS[@]} -eq 0 ]]; then
+  echo "no global_step_* checkpoints under $BASE" >&2; exit 1
+fi
 IFS=',' read -ra GPUS <<< "${GPU_LIST:-0,1,2,3,4,5,6,7}"
 # R-Zero/evaluation/generate.py uses max_tokens=4096; match it for parity.
-MAXTOK=4096
-MAXMODELLEN=8192
+#
+# Raising it is a real option but breaks comparability: in the 8B run 100% of
+# the responses that never emitted \boxed had hit exactly this cap, and on
+# aime24 that was 56% of them. Override both together, and only for a set of
+# checkpoints you intend to compare against each other.
+MAXTOK="${MAXTOK:-4096}"
+MAXMODELLEN="${MAXMODELLEN:-8192}"
 # GPT-4o re-check (R-Zero results_recheck.py port). Default ON for R-Zero parity;
 # set GPT_RECHECK=0 to score with math_verify only. Reads OPENAI_API_KEY from
 # $RQ/.env (loaded by the eval script; values never printed).
@@ -156,7 +172,7 @@ PY
 done
 echo "=========================================================="
 # Write the per-step x benchmark markdown table to $BASE/scores.md.
-"$PY" "$RQ/analysis/collect_scores.py" "$BASE" >/dev/null 2>&1 \
+"$PY" "$RQ/scripts/collect_scores.py" "$BASE" >/dev/null 2>&1 \
   && echo "[$(ts)] wrote $BASE/scores.md" \
   || echo "[$(ts)] WARN: collect_scores.py failed"
 echo "[$(ts)] ALL DONE"

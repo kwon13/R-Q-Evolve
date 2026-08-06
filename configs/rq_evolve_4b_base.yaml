@@ -13,11 +13,30 @@ evolution:
   in_depth_ratio: 0.5
   verify_seeds: 5
   frontier_p_hat_range: [0.0, 1.0]
-  fix_retry: false
-  use_evaluator: true
+  # Matched to configs/rq_evolve_base.yaml; see that file for the evidence
+  # behind each value.
+  #
+  # One multi-turn self-fix per rejected child: 38% of candidates die on their
+  # own AssertionError, which is a signal the model can act on.
+  fix_retry: true
+  # OFF, replaced by ast_contract below. What the evaluator uniquely provided
+  # -- answer correctness, statement well-posedness, and skill_required -- is
+  # NOT recovered by a structural checker. Set back to true to restore it;
+  # every evaluator_* key below is left in place for exactly that.
+  use_evaluator: false
+  # Structural contract on the child's own cross-check, before execution.
+  # Measured on 456 archived champions: 45% flagged, 0 of the 14 clean
+  # programs. use_evaluator=false requires this to be shadow or enforce.
+  ast_contract: enforce
   evaluator_provider: policy
-  code_temperature: 0.0
-  code_top_p: 1.0
+  # NOT 0. The mutation prompt is a pure function of (operator, parent) and
+  # sample_parent draws with replacement from a 10-16 champion archive, so
+  # greedy decoding makes 36-49% of a batch byte-identical to something
+  # already in it -- and identical children are rejected as duplicate_behavior,
+  # so those slots yield nothing. 0.4 tightens instruction-following without
+  # collapsing the batch.
+  code_temperature: 0.4
+  code_top_p: 0.95
   evaluator_temperature: 0.0
   evaluator_top_p: 1.0
 
@@ -92,7 +111,12 @@ verl_config:
       strategy: fsdp
       ppo_mini_batch_size: 32
       ppo_micro_batch_size: null
-      ppo_micro_batch_size_per_gpu: 4
+      # 2, not 4. Activation memory scales with hidden_size x micro-batch, not
+      # with parameter count: 4B has hidden 2560 against 8B's 4096, so micro=4
+      # costs (2560/4096) x (4/2) = 1.25x the 8B config's peak, on a model that
+      # is supposed to be the cheaper one. A run at 4 OOMed in backward at step
+      # 5 once another user took 18 GiB on GPU 0.
+      ppo_micro_batch_size_per_gpu: 2
       use_dynamic_bsz: false
       # vLLM stays resident (enable_sleep_mode: false) holding ~36 GiB, leaving
       # <10 GiB for the actor forward. The unchunked entropy path materializes a
@@ -110,11 +134,11 @@ verl_config:
         lr: 1.0e-6
         weight_decay: 1.0e-2
         lr_warmup_steps_ratio: 0.0
-        total_training_steps: 128
+        total_training_steps: 256
 
     ref:
       log_prob_micro_batch_size: null
-      log_prob_micro_batch_size_per_gpu: 4
+      log_prob_micro_batch_size_per_gpu: 2
       fsdp_config:
         param_offload: true
 
@@ -127,7 +151,7 @@ verl_config:
       tensor_model_parallel_size: 1
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096
-      gpu_memory_utilization: 0.45
+      gpu_memory_utilization: 0.43
       max_model_len: 12000
       max_num_batched_tokens: 12000
       dtype: bfloat16
@@ -136,12 +160,12 @@ verl_config:
       free_cache_engine: false
       enable_sleep_mode: false
       log_prob_micro_batch_size: null
-      log_prob_micro_batch_size_per_gpu: 4
+      log_prob_micro_batch_size_per_gpu: 2
 
   critic:
     ppo_mini_batch_size: 32
     ppo_micro_batch_size: null
-    ppo_micro_batch_size_per_gpu: 4
+    ppo_micro_batch_size_per_gpu: 2
 
   reward_model:
     enable: false
@@ -165,7 +189,7 @@ verl_config:
 
   trainer:
     total_epochs: 10000
-    total_training_steps: 128
+    total_training_steps: 256
     project_name: rq_evolve
     experiment_name: qwen3_4b_base_rq_evolve_base
     logger:
@@ -174,7 +198,7 @@ verl_config:
     nnodes: 1
     n_gpus_per_node: 4
     val_before_train: false
-    test_freq: 32
+    test_freq: 64
     save_freq: 32
     default_local_dir: ./rq_output/rq_evolve_base_4b
     device: cuda

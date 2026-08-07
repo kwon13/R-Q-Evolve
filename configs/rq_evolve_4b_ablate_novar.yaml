@@ -1,0 +1,221 @@
+# ABLATION ARM. Identical to rq_evolve_4b_base.yaml except for the flag below,
+# the step count, and the output identity.
+#
+# R_Q = s(1-s) * H. The flag drops one factor from the priority that ranks
+# champions for mutation and for training-data selection. The stored rq_score
+# stays the true product, so a problem the policy solves outright (p_hat = 1)
+# scores 0 and is evicted in EVERY arm -- that rule is shared, so it cannot by
+# itself explain a difference between arms.
+#
+# 128 steps, not 256: the full-R_Q run is flat from step 128 onward
+# (AVG 52.91 +/- 0.41 over steps 128-256), so the extra half buys no signal.
+# Its own global_step_128 is the control to compare against.
+archive:
+  epsilon: 0.3
+  ucb_c: 1.0
+  selection_strategy: random
+
+evolution:
+  seed_programs_dir: seed_programs
+  inner_iterations: 32
+  inner_iteration_batch_size: 32
+  num_rollouts: 10
+  select_ignores_uncertainty: false
+  # ABLATION: s(1-s) := 1 -- champions ranked by H alone
+  select_ignores_variance: true
+  in_depth_ratio: 0.5
+  verify_seeds: 5
+  frontier_p_hat_range: [0.0, 1.0]
+  # Matched to configs/rq_evolve_base.yaml; see that file for the evidence
+  # behind each value.
+  #
+  # One multi-turn self-fix per rejected child: 38% of candidates die on their
+  # own AssertionError, which is a signal the model can act on.
+  fix_retry: true
+  # OFF, replaced by ast_contract below. What the evaluator uniquely provided
+  # -- answer correctness, statement well-posedness, and skill_required -- is
+  # NOT recovered by a structural checker. Set back to true to restore it;
+  # every evaluator_* key below is left in place for exactly that.
+  use_evaluator: false
+  # Structural contract on the child's own cross-check, before execution.
+  # Measured on 456 archived champions: 45% flagged, 0 of the 14 clean
+  # programs. use_evaluator=false requires this to be shadow or enforce.
+  ast_contract: enforce
+  evaluator_provider: policy
+  # NOT 0. The mutation prompt is a pure function of (operator, parent) and
+  # sample_parent draws with replacement from a 10-16 champion archive, so
+  # greedy decoding makes 36-49% of a batch byte-identical to something
+  # already in it -- and identical children are rejected as duplicate_behavior,
+  # so those slots yield nothing. 0.4 tightens instruction-following without
+  # collapsing the batch.
+  code_temperature: 0.4
+  code_top_p: 0.95
+  evaluator_temperature: 0.0
+  evaluator_top_p: 1.0
+
+training_data:
+  instances_per_program: 8
+  training_budget: null
+  strict_anti_reuse: true
+  select_lowest_rq_first: false
+  select_random_order: False
+  select_random_seed: 0
+  static_training_jsonl: null
+  static_condition: null
+  static_expected_rows: null
+  static_expected_tokens: null
+  static_epochs: 1
+
+verl:
+  enabled: true
+  config_path: null
+  reward_function: ./src/rq_evolve/reward.py:compute_score
+  evolve_on_first_epoch: false
+
+math_eval:
+  enabled: true
+  benchmarks: [math500, amc23, aime24, aime25, minerva_math, olympiadbench]
+  max_samples_per_benchmark: -1
+  sample_seed: 42
+  inflate_x32: false
+  grader: sympy
+
+async_rollout:
+  streaming_enabled: true
+  chunk_size: 1
+  max_in_flight_chunks: 8
+  request_timeout_s: 900
+  max_retries: 1
+  verify_workers: 4
+  queue_maxsize: 32
+  staleness_mode: bounded
+  max_policy_lag: 1
+  log_samples: true
+  entropy_mode: deferred
+
+lora:
+  enabled: false
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  sync_mode: auto
+  
+verl_config:
+  data:
+    max_prompt_length: 6000
+    max_response_length: 5000
+    train_batch_size: 32
+    val_batch_size: 60000
+    shuffle: true
+    truncation: left
+    dataloader_num_workers: 0
+    filter_overlong_prompts: false
+    trust_remote_code: true
+
+  actor_rollout_ref:
+    model:
+      path: /data1/yhoon113/qwen3-4b-base
+      trust_remote_code: true
+      use_remove_padding: true
+      enable_gradient_checkpointing: true
+
+    actor:
+      strategy: fsdp
+      ppo_mini_batch_size: 32
+      ppo_micro_batch_size: null
+      # 2, not 4. Activation memory scales with hidden_size x micro-batch, not
+      # with parameter count: 4B has hidden 2560 against 8B's 4096, so micro=4
+      # costs (2560/4096) x (4/2) = 1.25x the 8B config's peak, on a model that
+      # is supposed to be the cheaper one. A run at 4 OOMed in backward at step
+      # 5 once another user took 18 GiB on GPU 0.
+      ppo_micro_batch_size_per_gpu: 2
+      use_dynamic_bsz: false
+      # vLLM stays resident (enable_sleep_mode: false) holding ~36 GiB, leaving
+      # <10 GiB for the actor forward. The unchunked entropy path materializes a
+      # full (tokens x 151936) softmax and OOMs on long micro-batches; chunking
+      # caps that at 2048 tokens at a time.
+      entropy_from_logits_with_chunking: true
+      use_kl_loss: true
+      kl_loss_coef: 1.0e-3
+      kl_loss_type: low_var_kl
+      use_torch_compile: false
+      fsdp_config:
+        param_offload: false
+        optimizer_offload: false
+      optim:
+        lr: 1.0e-6
+        weight_decay: 1.0e-2
+        lr_warmup_steps_ratio: 0.0
+        total_training_steps: 128
+
+    ref:
+      log_prob_micro_batch_size: null
+      log_prob_micro_batch_size_per_gpu: 2
+      fsdp_config:
+        param_offload: true
+
+    rollout:
+      name: vllm
+      mode: async
+      temperature: 1.0
+      top_p: 0.95
+      n: 8
+      tensor_model_parallel_size: 1
+      checkpoint_engine:
+        update_weights_bucket_megabytes: 4096
+      gpu_memory_utilization: 0.43
+      max_model_len: 12000
+      max_num_batched_tokens: 12000
+      dtype: bfloat16
+      enable_chunked_prefill: true
+      enforce_eager: false
+      free_cache_engine: false
+      enable_sleep_mode: false
+      log_prob_micro_batch_size: null
+      log_prob_micro_batch_size_per_gpu: 2
+
+  critic:
+    ppo_mini_batch_size: 32
+    ppo_micro_batch_size: null
+    ppo_micro_batch_size_per_gpu: 2
+
+  reward_model:
+    enable: false
+    reward_manager: naive
+
+  reward:
+    custom_reward_function:
+      path: ./src/rq_evolve/reward.py
+      name: compute_score
+    reward_manager:
+      source: register
+      name: naive
+    reward_model:
+      enable: false
+
+  algorithm:
+    adv_estimator: grpo
+    use_kl_in_reward: false
+    kl_penalty: low_var_kl
+    norm_adv_by_std_in_grpo: true
+
+  trainer:
+    total_epochs: 10000
+    total_training_steps: 128
+    project_name: rq_evolve
+    experiment_name: qwen3_4b_ablate_novar
+    logger:
+      - console
+      - wandb
+    nnodes: 1
+    n_gpus_per_node: 4
+    val_before_train: false
+    test_freq: 32
+    save_freq: 32
+    default_local_dir: ./rq_output/rq_evolve_4b_ablate_novar
+    device: cuda
+    resume_mode: auto
+
+  ray_init:
+    num_cpus: null

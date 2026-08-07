@@ -19,12 +19,18 @@ set -uo pipefail
 
 RQ=/data1/yhoon113/R-Q-Evolve
 EVAL_SCRIPT="$RQ/scripts/eval_general_vllm.py"
+# Same cu128 env as the math sibling — see eval_steps_fanout.sh for why the old
+# standalone `vllm` env / cuda-12.8 paths are gone.
+CONDA_ENV="${CONDA_ENV:-azr-bw-blackwell}"
 source /data1/yhoon113/miniforge3/etc/profile.d/conda.sh
-conda activate vllm
-export CUDA_HOME=/data1/yhoon113/cuda-12.8
+# See eval_steps_fanout.sh: the binutils activate hook trips `set -u`.
+set +u
+conda activate "$CONDA_ENV"
+set -u
+export CUDA_HOME="${CUDA_HOME:-$CONDA_PREFIX}"
 export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}
-PY="${PY:-/data1/yhoon113/miniforge3/envs/vllm/bin/python}"
+PY="${PY:-$CONDA_PREFIX/bin/python}"
 BASE="${BASE:-$RQ/rq_output/rq_evolve_base_4b}"
 
 # Default: every global_step_N under $BASE, numerically ordered.

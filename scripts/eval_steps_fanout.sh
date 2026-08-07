@@ -14,13 +14,22 @@ set -uo pipefail
 REPO=/data1/yhoon113/R-Q-Evolve          # merge_fsdp_to_hf.py lives here
 RQ=/data1/yhoon113/R-Q-Evolve
 EVAL_SCRIPT="$RQ/scripts/eval_vllm_math.py"   # R-Zero-aligned eval (math_eval loaders)
-# Blackwell sm_120: use the vllm cu128 env (cuda-12.8) — azr-bw is cu126 -> "no kernel image"
+# Blackwell sm_120 needs the cu128 stack; azr-bw is cu126 -> "no kernel image".
+# That used to be a standalone `vllm` env against /data1/yhoon113/cuda-12.8;
+# neither exists any more, and the cu128 stack now lives in azr-bw-blackwell
+# (vllm 0.10.1.1 / torch 2.7.1+cu128) with nvcc inside the env prefix.
+CONDA_ENV="${CONDA_ENV:-azr-bw-blackwell}"
 source /data1/yhoon113/miniforge3/etc/profile.d/conda.sh
-conda activate vllm
-export CUDA_HOME=/data1/yhoon113/cuda-12.8
+# The env's binutils activate hook reads $ADDR2LINE before setting it, which is
+# fatal under `set -u` and aborts this script before the first merge. Drop -u
+# for the activation only.
+set +u
+conda activate "$CONDA_ENV"
+set -u
+export CUDA_HOME="${CUDA_HOME:-$CONDA_PREFIX}"
 export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}
-PY="${PY:-/data1/yhoon113/miniforge3/envs/vllm/bin/python}"
+PY="${PY:-$CONDA_PREFIX/bin/python}"
 BASE="${BASE:-/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_8b}"
 # Steps to evaluate. Default: every global_step_N under $BASE, in numeric order.
 # A hardcoded list silently skipped step 256 when a run trained past the length

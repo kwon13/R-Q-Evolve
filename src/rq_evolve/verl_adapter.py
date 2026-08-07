@@ -1093,6 +1093,7 @@ class VerlTrainerAdapter:
             **asdict(self.rq_config.archive),
             select_ignores_uncertainty=self.rq_config.evolution.select_ignores_uncertainty,
             select_ignores_variance=self.rq_config.evolution.select_ignores_variance,
+            binning=self.rq_config.evolution.archive_binning,
         )
         return RQEvolver(
             archive=archive,

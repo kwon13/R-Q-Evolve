@@ -46,9 +46,12 @@ class MAPElitesArchive:
         selection_strategy: str = "random",
         select_ignores_uncertainty: bool = False,
         select_ignores_variance: bool = False,
+        binning: str = "grid",
     ) -> None:
         if selection_strategy not in {"ucb", "random"}:
             raise ValueError(f"unknown selection_strategy: {selection_strategy}")
+        if binning not in {"grid", "flat"}:
+            raise ValueError(f"binning must be 'grid' or 'flat', got {binning!r}")
         if select_ignores_uncertainty and select_ignores_variance:
             raise ValueError(
                 "select_ignores_uncertainty and select_ignores_variance are "
@@ -65,6 +68,14 @@ class MAPElitesArchive:
         # or binned -- champion_rq and the cell labels stay real.
         self.select_ignores_uncertainty = bool(select_ignores_uncertainty)
         self.select_ignores_variance = bool(select_ignores_variance)
+        # Ablation: "flat" keeps the same 48 slots, the same validity gates and
+        # the same parent sampling, but a candidate no longer competes only
+        # against the champion sharing its (GROUP, SKILL). It takes any free
+        # slot, and once full it competes against the weakest occupant. That
+        # turns the MAP into a plain top-K pool and isolates what the grid --
+        # reserving capacity per behaviour cell -- is actually buying.
+        # Labels are still read and recorded, so coverage stays measurable.
+        self.binning = binning
         self.total_insertions = 0
         self.total_replacements = 0
         self.total_selections = 0
@@ -88,6 +99,31 @@ class MAPElitesArchive:
             return None
         return (group_bin, skill_bin)
 
+    def _insert_cell(self, program: ProblemProgram) -> tuple[int, int] | None:
+        """Slot the program competes for.
+
+        Under ``binning="grid"`` that is its own (GROUP, SKILL) cell. Under
+        ``"flat"`` the grid is only storage: the program takes the first free
+        slot, and once all 48 are occupied it challenges the weakest one. Same
+        capacity, same gates, same sampling -- only the reservation of capacity
+        per behaviour cell is removed.
+
+        A program with no usable label is still rejected in both modes. Letting
+        it in under "flat" would relax the label contract too, and the arm is
+        meant to isolate the grid, not two changes at once.
+        """
+        if self.program_to_cell(program) is None:
+            return None
+        if self.binning == "grid":
+            return self.program_to_cell(program)
+        free = [k for k, n in sorted(self.grid.items()) if n.champion is None]
+        if free:
+            return free[0]
+        return min(
+            sorted(self.grid),
+            key=lambda k: self._select_priority(self.grid[k].champion),
+        )
+
     def cell_labels(self, cell: tuple[int, int]) -> tuple[str, str]:
         return (GROUPS[cell[0]], SKILLS[cell[1]])
 
@@ -98,7 +134,7 @@ class MAPElitesArchive:
         problem_text: str,
         rq_score: float,
     ) -> bool:
-        cell = self.program_to_cell(program)
+        cell = self._insert_cell(program)
         if cell is None:
             program.metadata["archive_status"] = "unlabelled_rejected"
             return False
@@ -171,9 +207,11 @@ class MAPElitesArchive:
         """Return the cell a program would target without mutating the MAP.
 
         None when the program carries no usable GROUP/SKILL pair, matching what
-        :meth:`try_insert` would do with it.
+        :meth:`try_insert` would do with it -- including under
+        ``binning="flat"``, where the slot is chosen by occupancy rather than
+        by label, so the telemetry names the champion actually challenged.
         """
-        return self.program_to_cell(program)
+        return self._insert_cell(program)
 
     def remove_program(self, program_id: str) -> list[tuple[int, int]]:
         """Remove one champion identity from the single live MAP archive."""

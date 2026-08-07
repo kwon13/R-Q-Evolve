@@ -7,6 +7,7 @@ true niche (the stale-p_hat archive-pollution failure mode). evaluate_instances
 now yields None for those groups and callers keep prior scores.
 """
 
+from types import SimpleNamespace
 from dataclasses import asdict
 
 from rq_evolve.archive import MAPElitesArchive
@@ -245,3 +246,34 @@ def test_project_dotenv_loads_key_without_logging_or_overwriting(tmp_path, monke
     load_project_dotenv(tmp_path)
     assert __import__("os").environ["OPENAI_API_KEY"] == "from-dotenv"
     assert __import__("os").environ["OTHER_VALUE"] == "from-shell"
+
+
+def test_reevaluate_champions_can_be_switched_off():
+    """Champion rescoring is the archive's dominant sink -- across three 4B arms
+    it removed 0.86-0.94 champions per insertion, leaving +19 net champions out
+    of 268 insertions. The flag exists so that can be measured, not assumed.
+    """
+    from unittest.mock import patch
+
+    from rq_evolve.archive import MAPElitesArchive
+    from rq_evolve.config import EvolutionConfig
+    from rq_evolve.evolution import RQEvolver
+
+    for enabled in (True, False):
+        evolver = RQEvolver(
+            archive=MAPElitesArchive(),
+            backend=SimpleNamespace(
+                sync_weights=lambda: None,
+                begin_session=lambda: None,
+                end_session=lambda: None,
+            ),
+            evolution_config=EvolutionConfig(
+                reevaluate_champions=enabled, inner_iterations=0
+            ),
+        )
+        with patch.object(evolver, "reevaluate_champions") as spy:
+            try:
+                evolver.run_outer_iteration(0)
+            except Exception:
+                pass  # the stub backend cannot complete a batch; the spy is the point
+            assert spy.called is enabled, enabled

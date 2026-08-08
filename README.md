@@ -78,8 +78,10 @@ re-evaluation, mutation, R_Q scoring, dataset refresh를 실행합니다.
 
 - `docs/PIPELINE.md`: 원본 코드 ↔ 새 스켈레톤 대응표 + evolution 상태 전이
 - `docs/GRADING.md`: grader 3종(학습 reward / trainer val / offline eval) 비교표
+- `docs/EVOLVED_PERFORMANCE.md`: Seed-ID 및 Structural-OOD checkpoint benchmark
 - `docs/RUNTIME_NOTES.md`: 장비별 운영 노트(OOM, vLLM cumem crash, 메모리 튜닝 근거)
 - `docs/async_pipeline.md`, `docs/deepseek_support_plan.md`: async rollout / DeepSeek 지원 계획
+- `docs/EVOLVED_PERFORMANCE.md`: 고정 240문제 Seed-ID checkpoint 평가 + inner/outer evolution 그래프
 
 ## Important Contracts
 

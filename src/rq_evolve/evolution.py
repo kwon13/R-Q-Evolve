@@ -264,7 +264,15 @@ class RQEvolver:
         # re-push). The backend's begin_session no longer pushes weights when the
         # rollout is resident (sleep mode off).
         self.backend.sync_weights()
-        self.reevaluate_champions()
+        # Ablation: with re-measurement off, a champion keeps the R_Q it was
+        # admitted with and is never rescored or evicted. It is the archive's
+        # dominant sink -- across three 4B arms the eviction/insertion ratio sat
+        # at 0.86-0.94, so 268 insertions over 77 iterations left only +19 net
+        # champions and half of them lived 3 iterations or fewer. Turning it off
+        # asks whether the MAP is a curriculum that has to track the policy or a
+        # conveyor belt paying for itself.
+        if self.evolution_config.reevaluate_champions:
+            self.reevaluate_champions()
 
         batch_size = self.evolution_config.inner_iteration_batch_size
         for start in range(0, self.evolution_config.inner_iterations, batch_size):

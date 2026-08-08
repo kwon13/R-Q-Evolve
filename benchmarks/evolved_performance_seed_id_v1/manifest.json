@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "benchmark": "evolved_performance_seed_id_v1",
+  "created_at": "2026-08-07T15:02:16+00:00",
+  "benchmark_sha256": "1d8a01cc32a7db28391de71b8e10e6da3f352ced2ca37d98d99e324499d38104",
+  "num_examples": 240,
+  "num_programs": 6,
+  "examples_per_program": 40,
+  "seed_start": 1000000,
+  "selection": "first globally unique (problem, answer) instances from sequential seeds; balanced equally across seed programs",
+  "programs": [
+    {
+      "program_name": "08_recurrence",
+      "program_id": "d9a33e8b1a9c",
+      "program_sha256": "8efacc1f2ab1b0f4f8142e0c49cd878435aedf74d616f413ad3390bbfce14d05",
+      "group": "sequence",
+      "skill": "induction",
+      "num_examples": 40,
+      "seeds_scanned": 42
+    },
+    {
+      "program_name": "09_linear_algebra",
+      "program_id": "4bb63a52cd14",
+      "program_sha256": "2faa2ad29a2b7f15acee356176383c025eb4ce3133a72f351776dd83166e261a",
+      "group": "algebra",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    },
+    {
+      "program_name": "10_inequalities",
+      "program_id": "9515b0477fcf",
+      "program_sha256": "438a42450d5a85224958ee86c93acc57538c3c3f77502c29e7bdc981b95c6f56",
+      "group": "inequality",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 52
+    },
+    {
+      "program_name": "11_kth_root_count",
+      "program_id": "945b22e16e37",
+      "program_sha256": "a056a9c30a3ad42a3877444881b6b32c6c9427046f5f9bd78946778fd8b80d09",
+      "group": "number_theory",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    },
+    {
+      "program_name": "12_derangement_fixed_points",
+      "program_id": "c382593b0247",
+      "program_sha256": "30c51a9970084a0db0876cc83323a095f8f521262e972ef2d22ccdea10319b0b",
+      "group": "combinatorics",
+      "skill": "counting",
+      "num_examples": 40,
+      "seeds_scanned": 72
+    },
+    {
+      "program_name": "18_absolute_quadratic_cases",
+      "program_id": "e9efe4a2b47f",
+      "program_sha256": "3f5e92d1ef41b13e05bdde644148fe96dfd46a7144fe901375680e178edb2d50",
+      "group": "algebra",
+      "skill": "casework",
+      "num_examples": 40,
+      "seeds_scanned": 41
+    }
+  ]
+}

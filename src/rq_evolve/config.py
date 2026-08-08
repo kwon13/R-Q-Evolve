@@ -74,6 +74,21 @@ class EvolutionConfig:
     # this together with select_ignores_uncertainty (that leaves no signal).
     select_ignores_variance: bool = False
 
+    # Ablation: keep the archive's 48 slots and every validity gate, but stop
+    # rescoring champions against the current policy. They keep the R_Q they
+    # were admitted with and are never evicted. Measured on three 4B arms, that
+    # rescoring removes 0.86-0.94 champions per insertion, so this is the single
+    # largest change one flag can make to archive dynamics.
+    reevaluate_champions: bool = True
+
+    # Ablation: "flat" removes the GROUP x SKILL binning. Same 48 slots, same
+    # gates, same parent sampling -- a candidate simply takes any free slot and
+    # then competes against the weakest occupant instead of the champion that
+    # happens to share its labels. Together with reevaluate_champions=False this
+    # is the pair that asks whether the MAP archive earns its place: one drops
+    # the behavioural axes, the other drops tracking the policy over time.
+    archive_binning: str = "grid"
+
     def __post_init__(self) -> None:
         if self.evaluator_provider not in ("policy", "openai"):
             raise ValueError(
@@ -98,6 +113,11 @@ class EvolutionConfig:
             value = float(getattr(self, name))
             if not 0.0 < value <= 1.0:
                 raise ValueError(f"evolution.{name} must be in (0, 1]")
+        if self.archive_binning not in ("grid", "flat"):
+            raise ValueError(
+                "evolution.archive_binning must be 'grid' or 'flat', got "
+                f"{self.archive_binning!r}"
+            )
         if self.ast_contract not in ("off", "shadow", "enforce"):
             raise ValueError(
                 "evolution.ast_contract must be 'off', 'shadow' or 'enforce', "

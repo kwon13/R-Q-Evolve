@@ -202,3 +202,85 @@ def test_a_snapshot_that_loses_every_champion_is_not_a_resume(tmp_path):
     assert evolver.archive.champions() == []
     # The dead run's consumed seeds must not retire seeds the bootstrap needs.
     assert evolver.used_seeds == {}
+
+
+def test_flat_binning_fills_every_slot_before_any_competition():
+    """The grid arm reserves capacity per (GROUP, SKILL); the flat arm does not.
+
+    Two programs sharing a cell knock each other out under "grid" and coexist
+    under "flat" -- that difference is the whole ablation, and it is what makes
+    the pair (archive_binning=flat, reevaluate_champions=False) a test of
+    whether the MAP earns its place.
+    """
+    from rq_evolve.archive import MAPElitesArchive
+
+    for binning, expected in (("grid", 1), ("flat", 2)):
+        archive = MAPElitesArchive(binning=binning)
+        for value, tag in ((3, "alpha"), (5, "beta")):
+            archive.try_insert(
+                program=_program("algebra", "counting", value=value, tag=tag),
+                h_value=1.0,
+                problem_text=f"p{value}",
+                rq_score=float(value),
+            )
+        assert len(archive.champions()) == expected, binning
+
+
+def test_flat_binning_still_refuses_an_unlabelled_program():
+    """Dropping the grid must not also relax the label contract -- the arm has
+    to isolate one change, not two."""
+    from rq_evolve.archive import MAPElitesArchive
+
+    archive = MAPElitesArchive(binning="flat")
+    inserted = archive.try_insert(
+        program=_program("not_a_group", "not_a_skill"),
+        h_value=1.0,
+        problem_text="p",
+        rq_score=1.0,
+    )
+    assert inserted is False
+    assert archive.champions() == []
+
+
+def test_flat_binning_challenges_the_weakest_occupant_once_full():
+    from rq_evolve.archive import MAPElitesArchive
+    from rq_evolve.concepts import GROUPS, SKILLS
+
+    archive = MAPElitesArchive(binning="flat")
+    total = len(GROUPS) * len(SKILLS)
+    # Alphabetic tags: the template-duplicate gate replaces every digit with
+    # 'N', so "t0"/"t1" normalise to the same skeleton and only the first would
+    # be admitted.
+    names = [f"{chr(97 + i // 26)}{chr(97 + i % 26)}" for i in range(total)]
+    for i, name in enumerate(names):
+        archive.try_insert(
+            program=_program("algebra", "counting", value=i + 1, tag=name),
+            h_value=1.0,
+            problem_text=name,
+            rq_score=float(i + 1),
+        )
+    assert len(archive.champions()) == total
+    weakest = min(c.rq_score for c in archive.champions())
+
+    # Two digits on purpose: at seed 0 the answer equals `value`, and the
+    # answer-leak lint only inspects answers longer than two characters.
+    assert archive.try_insert(
+        program=_program("algebra", "counting", value=99, tag="strong"),
+        h_value=1.0,
+        problem_text="strong",
+        rq_score=10_000.0,
+    )
+    assert len(archive.champions()) == total
+    assert min(c.rq_score for c in archive.champions()) > weakest
+
+
+def test_archive_binning_only_accepts_the_two_modes():
+    import pytest
+
+    from rq_evolve.archive import MAPElitesArchive
+    from rq_evolve.config import EvolutionConfig
+
+    with pytest.raises(ValueError, match="binning"):
+        MAPElitesArchive(binning="bogus")
+    with pytest.raises(ValueError, match="archive_binning"):
+        EvolutionConfig(archive_binning="bogus")

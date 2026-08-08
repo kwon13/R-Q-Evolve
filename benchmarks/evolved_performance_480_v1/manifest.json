@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "benchmark": "evolved_performance_480_v1",
+  "created_at": "2026-08-08T03:27:21+00:00",
+  "benchmark_sha256": "b3c7c3f93a3d8d777ac7a70563b851defbe1ad4c5508fb58d3e4f9ea99a24ba7",
+  "num_examples": 480,
+  "num_programs": 12,
+  "examples_per_program": 40,
+  "selection": "immutable union of component benchmark rows; component labels namespace sample IDs and program identities",
+  "components": [
+    {
+      "label": "id",
+      "benchmark": "evolved_performance_seed_id_v1",
+      "benchmark_sha256": "1d8a01cc32a7db28391de71b8e10e6da3f352ced2ca37d98d99e324499d38104",
+      "num_examples": 240,
+      "num_programs": 6,
+      "path": "/data1/yhoon113/R-Q-Evolve/benchmarks/evolved_performance_seed_id_v1"
+    },
+    {
+      "label": "ood_v2",
+      "benchmark": "evolved_performance_structural_ood_v2",
+      "benchmark_sha256": "e2076da43023e4a4b139ffa1a7374e4248e2e558f270c44d03212e8bb36767c4",
+      "num_examples": 240,
+      "num_programs": 6,
+      "path": "/data1/yhoon113/R-Q-Evolve/benchmarks/evolved_performance_structural_ood_v2"
+    }
+  ]
+}

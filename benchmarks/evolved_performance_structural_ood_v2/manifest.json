@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "benchmark": "evolved_performance_structural_ood_v2",
+  "created_at": "2026-08-08T03:08:57+00:00",
+  "benchmark_sha256": "e2076da43023e4a4b139ffa1a7374e4248e2e558f270c44d03212e8bb36767c4",
+  "num_examples": 240,
+  "num_programs": 6,
+  "examples_per_program": 40,
+  "seed_start": 3000000,
+  "selection": "first globally unique (problem, answer) instances from sequential seeds; balanced equally across seed programs",
+  "programs": [
+    {
+      "program_name": "01_weighted_binary_recurrence",
+      "program_id": "b1d6cd8408c2",
+      "program_sha256": "92d447ccaada6c0643fa1a36483053f074faa8ca75469995072c1a8fd46dd265",
+      "group": "sequence",
+      "skill": "induction",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    },
+    {
+      "program_name": "02_symmetric_power_sum_three",
+      "program_id": "62fb270e1e05",
+      "program_sha256": "f3f9ce913e065b75747c8a0bfbb69a36c50f7b407c0a8992b213093c54bede6f",
+      "group": "algebra",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    },
+    {
+      "program_name": "03_shifted_quadratic_minimum",
+      "program_id": "dec50e3c339c",
+      "program_sha256": "bda138d5248a3abd1d1251b2d50b1eb80d4f6b5928f0bd34902110551cbf02d4",
+      "group": "inequality",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    },
+    {
+      "program_name": "04_three_level_power_tower",
+      "program_id": "9f8941ca8ed2",
+      "program_sha256": "f38eedf2e6edf849b775ec07f352a981a118b1fc58b52c3b42cf582ab4d9d30b",
+      "group": "number_theory",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 41
+    },
+    {
+      "program_name": "05_banded_lattice_paths",
+      "program_id": "53c9489fdf8e",
+      "program_sha256": "a6fbddf2fbb9933d456a8ec13cf27a056921b702a6466348905154c1144cde90",
+      "group": "combinatorics",
+      "skill": "counting",
+      "num_examples": 40,
+      "seeds_scanned": 43
+    },
+    {
+      "program_name": "06_weighted_absolute_centers",
+      "program_id": "5f4f2fab19cd",
+      "program_sha256": "0b142204fa75d5572fd8398da6dd00f2a5da5598affb83cab70f5e7eea0f5805",
+      "group": "algebra",
+      "skill": "casework",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    }
+  ]
+}

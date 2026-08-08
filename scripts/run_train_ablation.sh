@@ -30,6 +30,19 @@ if [[ "$want" != "$have" ]]; then
   exit 1
 fi
 
+# An idle GPU is not a free GPU. A finished-looking run keeps its Ray workers
+# alive (total_epochs is 10000, so "the checkpoints I wanted exist" is not the
+# same as "it stopped"), and between two of its phases every card reads 9 MiB.
+# Two arms launched into that gap both died of CUDA OOM an hour later when the
+# older run woke up. Check for a live trainer, not for free memory.
+others=$(pgrep -u "$USER" -f 'train_with_verl' | grep -v "^$$\$" | wc -l)
+if [[ "$others" -gt 0 ]] && [[ "${IGNORE_RUNNING:-0}" != "1" ]]; then
+  echo "$others train_with_verl process(es) already running:" >&2
+  pgrep -u "$USER" -af 'train_with_verl' | cut -c1-110 >&2
+  echo "Stop them first, or set IGNORE_RUNNING=1 if they use other GPUs." >&2
+  exit 1
+fi
+
 export CUDA_VISIBLE_DEVICES="$GPUS"
 export WANDB_MODE="${WANDB_MODE:-online}"
 export PATH=/data1/yhoon113/miniforge3/envs/vllm/bin:$PATH

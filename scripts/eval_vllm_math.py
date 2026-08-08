@@ -154,6 +154,8 @@ class GPTRechecker:
         self.client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
         self.workers = max(1, int(workers))
         self._cache: dict[tuple[str, str], bool] = {}
+        self.calls_made = 0
+        self.calls_failed = 0
 
     def _call_once(self, answer: str, response: str) -> str:
         """One gpt-4o call; returns the raw reply text, or 'No' on any failure
@@ -170,6 +172,13 @@ class GPTRechecker:
             )
             return resp.choices[0].message.content or "No"
         except Exception as exc:  # noqa: BLE001 — mirror R-Zero's swallow-and-No
+            # Counted, not just logged. Swallowing the failure turns an
+            # unreachable judge into "the judge said No", and the resulting
+            # summary -- gpt_recheck: true, gpt_flips: 0 -- reads exactly like
+            # "the judge agreed with math_verify everywhere". That has now
+            # silently produced pre-GPT numbers in a post-GPT table three
+            # times, twice for insufficient_quota mid-run.
+            self.calls_failed += 1
             logger.warning("[gpt-recheck] call failed: %r", exc)
             return "No"
 
@@ -179,6 +188,7 @@ class GPTRechecker:
         cached = self._cache.get(key)
         if cached is not None:
             return cached
+        self.calls_made += 1
         text = self._call_once(str(ground_truth), str(response))
         verdict = "yes" in text.lower()
         self._cache[key] = verdict
@@ -378,6 +388,27 @@ def evaluate(args: argparse.Namespace) -> dict[str, Any]:
                 "gpt_flips": gpt_flips,
                 "elapsed_sec": round(time.time() - start, 1),
             }
+            # A judge that could not be reached scores every example "No", so
+            # pass_at_1 silently equals pass_at_1_pre_gpt and the row lands in
+            # a post-GPT table on a pre-GPT basis. Record the failure rate and
+            # mark the benchmark degraded so an aggregator can flag the row.
+            if recheck is not None:
+                made = max(recheck.calls_made, 0)
+                failed = recheck.calls_failed
+                entry = summary["benchmarks"][benchmark]
+                entry["gpt_calls"] = made
+                entry["gpt_calls_failed"] = failed
+                rate = (failed / made) if made else 0.0
+                entry["gpt_recheck_degraded"] = rate > 0.10
+                if entry["gpt_recheck_degraded"]:
+                    logger.error(
+                        "[gpt-recheck] DEGRADED on %s: %d/%d judge calls failed "
+                        "(%.0f%%). pass_at_1 for this benchmark is effectively "
+                        "pre-GPT and must not be compared against rechecked "
+                        "rows. Repair with scripts/rerun_gpt_recheck.py.",
+                        benchmark, failed, made, 100.0 * rate,
+                    )
+                recheck.calls_made = recheck.calls_failed = 0
             logger.info(
                 "%s: pass@1=%.2f%% (pre-gpt %.2f%%, +%d flips) n=%d",
                 benchmark,

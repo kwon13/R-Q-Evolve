@@ -1,0 +1,541 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 15,
+      "total_niches": 48,
+      "coverage": 0.3125,
+      "group_coverage": 0.6666666666666666,
+      "skill_coverage": 0.875,
+      "mean_rq": 20.74841326174061,
+      "max_rq": 40.48003546142578,
+      "total_insertions": 583,
+      "total_replacements": 56,
+      "total_selections": 1024
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"contradiction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Parameters for the geometric sequence domain, ensuring the sequence is non-trivial.\n    n_terms = rng.randint(10, 50)  # Number of terms in the sequence\n    a = rng.randint(2, 10)  # First term of the sequence\n    r = rng.randint(2, 5)  # Common ratio of the sequence\n\n    # Direct summation approach to find the sum of the geometric sequence.\n    total_sum = a * (r**n_terms - 1) // (r - 1)\n\n    # Independent route: Calculate the sum by considering the geometric sequence\n    # in two separate sequences that are mirror images of each other, hence summing to twice the original.\n    sequence_1 = [a * (r**i) for i in range(n_terms)]\n    sequence_2 = [a * (r**(n_terms - 1 - i)) for i in range(n_terms)]\n    invariant_sum = sum(sequence_1[i] + sequence_2[i] for i in range(n_terms)) // 2\n\n    # We will assume that the sum of the sequence can be expressed as half the sum of two mirror images.\n    # Let's denote the sum of the sequence as S.\n    # Then, S = invariant_sum.\n\n    # Now, let's assume that there exists a smaller sum S' that also satisfies the property of being half the sum of two mirror images.\n    # This means that there exists a sequence with fewer terms, different first term, or different common ratio, that still satisfies the property.\n    # However, this contradicts the fact that the original sequence is the smallest possible sequence with the given properties.\n    # Therefore, our assumption is false, and the sum of the sequence must be equal to the sum calculated using the geometric series formula.\n\n    assert total_sum == invariant_sum, f\"total_sum={total_sum} invariant_sum={invariant_sum}\"\n\n    # Formulate a question about the sum of the sequence that forces the use of the contradiction.\n    problem = (\n        f\"Consider a geometric sequence with {n_terms} terms, first term {a}, \"\n        f\"and common ratio {r}. Prove that there does not exist a smaller sequence \"\n        f\"with the same properties that can also satisfy the condition of being half \"\n        f\"the sum of two mirror images of each other. What is the sum of this original sequence? State only the integer.\"\n    )\n\n    return problem, str(total_sum)",
+      "program_id": "5c9c13f05193",
+      "parent_id": "4ccfc557616c",
+      "generation": 8,
+      "p_hat": 0.8,
+      "h_score": 164.10808410644532,
+      "rq_score": 26.257293457031246,
+      "fitness": 26.257293457031246,
+      "niche_group": 0,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 26.257293457031246
+        },
+        "_behavior_sig_5": "fa9d7cc65ba340a545ee3e86d8e3d64eacc4f3285ef64061c463c26e9755658a",
+        "_template_sig_5": "7bf6618a1a2707d072c4d9b53b8ad2b71cdaca695e9c38a15e522a2afe1f4096",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Parameters for the geometric sequence domain, ensuring the sequence is non-trivial.\n    n_terms = rng.randint(10, 50)  # Number of terms in the sequence\n    a = rng.randint(2, 10)  # First term of the sequence\n    r = rng.randint(2, 5)  # Common ratio of the sequence\n\n    # Direct summation approach to find the sum of the geometric sequence.\n    total_sum = a * (r**n_terms - 1) // (r - 1)\n\n    # Independent route: Calculate the sum by considering the geometric sequence\n    # in two separate sequences that are mirror images of each other, hence summing to twice the original.\n    sequence_1 = [a * (r**i) for i in range(n_terms)]\n    sequence_2 = [a * (r**(n_terms - 1 - i)) for i in range(n_terms)]\n    invariant_sum = sum(sequence_1[i] + sequence_2[i] for i in range(n_terms)) // 2\n\n    assert total_sum == invariant_sum, f\"total_sum={total_sum} invariant_sum={invariant_sum}\"\n\n    # Formulate a question about the sum of the sequence that forces the use of the invariant.\n    problem = (\n        f\"Consider a geometric sequence with {n_terms} terms, first term {a}, \"\n        f\"and common ratio {r}. Prove that the sum of this sequence can be \"\n        f\"expressed as half the sum of two sequences that are mirror images of each other. \"\n        f\"What is the sum of this original sequence? State only the integer.\"\n    )\n\n    return problem, str(total_sum)",
+      "program_id": "4ccfc557616c",
+      "parent_id": "a3aa780b683f",
+      "generation": 7,
+      "p_hat": 0.5,
+      "h_score": 107.65474472045898,
+      "rq_score": 26.913686180114745,
+      "fitness": 26.913686180114745,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 26.913686180114745
+        },
+        "_behavior_sig_5": "235026f1e2da5a68e3d3a1f6d2f71805237f022cad36451fa970b45f46fd1722",
+        "_template_sig_5": "9eaa9e0b5d5c8898a73c786eac53802dd608f370b697c90e10899bf20d7eee74",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"extremal_principle\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for the number theory domain, ensuring the numbers are non-trivial and not easily guessable.\n    a = rng.randint(100, 500)  # First term of the sequence\n    b = rng.randint(100, 500)  # Second term of the sequence\n    p = rng.randint(50, 100)  # A random prime number\n\n    # Calculate gcd(a, p) and gcd(b, p) and sum them.\n    gcd_ap = math.gcd(a, p)\n    gcd_bp = math.gcd(b, p)\n    answer = gcd_ap + gcd_bp\n\n    # Independent route: calculating gcd(a, p) and gcd(b, p) separately and summing them.\n    check = math.gcd(a, p) + math.gcd(b, p)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the sum of gcds of two numbers with a prime number.\n    problem = f\"Calculate the sum of the greatest common divisors of {a} and {p}, and {b} and {p}. State only the integer.\"\n    return problem, str(answer)",
+      "program_id": "a4eb6d760361",
+      "parent_id": "dda7f33f4d74",
+      "generation": 7,
+      "p_hat": 0.8,
+      "h_score": 142.50905990600586,
+      "rq_score": 22.801449584960935,
+      "fitness": 22.801449584960935,
+      "niche_group": 0,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "extremal_principle",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 22.801449584960935
+        },
+        "_behavior_sig_5": "3b8aa64105bb9d6b672980c3192042b14efc1dce735adf3a60ff65a307d7ba12",
+        "_template_sig_5": "17f36c7ba574df00b4d5113bbc037c55d059b2c78f4a2ba7d5828275b5decb6e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a number-theory problem involving digit reversals.\n    number = rng.randint(100, 999)  # A three-digit number\n\n    # Calculating the sum of the digits of the number.\n    digits = [int(digit) for digit in str(number)]\n    answer = sum(digits)\n\n    # Independent route: reversing the digits does not change their sum.\n    digits_reversed = [int(digit) for digit in str(number)][::-1]\n    check = sum(digits_reversed)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the sum of the digits of a number after reversing the order of the digits.\n    problem = (\n        f\"Consider the number {number}. \"\n        f\"What is the sum of its digits if the digits are reversed? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "c70e230d5695",
+      "parent_id": "c1eaeab22c75",
+      "generation": 10,
+      "p_hat": 0.8888888888888888,
+      "h_score": 126.84316613939073,
+      "rq_score": 12.527720112532423,
+      "fitness": 12.527720112532423,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 12.527720112532423
+        },
+        "_behavior_sig_5": "89b5b03d01330f399a294a20bb71f1ad50f416a44bd7c09a8237c26be9af2d8f",
+        "_template_sig_5": "c3a5bbceb1a439100314631b51f8d97b2fe0e9a7bee968b3823e7aadc6b6d33c",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"construction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)  # Number of vertices in the polygon\n\n    # Constructing a polygon with n sides\n    # Counting the segments between non-adjacent vertices\n    total_segments = (n * (n - 1)) // 2\n    adj_segments = n\n    union = total_segments - adj_segments\n    answer = union\n\n    # Independent route: manually checking each pair of vertices to see if they are non-adjacent\n    check = 0\n    for i in range(n):\n        for j in range(i + 1, n):\n            if (j - i) % n != 1 and (j - i) % n != n - 1:\n                check += 1\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many pairs of vertices can be selected from a regular polygon with {n} sides \"\n        f\"such that the line segment joining them is not an edge of the polygon? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "492855bddba5",
+      "parent_id": "5184a71c924c",
+      "generation": 9,
+      "p_hat": 0.8888888888888888,
+      "h_score": 91.33814197116428,
+      "rq_score": 9.021051058880426,
+      "fitness": 9.021051058880426,
+      "niche_group": 0,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "construction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 9.021051058880426
+        },
+        "_behavior_sig_5": "1f3034170a3b9b887c1f424a59d319f530cd8bc12ad818151012944b30cb94e2",
+        "_template_sig_5": "ce4c30661232d325835b9845fc704588448272b98f5f27f439801dc4e3dd651e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"induction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(50, 150)  # Choosing a composite number with a reasonable number of divisors.\n\n    # Setting up the total number of divisors of n.\n    divisors = set()\n\n    # Finding all divisors of n.\n    for i in range(1, int(n ** 0.5) + 1):\n        if n % i == 0:\n            divisors.add(i)\n            divisors.add(n // i)\n\n    total = len(divisors)\n\n    # Calculating the number of divisors excluding perfect squares (to simulate \"tangential\" divisors).\n    perfect_squares = {i ** 2 for i in range(1, int(n ** 0.5) + 1) if i ** 2 <= n}\n    intersection = len(divisors & perfect_squares)\n    answer = total - intersection\n\n    # Independent route: counting the divisors that are not perfect squares directly.\n    check = total - len(divisors & perfect_squares)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the number of divisors that are not perfect squares.\n    problem = f\"How many integers k, where k is a divisor of {n}, are there that are not perfect squares? Calculate the answer using the given composite number.\"\n\n    return problem, str(answer)",
+      "program_id": "86b90656aba4",
+      "parent_id": "2ced14b2d6c5",
+      "generation": 8,
+      "p_hat": 0.8,
+      "h_score": 77.13076477050781,
+      "rq_score": 12.340922363281248,
+      "fitness": 12.340922363281248,
+      "niche_group": 1,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 12.340922363281248
+        },
+        "_behavior_sig_5": "1978d71479281f0cdf4e027bc6f07e01cd68ac7a2e325e37067bece7aabdb569",
+        "_template_sig_5": "cbd22c3634129b58238fd968bffdec5d2a25b0ccfa00b059b9f2c841893b3ba4",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)  # Number of items to choose from\n    r = rng.randint(1, n)  # Number of items to choose\n\n    # Determine the number of permutations of n items taken r at a time\n    from math import perm\n    answer = perm(n, r)\n\n    # Independent route: manually checking the permutation formula\n    check = math.prod(range(n, n - r, -1))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many unique ordered sequences of length {r} can be formed from \"\n        f\"a set of {n} distinct items? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "5359e567fbbe",
+      "parent_id": "ba7de646c61d",
+      "generation": 9,
+      "p_hat": 0.25,
+      "h_score": 203.50970458984375,
+      "rq_score": 38.1580696105957,
+      "fitness": 38.1580696105957,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 38.1580696105957
+        },
+        "_behavior_sig_5": "0600aa6125c9b1fb233ab36888df4dd77f5cea7e81c1999abc46b9a373dcd80c",
+        "_template_sig_5": "22a49c998cb2e1646732892418afc634370726fbd5f89d02fedad34b839dd0cf",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\nimport sympy\n\nGROUP = \"combinatorics\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # The problem involves a grid of points with integer coordinates 0 <= x <= w and 0 <= y <= h.\n    w = rng.randint(30, 60)\n    h = rng.randint(30, 60)\n\n    # The load-bearing structure is counting the number of points on the grid that do not lie on any line segment.\n    total_points = (w + 1) * (h + 1)\n\n    # Define the lines y = x and y = -x + (w + h)\n    def point_on_line(x, y):\n        return y == x or y == -x + (w + h)\n\n    # Count the number of points not on any of the lines\n    points_not_on_lines = sum(1 for x in range(w + 1) for y in range(h + 1) if not point_on_line(x, y))\n\n    # Independent route: count the number of points not on any of the lines by direct enumeration\n    check = total_points - sum(1 for x in range(w + 1) for y in range(h + 1) if point_on_line(x, y))\n    assert points_not_on_lines == check, f\"points_not_on_lines={points_not_on_lines} check={check}\"\n\n    problem = (\n        f\"Consider the grid of points with integer coordinates 0 <= x <= {w} \"\n        f\"and 0 <= y <= {h}. How many of them do not lie on the line segments \"\n        f\"defined by y = x and y = -x + ({w} + {h})? State only the integer.\"\n    )\n    return problem, str(points_not_on_lines)",
+      "program_id": "256b68a1aacd",
+      "parent_id": "945b22e16e37",
+      "generation": 1,
+      "p_hat": 0.8,
+      "h_score": 97.31227188110351,
+      "rq_score": 15.56996350097656,
+      "fitness": 15.56996350097656,
+      "niche_group": 1,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 15.56996350097656
+        },
+        "_behavior_sig_5": "854b7f5118c3259b524504f87bdd42c957de6b499b952a9302a0900eff535445",
+        "_template_sig_5": "f846cf25fa3d7cdc3a1833618408c88a4f159edecf826dc4a11bfd5557f3119a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"construction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)  # Number of items to choose from\n    r = rng.randint(1, n)  # Number of items to choose\n\n    # Determine the number of combinations of n items taken r at a time\n    from math import comb\n    answer = comb(n, r)\n\n    # Independent route: manually checking the combination formula\n    check = 1\n    for i in range(r):\n        check *= (n - i)\n    for i in range(r):\n        check //= (i + 1)\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many ways are there to choose {r} items from a set of {n} items? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "ba7de646c61d",
+      "parent_id": "6ec47dad69db",
+      "generation": 8,
+      "p_hat": 0.8571428571428571,
+      "h_score": 285.38195528302873,
+      "rq_score": 34.94472921833006,
+      "fitness": 34.94472921833006,
+      "niche_group": 1,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "construction",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 34.94472921833006
+        },
+        "_behavior_sig_5": "1ac25f6858a9073a8fff0cdd6d65e50bbab3aefcfea7827f4208f30b65c58100",
+        "_template_sig_5": "5aa8c76625b220461f1da866c77f005ef7bd4f549d422c559741b282842156e1",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"contradiction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Parameters for the arithmetic sequence domain, ensuring the sequence is non-trivial.\n    n_terms = rng.randint(5, 20)  # Number of terms in the sequence\n    a = rng.randint(1, 5)  # First term of the sequence\n    d = rng.randint(1, 3)  # Common difference of the sequence\n\n    # Direct summation approach to find the sum of the arithmetic sequence.\n    total_sum = n_terms * (2 * a + (n_terms - 1) * d) // 2\n\n    # Independent route: Calculate the sum by considering the arithmetic sequence\n    # in two separate sequences that are mirror images of each other, hence summing to twice the original.\n    sequence_1 = [a + i * d for i in range(n_terms)]\n    sequence_2 = [a + (n_terms - 1 - i) * d for i in range(n_terms)]\n    invariant_sum = sum(sequence_1[i] + sequence_2[i] for i in range(n_terms)) // 2\n\n    # We will assume that the sum of the sequence can be expressed as half the sum of two mirror images.\n    # Let's denote the sum of the sequence as S.\n    # Then, S = invariant_sum.\n\n    # Now, let's assume that there exists a smaller sum S' that also satisfies the property of being half the sum of two mirror images.\n    # This means that there exists a sequence with fewer terms, different first term, or different common difference, that still satisfies the property.\n    # However, this contradicts the fact that the original sequence is the smallest possible sequence with the given properties.\n    # Therefore, our assumption is false, and the sum of the sequence must be equal to the sum calculated using the arithmetic series formula.\n\n    assert total_sum == invariant_sum, f\"total_sum={total_sum} invariant_sum={invariant_sum}\"\n\n    # Formulate a question about the sum of the sequence that forces the use of the contradiction.\n    problem = (\n        f\"Consider an arithmetic sequence with {n_terms} terms, first term {a}, \"\n        f\"and common difference {d}. Prove that there does not exist a smaller sequence \"\n        f\"with the same properties that can also satisfy the condition of being half \"\n        f\"the sum of two mirror images of each other. What is the sum of this original sequence? State only the integer.\"\n    )\n\n    return problem, str(total_sum)",
+      "program_id": "f73691072c96",
+      "parent_id": "5c9c13f05193",
+      "generation": 9,
+      "p_hat": 0.8,
+      "h_score": 110.993941116333,
+      "rq_score": 17.759030578613277,
+      "fitness": 17.759030578613277,
+      "niche_group": 2,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 17.759030578613277
+        },
+        "_behavior_sig_5": "4f33237a00be924c8b931b40f2b4acc640443cc03c2bc8ee80e2570207678204",
+        "_template_sig_5": "0d9b260d17addb31ce3786455ddf8bbb20f1a4411518bb416bb9ee871c6ae169",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Parameters for the arithmetic sequence domain, ensuring the sequence is non-trivial.\n    n_terms = rng.randint(10, 50)  # Number of terms in the sequence\n    a = rng.randint(1, 10)  # First term of the sequence\n    d = rng.randint(1, 10)  # Common difference of the sequence\n\n    # Direct summation approach to find the sum of the arithmetic sequence.\n    total_sum = n_terms * (2 * a + (n_terms - 1) * d) // 2\n\n    # Independent route: Calculate the sum by considering the arithmetic sequence\n    # in two separate sequences that are mirror images of each other, hence summing to twice the original.\n    sequence_1 = [a + i * d for i in range(n_terms)]\n    sequence_2 = [a + (n_terms - 1 - i) * d for i in range(n_terms)]\n    invariant_sum = sum(sequence_1[i] + sequence_2[i] for i in range(n_terms)) // 2\n\n    assert total_sum == invariant_sum, f\"total_sum={total_sum} invariant_sum={invariant_sum}\"\n\n    # Formulate a question about the sum of the sequence that forces the use of the invariant.\n    problem = (\n        f\"Consider an arithmetic sequence with {n_terms} terms, first term {a}, \"\n        f\"and common difference {d}. Prove that the sum of this sequence can be \"\n        f\"expressed as half the sum of two sequences that are mirror images of each other. \"\n        f\"What is the sum of this original sequence? State only the integer.\"\n    )\n\n    return problem, str(total_sum)",
+      "program_id": "dc7a324e9e03",
+      "parent_id": "4ccfc557616c",
+      "generation": 8,
+      "p_hat": 0.9,
+      "h_score": 88.54460067749024,
+      "rq_score": 7.96901406097412,
+      "fitness": 7.96901406097412,
+      "niche_group": 2,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 7.96901406097412
+        },
+        "_behavior_sig_5": "e9438903e25666690f88061fbb64865ed8408840c11a51a82032103e3d27eaa3",
+        "_template_sig_5": "d237eeb2a40383e9d77f0f3bdc6b76ec0d23800759bed48dacaabb65ab668c88",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    a = rng.randint(1, 10)\n    b = rng.randint(1, 10)\n    c = rng.randint(1, 10)\n    d = rng.randint(1, 10)\n    target_sum = rng.randint(10, 20)\n\n    # Counting the number of pairs whose sum equals the target_sum.\n    pairs = [\n        (a, b), (a, c), (a, d), (b, c), (b, d), (c, d)\n    ]\n    answer = sum(1 for x, y in pairs if x + y == target_sum)\n\n    # Independent route: explicitly checking all pairs.\n    check = sum(1 for x in pairs for y in pairs if x[0] + x[1] == target_sum)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of four numbers: {a}, {b}, {c}, and {d}. \"\n        f\"How many distinct pairs of these numbers add up to exactly {target_sum}? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "5b33c460dac6",
+      "parent_id": "ae48d9546a6e",
+      "generation": 10,
+      "p_hat": 0.9,
+      "h_score": 201.21861457824707,
+      "rq_score": 18.10967531204223,
+      "fitness": 18.10967531204223,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 18.10967531204223
+        },
+        "_behavior_sig_5": "785a7f9cc3a6710190cb5e375efa226e09a73736f4705186ee6b1201e8364401",
+        "_template_sig_5": "ca64662b84cbce8c3c7b14eaad3eb3281ff9a70d19067aca3a570051d4aeb6d6",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a sequence problem involving terms.\n    term1 = rng.randint(100, 200)  # First term of the sequence\n    term2 = rng.randint(50, 150)  # Second term of the sequence\n\n    # Calculating the product of the terms.\n    # The product of the terms is term1 times term2.\n    answer = term1 * term2\n\n    # Independent route: reversing the order of the terms does not change the product.\n    check = term2 * term1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the product of terms after reversing their order.\n    problem = (\n        f\"There is a sequence with terms {term1} and {term2}. \"\n        f\"What is the product of the terms if their order is reversed? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "f1ce6301945d",
+      "parent_id": "c1eaeab22c75",
+      "generation": 10,
+      "p_hat": 0.9,
+      "h_score": 77.12491798400879,
+      "rq_score": 6.94124261856079,
+      "fitness": 6.94124261856079,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 6.94124261856079
+        },
+        "_behavior_sig_5": "f9589cf01df21bd35f9caaf254d25c29c4e342527730f2679a5fda527bcfea05",
+        "_template_sig_5": "40831a7c4282900ea585be1f4c8f3102113e25d04fcc4394d996c436be3134e5",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    length = rng.randint(50, 100)  # Length of the rectangle\n    width = rng.randint(30, 80)  # Width of the rectangle\n\n    # The total number of small squares in the rectangle is the product of its length and width.\n    answer = length * width\n\n    # Independent route: brute-force counting the squares.\n    check = 0\n    for x in range(length):\n        for y in range(width):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the number of small squares within a rectangle.\n    problem = (\n        f\"There is a rectangle with sides of length {length} and width {width}. \"\n        f\"How many small squares can fit inside the rectangle if each small square is 1x1? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "72745702a899",
+      "parent_id": "c1eaeab22c75",
+      "generation": 10,
+      "p_hat": 0.875,
+      "h_score": 195.95260167121887,
+      "rq_score": 21.432315807789564,
+      "fitness": 21.432315807789564,
+      "niche_group": 4,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 21.432315807789564
+        },
+        "_behavior_sig_5": "0d72359cd86842a97f83ad2038931bf47087650f83cb8185345df7a4e01d2ad3",
+        "_template_sig_5": "fd15a02fc796a5f81689ca94d579dee5996ae39180f51783a0b1a2f23db31c90",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a geometric problem involving sides of a rectangle.\n    length = rng.randint(50, 100)  # Length of the rectangle\n    width = rng.randint(30, 80)  # Width of the rectangle\n\n    # Calculating the area of the rectangle.\n    # The area of the rectangle is length times width.\n    answer = length * width\n\n    # Independent route: reversing the length and width does not change the area.\n    check = width * length\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the area of a rectangle after reversing the order of the sides.\n    problem = (\n        f\"There is a rectangle with sides of length {length} and width {width}. \"\n        f\"What is the area of the rectangle if the order of the sides is reversed? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "c1eaeab22c75",
+      "parent_id": "35cdfcdf8fa5",
+      "generation": 9,
+      "p_hat": 0.8,
+      "h_score": 253.00022163391114,
+      "rq_score": 40.48003546142578,
+      "fitness": 40.48003546142578,
+      "niche_group": 4,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 40.48003546142578
+        },
+        "_behavior_sig_5": "3e6b0098fbc5bcd5564029ab116e5a24e124c8d40cc830d6a3356692aec26243",
+        "_template_sig_5": "8bd003344d56e02eddd6c3447647907b2c96e37f0229367e2a8f2b10b360c9d3",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

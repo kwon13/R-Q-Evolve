@@ -1,0 +1,674 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 19,
+      "total_niches": 48,
+      "coverage": 0.3958333333333333,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 0.75,
+      "mean_rq": 40.25856020776022,
+      "max_rq": 184.90426688069996,
+      "total_insertions": 359,
+      "total_replacements": 44,
+      "total_selections": 640
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"contradiction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(100, 200)\n\n    # Generate two random sets of prime divisors within the range\n    A = set(rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], k=rng.randint(5, len([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31]) - 5)))\n    B = set(rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], k=rng.randint(5, len([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31]) - 5)))\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (len(A.symmetric_difference(B)) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(A, B)]\n    for i in range(1, 10):  # Generate a few more pairs to test the invariant\n        A_next = sequence[-1][0].union({rng.choice([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31])})\n        B_next = sequence[-1][1].union({rng.choice([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31])})\n        sequence.append((A_next, B_next))\n        invariant_next = (len(A_next.symmetric_difference(B_next)) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    A_final, B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (len(A_final.symmetric_difference(B_final)) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (len(A.symmetric_difference(B)) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are sets of prime numbers. \"\n        f\"Define the invariant as the symmetric difference of A and B modulo 2. \"\n        f\"Starting with (A, B) = ({A}, {B}), generate a sequence of pairs where the invariant \"\n        f\"remains constant. Prove that the invariant cannot reach a state of 0 before a certain number of steps. \"\n        f\"State the integer representing the final value of the invariant.\\n\"\n        f\"The invariant is defined as the symmetric difference of A and B modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({A}, {B}).\\n\"\n        f\"The sequence generates pairs where each next pair's sets are expanded by adding a new prime number.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "47b7f98e10c1",
+      "parent_id": "b9e833cbc729",
+      "generation": 12,
+      "p_hat": 0.7,
+      "h_score": 89.88046646118164,
+      "rq_score": 18.874897956848148,
+      "fitness": 18.874897956848148,
+      "niche_group": 0,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 18.874897956848148
+        },
+        "_behavior_sig_5": "d2d0f2d4f9187d19d66ec401abf8a23fe9118cf26bd8c58afc4f37a031dedc25",
+        "_template_sig_5": "ff25f35aa73672642b275fccde4eda2a5e213e3f6ad1bf9ca1d774f7eaf10eff",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 15)\n    m = rng.randint(10, 20)\n\n    # Generate two random integers within specific ranges\n    a = rng.randint(1, m)\n    b = rng.randint(1, m)\n\n    # Define the invariant: the greatest common divisor (gcd) remains constant\n    invariant = math.gcd(a, b)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(a, b)]\n    for i in range(1, 5):  # Generate a few more pairs to test the invariant\n        a_next = rng.randint(1, m)\n        b_next = rng.randint(1, m)\n        sequence.append((a_next, b_next))\n        invariant_next = math.gcd(a_next, b_next)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    a_final, b_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = math.gcd(a_final, b_final)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = math.gcd(a, b)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are integers within the range 1 to {m}. \"\n        f\"Define the invariant as the greatest common divisor (gcd) of A and B. \"\n        f\"Starting with (A, B) = ({a}, {b}), generate a sequence of pairs where the invariant remains constant. \"\n        f\"What is the value of the invariant for the final pair (A, B)? State only the integer.\\n\"\n        f\"The invariant is defined as the gcd of A and B, and the sequence starts with (A, B) = ({a}, {b}).\\n\"\n        f\"The sequence generates pairs where each next pair's elements are adjusted by changing their value.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "f52bdce544d6",
+      "parent_id": "d69246155c1c",
+      "generation": 15,
+      "p_hat": 0.9,
+      "h_score": 420.5199264526367,
+      "rq_score": 37.846793380737296,
+      "fitness": 37.846793380737296,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 37.846793380737296
+        },
+        "_behavior_sig_5": "08f03cda4c418382e617b7a38e61c0890844b846836d9cfff626b29e6327dfab",
+        "_template_sig_5": "92ee7458d882c147883d13891a0358135b4b000e88e90a70bd04f9d191cdc7bf",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 15)\n    m = rng.randint(10, 20)\n\n    # Generate two random integers within specific ranges\n    a = rng.randint(1, m)\n    b = rng.randint(1, m)\n\n    # Define the invariant: the greatest common divisor (gcd) remains constant\n    invariant = math.gcd(a, b)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(a, b)]\n    for i in range(1, 5):  # Generate a few more pairs to test the invariant\n        a_next = rng.randint(1, m)\n        b_next = rng.randint(1, m)\n        sequence.append((a_next, b_next))\n        invariant_next = math.gcd(a_next, b_next)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    a_final, b_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = math.gcd(a_final, b_final)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = math.gcd(a, b)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are integers within the range 1 to {m}. \"\n        f\"Define the invariant as the greatest common divisor (gcd) of A and B. \"\n        f\"Starting with (A, B) = ({a}, {b}), generate a sequence of pairs where the invariant remains constant. \"\n        f\"How many pairs in the sequence have the invariant equal to the gcd of the initial pair? State only the integer.\\n\"\n        f\"The invariant is defined as the gcd of A and B, and the sequence starts with (A, B) = ({a}, {b}).\\n\"\n        f\"The sequence generates pairs where each next pair's elements are adjusted by changing their value.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "79d262d596b8",
+      "parent_id": "f52bdce544d6",
+      "generation": 16,
+      "p_hat": 0.375,
+      "h_score": 176.29608058929443,
+      "rq_score": 41.31939388811588,
+      "fitness": 41.31939388811588,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 41.31939388811588
+        },
+        "_behavior_sig_5": "2cc93e4215908a72e65a55b54a1c4a8401a4e6c088b0ea8f10fa85b77dd59a5a",
+        "_template_sig_5": "4c6572ccca8812e47e57eda294fbcf73a7cdef3d48c8384bcdee1e8f83ce17da",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = sorted(range(1, n + 1))\n\n    # Transform the problem by converting the count of prime numbers to a related quantity,\n    # such as the count of non-prime numbers in the range.\n    import sympy\n    primes = sorted(sympy.primerange(2, n + 1))  # Example prime numbers\n    answer = len(numbers) - sum(1 for num in numbers if num in primes)\n\n    # Independent route: Verify the transformation by explicitly counting non-prime numbers.\n    check = 0\n    for num in numbers:\n        if num not in primes:\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many non-prime numbers k with 1 <= k <= {n} are there? State only the integer.\\n\"\n        f\"The problem asks for the count of non-prime numbers in the range from 1 to {n}.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "1910542b14df",
+      "parent_id": "4c66978599fc",
+      "generation": 11,
+      "p_hat": 0.2857142857142857,
+      "h_score": 329.9459348406111,
+      "rq_score": 67.33590506951246,
+      "fitness": 67.33590506951246,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 67.33590506951246
+        },
+        "_behavior_sig_5": "55000734a460681fce14e6788fefe83ae8c62fd351742f8bac155038424102b6",
+        "_template_sig_5": "9fa73a974aa493fe256443306128bce1271ea286ab54bb72a69e0ebd94c8706f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"construction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Implementing the Sieve of Eratosthenes\n    def sieve(limit):\n        is_prime = [True] * (limit + 1)\n        p = 2\n        while (p * p <= limit):\n            if is_prime[p]:\n                for i in range(p * p, limit + 1, p):\n                    is_prime[i] = False\n            p += 1\n        return [p for p in range(2, limit + 1) if is_prime[p]]\n\n    primes = sieve(n)\n    answer = len(primes)\n\n    # Independent route: Verify the count by directly enumerating primes using the sieve.\n    check = len(sieve(n))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many prime numbers k with 1 <= k <= {n} are there? State only the integer.\\n\"\n        f\"The problem asks for the count of prime numbers in the range from 1 to {n}.\\n\"\n        f\"To solve this, we use the Sieve of Eratosthenes to efficiently find all prime numbers up to the limit.\\n\"\n        f\"The prime numbers up to {n} are: {primes}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "73d6e33fd3d7",
+      "parent_id": "088b9de3472d",
+      "generation": 11,
+      "p_hat": 0.6666666666666666,
+      "h_score": 304.44320085313586,
+      "rq_score": 67.6540446340302,
+      "fitness": 67.6540446340302,
+      "niche_group": 0,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "construction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 67.6540446340302
+        },
+        "_behavior_sig_5": "0bddc47d4e6355a4fac69bbe6f03b5bcca91c2f4ba2a7bc78b45c2bbab36019e",
+        "_template_sig_5": "d47833d685e94e645c84b3035106f40310ea871c4a9bcb7a9ed7a83a8adcad6c",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"contradiction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)\n    k = rng.randint(1, n - 1)\n\n    # Generate two random subsets within the range\n    A = sorted(rng.sample(range(1, n + 1), k))\n    B = sorted(rng.sample(range(1, n + 1), k))\n\n    # Define the invariant: the size of the symmetric difference modulo 2 remains constant\n    invariant = (len(set(A).symmetric_difference(set(B))) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(A, B)]\n    for i in range(1, 10):  # Generate a few more pairs to test the invariant\n        A_next = sequence[-1][0].copy()\n        B_next = sequence[-1][1].copy()\n        A_next.append(rng.randint(1, n))\n        B_next.append(rng.randint(1, n))\n        sequence.append((A_next, B_next))\n        invariant_next = (len(set(A_next).symmetric_difference(set(B_next))) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    A_final, B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (len(set(A_final).symmetric_difference(set(B_final))) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (len(set(A).symmetric_difference(set(B))) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are subsets of the set {range(1, n + 1)}. \"\n        f\"Define the invariant as the size of the symmetric difference of A and B modulo 2. \"\n        f\"Starting with (A, B) = ({A}, {B}), generate a sequence of pairs where the invariant \"\n        f\"remains constant. Prove that the invariant cannot reach a state of 0 before a certain number of steps. \"\n        f\"State the integer representing the final value of the invariant.\\n\"\n        f\"The invariant is defined as the size of the symmetric difference of A and B modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({A}, {B}).\\n\"\n        f\"The sequence generates pairs where each next pair's subsets are expanded by adding a new element from the set.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "af98c6762412",
+      "parent_id": "47b7f98e10c1",
+      "generation": 13,
+      "p_hat": 0.7,
+      "h_score": 102.62474479675294,
+      "rq_score": 21.55119640731812,
+      "fitness": 21.55119640731812,
+      "niche_group": 1,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "contradiction",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 21.55119640731812
+        },
+        "_behavior_sig_5": "8f448a2cd2d139d08af3e9d922bdf92fb2d01bbf065d16e81a716e1dfe819482",
+        "_template_sig_5": "c44068c37dcce3f29c6794afe0fd2176a524bb2b736923332be461a7b102cb28",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 15)\n    length = rng.randint(10, 20)\n\n    # Generate two random groups of integers within specific ranges\n    group_A = [rng.randint(1, length) for _ in range(n)]\n    group_B = [rng.randint(1, length) for _ in range(n)]\n\n    # Define the invariant: the sum of the elements remains constant\n    invariant = sum(group_A) + sum(group_B)\n\n    # Generate a sequence of groups (A, B) and check if the invariant holds\n    sequence = [(group_A, group_B)]\n    for i in range(1, 5):  # Generate a few more groups to test the invariant\n        group_A_next = group_A.copy()\n        group_B_next = group_B.copy()\n        index = rng.randint(0, n - 1)\n        group_A_next[index] = rng.randint(1, length)\n        group_B_next[index] = rng.randint(1, length)\n        sequence.append((group_A_next, group_B_next))\n        invariant_next = sum(group_A_next) + sum(group_B_next)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    group_A_final, group_B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = sum(group_A_final) + sum(group_B_final)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = sum(group_A) + sum(group_B)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are groups of integers within the range 1 to {length} of size {n}. \"\n        f\"Define the invariant as the sum of the elements of A and B. \"\n        f\"Starting with (A, B) = ({group_A}, {group_B}), generate a sequence of pairs where the invariant remains constant. \"\n        f\"What is the value of the invariant for the final pair (A, B)? State only the integer.\\n\"\n        f\"The invariant is defined as the sum of the elements of A and B, and the sequence starts with (A, B) = ({group_A}, {group_B}).\\n\"\n        f\"The sequence generates pairs where each next pair's elements are adjusted by changing their value.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "d69246155c1c",
+      "parent_id": "1729007a22a0",
+      "generation": 14,
+      "p_hat": 0.4,
+      "h_score": 143.06128845214843,
+      "rq_score": 34.33470922851562,
+      "fitness": 34.33470922851562,
+      "niche_group": 1,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 34.33470922851562
+        },
+        "_behavior_sig_5": "2b869ded86e55f2f9830120b247b85fa1c9ef4f4172fafe2137678eb3ac2c8a6",
+        "_template_sig_5": "29083147fad0f6a82174ff44f3fcb03b07f0b7b4463ae9659fd3a96c7a3bf039",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Count the number of polygons that can be formed with sides equal to the numbers in the range.\n    answer = sum(1 for num in numbers if num > 2)\n\n    # Independent route: Verify the count by directly enumerating valid polygons.\n    check = 0\n    for num in numbers:\n        if num > 2:\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many polygons k with sides 1 <= k <= {n} can be formed? State only the integer.\\n\"\n        f\"The problem asks for the count of polygons that can be formed with sides in the range from 1 to {n}.\\n\"\n        f\"The count is determined by directly enumerating valid polygons in the range.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "c04691fdfbc7",
+      "parent_id": "088b9de3472d",
+      "generation": 11,
+      "p_hat": 0.5,
+      "h_score": 126.6252031326294,
+      "rq_score": 31.65630078315735,
+      "fitness": 31.65630078315735,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 31.65630078315735
+        },
+        "_behavior_sig_5": "d47327f16f8be8fda5856939aec859990ad3bc8128f26fe1c9950e9af0ccbcd1",
+        "_template_sig_5": "0e5638028d16b9a50c3080521062175b303849885f2e861ae936de946b209439",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"construction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Construct a specific subset\n    def construct_subset(size):\n        return [i for i in range(1, n + 1) if i % 2 == 0 and i % 3 == 0]\n\n    subset = construct_subset(rng.randint(1, n // 2))\n    answer = len(subset)\n\n    # Independent route: Verify the subset construction by directly enumerating the elements.\n    check = len(construct_subset(rng.randint(1, n // 2)))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are there such that k is divisible by both 2 and 3? State only the integer.\\n\"\n        f\"The problem asks for the count of integers in the range from 1 to {n} that are divisible by both 2 and 3.\\n\"\n        f\"To solve this, we construct a subset of integers that meet the criteria.\\n\"\n        f\"The integers up to {n} that are divisible by both 2 and 3 are: {subset}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "3699018eb74c",
+      "parent_id": "73d6e33fd3d7",
+      "generation": 12,
+      "p_hat": 0.8,
+      "h_score": 34.20859031677246,
+      "rq_score": 5.473374450683592,
+      "fitness": 5.473374450683592,
+      "niche_group": 1,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "construction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 5.473374450683592
+        },
+        "_behavior_sig_5": "6f9f9c78bc3a8af2280c9221c169e08f4da6937783ba46e8e264d67ac8d84369",
+        "_template_sig_5": "a8accba42e24130c91ab86105115158b08570a98a27c31cfba726926cd4aa969",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"contradiction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 70)\n    sequence_length = rng.randint(10, 20)\n\n    # Generate two random sequences within the range\n    A = sorted(rng.sample(range(1, n + 1), sequence_length))\n    B = sorted(rng.sample(range(1, n + 1), sequence_length))\n\n    # Define the invariant: the number of positions where A and B differ modulo 2 remains constant\n    invariant = (len(set(A) ^ set(B)) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(A, B)]\n    for i in range(1, 10):  # Generate a few more pairs to test the invariant\n        A_next = A + [rng.randint(1, n)]  # Extend A by adding a new integer\n        B_next = B + [rng.randint(1, n)]  # Extend B by adding a new integer\n        sequence.append((A_next, B_next))\n        invariant_next = (len(set(A_next) ^ set(B_next)) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    A_final, B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (len(set(A_final) ^ set(B_final)) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (len(set(A) ^ set(B)) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are sequences of integers. \"\n        f\"Define the invariant as the number of positions where A and B differ modulo 2. \"\n        f\"Starting with (A, B) = ({A}, {B}), generate a sequence of pairs where the invariant \"\n        f\"remains constant. Prove that the invariant cannot reach a state of 0 before a certain number of steps. \"\n        f\"State the integer representing the final value of the invariant.\\n\"\n        f\"The invariant is defined as the number of positions where A and B differ modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({A}, {B}).\\n\"\n        f\"The sequence generates pairs where each next pair's sequences are extended by adding a new integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "7ac4937169f6",
+      "parent_id": "47b7f98e10c1",
+      "generation": 13,
+      "p_hat": 0.3,
+      "h_score": 196.3111026763916,
+      "rq_score": 41.225331562042236,
+      "fitness": 41.225331562042236,
+      "niche_group": 2,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 41.225331562042236
+        },
+        "_behavior_sig_5": "522d54642135a65aad85b788a0d21ad6a9c45a14983ea06240bef7a6f2f449c3",
+        "_template_sig_5": "9b84fbf006944ab3c3de65fde8a385871cef1355aafc798b662748352f738220",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3000, 40000)\n    length = rng.randint(3, 7)\n\n    # Generate two random sequences of integers\n    seq_A = [rng.randint(0, 10) for _ in range(length)]\n    seq_B = [rng.randint(0, 10) for _ in range(length)]\n\n    # Define the invariant: the sum of the differences between corresponding elements modulo 2 remains constant\n    invariant = (sum((a - b) % 2 for a, b in zip(seq_A, seq_B)) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(seq_A, seq_B)]\n    for i in range(1, 5):  # Generate a few more pairs to test the invariant\n        seq_A_next = seq_A.copy()\n        seq_B_next = seq_B.copy()\n        idx = rng.randint(0, length - 1)\n        seq_A_next[idx] = (seq_A_next[idx] + rng.choice([0, 1])) % 2\n        seq_B_next[idx] = (seq_B_next[idx] + rng.choice([0, 1])) % 2\n        sequence.append((seq_A_next, seq_B_next))\n        invariant_next = (sum((a_next - b_next) % 2 for a_next, b_next in zip(seq_A_next, seq_B_next)) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    seq_A_final, seq_B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (sum((a_final - b_final) % 2 for a_final, b_final in zip(seq_A_final, seq_B_final)) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (sum((a - b) % 2 for a, b in zip(seq_A, seq_B)) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are sequences of integer elements. \"\n        f\"Define the invariant as the sum of the differences between corresponding elements modulo 2. \"\n        f\"Starting with (A, B) = ({seq_A}, {seq_B}), generate a sequence of pairs where the invariant remains constant. \"\n        f\"What is the value of the invariant for the final pair (A, B)? State only the integer.\\n\"\n        f\"The invariant is defined as the sum of the differences between corresponding elements modulo 2, and the sequence starts with (A, B) = ({seq_A}, {seq_B}).\\n\"\n        f\"The sequence generates pairs where each next pair's elements are adjusted by changing their value.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "be862ab4a487",
+      "parent_id": "0fb486e36a95",
+      "generation": 14,
+      "p_hat": 0.6,
+      "h_score": 116.53173904418945,
+      "rq_score": 27.967617370605467,
+      "fitness": 27.967617370605467,
+      "niche_group": 2,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 27.967617370605467
+        },
+        "_behavior_sig_5": "f0f4c46102e738ffb70f9fb4965ca2976f2c3c37d69d0f41d0d7ebdcf2386aa8",
+        "_template_sig_5": "ac9b1aa021bbed121ed099881f3d52d8281baca861ee194681a29a9cfabfb2cd",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Transform the problem by converting the count of Fibonacci numbers to the count of powers of 2.\n    fib_numbers = sorted(sympy.fibonacci(n) for n in range(1, 10))  # Example Fibonacci numbers\n    powers_of_two = sorted(2**i for i in range(1, 10))  # Example powers of 2\n    answer = sum(1 for num in numbers if num in powers_of_two)\n\n    # Independent route: Verify the transformation by explicitly counting powers of 2.\n    check = 0\n    for num in numbers:\n        if num in powers_of_two:\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many numbers k with 1 <= k <= {n} are powers of 2? State only the integer.\\n\"\n        f\"The problem asks for the count of powers of 2 in the range from 1 to {n}.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "09938720a099",
+      "parent_id": "4c66978599fc",
+      "generation": 11,
+      "p_hat": 0.1111111111111111,
+      "h_score": 1872.1557021670872,
+      "rq_score": 184.90426688069996,
+      "fitness": 184.90426688069996,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 184.90426688069996
+        },
+        "_behavior_sig_5": "db51ffc225f9f7939bf1957c6452ab067454988703c2c2e2c8103de81e339107",
+        "_template_sig_5": "70cac319476874479deeeb77006b6270d7ff228a8d3934f89b4834aa04ae70d2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"sequence\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Transform the problem by converting the count of Fibonacci numbers to a related quantity,\n    # such as the count of non-Fibonacci numbers in the range.\n    fib_numbers = sorted(sympy.fibonacci(n) for n in range(1, 10))  # Example Fibonacci numbers\n    answer = len(numbers) - sum(1 for num in numbers if num in fib_numbers)\n\n    # Independent route: Verify the transformation by explicitly counting non-Fibonacci numbers.\n    check = 0\n    for num in numbers:\n        if num not in fib_numbers:\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many non-Fibonacci numbers k with 1 <= k <= {n} are there? State only the integer.\\n\"\n        f\"The problem asks for the count of non-Fibonacci numbers in the range from 1 to {n}.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "4c66978599fc",
+      "parent_id": "e5ab67f7e97b",
+      "generation": 10,
+      "p_hat": 0.4444444444444444,
+      "h_score": 159.10187000698514,
+      "rq_score": 39.28441234740374,
+      "fitness": 39.28441234740374,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 39.28441234740374
+        },
+        "_behavior_sig_5": "d2534309730892d1580489bffae35ea7d262c26f9e969af78a9d5305d972c0c9",
+        "_template_sig_5": "b41ce57e275f15d1ddaef0f31e414f818b94c62bdc50b184164d845dc0aca590",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"induction\"\n\n\ndef find_max_polynomial_sum(degree, min_degree, max_degree):\n    if degree == 0:\n        return 0\n    \n    if degree < min_degree:\n        return -1\n    \n    max_sum = 0\n    \n    for d in range(min_degree, max_degree + 1):\n        if d <= degree:\n            remaining_degree = degree - d\n            count = find_max_polynomial_sum(remaining_degree, min_degree, d - 1)\n            \n            if count != -1:\n                max_sum = max(max_sum, count + 1)\n    \n    return max_sum\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_degree = rng.randint(1, 3)\n    max_degree = rng.randint(3, 7)\n    degree = rng.randint(1000, 5000)\n    \n    answer = find_max_polynomial_sum(degree, min_degree, max_degree)\n\n    check = -1\n    for d in range(min_degree, max_degree + 1):\n        if d <= degree:\n            remaining_degree = degree - d\n            count = find_max_polynomial_sum(remaining_degree, min_degree, d - 1)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider polynomials of degree from {min_degree} to {max_degree} (inclusive). \"\n        f\"What is the maximum number of distinct polynomials that can be selected such that no polynomial exceeds the total degree {degree} and the sum of their degrees is exactly {degree}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "13f74db955a9",
+      "parent_id": "ea0bd70c5124",
+      "generation": 22,
+      "p_hat": 0.7777777777777778,
+      "h_score": 60.5356559753418,
+      "rq_score": 10.462952884626977,
+      "fitness": 10.462952884626977,
+      "niche_group": 3,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 10.462952884626977
+        },
+        "_behavior_sig_5": "ee430aa1d944cbdac584d77df4009d8541ccd10ef2e1aee55bd6b8ff71011abc",
+        "_template_sig_5": "b4f9884e4789f23a9748f88e43192ae8d5c02c71930b549535d3040df19cfea9",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"contradiction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    a, b, c = rng.sample([1, 2, 3, 4, 5, 6, 7, 8, 9], 3)\n    n = rng.randint(10, 30)\n\n    # Same shape as the parent: invariant remains constant, but now the invariant is the degree of a polynomial\n    P = a * rng.randint(1, n) + b * rng.randint(1, n) + c * rng.randint(1, n)\n    invariant = P % 2\n\n    # Generate a sequence of pairs (P, Q) where each pair is a polynomial and check if the invariant holds\n    sequence = [(P, P)]\n    for i in range(1, 10):  # Generate a few more pairs to test the invariant\n        P_next = P + rng.randint(1, n)\n        Q_next = P_next + rng.randint(1, n)\n        sequence.append((P_next, Q_next))\n        invariant_next = (P_next % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (P, Q) where the invariant holds\n    P_final, Q_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (P_final % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (P % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (P, Q) where P and Q are polynomials of degree less than or equal to {n}. Define the invariant as the degree of the polynomial modulo 2. Starting with (P, Q) = (a*x + b*y + c*z, a*x + b*y + c*z), generate a sequence of pairs where the invariant remains constant. Prove that the invariant cannot reach a state of 0 before a certain number of steps. State the integer representing the final value of the invariant.\\n\"\n        f\"The invariant is defined as the degree of the polynomial modulo 2, and \"\n        f\"the sequence starts with (P, Q) = (a*x + b*y + c*z, a*x + b*y + c*z).\\n\"\n        f\"The sequence generates pairs where each next pair's polynomials are expanded by adding a new term with a random coefficient.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "81e4d9ef3d25",
+      "parent_id": "b9e833cbc729",
+      "generation": 12,
+      "p_hat": 0.1,
+      "h_score": 120.49638900756835,
+      "rq_score": 10.844675010681152,
+      "fitness": 10.844675010681152,
+      "niche_group": 3,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 10.844675010681152
+        },
+        "_behavior_sig_5": "c2efeb31005e792203004a00046800fc36e0ec246691936cb1e9e8ecd7061c98",
+        "_template_sig_5": "129c4e3c7fc9f0aa78011f8e4fa29a6ed4fd79ac8705899d8eb691e56dd4702d",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 15)\n    degree = rng.randint(1, n)\n\n    # Generate two random polynomials of a given degree\n    coeffs_A = [rng.randint(0, 10) for _ in range(degree + 1)]\n    coeffs_B = [rng.randint(0, 10) for _ in range(degree + 1)]\n\n    # Define the invariant: the difference of the polynomials modulo 2 remains constant\n    invariant = (sum(coeff_A - coeff_B for coeff_A, coeff_B in zip(coeffs_A, coeffs_B)) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(coeffs_A, coeffs_B)]\n    for i in range(1, 5):  # Generate a few more pairs to test the invariant\n        coeffs_A_next = coeffs_A.copy()\n        coeffs_B_next = coeffs_B.copy()\n        idx = rng.randint(0, degree)\n        coeffs_A_next[idx] = (coeffs_A_next[idx] + rng.choice([0, 1])) % 2\n        coeffs_B_next[idx] = (coeffs_B_next[idx] + rng.choice([0, 1])) % 2\n        sequence.append((coeffs_A_next, coeffs_B_next))\n        invariant_next = (sum(coeff_A_next - coeff_B_next for coeff_A_next, coeff_B_next in zip(coeffs_A_next, coeffs_B_next)) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    coeffs_A_final, coeffs_B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (sum(coeff_A_final - coeff_B_final for coeff_A_final, coeff_B_final in zip(coeffs_A_final, coeffs_B_final)) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (sum(coeff_A - coeff_B for coeff_A, coeff_B in zip(coeffs_A, coeffs_B)) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are sequences of integer coefficients of polynomials of degree {degree}. \"\n        f\"Define the invariant as the difference of the coefficients of A and B modulo 2. \"\n        f\"Starting with (A, B) = ({coeffs_A}, {coeffs_B}), generate a sequence of pairs where the invariant remains constant. \"\n        f\"What is the value of the invariant for the final pair (A, B)? State only the integer.\\n\"\n        f\"The invariant is defined as the difference of the coefficients of A and B modulo 2, and the sequence starts with (A, B) = ({coeffs_A}, {coeffs_B}).\\n\"\n        f\"The sequence generates pairs where each next pair's coefficients are adjusted by changing their value.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "0fb486e36a95",
+      "parent_id": "02f6227f3d73",
+      "generation": 13,
+      "p_hat": 0.6666666666666666,
+      "h_score": 100.54088242848714,
+      "rq_score": 22.342418317441588,
+      "fitness": 22.342418317441588,
+      "niche_group": 3,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 22.342418317441588
+        },
+        "_behavior_sig_5": "2f39d477152d3b3be59cc0468113cb634be3e74b01a6d871bb0bd8838a38a725",
+        "_template_sig_5": "414490bc15af927cfd970e23ba31d0e3c173a1a943177468b1876c9e132c5af7",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)\n    degree = rng.randint(1, n)\n\n    # Generate two random polynomials of a given degree\n    coeffs_A = [rng.choice(range(-n, n + 1)) for _ in range(degree + 1)]\n    coeffs_B = [rng.choice(range(-n, n + 1)) for _ in range(degree + 1)]\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (sum(1 for a, b in zip(coeffs_A, coeffs_B) if a != b) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(coeffs_A, coeffs_B)]\n    for i in range(1, 5):  # Generate a few more pairs to test the invariant\n        coeffs_A_next = coeffs_A.copy()\n        coeffs_B_next = coeffs_B.copy()\n        coeffs_A_next[rng.randint(0, degree)] += rng.choice(range(-n, n + 1))\n        coeffs_B_next[rng.randint(0, degree)] += rng.choice(range(-n, n + 1))\n        sequence.append((coeffs_A_next, coeffs_B_next))\n        invariant_next = (sum(1 for a, b in zip(coeffs_A_next, coeffs_B_next) if a != b) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    coeffs_A_final, coeffs_B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (sum(1 for a, b in zip(coeffs_A_final, coeffs_B_final) if a != b) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (sum(1 for a, b in zip(coeffs_A, coeffs_B) if a != b) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are polynomials of degree {degree} \"\n        f\"with coefficients in the range -{n} to {n}. Define the invariant as the symmetric difference \"\n        f\"of the coefficients of A and B modulo 2. Starting with (A, B) = ({coeffs_A}, {coeffs_B}), \"\n        f\"generate a sequence of pairs where the invariant remains constant. How many coefficient changes \"\n        f\"are needed to maintain the invariant in the final pair (A, B)? State only the integer.\\n\"\n        f\"The invariant is defined as the symmetric difference of the coefficients of A and B modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({coeffs_A}, {coeffs_B}).\\n\"\n        f\"The sequence generates pairs where each next pair's coefficients are adjusted by adding or subtracting a random value.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "b5b266827a2a",
+      "parent_id": "e8ac98cfbbb0",
+      "generation": 12,
+      "p_hat": 0.3,
+      "h_score": 234.66100845336913,
+      "rq_score": 49.278811775207515,
+      "fitness": 49.278811775207515,
+      "niche_group": 3,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 49.278811775207515
+        },
+        "_behavior_sig_5": "5e5f576a957515fd871cc4587e979b1141a913576a688959522a95403a6d694f",
+        "_template_sig_5": "772e63366d08156b4f34eec49b0591f6480fbb7d5615cf10628ad5abc255e518",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    grid_size = rng.randint(10, 20)\n    points = rng.sample(range(1, grid_size + 1), 5)\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (sum(1 for i in range(len(points) - 1) if points[i] % 2 != points[i + 1] % 2) % 2)\n\n    # Generate a sequence of points and check if the invariant holds\n    sequence = [points.copy()]\n    for i in range(1, 5):  # Generate a few more pairs to test the invariant\n        points_next = points.copy()\n        points_next[rng.randint(0, len(points) - 1)] += rng.choice([1, -1])\n        sequence.append(points_next.copy())\n        invariant_next = (sum(1 for j in range(len(points_next) - 1) if points_next[j] % 2 != points_next[j + 1] % 2) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid sequence of points where the invariant holds\n    points_final = sequence[-1]\n\n    # Calculate the invariant for the final sequence\n    answer = (sum(1 for i in range(len(points_final) - 1) if points_final[i] % 2 != points_final[i + 1] % 2) % 2)\n\n    # Independent route: Calculate the invariant for the initial sequence and verify it remains the same.\n    check = (sum(1 for j in range(len(points) - 1) if points[j] % 2 != points[j + 1] % 2) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of points where each point is an integer in the range 1 to {grid_size}. \"\n        f\"Define the invariant as the symmetric difference modulo 2 of consecutive points. Starting with \"\n        f\"points {points}, generate a sequence of points where the invariant remains constant. How many \"\n        f\"times does the invariant change modulo 2 in the final sequence of points? State only the integer.\\n\"\n        f\"The invariant is defined as the symmetric difference modulo 2 of consecutive points, and the \"\n        f\"sequence starts with points {points}.\\n\"\n        f\"The sequence generates points where each next point is adjusted by adding or subtracting 1.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "83da1577a0be",
+      "parent_id": "b5b266827a2a",
+      "generation": 13,
+      "p_hat": 0.7,
+      "h_score": 185.56652603149413,
+      "rq_score": 38.96897046661377,
+      "fitness": 38.96897046661377,
+      "niche_group": 4,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 38.96897046661377
+        },
+        "_behavior_sig_5": "04252f32d269314935d0b7aa61c09b1019ac00df922866a15fddccf329b22954",
+        "_template_sig_5": "5adc8549a0ac1b8af1582a47e9acc917497fe59a384c6e82321a5f9afcba9850",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    num_circles = rng.randint(5, 10)\n    radius = rng.randint(10, 20)\n\n    # Select a number and find its divisors\n    selected_number = rng.randint(2, 20)\n    divisors = sorted([i for i in range(1, selected_number + 1) if selected_number % i == 0])\n\n    # Generate a list of circle positions based on divisors\n    circle_positions = [i * radius for i in divisors]\n\n    # Count how many circle positions have another circle at their position\n    answer = len(circle_positions)\n\n    # Independent route: Verify the count by checking each position\n    check = len([pos for pos in circle_positions if pos in circle_positions])\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many points of intersection are there among the circles with radii {radius} and \"\n        f\"centres at distances {circle_positions} along a line? State only the integer.\\n\"\n        f\"The problem asks for the number of intersections where each distance is a divisor of {selected_number}.\\n\"\n        f\"Distances: {circle_positions}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "ef2beb36c330",
+      "parent_id": "8dd8bd4d5bbc",
+      "generation": 10,
+      "p_hat": 0.4,
+      "h_score": 56.610714721679685,
+      "rq_score": 13.586571533203124,
+      "fitness": 13.586571533203124,
+      "niche_group": 4,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 13.586571533203124
+        },
+        "_behavior_sig_5": "78fec55fd8541b8ccf8ccbdbe3d22091d96d1f14387c4e0a47bb00605bdb24d8",
+        "_template_sig_5": "734ff42e1356ab8f9e7c14f6b0cfb68b2340ff89544d9708ccc32e85f41be402",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-08T00:34:21+00:00",
+  "benchmark": "evolved_performance_seed_id_v1",
+  "benchmark_sha256": "1d8a01cc32a7db28391de71b8e10e6da3f352ced2ca37d98d99e324499d38104",
+  "model": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_224/hf_merged",
+  "tokenizer": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_224/hf_merged",
+  "global_step": 224,
+  "grader": "last-boxed + rq_evolve.reward.answers_match",
+  "sampling": {
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "n": 1,
+    "seed": 0,
+    "max_tokens": 4096,
+    "vllm_sampler_backend": "pytorch",
+    "vllm_use_flashinfer_sampler": "0"
+  },
+  "elapsed_sec": 75.36,
+  "correct": 191,
+  "num_examples": 240,
+  "micro_accuracy": 0.7958333333333333,
+  "macro_accuracy": 0.7958333333333333,
+  "score_percent": 79.58333333333333,
+  "per_program": {
+    "08_recurrence": {
+      "correct": 40,
+      "num_examples": 40,
+      "accuracy": 1.0
+    },
+    "09_linear_algebra": {
+      "correct": 39,
+      "num_examples": 40,
+      "accuracy": 0.975
+    },
+    "10_inequalities": {
+      "correct": 40,
+      "num_examples": 40,
+      "accuracy": 1.0
+    },
+    "11_kth_root_count": {
+      "correct": 21,
+      "num_examples": 40,
+      "accuracy": 0.525
+    },
+    "12_derangement_fixed_points": {
+      "correct": 12,
+      "num_examples": 40,
+      "accuracy": 0.3
+    },
+    "18_absolute_quadratic_cases": {
+      "correct": 39,
+      "num_examples": 40,
+      "accuracy": 0.975
+    }
+  }
+}

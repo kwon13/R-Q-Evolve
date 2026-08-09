@@ -74,3 +74,10 @@ rq_output
 wandb/
 analysis/
 .raytmp/
+
+# results/ carries the run record, and the per-benchmark logs are part of it:
+# the quota failures that silently turned post-GPT scores into pre-GPT ones
+# were only ever visible there, never in summary.json. The `logs/` rule above
+# is for the repo's own scratch logs, not these.
+!results/**/logs/
+!results/**/logs/*.log

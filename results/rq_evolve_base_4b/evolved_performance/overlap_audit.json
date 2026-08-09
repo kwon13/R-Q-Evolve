@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "audit": "known_original_seed_program_training_overlap",
+  "used_seeds_json": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/rq_archive/rq_used_seeds.json",
+  "benchmark_examples": 240,
+  "exact_overlap_count": 49,
+  "exact_overlap_rate": 0.20416666666666666,
+  "per_program": {
+    "08_recurrence": {
+      "program_id": "d9a33e8b1a9c",
+      "consumed_seed_count": 114,
+      "reconstructed_unique_instances": 87,
+      "execution_failures": 0,
+      "benchmark_examples": 40,
+      "exact_overlap_count": 16
+    },
+    "09_linear_algebra": {
+      "program_id": "4bb63a52cd14",
+      "consumed_seed_count": 72,
+      "reconstructed_unique_instances": 72,
+      "execution_failures": 0,
+      "benchmark_examples": 40,
+      "exact_overlap_count": 0
+    },
+    "10_inequalities": {
+      "program_id": "9515b0477fcf",
+      "consumed_seed_count": 127,
+      "reconstructed_unique_instances": 67,
+      "execution_failures": 0,
+      "benchmark_examples": 40,
+      "exact_overlap_count": 30
+    },
+    "11_kth_root_count": {
+      "program_id": "945b22e16e37",
+      "consumed_seed_count": 8,
+      "reconstructed_unique_instances": 8,
+      "execution_failures": 0,
+      "benchmark_examples": 40,
+      "exact_overlap_count": 0
+    },
+    "12_derangement_fixed_points": {
+      "program_id": "c382593b0247",
+      "consumed_seed_count": 0,
+      "reconstructed_unique_instances": 0,
+      "execution_failures": 0,
+      "benchmark_examples": 40,
+      "exact_overlap_count": 0
+    },
+    "18_absolute_quadratic_cases": {
+      "program_id": "e9efe4a2b47f",
+      "consumed_seed_count": 184,
+      "reconstructed_unique_instances": 170,
+      "execution_failures": 0,
+      "benchmark_examples": 40,
+      "exact_overlap_count": 3
+    }
+  },
+  "limitation": "Exact overlap from original seed programs only; semantically equivalent problems and collisions emitted by mutated programs cannot be reconstructed from rq_used_seeds.json."
+}

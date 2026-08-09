@@ -1,0 +1,58 @@
+{
+  "counts": {
+    "generators": 5,
+    "instances": 15,
+    "representation_inputs": 15,
+    "rollouts": 150
+  },
+  "evolution_iteration": 0,
+  "experiment_id": "reasoning_expansion_pilot",
+  "generator_checkpoint_id": null,
+  "generator_compute_note": "generator_call_count is a historical candidate-draw count. llm_generation_call_count and total_generator_max_token_budget record actual plan/code generation stages for paired-compute gates.",
+  "independent_run_id": "notebook_pilot_001",
+  "lineage_note": "The source artifact did not record explicit child-instance lineage; same child/parent seed is retained as a post-hoc pairing assumption.",
+  "parent": {
+    "parent_concept_group": "algebra",
+    "parent_concept_type": "algebra.linear_system_sum",
+    "parent_p_hat": 0.5,
+    "parent_program_id": "35f80a1dc6c9",
+    "parent_rq_proxy": 0.0653391729637473,
+    "parent_source_path": "/data1/yhoon113/R-Q-Evolve/seed_programs/09_linear_algebra.py",
+    "parent_status": "ok"
+  },
+  "preregistered_config_path": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/preregistered_config.json",
+  "preregistered_config_sha256": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd",
+  "rq_note": "rq values are mean-token negative-logprobability proxies, not the actor-logit entropy scalar objective used during training.",
+  "schema_version": 1,
+  "solver_checkpoint_id": "/data1/yhoon113/qwen3-8b-base",
+  "source_comparison_root": "/data1/yhoon113/R-Q-Evolve/rq_output/mutation_method_comparison_notebook",
+  "source_run_manifest_path": null,
+  "source_run_manifest_sha256": null,
+  "sufficiency": {
+    "child_generator_draws": 4,
+    "code_valid_child_instances": 10,
+    "confirmatory_ready": false,
+    "descriptive_only": true,
+    "gates": {
+      "min_confirmatory_parents": 20,
+      "min_confirmatory_runs": 3,
+      "min_paired_generators_per_parent": 3
+    },
+    "independent_runs_with_strict_pairs": 0,
+    "minimum_strict_pairs_per_parent": 0,
+    "parents_with_strict_pairs": 0,
+    "strict_generator_draws": 0,
+    "strict_matched_generator_pairs": 0,
+    "warnings": [
+      "insufficient_independent_units: generation-space inference is disabled; instance seeds and rollouts are nested observations.",
+      "no_strict_matched_generator_pairs: conditional representation effects cannot be estimated under the confirmatory validity rule."
+    ]
+  },
+  "warnings": [
+    "in_breadth/legacy was evaluator_rejected; diagnostic code-valid analysis is selection-biased and non-confirmatory.",
+    "in_breadth/metacognitive violates the operator concept contract (algebra/algebra.linear_system_sum -> algebra/algebra.linear_system_sum).",
+    "insufficient_independent_units: generation-space inference is disabled; instance seeds and rollouts are nested observations.",
+    "no_strict_matched_generator_pairs: conditional representation effects cannot be estimated under the confirmatory validity rule.",
+    "source_manifest_missing: generator temperatures, token budgets, and model provenance could not be recovered from this older run."
+  ]
+}

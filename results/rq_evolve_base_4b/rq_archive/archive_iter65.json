@@ -1,0 +1,507 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 14,
+      "total_niches": 48,
+      "coverage": 0.2916666666666667,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 0.5,
+      "mean_rq": 43.945509830474975,
+      "max_rq": 246.2838556737076,
+      "total_insertions": 156,
+      "total_replacements": 14,
+      "total_selections": 320
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"induction\"\n\n\ndef find_max_inclusion_exclusion(target, prime):\n    if target == 0:\n        return 0\n    \n    if target < prime:\n        return -1\n    \n    max_count = 0\n    \n    for i in range(1, target // prime + 1):\n        remaining_target = target - i * prime\n        count = find_max_inclusion_exclusion(remaining_target, prime)\n        \n        if count != -1:\n            max_count = max(max_count, count + i)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    prime = rng.randint(5, 20)\n    target_value = rng.randint(30, 60)\n    \n    answer = find_max_inclusion_exclusion(target_value, prime)\n\n    check = -1\n    for i in range(1, target_value // prime + 1):\n        remaining_target = target_value - i * prime\n        count = find_max_inclusion_exclusion(remaining_target, prime)\n        if count != -1:\n            check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a sequence of terms where each term is a multiple of a fixed prime number {prime}. The sum of the terms in the sequence is exactly {target_value}. \"\n        f\"What is the maximum number of distinct terms that can be selected such that no term exceeds the target sum {target_value} and the total number of selected terms sums to exactly {target_value}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "3f28660a57c4",
+      "parent_id": "822d5800e3b7",
+      "generation": 20,
+      "p_hat": 0.5555555555555556,
+      "h_score": 224.16541035970053,
+      "rq_score": 55.34948403943223,
+      "fitness": 55.34948403943223,
+      "niche_group": 0,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 55.34948403943223
+        },
+        "_behavior_sig_5": "ef3c3b99c71d7e3eb1353806a81f8a2a6302fa31adbfed5004c1be6a01a3e014",
+        "_template_sig_5": "bfc43348b61a61839c3c80797323d5687e830e1ceefe8d2514e6840706aa9689",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Define an invariant that remains constant under the given conditions.\n    # In this case, the invariant is the parity of the number of prime numbers.\n    answer = sum(1 for num in numbers if sympy.isprime(num))\n\n    # Independent route: Verify the invariant by observing the parity change.\n    check = 0\n    for num in numbers:\n        if sympy.isprime(num):\n            check += 1\n        else:\n            check += 0\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many prime numbers k with 1 <= k <= {n} are there? State only the integer.\\n\"\n        f\"The problem asks for the count of prime numbers in the range from 1 to {n}.\\n\"\n        f\"Invariant: The parity of the number of prime numbers in the range remains constant.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "4f804f515d92",
+      "parent_id": "bd4929fe732d",
+      "generation": 9,
+      "p_hat": 0.8,
+      "h_score": 150.07963075637818,
+      "rq_score": 24.012740921020505,
+      "fitness": 24.012740921020505,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 24.012740921020505
+        },
+        "_behavior_sig_5": "7e2db5d6541246f9ee5295eeecafca55e1b3157a0d4e1b5a56ddcdae961865c5",
+        "_template_sig_5": "3991606f14e6d0035da6ea93743d3eb68af94376e6ef9d04c0b6cd06b8b5c768",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Find the number of primes where each prime's position in the range is also a prime\n    primes = list(sympy.primerange(1, n + 1))\n    valid_positions = [i + 1 for i in range(n) if sympy.isprime(i + 1)]\n    answer = sum(1 for num in primes if num in valid_positions)\n\n    # Independent route: Verify the count by explicitly checking each prime's position.\n    check = 0\n    for prime in primes:\n        if prime <= n and sympy.isprime(valid_positions[primes.index(prime) - 1]):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many prime numbers k with 1 <= k <= {n} have their position in the range from 1 to {n} also be a prime number? State only the integer.\\n\"\n        f\"The problem asks for the count of prime numbers in the range from 1 to {n} whose position is also a prime number.\\n\"\n        f\"Primes in the range are: {primes}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "65ebf2236553",
+      "parent_id": "8dd8bd4d5bbc",
+      "generation": 10,
+      "p_hat": 0.3333333333333333,
+      "h_score": 1108.277350531684,
+      "rq_score": 246.2838556737076,
+      "fitness": 246.2838556737076,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 246.2838556737076
+        },
+        "_behavior_sig_5": "a5b2eda11c04fd86ecd6013e824a0f3c0d15e0bfe3b4d01c3b2e8cd797e7985b",
+        "_template_sig_5": "35974a77dd6ff94141d0cc730dcb6d98f829c45b1c447b0eeb6f04eb33f90193",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Find the number of primes where each prime's position in the range is also a prime\n    def is_prime_position(num):\n        idx = numbers.index(num) + 1\n        return sympy.isprime(idx)\n\n    answer = sum(1 for num in numbers if sympy.isprime(num) and is_prime_position(num))\n\n    # Independent route: Verify the count by explicitly checking each number for primality and its position.\n    check = 0\n    for num in numbers:\n        if sympy.isprime(num) and is_prime_position(num):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many prime numbers k with 1 <= k <= {n} have their position in the range from 1 to {n} also be a prime number? State only the integer.\\n\"\n        f\"The problem asks for the count of prime numbers in the range from 1 to {n} whose position is also a prime number.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "8dd8bd4d5bbc",
+      "parent_id": "bd4929fe732d",
+      "generation": 9,
+      "p_hat": 0.2222222222222222,
+      "h_score": 220.2556440565321,
+      "rq_score": 38.06887675051172,
+      "fitness": 38.06887675051172,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 38.06887675051172
+        },
+        "_behavior_sig_5": "8246f395f726918ce89e5701cfb45466395e970bcf0623894e302ffea60c74ad",
+        "_template_sig_5": "cbfd62108e61ce2d5f7a396b097852414f25eff3b6087ca03560fe74a3e5944f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"induction\"\n\n\ndef find_max_subset_size(n, min_size, max_size):\n    if n == 0:\n        return 0\n    \n    if n < min_size:\n        return -1\n    \n    max_count = 0\n    \n    for subset_size in range(min_size, max_size + 1):\n        if subset_size <= n:\n            remaining_n = n - subset_size\n            count = find_max_subset_size(remaining_n, min_size, subset_size - 1)\n            \n            if count != -1:\n                max_count = max(max_count, count + 1)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_size = rng.randint(3, 10)\n    max_size = rng.randint(20, 40)\n    n = rng.randint(50, 100)\n    \n    answer = find_max_subset_size(n, min_size, max_size)\n\n    check = -1\n    for subset_size in range(min_size, max_size + 1):\n        if subset_size <= n:\n            remaining_n = n - subset_size\n            count = find_max_subset_size(remaining_n, min_size, subset_size - 1)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a set of distinct subsets of a universal set where the size of each subset ranges from {min_size} to {max_size} (inclusive). \"\n        f\"What is the maximum number of distinct subsets of size up to {n} that can be selected such that no subset size exceeds the total {n} and all selected subset sizes sum to exactly {n}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "209c4614885e",
+      "parent_id": "51b34f458f2f",
+      "generation": 19,
+      "p_hat": 0.5555555555555556,
+      "h_score": 73.51832538180881,
+      "rq_score": 18.15267293377995,
+      "fitness": 18.15267293377995,
+      "niche_group": 1,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 18.15267293377995
+        },
+        "_behavior_sig_5": "7a50715b3633e6f2fd0d6b6307d0c5408f1da86f3d6aa76cbde57751fd6bdf5b",
+        "_template_sig_5": "1920cd2966b99530449075a3cf82d3ec0f43392c4987aaf83880388b6b9801b3",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate two random sets within the range\n    A = set(rng.sample(range(1, n + 1), k=rng.randint(5, n - 5)))\n    B = set(rng.sample(range(1, n + 1), k=rng.randint(5, n - 5)))\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (len(A.symmetric_difference(B)) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(A, B)]\n    for i in range(1, 10):  # Generate a few more pairs to test the invariant\n        A_next = sequence[-1][0].union({rng.randint(1, n)})\n        B_next = sequence[-1][1].union({rng.randint(1, n)})\n        sequence.append((A_next, B_next))\n        invariant_next = (len(A_next.symmetric_difference(B_next)) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    A_final, B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (len(A_final.symmetric_difference(B_final)) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (len(A.symmetric_difference(B)) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are subsets \"\n        f\"of the set {set(range(1, n + 1))}. Define the invariant as the \"\n        f\"symmetric difference of A and B modulo 2. Starting with (A, B) = \"\n        f\"({A}, {B}), generate a sequence of pairs where the invariant \"\n        f\"remains constant. What is the value of the invariant for the final \"\n        f\"pair (A, B)? State only the integer.\\n\"\n        f\"The invariant is defined as the symmetric difference of A and B modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({A}, {B}).\\n\"\n        f\"The sequence generates pairs where each next pair's sets are expanded by adding a new element.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "8bef946324bf",
+      "parent_id": "af31fec5cf8c",
+      "generation": 10,
+      "p_hat": 0.1,
+      "h_score": 376.05815773010255,
+      "rq_score": 33.84523419570923,
+      "fitness": 33.84523419570923,
+      "niche_group": 1,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 33.84523419570923
+        },
+        "_behavior_sig_5": "21073a792fb689b08427cb3c9c351843ae139d0f3129ffc7dc08e23445402610",
+        "_template_sig_5": "4e6f854332f56f6fcb3e9f90ac3f2828e8c54ff0cbf4fdb9cc4bd793a94c8c41",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w, h = rng.randint(10, 20), rng.randint(10, 20)\n\n    # Complement over the grid, with the union of the two diagonals expanded by\n    # inclusion-exclusion. A segment from (0,0) to (w,h) meets gcd(w,h)+1\n    # lattice points, and the diagonals cross at the centre, which is a lattice\n    # point exactly when w and h are both even.\n    total = (w + 1) * (h + 1)\n    on_each = math.gcd(w, h) + 1\n    on_both = 1 if w % 2 == 0 and h % 2 == 0 else 0\n    answer = total - (2 * on_each - on_both)\n\n    # Independent route: walk every lattice point of the rectangle and test it\n    # against the two diagonal equations, instead of counting by complement.\n    check = sum(\n        1\n        for x in range(w + 1)\n        for y in range(h + 1)\n        if x * h != y * w and x * h + y * w != w * h\n    )\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the grid of points with integer coordinates 0 <= x <= {w} \"\n        f\"and 0 <= y <= {h}. How many of them lie on neither diagonal of the \"\n        f\"rectangle? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "8a63cd5413fb",
+      "parent_id": "bd4929fe732d",
+      "generation": 9,
+      "p_hat": 0.8,
+      "h_score": 41.07445526123047,
+      "rq_score": 6.571912841796874,
+      "fitness": 6.571912841796874,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 6.571912841796874
+        },
+        "_behavior_sig_5": "84df53096e61215257c29571182afc4a91896478d988b9116f989caa0d1013e9",
+        "_template_sig_5": "ed0251c77a971eb0aad711176de418ca0e44d7b49dbe9b0ff5510ad5a76451ea",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"combinatorics\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 10)\n    k = rng.randint(1, n)\n\n    # Generate a random set of k elements from a set of n elements\n    original_set = rng.sample(range(n), k)\n    set_size = len(original_set)\n\n    # Find the number of subsets where each subset's size is also a prime number\n    def is_prime_size(subset_size):\n        return sympy.isprime(subset_size)\n\n    answer = sum(1 for size in range(1, set_size + 1) if is_prime_size(size))\n\n    # Independent route: Verify the count by explicitly checking each possible subset size.\n    check = 0\n    for size in range(1, set_size + 1):\n        if is_prime_size(size):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many subset sizes of a set containing {k} elements, where the sizes themselves are prime numbers, can be formed? State only the integer.\\n\"\n        f\"The problem asks for the count of subset sizes in a set of {k} elements where the subset size is also a prime number.\\n\"\n        f\"The set in question has elements: {original_set}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "9b541ab87911",
+      "parent_id": "8dd8bd4d5bbc",
+      "generation": 10,
+      "p_hat": 0.9,
+      "h_score": 241.45560855865477,
+      "rq_score": 21.731004770278926,
+      "fitness": 21.731004770278926,
+      "niche_group": 1,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 21.731004770278926
+        },
+        "_behavior_sig_5": "757b6bb3ef82059ca127a65e33707c78427a313e8cbe915eb953924e3117b972",
+        "_template_sig_5": "bfa0fd8a389eda858f00bdd1998779cf0108accd25dc30497796fea77eca346a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n\n\ndef find_max_inclusion_exclusion(target, step):\n    if target == 0:\n        return 0\n    \n    if target < step:\n        return -1\n    \n    max_count = 0\n    \n    for i in range(1, target // step + 1):\n        remaining_target = target - i * step\n        count = find_max_inclusion_exclusion(remaining_target, step)\n        \n        if count != -1:\n            max_count = max(max_count, count + i)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    step = rng.randint(2, 10)\n    target_value = rng.randint(20, 50)\n    \n    answer = find_max_inclusion_exclusion(target_value, step)\n\n    check = -1\n    for i in range(1, target_value // step + 1):\n        remaining_target = target_value - i * step\n        count = find_max_inclusion_exclusion(remaining_target, step)\n        if count != -1:\n            check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a sequence of terms where each term increases by a fixed step number {step}. The sum of the terms in the sequence is exactly {target_value}. \"\n        f\"What is the maximum number of distinct terms that can be selected such that no term exceeds the target sum {target_value} and the total number of selected terms sums to exactly {target_value}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "18ef458118fb",
+      "parent_id": "3f28660a57c4",
+      "generation": 21,
+      "p_hat": 0.3333333333333333,
+      "h_score": 56.52128473917643,
+      "rq_score": 12.560285497594762,
+      "fitness": 12.560285497594762,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 12.560285497594762
+        },
+        "_behavior_sig_5": "a967efd57a1d8b255da16db9f16c6f03730e96bcf9771f7e3e2dd82c2a231641",
+        "_template_sig_5": "ee410dc0af068f60a79e2445da162b36fa679b79b16c9d54ddf2b8f14da35340",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    a = rng.randint(1, 10)\n    b = rng.randint(1, 10)\n    n = rng.randint(1, 10)\n\n    # Complement over the first n terms of the sequence, with the union of the\n    # terms that are multiples of a and b expanded by inclusion-exclusion.\n    total = n\n    multiples_of_a = n // a\n    multiples_of_b = n // b\n    multiples_of_a_and_b = n // (a * b)\n    answer = total - (multiples_of_a + multiples_of_b - multiples_of_a_and_b)\n\n    # Independent route: test each term in the sequence against the multiples\n    # of a and b, instead of counting by complement.\n    check = sum(1 for k in range(1, n + 1) if k % a and k % b)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many of the first {n} natural numbers are not multiples of \"\n        f\"{a} or {b}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "71de0586d783",
+      "parent_id": "8a63cd5413fb",
+      "generation": 10,
+      "p_hat": 0.75,
+      "h_score": 167.81671237945557,
+      "rq_score": 31.46563357114792,
+      "fitness": 31.46563357114792,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 31.46563357114792
+        },
+        "_behavior_sig_5": "8da7c8fe41ccceb42aebe753e8e449447496cd9c4d0dc5dde5606e28ecbdb0a2",
+        "_template_sig_5": "f0dd5572d3147571e2f18347fb16c83fbb6a549f6b053db3978a5ffaa8e690fc",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"sequence\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Transform the problem by converting the count of Fibonacci numbers to a related quantity,\n    # such as the count of non-Fibonacci numbers in the range.\n    fib_numbers = sorted(sympy.fibonacci(n) for n in range(1, 10))  # Example Fibonacci numbers\n    answer = len(numbers) - sum(1 for num in numbers if num in fib_numbers)\n\n    # Independent route: Verify the transformation by explicitly counting non-Fibonacci numbers.\n    check = 0\n    for num in numbers:\n        if num not in fib_numbers:\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many non-Fibonacci numbers k with 1 <= k <= {n} are there? State only the integer.\\n\"\n        f\"The problem asks for the count of non-Fibonacci numbers in the range from 1 to {n}.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "4c66978599fc",
+      "parent_id": "e5ab67f7e97b",
+      "generation": 10,
+      "p_hat": 0.375,
+      "h_score": 153.06928730010986,
+      "rq_score": 35.87561421096325,
+      "fitness": 35.87561421096325,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 35.87561421096325
+        },
+        "_behavior_sig_5": "d2534309730892d1580489bffae35ea7d262c26f9e969af78a9d5305d972c0c9",
+        "_template_sig_5": "b41ce57e275f15d1ddaef0f31e414f818b94c62bdc50b184164d845dc0aca590",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    degree = rng.randint(1, 4)\n    coefficients = sorted(rng.sample(range(-10, 11), degree + 1))\n\n    # Generate a polynomial with random coefficients\n    def polynomial(x):\n        return sum(coeff * (x ** i) for i, coeff in enumerate(coefficients))\n\n    # Calculate the number of values of x for which the polynomial does not evaluate to zero\n    # using a simple enumeration method\n    answer = sum(1 for x in range(-10, 11) if polynomial(x) != 0)\n\n    # Independent route: Use a complementary approach to verify the answer\n    roots = {x for x in range(-10, 11) if polynomial(x) == 0}\n    known_roots = len(roots)\n    check = 21 - known_roots\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many values of x in the range -10 to 10 inclusive make the polynomial \"\n        f\"p(x) = {coefficients[-1]}x^{degree} + {coefficients[-2]}x^{degree - 1} + ... + {coefficients[0]} not equal to zero? State only the integer.\\n\"\n        f\"The polynomial is p(x) = {coefficients[-1]}x^{degree} + {coefficients[-2]}x^{degree - 1} + ... + {coefficients[0]}.\\n\"\n        f\"The problem asks for the count of x values in the range -10 to 10 inclusive that are not roots of the polynomial.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "9ac49f2925f9",
+      "parent_id": "4759f3d214a5",
+      "generation": 9,
+      "p_hat": 0.7,
+      "h_score": 141.65687561035156,
+      "rq_score": 29.74794387817383,
+      "fitness": 29.74794387817383,
+      "niche_group": 3,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 29.74794387817383
+        },
+        "_behavior_sig_5": "cf5f91e1ad8a2c548bb7da2475d913f4781c8496408abf90870b4131ecf3f4d7",
+        "_template_sig_5": "ed838454ddf2ee09f0488575c46ed4649189f367ef4cb4ca7e6b4524ae29656f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    degree = rng.randint(1, 4)\n    coefficients = sorted(rng.sample(range(-10, 11), degree + 1))\n\n    # Generate a polynomial with random coefficients\n    def polynomial(x):\n        return sum(coeff * (x ** i) for i, coeff in enumerate(coefficients))\n\n    # Transform the polynomial into a simpler form that allows for counting non-zero values\n    # Here, we transform the polynomial into a linear form by factoring out the highest degree term\n    highest_degree = degree\n    highest_coeff = coefficients[highest_degree]\n    x_values = range(-10, 11)\n    transformed_values = [polynomial(x) // highest_coeff if highest_coeff != 0 else 0 for x in x_values]\n\n    # Calculate the number of values of x for which the transformed polynomial does not evaluate to zero\n    # This is the same as the original polynomial, but now we are counting the non-zero values of the transformed polynomial\n    answer = sum(1 for x in transformed_values if x != 0)\n\n    # Independent route: Use a complementary approach to verify the answer\n    known_transformed_values = {x for x in transformed_values if x == 0}\n    check = 21 - len(known_transformed_values)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Given the polynomial p(x) = {coefficients[-1]}x^{degree} + {coefficients[-2]}x^{degree - 1} + ... + {coefficients[0]}, \"\n        f\"transform it into a simpler form by factoring out the highest degree term. How many values of x in the range -10 to 10 inclusive \"\n        f\"make the transformed polynomial non-zero? State only the integer.\\n\"\n        f\"The polynomial is p(x) = {coefficients[-1]}x^{degree} + {coefficients[-2]}x^{degree - 1} + ... + {coefficients[0]}.\\n\"\n        f\"The problem asks for the count of x values in the range -10 to 10 inclusive that are not roots of the transformed polynomial.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "cb9fc8db13b3",
+      "parent_id": "9ac49f2925f9",
+      "generation": 10,
+      "p_hat": 0.6,
+      "h_score": 167.87927932739257,
+      "rq_score": 40.291027038574214,
+      "fitness": 40.291027038574214,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 40.291027038574214
+        },
+        "_behavior_sig_5": "4a45485f35611c8629a6ef8b531f7fd31ea97e04fb9ddf186ed3d6b282f7349b",
+        "_template_sig_5": "3902c93ddb35d4f3be57aa88dda5b68cd822801091c9de35f6153d3ff0e92ecb",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"induction\"\n\n\ndef find_max_exponent(n, min_exp, max_exp):\n    if n == 0:\n        return 0\n    \n    if n < min_exp:\n        return -1\n    \n    max_count = 0\n    \n    for exponent in range(min_exp, max_exp + 1):\n        if exponent <= n:\n            remaining_n = n - exponent\n            count = find_max_exponent(remaining_n, min_exp, exponent - 1)\n            \n            if count != -1:\n                max_count = max(max_count, count + 1)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_exp = rng.randint(3, 10)\n    max_exp = rng.randint(20, 40)\n    n = rng.randint(50, 100)\n    \n    answer = find_max_exponent(n, min_exp, max_exp)\n\n    check = -1\n    for exponent in range(min_exp, max_exp + 1):\n        if exponent <= n:\n            remaining_n = n - exponent\n            count = find_max_exponent(remaining_n, min_exp, exponent - 1)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a grid of points where the coordinates range from {min_exp} to {max_exp} (inclusive). \"\n        f\"What is the maximum number of distinct points that can be selected such that no point exceeds the total {n} and all selected points sum to exactly {n}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "8a0d2414b4b7",
+      "parent_id": "51b34f458f2f",
+      "generation": 19,
+      "p_hat": 0.7777777777777778,
+      "h_score": 123.12492540147569,
+      "rq_score": 21.28085130395876,
+      "fitness": 21.28085130395876,
+      "niche_group": 4,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "induction",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 21.28085130395876
+        },
+        "_behavior_sig_5": "899d2c2972e1cb468c519daa21b4dd877b81e1f78f6c7d7ace4d7cb57e007695",
+        "_template_sig_5": "279465f11f859d403267d612fdfd201e8480abf10afeb1c74099ae3ab888a313",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

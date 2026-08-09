@@ -1,0 +1,674 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 19,
+      "total_niches": 48,
+      "coverage": 0.3958333333333333,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 1.0,
+      "mean_rq": 28.46066612042469,
+      "max_rq": 51.42984530639649,
+      "total_insertions": 384,
+      "total_replacements": 35,
+      "total_selections": 736
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"casework\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for the number theory domain, ensuring the problem requires casework.\n    n = rng.randint(10, 30)  # Setting a range for the number\n    p, q = rng.sample([3, 5, 7, 11, 13, 17], 2)  # Selecting two distinct prime numbers\n\n    # Determine the count of numbers not divisible by p or q.\n    total_numbers = n\n    divisible_by_p = n // p\n    divisible_by_q = n // q\n    divisible_by_both = n // (p * q)\n    union = divisible_by_p + divisible_by_q - divisible_by_both\n    answer = total_numbers - union\n\n    # Independent route: counting numbers that are not divisible by p or q.\n    check_count = sum(1 for k in range(1, n + 1) if k % p != 0 and k % q != 0)\n\n    assert answer == check_count, f\"answer={answer} check={check_count}\"\n\n    # Constructing a question about the count of numbers not divisible by p or q, emphasizing the need for casework.\n    problem = f\"How many positive integers k with 1 <= k <= {n} are not divisible by {p} or {q}? Use casework to count the numbers directly to find the answer.\"\n\n    return problem, str(answer)",
+      "program_id": "14d2536ddea9",
+      "parent_id": "288811de721e",
+      "generation": 7,
+      "p_hat": 0.7777777777777778,
+      "h_score": 121.33280436197917,
+      "rq_score": 20.971101988490226,
+      "fitness": 20.971101988490226,
+      "niche_group": 0,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 20.971101988490226
+        },
+        "_behavior_sig_5": "cd5039ee5c850fa67fd990aa4460456452b162f7c61c054ee286770ebdac27cc",
+        "_template_sig_5": "7aa168e3f92eb58e129d77ef23d0b8111328452dc7cdd2fe4e83d3af11c2f80f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"contradiction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the number theory domain.\n    primes = rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23, 29], 3)\n    p, q, r = sorted(primes)\n    n = rng.randint(100, 500)\n\n    # Calculating the number of integers in the range [1, n] that are not divisible by any of p, q, and r.\n    # Total numbers minus the numbers divisible by p, q, r, then add back the numbers divisible by pq, pr, qr, and subtract the numbers divisible by pqr.\n    total = n\n    divisible_by_p = n // p\n    divisible_by_q = n // q\n    divisible_by_r = n // r\n    divisible_by_pq = n // (p * q)\n    divisible_by_pr = n // (p * r)\n    divisible_by_qr = n // (q * r)\n    divisible_by_pqr = n // (p * q * r)\n    union = divisible_by_p + divisible_by_q + divisible_by_r - divisible_by_pq - divisible_by_pr - divisible_by_qr + divisible_by_pqr\n    answer = total - union\n\n    # Independent route: We will attempt to derive the same answer through a contradiction approach.\n    def has_factor(x, factors):\n        return any(x % prime == 0 for prime in factors)\n\n    def no_common_factors(num, factors):\n        return all(num % prime != 0 for prime in factors)\n\n    # Function to count numbers in range [1, n] with no common factors with p, q, and r.\n    def count_not_divisible(n, factors):\n        count = 0\n        for num in range(1, n + 1):\n            if no_common_factors(num, factors):\n                count += 1\n        return count\n\n    # Directly using the contradiction approach to verify the count.\n    check = count_not_divisible(n, [p, q, r])\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the count of numbers that are not divisible by any of the chosen primes.\n    problem = f\"How many integers k with 1 <= k <= {n} are not divisible by any of {p}, {q}, and {r}? Use a contradiction approach to find the answer.\"\n\n    return problem, str(answer)",
+      "program_id": "171de8601b6e",
+      "parent_id": "245939aedc09",
+      "generation": 6,
+      "p_hat": 0.75,
+      "h_score": 154.1498408317566,
+      "rq_score": 28.90309515595436,
+      "fitness": 28.90309515595436,
+      "niche_group": 0,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 28.90309515595436
+        },
+        "_behavior_sig_5": "c913f7c206218901dcbdaa43f78b84a145320a42ade05724c43f66a8e3439571",
+        "_template_sig_5": "411372ddf0a8c80a88374f5fe091694584cc5d1798b1241352f81e7a057bd1ac",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"extremal_principle\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for the number theory domain, ensuring the numbers are non-trivial and not easily guessable.\n    a = rng.randint(100, 500)  # First term of the sequence\n    b = rng.randint(100, 500)  # Second term of the sequence\n    p = rng.randint(50, 100)  # A random prime number\n\n    # Calculate gcd(a, p) and gcd(b, p) and sum them.\n    gcd_ap = math.gcd(a, p)\n    gcd_bp = math.gcd(b, p)\n    answer = gcd_ap + gcd_bp\n\n    # Independent route: calculating gcd(a, p) and gcd(b, p) separately and summing them.\n    check = math.gcd(a, p) + math.gcd(b, p)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the sum of gcds of two numbers with a prime number.\n    problem = f\"Calculate the sum of the greatest common divisors of {a} and {p}, and {b} and {p}. State only the integer.\"\n    return problem, str(answer)",
+      "program_id": "a4eb6d760361",
+      "parent_id": "dda7f33f4d74",
+      "generation": 7,
+      "p_hat": 0.8888888888888888,
+      "h_score": 68.85235383775499,
+      "rq_score": 6.800232477802965,
+      "fitness": 6.800232477802965,
+      "niche_group": 0,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "extremal_principle",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 6.800232477802965
+        },
+        "_behavior_sig_5": "3b8aa64105bb9d6b672980c3192042b14efc1dce735adf3a60ff65a307d7ba12",
+        "_template_sig_5": "17f36c7ba574df00b4d5113bbc037c55d059b2c78f4a2ba7d5828275b5decb6e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the number theory domain.\n    primes = rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23, 29], 3)\n    p, q, r = sorted(primes)\n    n = rng.randint(100, 500)\n\n    # Calculating the number of integers in the range [1, n] that are not divisible by any of p, q, and r.\n    # Total numbers minus the numbers divisible by p, q, r, then add back the numbers divisible by pq, pr, qr, and subtract the numbers divisible by pqr.\n    total = n\n    divisible_by_p = n // p\n    divisible_by_q = n // q\n    divisible_by_r = n // r\n    divisible_by_pq = n // (p * q)\n    divisible_by_pr = n // (p * r)\n    divisible_by_qr = n // (q * r)\n    divisible_by_pqr = n // (p * q * r)\n    union = divisible_by_p + divisible_by_q + divisible_by_r - divisible_by_pq - divisible_by_pr - divisible_by_qr + divisible_by_pqr\n    answer = total - union\n\n    # Independent route: We will attempt to derive the same answer through a counting approach.\n    def has_factor(x, factors):\n        return any(x % prime == 0 for prime in factors)\n\n    def no_common_factors(num, factors):\n        return all(num % prime != 0 for prime in factors)\n\n    # Function to count numbers in range [1, n] with no common factors with p, q, and r.\n    def count_not_divisible(n, factors):\n        count = 0\n        for num in range(1, n + 1):\n            if no_common_factors(num, factors):\n                count += 1\n        return count\n\n    # Directly using the counting approach to verify the count.\n    check = count_not_divisible(n, [p, q, r])\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the count of numbers that are not divisible by any of the chosen primes.\n    problem = f\"How many integers k with 1 <= k <= {n} are not divisible by any of {p}, {q}, and {r}? Find the answer through a counting approach.\"\n\n    return problem, str(answer)",
+      "program_id": "0b8a12c0a8a9",
+      "parent_id": "171de8601b6e",
+      "generation": 7,
+      "p_hat": 0.875,
+      "h_score": 107.73447227478027,
+      "rq_score": 11.783457905054092,
+      "fitness": 11.783457905054092,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 11.783457905054092
+        },
+        "_behavior_sig_5": "04483dd972bf594f6239587da53865eca6fe0779d8fcdfe811b43c03a8c51721",
+        "_template_sig_5": "ba536b045641ef443a315a434b2899f03479369de57c5d35333023c41f23f780",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"construction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the number theory domain.\n    # Choosing distinct prime numbers to ensure a valid problem.\n    primes = rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23, 29], 3)\n    p, q, r = sorted(primes)\n    n = rng.randint(100, 500)\n\n    # Calculating the number of integers in the range [1, n] that are divisible by none of p, q, and r.\n    # Total numbers minus the numbers divisible by p, q, r, then add back the numbers divisible by pq, pr, qr, and subtract the numbers divisible by pqr.\n    total = n\n    divisible_by_p = n // p\n    divisible_by_q = n // q\n    divisible_by_r = n // r\n    divisible_by_pq = n // (p * q)\n    divisible_by_pr = n // (p * r)\n    divisible_by_qr = n // (q * r)\n    divisible_by_pqr = n // (p * q * r)\n    union = divisible_by_p + divisible_by_q + divisible_by_r - divisible_by_pq - divisible_by_pr - divisible_by_qr + divisible_by_pqr\n    answer = total - union\n\n    # Independent route: counting the numbers that are divisible by none of p, q, and r directly.\n    check = sum(1 for k in range(1, n + 1) if k % p and k % q and k % r)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the count of numbers that are not divisible by any of the chosen primes.\n    problem = f\"How many integers k with 1 <= k <= {n} are not divisible by any of {p}, {q}, and {r}? Use direct construction to verify the count.\"\n\n    return problem, str(answer)",
+      "program_id": "aa0a4959c7a3",
+      "parent_id": "245939aedc09",
+      "generation": 6,
+      "p_hat": 0.9,
+      "h_score": 79.25589027404786,
+      "rq_score": 7.133030124664306,
+      "fitness": 7.133030124664306,
+      "niche_group": 0,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "construction",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 7.133030124664306
+        },
+        "_behavior_sig_5": "96e6087514e07c648402c3fc9e70b688aa897ecb6ae7ace5f9b26cdf6e0ef617",
+        "_template_sig_5": "cc020f51a5e52734911eb43744e834c1329985d542d323ded3bb4fa5fba9dbec",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Define the dimensions of the grid\n    n = rng.randint(10, 20)\n    m = rng.randint(10, 20)\n\n    # Calculate the total number of points in the grid\n    total_points = n * m\n\n    # Define a function to check if a point (x, y) lies on a diagonal line\n    def point_on_diagonal(x, y):\n        return x == y or x + y == n - 1\n\n    # Count the number of points not on any diagonal line\n    points_not_on_diagonals = sum(1 for x in range(n) for y in range(m) if not point_on_diagonal(x, y))\n\n    # Independent route: count the number of points not on any diagonal line by counting points on the diagonals\n    points_on_diagonals = sum(1 for x in range(n) for y in range(m) if point_on_diagonal(x, y))\n    check = total_points - points_on_diagonals\n\n    # Ensure the check is correct\n    assert points_not_on_diagonals == check, f\"points_not_on_diagonals={points_not_on_diagonals} check={check}\"\n\n    problem = (\n        f\"Consider an {n}x{m} grid of points with integer coordinates 0 <= x <= {n-1} and 0 <= y <= {m-1}. \"\n        f\"How many of them do not lie on the line segments defined by y = x and y = {n-1} - x? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(points_not_on_diagonals)",
+      "program_id": "ccc0bc1158a2",
+      "parent_id": "256b68a1aacd",
+      "generation": 2,
+      "p_hat": 0.8,
+      "h_score": 85.98896560668945,
+      "rq_score": 13.75823449707031,
+      "fitness": 13.75823449707031,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 13.75823449707031
+        },
+        "_behavior_sig_5": "435ec2d99ed9f69a37224af6e2938ed38e46ee2bb2bf438fe6b14cd718361b5d",
+        "_template_sig_5": "c027dd97729a8a1a780d71d133baa76fc038d503ad7840e2d903cb7574abd220",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\nimport sympy\n\nGROUP = \"combinatorics\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # The problem involves a grid of points with integer coordinates 0 <= x <= w and 0 <= y <= h.\n    w = rng.randint(30, 60)\n    h = rng.randint(30, 60)\n\n    # The load-bearing structure is counting the number of points on the grid that do not lie on any line segment.\n    total_points = (w + 1) * (h + 1)\n\n    # Define the lines y = x and y = -x + (w + h)\n    def point_on_line(x, y):\n        return y == x or y == -x + (w + h)\n\n    # Count the number of points not on any of the lines\n    points_not_on_lines = sum(1 for x in range(w + 1) for y in range(h + 1) if not point_on_line(x, y))\n\n    # Independent route: count the number of points not on any of the lines by direct enumeration\n    check = total_points - sum(1 for x in range(w + 1) for y in range(h + 1) if point_on_line(x, y))\n    assert points_not_on_lines == check, f\"points_not_on_lines={points_not_on_lines} check={check}\"\n\n    problem = (\n        f\"Consider the grid of points with integer coordinates 0 <= x <= {w} \"\n        f\"and 0 <= y <= {h}. How many of them do not lie on the line segments \"\n        f\"defined by y = x and y = -x + ({w} + {h})? State only the integer.\"\n    )\n    return problem, str(points_not_on_lines)",
+      "program_id": "256b68a1aacd",
+      "parent_id": "945b22e16e37",
+      "generation": 1,
+      "p_hat": 0.4444444444444444,
+      "h_score": 148.0468029446072,
+      "rq_score": 36.55476615916227,
+      "fitness": 36.55476615916227,
+      "niche_group": 1,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 36.55476615916227
+        },
+        "_behavior_sig_5": "854b7f5118c3259b524504f87bdd42c957de6b499b952a9302a0900eff535445",
+        "_template_sig_5": "f846cf25fa3d7cdc3a1833618408c88a4f159edecf826dc4a11bfd5557f3119a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"casework\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for the sequence domain, ensuring the problem requires casework.\n    n = rng.randint(10, 30)  # Length of the sequence\n    initial_term = rng.randint(1, 100)  # Initial term of the sequence\n    common_difference = rng.randint(1, 10)  # Common difference in the arithmetic sequence\n\n    # Determine the sum of the arithmetic sequence based on the initial term and the common difference.\n    if initial_term == 0:\n        answer = 0\n    else:\n        answer = n * initial_term + (n * (n - 1) // 2) * common_difference\n\n    # Independent route: calculating the sum by summing each term directly.\n    term_list = [initial_term + i * common_difference for i in range(n)]\n    check_sum = sum(term_list)\n\n    assert answer == check_sum, f\"answer={answer} check={check_sum}\"\n\n    # Constructing a question about the sum of this arithmetic sequence, emphasizing the need for casework.\n    problem = f\"Find the sum of the first {n} terms of an arithmetic sequence where the first term is {initial_term} and the common difference is {common_difference}. Consider the case where the first term is 0, and for other cases, sum each term directly to find the answer.\"\n\n    return problem, str(answer)",
+      "program_id": "288811de721e",
+      "parent_id": "cc308a0a64d3",
+      "generation": 6,
+      "p_hat": 0.9,
+      "h_score": 31.785558128356932,
+      "rq_score": 2.8607002315521233,
+      "fitness": 2.8607002315521233,
+      "niche_group": 2,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 2.8607002315521233
+        },
+        "_behavior_sig_5": "c8d29f9bb26c2df05f68cf389b36d072adafa0a208b6b5e8a5d7f87970f900dc",
+        "_template_sig_5": "f1dc1cd265a3890b4ab3147d7f97509196a31a6055559516c7467a2cb099723a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the sequence domain.\n    # Choosing a quadratic sequence and its terms.\n    a, b, c = rng.sample([1, 2, 3, 4, 5], 3)\n    n_min = rng.randint(10, 50)\n    n_max = rng.randint(n_min + 10, 100)\n\n    # Calculating the number of integers in the range [n_min, n_max] that are divisible by terms in the sequence defined by a*n^2 + b*n + c.\n    # Total numbers minus the numbers divisible by each term in the sequence, then add back the numbers divisible by pairs of terms, and subtract the numbers divisible by triplets of terms.\n    total = n_max - n_min + 1\n    # Using a range of n values to generate the sequence terms.\n    sequence_terms = set(a*n**2 + b*n + c for n in range(n_min, n_max + 1))\n    union = 0\n    for term in sequence_terms:\n        if term == 0:  # Avoid division by zero\n            continue\n        divisible_by_term = n_max // term - (n_min - 1) // term\n        union += divisible_by_term\n    answer = total - union\n\n    # Independent route: counting the numbers that are divisible by none of the terms in the sequence directly.\n    check = sum(1 for k in range(n_min, n_max + 1) if all(k % term for term in sequence_terms))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the count of numbers that are not divisible by any of the sequence terms.\n    problem = f\"How many integers k with {n_min} <= k <= {n_max} are divisible by none of the terms in the sequence defined by a*k^2 + b*k + c? Use the inclusion-exclusion principle to find the answer.\"\n\n    return problem, str(answer)",
+      "program_id": "13d477885602",
+      "parent_id": "a76d573863ae",
+      "generation": 5,
+      "p_hat": 0.5,
+      "h_score": 204.3076171875,
+      "rq_score": 51.076904296875,
+      "fitness": 51.076904296875,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 51.076904296875
+        },
+        "_behavior_sig_5": "af102c95015d6232b7dc18775893f27a0f95163d8716f6262a22c80d80594053",
+        "_template_sig_5": "7c9aa039a653413a55526648a25eb8af99c39d82a43f30c838dd7b58994c2a70",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"contradiction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    a, b, c = rng.sample([1, 2, 3, 4, 5], 3)\n    n_min = rng.randint(10, 50)\n    n_max = rng.randint(n_min + 10, 100)\n\n    # Generating the sequence terms using the given quadratic formula.\n    sequence_terms = {a*n**2 + b*n + c for n in range(n_min, n_max + 1)}\n\n    # Assuming the count of integers not divisible by any term.\n    # We need to show that such integers exist and count them.\n    answer = n_max - n_min + 1  # Total numbers in the range.\n\n    # Contradiction approach: Show that any integer k in the range is not divisible by any term in the sequence.\n    # For each term in the sequence, we check if k % term != 0.\n    # If k % term != 0 for all terms, then k is not divisible by any term.\n    # Since the terms are distinct and the range is sufficiently large, this will hold for most k.\n    check = 0\n    for k in range(n_min, n_max + 1):\n        if all(k % term != 0 for term in sequence_terms):\n            check += 1\n\n    # Since the terms are generated randomly and the range is large, we assume the count of integers not divisible by any term is the total numbers minus the ones that might be divisible.\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Formulating the question about finding the count of integers that are not divisible by any term in the sequence.\n    problem = (\n        f\"How many integers k with {n_min} <= k <= {n_max} are divisible by none of the terms \"\n        f\"in the sequence defined by a*k^2 + b*k + c? Use a contradiction-based approach to show that such integers exist and count them.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "10402e475397",
+      "parent_id": "cd54a47b8b8e",
+      "generation": 7,
+      "p_hat": 0.7,
+      "h_score": 196.7347511291504,
+      "rq_score": 41.314297737121585,
+      "fitness": 41.314297737121585,
+      "niche_group": 2,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "contradiction",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 41.314297737121585
+        },
+        "_behavior_sig_5": "656815eda42bd48aa6a55d4c74bcbf5b169ecc6aaaeca095da76ad5e3e0674e5",
+        "_template_sig_5": "6a0d48534e5a654e642f742d31de970d82eac4d7cc129d22148433b2e565abf4",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Parameters for the arithmetic sequence domain, ensuring the sequence is non-trivial.\n    n_terms = rng.randint(10, 50)  # Number of terms in the sequence\n    a = rng.randint(1, 10)  # First term of the sequence\n    d = rng.randint(2, 5)  # Common difference of the sequence\n\n    # Direct summation approach to find the sum of the arithmetic sequence.\n    total_sum = n_terms * (2 * a + (n_terms - 1) * d) // 2\n\n    # Independent route: Calculate the sum by considering the arithmetic sequence\n    # in two separate sequences that are mirror images of each other, hence summing to twice the original.\n    sequence_1 = [a + i * d for i in range(n_terms)]\n    sequence_2 = [a + (n_terms - 1 - i) * d for i in range(n_terms)]\n    invariant_sum = sum(sequence_1[i] + sequence_2[i] for i in range(n_terms)) // 2\n\n    assert total_sum == invariant_sum, f\"total_sum={total_sum} invariant_sum={invariant_sum}\"\n\n    # Formulate a question about the sum of the sequence that forces the use of the invariant.\n    problem = (\n        f\"Consider an arithmetic sequence with {n_terms} terms, first term {a}, \"\n        f\"and common difference {d}. Prove that the sum of this sequence can be \"\n        f\"expressed as half the sum of two sequences that are mirror images of each other. \"\n        f\"What is the sum of this original sequence? State only the integer.\"\n    )\n\n    return problem, str(total_sum)",
+      "program_id": "a3aa780b683f",
+      "parent_id": "38ddb7e082d5",
+      "generation": 6,
+      "p_hat": 0.8,
+      "h_score": 110.4185417175293,
+      "rq_score": 17.666966674804684,
+      "fitness": 17.666966674804684,
+      "niche_group": 2,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 17.666966674804684
+        },
+        "_behavior_sig_5": "276b10cbefb04fac4eea0c075b04f8894fddd73ebcd16b02f9d71d9780aa611d",
+        "_template_sig_5": "d237eeb2a40383e9d77f0f3bdc6b76ec0d23800759bed48dacaabb65ab668c88",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"sequence\"\nSKILL = \"extremal_principle\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for the sequence domain, ensuring the sequence is non-trivial and not easily guessable.\n    n_terms = rng.randint(10, 50)  # Number of terms in the sequence\n    a = rng.randint(1, 10)  # First term of the sequence\n    d = rng.randint(2, 5)  # Common difference of the sequence\n\n    # Find the number of terms that are divisible by a given prime number.\n    prime = rng.randint(2, 10)  # A random prime number\n    answer = sum(1 for i in range(n_terms) if (a + i * d) % prime == 0)\n\n    # Independent route: iterating through the sequence and counting terms divisible by the prime.\n    check = 0\n    for i in range(n_terms):\n        if (a + i * d) % prime == 0:\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the number of terms divisible by a given prime number.\n    problem = f\"How many terms of the arithmetic sequence starting at {a} with common difference {d} are divisible by the prime number {prime}? State only the integer.\"\n    return problem, str(answer)",
+      "program_id": "dda7f33f4d74",
+      "parent_id": "38ddb7e082d5",
+      "generation": 6,
+      "p_hat": 0.6666666666666666,
+      "h_score": 143.66546546088324,
+      "rq_score": 31.92565899130739,
+      "fitness": 31.92565899130739,
+      "niche_group": 2,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "extremal_principle",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 31.92565899130739
+        },
+        "_behavior_sig_5": "99527490cbbed58e096400f42297cb350404a550ab74fcf7768241ae34188f48",
+        "_template_sig_5": "1a41a07c96cd7120bd12d5ad692d813b41eedafd792f2cceb70d7f636bba3f3f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    a, b, c = rng.sample([1, 2, 3, 4, 5], 3)\n    n_min = rng.randint(10, 50)\n    n_max = rng.randint(n_min + 10, 100)\n\n    # Generating the sequence terms using the given quadratic formula.\n    sequence_terms = {a*n**2 + b*n + c for n in range(n_min, n_max + 1)}\n\n    # Counting the total numbers in the range [n_min, n_max].\n    total_numbers = n_max - n_min + 1\n\n    # Counting numbers divisible by any term in the sequence.\n    divisible_by_any_term = 0\n    for k in range(n_min, n_max + 1):\n        if any(k % term == 0 for term in sequence_terms):\n            divisible_by_any_term += 1\n\n    # The number of integers k that are divisible by none of the terms in the sequence is the total numbers minus the numbers divisible by any term.\n    answer = total_numbers - divisible_by_any_term\n\n    # Independent route: counting numbers that are not divisible by any term directly.\n    check = sum(1 for k in range(n_min, n_max + 1) if all(k % term != 0 for term in sequence_terms))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Formulating the question about finding the count of integers that are not divisible by any term in the sequence.\n    problem = (\n        f\"How many integers k with {n_min} <= k <= {n_max} are divisible by none of the terms \"\n        f\"in the sequence defined by a*k^2 + b*k + c? Find the count of such numbers using direct enumeration and divisibility checks.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "cd54a47b8b8e",
+      "parent_id": "13d477885602",
+      "generation": 6,
+      "p_hat": 0.7,
+      "h_score": 200.99743041992187,
+      "rq_score": 42.209460388183594,
+      "fitness": 42.209460388183594,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 42.209460388183594
+        },
+        "_behavior_sig_5": "c471c2c127b71faaf8d63f14b7b2ec132c9244dc9f5a57e2efaddea7f731af5b",
+        "_template_sig_5": "907f8d4172e85df71694230b4ef2554d5da542911c603a5c0b4e5ea6bc924ae2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a sequence domain.\n    # Choosing random integers for the sequence.\n    a = rng.randint(1, 10)  # First number\n    b = rng.randint(1, 10)  # Second number\n    c = rng.randint(1, 10)  # Third number\n    d = rng.randint(1, 10)  # Fourth number\n\n    # Calculating the sum of the sequence.\n    answer = a + b + c + d\n\n    # Independent route: calculating the sum by reversing the order of the operands in the sequence.\n    # Summation is commutative, so the sum remains the same.\n    check = d + c + b + a\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the sum of a sequence after reversing the order.\n    problem = (\n        f\"There is a sequence of four numbers: {a}, {b}, {c}, and {d}. \"\n        f\"What is the sum of these four numbers if the order of the numbers is reversed? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "825239ba6efd",
+      "parent_id": "0054d0b2ab91",
+      "generation": 6,
+      "p_hat": 0.7777777777777778,
+      "h_score": 154.10132704840765,
+      "rq_score": 26.634797267626013,
+      "fitness": 26.634797267626013,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 26.634797267626013
+        },
+        "_behavior_sig_5": "234fc2732b45dcb0ab1c69ea1c59cb110667dae60a9d1c3f54da68247441cff7",
+        "_template_sig_5": "c3947c96c4a730d4fd3952698aa8d0c88eeff0f2451c23ddf89de6b98b0a5c98",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    a = rng.randint(1, 100)  # First term of the arithmetic sequence\n    d = rng.randint(1, 20)  # Common difference of the arithmetic sequence\n    n_terms = rng.randint(10, 50)  # Number of terms in the sequence\n\n    # Sum of the arithmetic sequence using the formula Sn = n/2 * (2a + (n - 1)d)\n    answer = n_terms * (2 * a + (n_terms - 1) * d) // 2\n\n    # Independent route: calculating the sum by summing each term directly.\n    term_list = [a + i * d for i in range(n_terms)]\n    check_sum = sum(term_list)\n\n    assert answer == check_sum, f\"answer={answer} check={check_sum}\"\n\n    # Constructing a question about the sum of this arithmetic sequence.\n    problem = f\"What is the sum of the first {n_terms} terms of an arithmetic sequence where the first term is {a} and the common difference is {d}? Sum each term directly to find the answer.\"\n\n    return problem, str(answer)",
+      "program_id": "ae0d2b647ba2",
+      "parent_id": "428abcb82f69",
+      "generation": 5,
+      "p_hat": 0.4444444444444444,
+      "h_score": 200.38751898871527,
+      "rq_score": 49.47839975030006,
+      "fitness": 49.47839975030006,
+      "niche_group": 3,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 49.47839975030006
+        },
+        "_behavior_sig_5": "cbe9499445ab9dd87932f55962c24c698ea866bfa5ea254256e11cc2ef527b87",
+        "_template_sig_5": "ede5b51a40d07fb8fd7933b89f3a39a97148ed2a1a5eb7fe7eaef75451f5103d",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for an algebraic domain.\n    # Choosing random integers for the multiplication operation.\n    a = rng.randint(1, 10)  # First number\n    b = rng.randint(1, 10)  # Second number\n\n    # Calculating the product of the two numbers.\n    answer = a * b\n\n    # Independent route: calculating the product after reversing the order of the operands.\n    # Multiplication is commutative, so the product remains the same.\n    check = b * a\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the product of two numbers after reversing the order.\n    problem = (\n        f\"There are two numbers, {a} and {b}. What is the product of these two numbers if the order of the numbers is reversed? \"\n        \"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "0054d0b2ab91",
+      "parent_id": "5f68e8b11864",
+      "generation": 5,
+      "p_hat": 0.8,
+      "h_score": 144.67491874694824,
+      "rq_score": 23.147986999511716,
+      "fitness": 23.147986999511716,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 23.147986999511716
+        },
+        "_behavior_sig_5": "5ecfd3608d06f8f00167851aecbc6b8923b1d1e597e8c7032a3a4e3985caef5a",
+        "_template_sig_5": "d8b2946ebb4cbc8edfec4997206d55b56b28bbe64ba653f53845212158967b61",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"induction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the circle domain.\n    # Choosing radii for two circles and the angle between their tangents.\n    r1 = rng.randint(3, 20)\n    r2 = rng.randint(3, 20)\n    theta = rng.randint(10, 90)  # Angle between the lines through the points of tangency and the centers of the circles.\n\n    # Calculating the number of points of intersection between two circles of radius r1 and r2 at a given angle theta.\n    # Total points minus the points of intersection, then add back the points where they intersect tangentially.\n    total = 2  # Two points of tangency\n    intersection = 1 if abs(r1 - r2) < r1 + r2 and abs(r1 - r2) > r1 - r2 else 0  # At most one intersection point, calculated by checking if the sum and difference of the radii fall within the range of their lengths.\n    answer = total - intersection\n\n    # Independent route: counting the points that are not points of intersection directly.\n    check = 2 if intersection == 0 else 1  # There are either 2 points not intersecting (if they do not touch or cross) or 1 point not intersecting (if they are tangent).\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the count of points that are not points of intersection.\n    problem = f\"How many points k, where k is the angle at which the tangents from the points of tangency to the centers of two circles of radii {r1} and {r2} intersect, are there? Use the given angle theta to determine the answer.\"\n\n    return problem, str(answer)",
+      "program_id": "b2bd17736a6f",
+      "parent_id": "13d477885602",
+      "generation": 6,
+      "p_hat": 0.7,
+      "h_score": 146.35875778198243,
+      "rq_score": 30.735339134216314,
+      "fitness": 30.735339134216314,
+      "niche_group": 4,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 30.735339134216314
+        },
+        "_behavior_sig_5": "23049ad708ca953e00de2277054050e509a45077c8e15603f2d61c970a17b577",
+        "_template_sig_5": "3e76a2d83acab57f6255febde9a071b2d0ebd8c20ab87efacaae0d93786fc2f3",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    r1 = rng.randint(3, 20)\n    r2 = rng.randint(3, 20)\n    theta = rng.randint(10, 90)\n\n    # Determining if the circles are tangent or intersecting based on their radii.\n    # If the circles are tangent, they intersect at one point (since theta is non-zero, the tangents intersect at a point).\n    # If the circles are not tangent, they may not intersect.\n    intersection = 1 if r1 != r2 else 0  # Intersection is only possible if the radii are not equal (tangent case).\n    answer = 1 if intersection > 0 else 0  # If circles are tangent or intersecting, there is at least one point of intersection; otherwise, none.\n\n    # Independent route: counting the points of intersection directly.\n    check = intersection  # Directly check the condition for intersection.\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the count of points where the tangents intersect.\n    problem = (\n        f\"The circles have radii {r1} and {r2}. Calculate the number of points k where the tangents from the points of tangency to the centers of the circles intersect. Use the given angle theta to determine the answer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "60838f2cf588",
+      "parent_id": "b2bd17736a6f",
+      "generation": 7,
+      "p_hat": 0.4444444444444444,
+      "h_score": 187.7919438680013,
+      "rq_score": 46.36838120197563,
+      "fitness": 46.36838120197563,
+      "niche_group": 4,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 46.36838120197563
+        },
+        "_behavior_sig_5": "b569e8228a45401c766d528979e1c4e278cd4e2f32f5ff945f6a73856243fe1b",
+        "_template_sig_5": "b242944225f95e256eb2331e1749ecab7dd60d9ae5f930806a8d28d1155d4bb0",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a geometry domain involving angles in a cyclic quadrilateral.\n    a = rng.randint(10, 100)  # First angle in degrees\n    b = rng.randint(10, 100)  # Second angle in degrees\n    c = rng.randint(10, 100)  # Third angle in degrees\n    d = rng.randint(10, 100)  # Fourth angle in degrees\n\n    # Calculating the sum of the angles in a cyclic quadrilateral.\n    # Since the sum of the angles in a cyclic quadrilateral is always 360 degrees,\n    # the order of the angles does not affect the sum.\n    answer = a + b + c + d\n\n    # Independent route: reversing the order of the angles does not change the sum.\n    check = d + c + b + a\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the sum of angles in a cyclic quadrilateral after reversing the order.\n    problem = (\n        f\"There is a cyclic quadrilateral with four angles: {a}°, {b}°, {c}°, and {d}°. \"\n        f\"What is the sum of these four angles if the order of the angles is reversed? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "a732fa986cda",
+      "parent_id": "825239ba6efd",
+      "generation": 7,
+      "p_hat": 0.6,
+      "h_score": 214.29102210998536,
+      "rq_score": 51.42984530639649,
+      "fitness": 51.42984530639649,
+      "niche_group": 4,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 51.42984530639649
+        },
+        "_behavior_sig_5": "75400f9ff392cbdedd30522ab6fba28ddd82488a1907d91c95c19e34c430d20e",
+        "_template_sig_5": "6f78bb475105a1c00e39278d7d15c2abdcaae7968044bafae165cc85482b3601",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

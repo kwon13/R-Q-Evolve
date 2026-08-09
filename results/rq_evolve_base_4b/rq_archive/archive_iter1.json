@@ -1,0 +1,260 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 7,
+      "total_niches": 48,
+      "coverage": 0.14583333333333334,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 0.375,
+      "mean_rq": 43.85974494371053,
+      "max_rq": 88.79953491210937,
+      "total_insertions": 12,
+      "total_replacements": 0,
+      "total_selections": 32
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"induction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    primes = sorted(rng.sample([2, 3, 5, 7, 11, 13], 3))\n    n = rng.randint(1000, 5000)\n    c = rng.randint(1, 10)\n\n    # Complement over the range, with the intersection of the three primes expanded\n    # by inclusion-exclusion. Divisibility replaces incidence as the relation that\n    # decides membership.\n    p, q, r = primes\n    union = (n // p + n // q + n // r\n             - n // (p * q) - n // (p * r) - n // (q * r)\n             + n // (p * q * r))\n    answer = n - union\n\n    # Independent route: test every integer in range against the three stated divisors,\n    # instead of counting by complement.\n    check = sum(1 for k in range(1, n + 1) if k % p and k % q and k % r)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are divisible by none of {p}, {q}, \"\n        f\"and {r}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "9d0a645526a9",
+      "parent_id": "d9a33e8b1a9c",
+      "generation": 1,
+      "p_hat": 0.375,
+      "h_score": 275.13402700424194,
+      "rq_score": 64.4845375791192,
+      "fitness": 64.4845375791192,
+      "niche_group": 0,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 64.4845375791192
+        },
+        "_behavior_sig_5": "cd921a7a1573c7e2371fd921cb3c31a4a83bbec9b99f6ad7dca1159911c350f1",
+        "_template_sig_5": "50017278e68108636c26e56687d47a93d8280829aee0c2de2e9d90da001240da",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    p = rng.randint(2, 10)\n    q = rng.randint(2, 10)\n    r = rng.randint(2, 10)\n    n = rng.randint(30, 40)\n\n    # Construct equations where adding all three gives a multiple of p, q, and r.\n    rows = [\n        [rng.randint(1, 4), rng.randint(-3, 3), rng.randint(-3, 3)],\n        [rng.randint(-3, 3), rng.randint(1, 4), rng.randint(-3, 3)],\n        [0, 0, 0],\n    ]\n\n    # Make row sums by column equal to k, so E1+E2+E3 = k(p*q*r).\n    k = rng.choice([2, 3, 4, 5])\n    rows[2] = [\n        k - rows[0][0] - rows[1][0],\n        k - rows[0][1] - rows[1][1],\n        k - rows[0][2] - rows[1][2],\n    ]\n\n    sol = [p, q, r]\n    rhs = [sum(row[j] * sol[j] for j in range(3)) for row in rows]\n    answer = (sum(rhs)) // k\n\n    # Independent route: the solution the system was built around, instead of\n    # summing the three equations and dividing by the common column total.\n    check = p + q + r\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def fmt(row, rhs_val):\n        parts = []\n        for coef, var in zip(row, [\"x\", \"y\", \"z\"]):\n            if coef == 0:\n                continue\n            sign = \"+\" if coef > 0 else \"-\"\n            abscoef = abs(coef)\n            term = var if abscoef == 1 else f\"{abscoef}{var}\"\n            if not parts:\n                parts.append(term if coef > 0 else f\"-{term}\")\n            else:\n                parts.append(f\" {sign} {term}\")\n        return \"\".join(parts) + f\" = {rhs_val}\"\n\n    problem = (\n        f\"Suppose x, y, and z satisfy the following system:\\n\"\n        f\"{fmt(rows[0], rhs[0])}\\n\"\n        f\"{fmt(rows[1], rhs[1])}\\n\"\n        f\"{fmt(rows[2], rhs[2])}\\n\"\n        f\"Find x + y + z.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "f2ff1bdbc7fb",
+      "parent_id": "4bb63a52cd14",
+      "generation": 1,
+      "p_hat": 0.6,
+      "h_score": 142.29843521118164,
+      "rq_score": 34.15162445068359,
+      "fitness": 34.15162445068359,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 34.15162445068359
+        },
+        "_behavior_sig_5": "57d55539636d10802f26a0ec240a447154bad675a9e35fc4db6fd3e10a2edc22",
+        "_template_sig_5": "f869a88ca28be63ff203ef51ce7516ac6f748f426ce2f693756ff36d8703c2f2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    p = rng.choice([2, 3])\n    q = rng.randint(1, 5)\n    c = rng.randint(1, 5)\n    n = rng.randint(6, 10)\n    val = c\n    for _ in range(n):\n        val = p * val + q\n    answer = val\n\n    # Independent route: the closed form of a(n) = p*a(n-1) + q, instead of\n    # iterating the recurrence n times.\n    check = p ** n * c + q * (p ** n - 1) // (p - 1)\n    assert answer == check, f\"answer={answer} check={check}\"\n    problem = (\n        f\"A sequence is defined by a(0) = {c} and \"\n        f\"a(n) = {p} * a(n-1) + {q} for n >= 1. Find a({n}).\"\n    )\n\n    return problem, str(answer)\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n",
+      "program_id": "d9a33e8b1a9c",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.7142857142857143,
+      "h_score": 90.29478318350655,
+      "rq_score": 18.427506772144195,
+      "fitness": 18.427506772144195,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "08_recurrence.py",
+        "group": "sequence",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 18.427506772144195
+        },
+        "_behavior_sig_5": "2b80f7c3e97700e670b5e2b1aa2a2a8320f35f2b5ac36e518e841d50828ac96c",
+        "_template_sig_5": "f48eb21096776b5f8ee63f31303f65b26fcb7dd112c52792bcf8af675f49023a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # b is even so that every case yields an integer: the solutions come in\n    # pairs -beta +/- sqrt(t), whose squares add to 2*beta**2 + 2*t.\n    # |beta| >= 2 keeps the single-solution case away from the guessable\n    # answers 0 and 1.\n    beta = rng.choice([-9, -8, -7, -6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9])\n    k = rng.randint(1, 12)\n    b = 2 * beta\n\n    # |f(x)| = k splits into f(x) = k and f(x) = -k. Writing f(x) as\n    # (x + beta)**2 + (c - beta**2), the two branches have shifted radicands\n    #     upper = beta**2 - c + k     (from f(x) = k)\n    #     lower = beta**2 - c - k     (from f(x) = -k)\n    # which differ by 2k, so how many solutions exist is decided by where\n    # beta**2 - c sits relative to +/- k. c is chosen from the interval that\n    # realises the wanted case, rotating with the seed so every branch occurs.\n    case = seed % 4\n    if case == 0:\n        c = beta * beta - k - rng.randint(1, 25)   # lower > 0  -> four solutions\n    elif case == 1:\n        c = beta * beta - k                        # lower == 0 -> three solutions\n    elif case == 2:\n        c = beta * beta + rng.randint(-k + 1, k - 1)   # lower < 0 < upper -> two\n    else:\n        c = beta * beta + k                        # upper == 0 -> one solution\n\n    upper = beta * beta - c + k\n    lower = beta * beta - c - k\n\n    # Each branch contributes a different expression, and no single one of them\n    # is valid across the four cases -- which is the whole solve.\n    answer = 0\n    for radicand in (upper, lower):\n        if radicand > 0:\n            answer += 2 * beta * beta + 2 * radicand   # two solutions\n        elif radicand == 0:\n            answer += beta * beta                      # one repeated solution\n\n    # Independent route: solve both quadratics with the ordinary formula in\n    # floating point and add up the squares of the distinct real solutions,\n    # instead of deciding the case from upper and lower.\n    solutions = []\n    for constant in (c - k, c + k):\n        disc = b * b - 4 * constant\n        if disc < 0:\n            continue\n        root = math.sqrt(disc)\n        solutions.append((-b + root) / 2)\n        if root > 0:\n            solutions.append((-b - root) / 2)\n    check = sum(x * x for x in solutions)\n    assert abs(check - answer) < 1e-6, f\"answer={answer} check={check}\"\n\n    linear = f\"+ {b}x\" if b > 0 else f\"- {abs(b)}x\"\n    constant = f\"+ {c}\" if c > 0 else f\"- {abs(c)}\"\n    problem = (\n        f\"Let f(x) = x^2 {linear} {constant}. Find the sum of the squares of \"\n        f\"all real solutions of |f(x)| = {k}. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"casework\"\n",
+      "program_id": "e9efe4a2b47f",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.3333333333333333,
+      "h_score": 158.88145531548395,
+      "rq_score": 35.306990070107545,
+      "fitness": 35.306990070107545,
+      "niche_group": 3,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "18_absolute_quadratic_cases.py",
+        "group": "algebra",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 35.306990070107545
+        },
+        "_behavior_sig_5": "1cabe17f34aca765f6d1003000ab3094fc73927c21be90ea47dbff33333f6b12",
+        "_template_sig_5": "e2d3ed99a55dd21f408d28264fce340e2143ccf0817ef0f8f7d23479a9d5d145",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    x = rng.randint(-6, 6)\n    y = rng.randint(-6, 6)\n    z = rng.randint(-6, 6)\n\n    # Construct equations where adding all three gives a multiple of x+y+z.\n    rows = [\n        [rng.randint(1, 4), rng.randint(-3, 3), rng.randint(-3, 3)],\n        [rng.randint(-3, 3), rng.randint(1, 4), rng.randint(-3, 3)],\n        [0, 0, 0],\n    ]\n\n    # Make row sums by column equal to k, so E1+E2+E3 = k(x+y+z).\n    k = rng.choice([2, 3, 4, 5])\n    rows[2] = [\n        k - rows[0][0] - rows[1][0],\n        k - rows[0][1] - rows[1][1],\n        k - rows[0][2] - rows[1][2],\n    ]\n\n    sol = [x, y, z]\n    rhs = [sum(row[j] * sol[j] for j in range(3)) for row in rows]\n    answer = (sum(rhs)) // k\n\n    # Independent route: the solution the system was built around, instead of\n    # summing the three equations and dividing by the common column total.\n    check = x + y + z\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def fmt(row, rhs_val):\n        parts = []\n        for coef, var in zip(row, [\"x\", \"y\", \"z\"]):\n            if coef == 0:\n                continue\n            sign = \"+\" if coef > 0 else \"-\"\n            abscoef = abs(coef)\n            term = var if abscoef == 1 else f\"{abscoef}{var}\"\n            if not parts:\n                parts.append(term if coef > 0 else f\"-{term}\")\n            else:\n                parts.append(f\" {sign} {term}\")\n        return \"\".join(parts) + f\" = {rhs_val}\"\n\n    problem = (\n        f\"Suppose x, y, and z satisfy the following system:\\n\"\n        f\"{fmt(rows[0], rhs[0])}\\n\"\n        f\"{fmt(rows[1], rhs[1])}\\n\"\n        f\"{fmt(rows[2], rhs[2])}\\n\"\n        f\"Find x + y + z.\"\n    )\n\n    return problem, str(answer)\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n",
+      "program_id": "4bb63a52cd14",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.6,
+      "h_score": 369.99806213378906,
+      "rq_score": 88.79953491210937,
+      "fitness": 88.79953491210937,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "09_linear_algebra.py",
+        "group": "algebra",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 88.79953491210937
+        },
+        "_behavior_sig_5": "f7578d9190c1667d82296794af589d043b3f0dc28776106f5588d70624c2796b",
+        "_template_sig_5": "2fe55020c2bb8eb04fbed0761b27de640c8167fb935f5d598dcd2da94ea57e8b",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    x = rng.randint(1, 6)\n    y = rng.randint(1, 6)\n    z = rng.randint(1, 6)\n\n    # Construct equations where adding all three gives a multiple of x+y+z.\n    rows = [\n        [rng.randint(1, 4), rng.randint(-3, 3), rng.randint(-3, 3)],\n        [rng.randint(-3, 3), rng.randint(1, 4), rng.randint(-3, 3)],\n        [0, 0, 0],\n    ]\n\n    # Make row sums by column equal to k, so E1+E2+E3 = k(x+y+z).\n    k = rng.choice([2, 3, 4, 5])\n    rows[2] = [\n        k - rows[0][0] - rows[1][0],\n        k - rows[0][1] - rows[1][1],\n        k - rows[0][2] - rows[1][2],\n    ]\n\n    sol = [x, y, z]\n    rhs = [sum(row[j] * sol[j] for j in range(3)) for row in rows]\n    answer = (sum(rhs)) // k\n\n    # Independent route: the solution the system was built around, instead of\n    # summing the three equations and dividing by the common column total.\n    check = x + y + z\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def fmt(row, rhs_val):\n        parts = []\n        for coef, var in zip(row, [\"x\", \"y\", \"z\"]):\n            if coef == 0:\n                continue\n            sign = \"+\" if coef > 0 else \"-\"\n            abscoef = abs(coef)\n            term = var if abscoef == 1 else f\"{abscoef}{var}\"\n            if not parts:\n                parts.append(term if coef > 0 else f\"-{term}\")\n            else:\n                parts.append(f\" {sign} {term}\")\n        return \"\".join(parts) + f\" = {rhs_val}\"\n\n    problem = (\n        f\"Suppose x, y, and z satisfy the following system:\\n\"\n        f\"{fmt(rows[0], rhs[0])}\\n\"\n        f\"{fmt(rows[1], rhs[1])}\\n\"\n        f\"{fmt(rows[2], rhs[2])}\\n\"\n        f\"Find x + y + z.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "1fec92a4ea26",
+      "parent_id": "4bb63a52cd14",
+      "generation": 1,
+      "p_hat": 0.75,
+      "h_score": 100.52986669540405,
+      "rq_score": 18.84935000538826,
+      "fitness": 18.84935000538826,
+      "niche_group": 4,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 18.84935000538826
+        },
+        "_behavior_sig_5": "1282a7692c466fecce6e649cac1ea43d3b1a7aab9aecc36086f0658decb3b5b3",
+        "_template_sig_5": "d721c320b3ac775a4999dca4f0a05ea6dc82ff259db158d13f33402bc7ec0030",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT: s must stay a multiple of 3. The real optimum is a = b = c\n    # = s/3, so the answer ((s + 3k)/3)^3 is an integer exactly when 3 | s.\n    # Keep the invariant in the construction (3 * m), never in a value list.\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every positive integer triple summing to s.\n    # Since 3 | s, the real optimum a = b = c = s/3 is a lattice point, so\n    # the searched maximum must equal the formula.\n    check = max(\n        (a + k) * (b + k) * (s - a - b + k)\n        for a in range(1, s - 1)\n        for b in range(1, s - a)\n    )\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let a, b, c be positive real numbers with a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(max_product)\n\nGROUP = \"inequality\"\nSKILL = \"transformation\"",
+      "program_id": "9515b0477fcf",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.5,
+      "h_score": 187.99468326568604,
+      "rq_score": 46.99867081642151,
+      "fitness": 46.99867081642151,
+      "niche_group": 5,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "10_inequalities.py",
+        "group": "inequality",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 46.99867081642151
+        },
+        "_behavior_sig_5": "20e766b073afd191acd68b4bafa1b87376de49863ce6d9450983e77624a66393",
+        "_template_sig_5": "e33f9d7203a503bc5fd529abcdf1c6266817f985e18fc102d6c019f42bae805a",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

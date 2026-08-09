@@ -1,0 +1,293 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 8,
+      "total_niches": 48,
+      "coverage": 0.16666666666666666,
+      "group_coverage": 0.6666666666666666,
+      "skill_coverage": 0.625,
+      "mean_rq": 51.64542604485278,
+      "max_rq": 130.70139141082763,
+      "total_insertions": 31,
+      "total_replacements": 2,
+      "total_selections": 96
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\nimport math\n\nK_MAX = 72  # cap on the shown exponent k = t * u\n\ndef _prime_factors(n):\n    factors = set()\n    d = 2\n    while d * d <= n:\n        while n % d == 0:\n            factors.add(d)\n            n //= d\n        d += 1\n    if n > 1:\n        factors.add(n)\n    return factors\n\ndef _primitive_root(p):\n    factors = sorted(_prime_factors(p - 1))  # sorted(): determinism rule\n    for g in range(2, p):\n        if all(pow(g, (p - 1) // q, p) != 1 for q in factors):\n            return g\n    return 2\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT chain, carried by construction instead of curated lists:\n    #   t (= the answer) cycles over [2, 24] so answers stay evenly covered;\n    #   primes are DERIVED by a trial-division filter, never typed in;\n    #   p is drawn from the derived primes with t | p - 1;\n    #   k = t * u with gcd(u, (p-1)/t) = 1  ->  gcd(k, p-1) = t * gcd(u, v) = t;\n    #   e = t * j                           ->  t | ind(a), so x^k = a is solvable.\n    t = 2 + (seed % 23)\n\n    primes = [n for n in range(29, 294)  # widen these bounds freely\n              if all(n % d for d in range(2, math.isqrt(n) + 1))]\n    eligible = [q for q in primes if (q - 1) % t == 0]\n    assert eligible, f\"no prime p with {t} | p-1 in range: widen the prime range\"\n    p = rng.choice(eligible)\n\n    v = (p - 1) // t\n    u_options = [u for u in (1, 2, 3)\n                 if t * u <= K_MAX and math.gcd(u, v) == 1]\n    u = rng.choice(u_options)              # u = 1 always valid: never empty\n    k = t * u\n    e = t * rng.randint(1, (p - 2) // t)   # multiple of t in [t, p-2]\n\n    g = _primitive_root(p)\n    a = pow(g, e, p)\n    answer = t\n\n    assert math.gcd(k, p - 1) == t and e % t == 0, (\n        \"invariant violated: gcd(k, p-1) == t and t | e must hold\"\n    )\n\n    # Independent route: count the solutions of x^k ≡ a by testing every\n    # residue, instead of reading the count off gcd(k, p-1).\n    check = sum(1 for x in range(p) if pow(x, k, p) == a)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let p = {p}, and let g = {g} be a primitive root modulo p. \"\n        f\"For the residue a = {a}, how many distinct residues y modulo {p} \"\n        f\"satisfy y^{k} ≡ a (mod {p})?\"\n    )\n    return problem, str(answer)\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"",
+      "program_id": "0fbf661738be",
+      "parent_id": "945b22e16e37",
+      "generation": 1,
+      "p_hat": 0.1,
+      "h_score": 331.69056396484376,
+      "rq_score": 29.852150756835943,
+      "fitness": 29.852150756835943,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 29.852150756835943
+        },
+        "_behavior_sig_5": "97b04325cfa7d59905dc1432bcf52a5621151eb5581cfc2146f0ae89b883ff02",
+        "_template_sig_5": "44f099d85541cf88070716d1c43797e173b61eb88a805823461520f6e9f0a6f6",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nK_MAX = 72  # cap on the shown exponent k = t * u\n\n\ndef _prime_factors(n):\n    factors = set()\n    d = 2\n    while d * d <= n:\n        while n % d == 0:\n            factors.add(d)\n            n //= d\n        d += 1\n    if n > 1:\n        factors.add(n)\n    return factors\n\n\ndef _primitive_root(p):\n    factors = sorted(_prime_factors(p - 1))  # sorted(): determinism rule\n    for g in range(2, p):\n        if all(pow(g, (p - 1) // q, p) != 1 for q in factors):\n            return g\n    return 2\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT chain, carried by construction instead of curated lists:\n    #   t (= the answer) cycles over [2, 24] so answers stay evenly covered;\n    #   primes are DERIVED by a trial-division filter, never typed in;\n    #   p is drawn from the derived primes with t | p - 1;\n    #   k = t * u with gcd(u, (p-1)/t) = 1  ->  gcd(k, p-1) = t * gcd(u, v) = t;\n    #   e = t * j                           ->  t | ind(a), so x^k = a is solvable.\n    t = 2 + (seed % 23)\n\n    primes = [n for n in range(29, 294)  # widen these bounds freely\n              if all(n % d for d in range(2, math.isqrt(n) + 1))]\n    eligible = [q for q in primes if (q - 1) % t == 0]\n    assert eligible, f\"no prime p with {t} | p-1 in range: widen the prime range\"\n    p = rng.choice(eligible)\n\n    v = (p - 1) // t\n    u_options = [u for u in (1, 2, 3)\n                 if t * u <= K_MAX and math.gcd(u, v) == 1]\n    u = rng.choice(u_options)              # u = 1 always valid: never empty\n    k = t * u\n    e = t * rng.randint(1, (p - 2) // t)   # multiple of t in [t, p-2]\n\n    g = _primitive_root(p)\n    a = pow(g, e, p)\n    answer = t\n\n    assert math.gcd(k, p - 1) == t and e % t == 0, (\n        \"invariant violated: gcd(k, p-1) == t and t | e must hold\"\n    )\n\n    # Independent route: count the solutions of x^k = a by testing every\n    # residue, instead of reading the count off gcd(k, p-1).\n    check = sum(1 for x in range(p) if pow(x, k, p) == a)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let p = {p}, and let g = {g} be a primitive root modulo p. \"\n        f\"For the residue a = {a}, how many residue classes x modulo {p} \"\n        f\"satisfy x^{k} ≡ a (mod {p})?\"\n    )\n    return problem, str(answer)\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"",
+      "program_id": "945b22e16e37",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.2222222222222222,
+      "h_score": 243.32130601671008,
+      "rq_score": 42.05553437325853,
+      "fitness": 42.05553437325853,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "11_kth_root_count.py",
+        "group": "number_theory",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 42.05553437325853
+        },
+        "_behavior_sig_5": "ea7fac5013cb775d67bd901c1c34f1d9cd7a2a204a4b59ab5f5d34e67def1968",
+        "_template_sig_5": "19e1cea0d247cd7971a14a6fa1c5c3f047979bbb8830b73e167f0ff380625809",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    p = rng.choice([2, 3])\n    q = rng.randint(1, 5)\n    c = rng.randint(1, 5)\n    n = rng.randint(6, 10)\n    val = c\n    for _ in range(n):\n        val = p * val + q\n    answer = val\n\n    # Independent route: the closed form of a(n) = p*a(n-1) + q, instead of\n    # iterating the recurrence n times.\n    check = p ** n * c + q * (p ** n - 1) // (p - 1)\n    assert answer == check, f\"answer={answer} check={check}\"\n    problem = (\n        f\"A sequence is defined by a(0) = {c} and \"\n        f\"a(n) = {p} * a(n-1) + {q} for n >= 1. Find a({n}).\"\n    )\n\n    return problem, str(answer)\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n",
+      "program_id": "d9a33e8b1a9c",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.5,
+      "h_score": 120.99623336791993,
+      "rq_score": 30.249058341979982,
+      "fitness": 30.249058341979982,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "08_recurrence.py",
+        "group": "sequence",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 30.249058341979982
+        },
+        "_behavior_sig_5": "2b80f7c3e97700e670b5e2b1aa2a2a8320f35f2b5ac36e518e841d50828ac96c",
+        "_template_sig_5": "f48eb21096776b5f8ee63f31303f65b26fcb7dd112c52792bcf8af675f49023a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the sequence domain.\n    # Choosing sequence parameters that won't allow simple enumeration or guessing.\n    n_terms = rng.randint(50, 100)  # Number of terms in the sequence\n    a = rng.randint(1, 50)  # First term of the sequence\n    d = rng.randint(1, 20)  # Common difference of the sequence\n\n    # Calculating the sum of the sequence using the formula for the sum of an arithmetic sequence.\n    # S(n) = n/2 * (2a + (n-1)d)\n    answer = int((n_terms / 2) * (2 * a + (n_terms - 1) * d))\n\n    # Independent route: calculating the sum by summing each term directly.\n    check_sum = sum(a + (i - 1) * d for i in range(1, n_terms + 1))\n    assert answer == check_sum, f\"answer={answer} check={check_sum}\"\n\n    # Constructing a question about the sum of this arithmetic sequence.\n    problem = f\"What is the sum of the first {n_terms} terms of an arithmetic sequence where the first term is {a} and the common difference is {d}?\"\n\n    return problem, str(answer)",
+      "program_id": "7e2dbfa2bda0",
+      "parent_id": "945b22e16e37",
+      "generation": 1,
+      "p_hat": 0.625,
+      "h_score": 202.34058094024658,
+      "rq_score": 47.42357365787029,
+      "fitness": 47.42357365787029,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 47.42357365787029
+        },
+        "_behavior_sig_5": "1f244a9169e226a0cb27fabb74fde9c3ac629e560eeff09ea190a8a0d1058130",
+        "_template_sig_5": "eee90cf46dc764e1428794c434c5dd91b48f1f6131256d36c3a8ecd2a9342d54",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # b is even so that every case yields an integer: the solutions come in\n    # pairs -beta +/- sqrt(t), whose squares add to 2*beta**2 + 2*t.\n    # |beta| >= 2 keeps the single-solution case away from the guessable\n    # answers 0 and 1.\n    beta = rng.choice([-9, -8, -7, -6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9])\n    k = rng.randint(1, 12)\n    b = 2 * beta\n\n    # |f(x)| = k splits into f(x) = k and f(x) = -k. Writing f(x) as\n    # (x + beta)**2 + (c - beta**2), the two branches have shifted radicands\n    #     upper = beta**2 - c + k     (from f(x) = k)\n    #     lower = beta**2 - c - k     (from f(x) = -k)\n    # which differ by 2k, so how many solutions exist is decided by where\n    # beta**2 - c sits relative to +/- k. c is chosen from the interval that\n    # realises the wanted case, rotating with the seed so every branch occurs.\n    case = seed % 4\n    if case == 0:\n        c = beta * beta - k - rng.randint(1, 25)   # lower > 0  -> four solutions\n    elif case == 1:\n        c = beta * beta - k                        # lower == 0 -> three solutions\n    elif case == 2:\n        c = beta * beta + rng.randint(-k + 1, k - 1)   # lower < 0 < upper -> two\n    else:\n        c = beta * beta + k                        # upper == 0 -> one solution\n\n    upper = beta * beta - c + k\n    lower = beta * beta - c - k\n\n    # Each branch contributes a different expression, and no single one of them\n    # is valid across the four cases -- which is the whole solve.\n    answer = 0\n    for radicand in (upper, lower):\n        if radicand > 0:\n            answer += 2 * beta * beta + 2 * radicand   # two solutions\n        elif radicand == 0:\n            answer += beta * beta                      # one repeated solution\n\n    # Independent route: solve both quadratics with the ordinary formula in\n    # floating point and add up the squares of the distinct real solutions,\n    # instead of deciding the case from upper and lower.\n    solutions = []\n    for constant in (c - k, c + k):\n        disc = b * b - 4 * constant\n        if disc < 0:\n            continue\n        root = math.sqrt(disc)\n        solutions.append((-b + root) / 2)\n        if root > 0:\n            solutions.append((-b - root) / 2)\n    check = sum(x * x for x in solutions)\n    assert abs(check - answer) < 1e-6, f\"answer={answer} check={check}\"\n\n    linear = f\"+ {b}x\" if b > 0 else f\"- {abs(b)}x\"\n    constant = f\"+ {c}\" if c > 0 else f\"- {abs(c)}\"\n    problem = (\n        f\"Let f(x) = x^2 {linear} {constant}. Find the sum of the squares of \"\n        f\"all real solutions of |f(x)| = {k}. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"casework\"\n",
+      "program_id": "e9efe4a2b47f",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.3333333333333333,
+      "h_score": 182.2885309855143,
+      "rq_score": 40.50856244122541,
+      "fitness": 40.50856244122541,
+      "niche_group": 3,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "18_absolute_quadratic_cases.py",
+        "group": "algebra",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 40.50856244122541
+        },
+        "_behavior_sig_5": "1cabe17f34aca765f6d1003000ab3094fc73927c21be90ea47dbff33333f6b12",
+        "_template_sig_5": "e2d3ed99a55dd21f408d28264fce340e2143ccf0817ef0f8f7d23479a9d5d145",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # a is odd so that every case yields an integer: the solutions come in\n    # pairs -alpha +/- sqrt(r), whose squares add to 2*alpha**2 + 2*r.\n    # |alpha| >= 2 keeps the single-solution case away from the guessable\n    # answers 0 and 1.\n    alpha = rng.choice([-9, -7, -5, -3, -1, 1, 3, 5, 7, 9])\n    k = rng.randint(1, 12)\n    a = 2 * alpha\n\n    # |g(x)| = k splits into g(x) = k and g(x) = -k. Writing g(x) as\n    # (x + alpha)**2 + (s - alpha**2), the two branches have shifted radicands\n    #     upper = alpha**2 - s + k     (from g(x) = k)\n    #     lower = alpha**2 - s - k     (from g(x) = -k)\n    # which differ by 2k, so how many solutions exist is decided by where\n    # alpha**2 - s sits relative to +/- k. s is chosen from the interval that\n    # realises the wanted case, rotating with the seed so every branch occurs.\n    case = seed % 4\n    if case == 0:\n        s = alpha * alpha - k - rng.randint(1, 25)   # upper > 0  -> four solutions\n    elif case == 1:\n        s = alpha * alpha - k                        # upper == 0 -> three solutions\n    elif case == 2:\n        s = alpha * alpha + rng.randint(-k + 1, k - 1)   # upper < 0 < lower -> two\n    else:\n        s = alpha * alpha + k                        # lower == 0 -> one solution\n\n    upper = alpha * alpha - s + k\n    lower = alpha * alpha - s - k\n\n    # Each branch contributes a different expression, and no single one of them\n    # is valid across the four cases -- which is the whole solve.\n    answer = 0\n    for radicand in (upper, lower):\n        if radicand > 0:\n            answer += 2 * alpha * alpha + 2 * radicand   # two solutions\n        elif radicand == 0:\n            answer += alpha * alpha                      # one repeated solution\n\n    # Independent route: solve both quadratics with the ordinary formula in\n    # floating point and add up the squares of the distinct real solutions,\n    # instead of deciding the case from upper and lower.\n    solutions = []\n    for constant in (s - k, s + k):\n        disc = a * a - 4 * constant\n        if disc < 0:\n            continue\n        root = math.sqrt(disc)\n        solutions.append((-a + root) / 2)\n        if root > 0:\n            solutions.append((-a - root) / 2)\n    check = sum(x * x for x in solutions)\n    assert abs(check - answer) < 1e-6, f\"answer={answer}\"\n\n    linear = f\"+ {a}x\" if a > 0 else f\"- {abs(a)}x\"\n    constant = f\"+ {s}\" if s > 0 else f\"- {abs(s)}\"\n    problem = (\n        f\"Let g(x) = x^2 {linear} {constant}. Find the sum of the squares of \"\n        f\"all real solutions of |g(x)| = {k}. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"",
+      "program_id": "4ac1a8204eb1",
+      "parent_id": "e9efe4a2b47f",
+      "generation": 1,
+      "p_hat": 0.5,
+      "h_score": 522.8055656433105,
+      "rq_score": 130.70139141082763,
+      "fitness": 130.70139141082763,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 130.70139141082763
+        },
+        "_behavior_sig_5": "9535a3d6453c97898c70661ed67eb4a8044673a6d7d0d1f49dfd2415207bdfbf",
+        "_template_sig_5": "3843b321e05aca7d904a586c4e5faa5151d7f041b1d03a65c36009cd98b7a2a9",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"inequality\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Ensure s is a multiple of 3 to maintain the invariant s % 3 == 0\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every positive integer triple summing to s.\n    # Since 3 | s, the real optimum a = b = c = s/3 is a lattice point, so\n    # the searched maximum must equal the formula.\n    check = max(\n        (a + k) * (b + k) * (s - a - b + k)\n        for a in range(1, s - 1)\n        for b in range(1, s - a)\n    )\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let a, b, c be positive integers with a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(max_product)",
+      "program_id": "93375f470e22",
+      "parent_id": "9515b0477fcf",
+      "generation": 1,
+      "p_hat": 0.2222222222222222,
+      "h_score": 225.6038080851237,
+      "rq_score": 38.993250780144834,
+      "fitness": 38.993250780144834,
+      "niche_group": 5,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "inequality",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 38.993250780144834
+        },
+        "_behavior_sig_5": "62ef19956e9e304a46f8693f96b8f5d0ee73a1687a05c258cdb65b5b1ed17664",
+        "_template_sig_5": "516c5eee1cd3f0a46f05027bfacef2a16eda27de7d79cc5231380f97acc40df2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT: s must stay a multiple of 3. The real optimum is a = b = c\n    # = s/3, so the answer ((s + 3k)/3)^3 is an integer exactly when 3 | s.\n    # Keep the invariant in the construction (3 * m), never in a value list.\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every positive integer triple summing to s.\n    # Since 3 | s, the real optimum a = b = c = s/3 is a lattice point, so\n    # the searched maximum must equal the formula.\n    check = max(\n        (a + k) * (b + k) * (s - a - b + k)\n        for a in range(1, s - 1)\n        for b in range(1, s - a)\n    )\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let a, b, c be positive real numbers with a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(max_product)\n\nGROUP = \"inequality\"\nSKILL = \"transformation\"",
+      "program_id": "9515b0477fcf",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.6,
+      "h_score": 222.41619415283202,
+      "rq_score": 53.37988659667968,
+      "fitness": 53.37988659667968,
+      "niche_group": 5,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "10_inequalities.py",
+        "group": "inequality",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 53.37988659667968
+        },
+        "_behavior_sig_5": "20e766b073afd191acd68b4bafa1b87376de49863ce6d9450983e77624a66393",
+        "_template_sig_5": "e33f9d7203a503bc5fd529abcdf1c6266817f985e18fc102d6c019f42bae805a",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

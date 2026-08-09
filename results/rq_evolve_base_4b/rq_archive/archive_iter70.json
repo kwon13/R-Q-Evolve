@@ -1,0 +1,638 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 18,
+      "total_niches": 48,
+      "coverage": 0.375,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 0.625,
+      "mean_rq": 34.836890745644844,
+      "max_rq": 123.5982821960449,
+      "total_insertions": 254,
+      "total_replacements": 30,
+      "total_selections": 480
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"induction\"\n\n\ndef find_max_exponent(n, min_exp, max_exp):\n    if n == 0:\n        return 0\n    \n    if n < min_exp:\n        return -1\n    \n    max_count = 0\n    \n    for exponent in range(min_exp, max_exp + 1):\n        if exponent <= n:\n            remaining_n = n - exponent\n            count = find_max_exponent(remaining_n, min_exp, exponent - 1)\n            \n            if count != -1:\n                max_count = max(max_count, count + 1)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_exp = rng.randint(2, 5)\n    max_exp = rng.randint(5, 15)\n    n = rng.randint(1000, 5000)\n    \n    answer = find_max_exponent(n, min_exp, max_exp)\n\n    check = -1\n    for exponent in range(min_exp, max_exp + 1):\n        if exponent <= n:\n            remaining_n = n - exponent\n            count = find_max_exponent(remaining_n, min_exp, exponent - 1)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the integers from {min_exp} to {max_exp} (inclusive). \"\n        f\"What is the maximum number of distinct integers that can be selected such that no integer exceeds the total {n} and all selected integers sum to exactly {n}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "1c7f1d200900",
+      "parent_id": "8a0d2414b4b7",
+      "generation": 20,
+      "p_hat": 0.7142857142857143,
+      "h_score": 112.49446214948382,
+      "rq_score": 22.958053499894657,
+      "fitness": 22.958053499894657,
+      "niche_group": 0,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 22.958053499894657
+        },
+        "_behavior_sig_5": "79ace1534fb2d26b8b2bf3209eaa7938e6d9942830039aeab68fa38310aabcc3",
+        "_template_sig_5": "d170f97ba635a98d751f5220741c6fd92b9f7f7d2a06c1ba6370460f587705d3",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"contradiction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(100, 200)\n\n    # Generate two random sets of prime divisors within the range\n    A = set(rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], k=rng.randint(5, len([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31]) - 5)))\n    B = set(rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31], k=rng.randint(5, len([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31]) - 5)))\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (len(A.symmetric_difference(B)) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(A, B)]\n    for i in range(1, 10):  # Generate a few more pairs to test the invariant\n        A_next = sequence[-1][0].union({rng.choice([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31])})\n        B_next = sequence[-1][1].union({rng.choice([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31])})\n        sequence.append((A_next, B_next))\n        invariant_next = (len(A_next.symmetric_difference(B_next)) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    A_final, B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (len(A_final.symmetric_difference(B_final)) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (len(A.symmetric_difference(B)) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are sets of prime numbers. \"\n        f\"Define the invariant as the symmetric difference of A and B modulo 2. \"\n        f\"Starting with (A, B) = ({A}, {B}), generate a sequence of pairs where the invariant \"\n        f\"remains constant. Prove that the invariant cannot reach a state of 0 before a certain number of steps. \"\n        f\"State the integer representing the final value of the invariant.\\n\"\n        f\"The invariant is defined as the symmetric difference of A and B modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({A}, {B}).\\n\"\n        f\"The sequence generates pairs where each next pair's sets are expanded by adding a new prime number.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "47b7f98e10c1",
+      "parent_id": "b9e833cbc729",
+      "generation": 12,
+      "p_hat": 0.6666666666666666,
+      "h_score": 113.77714538574219,
+      "rq_score": 25.28381008572049,
+      "fitness": 25.28381008572049,
+      "niche_group": 0,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 25.28381008572049
+        },
+        "_behavior_sig_5": "d2d0f2d4f9187d19d66ec401abf8a23fe9118cf26bd8c58afc4f37a031dedc25",
+        "_template_sig_5": "ff25f35aa73672642b275fccde4eda2a5e213e3f6ad1bf9ca1d774f7eaf10eff",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate two random integers within the range\n    a = rng.randint(1, n)\n    b = rng.randint(1, n)\n\n    # Define the invariant: the number of distinct prime factors of the symmetric difference modulo 2\n    def prime_factors(x):\n        return set(sympy.primefactors(x))\n\n    invariant = (len(prime_factors(a ^ b)) % 2)\n\n    # Generate a sequence of pairs (a, b) and check if the invariant holds\n    sequence = [(a, b)]\n    for i in range(1, 10):  # Generate a few more pairs to test the invariant\n        a_next = sequence[-1][0] * rng.randint(2, 10)  # Multiply by a small prime to expand\n        b_next = sequence[-1][1] * rng.randint(2, 10)  # Multiply by a small prime to expand\n        sequence.append((a_next, b_next))\n        invariant_next = (len(prime_factors(a_next ^ b_next)) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (a, b) where the invariant holds\n    a_final, b_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (len(prime_factors(a_final ^ b_final)) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (len(prime_factors(a ^ b)) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (a, b) where a and b are integers \"\n        f\"from the range 1 to {n}. Define the invariant as the number of \"\n        f\"distinct prime factors of the bitwise XOR (a ^ b) modulo 2. Starting \"\n        f\"with (a, b) = ({a}, {b}), generate a sequence of pairs where the \"\n        f\"invariant remains constant. What is the value of the invariant for the \"\n        f\"final pair (a, b)? State only the integer.\\n\"\n        f\"The invariant is defined as the number of distinct prime factors of the bitwise XOR (a ^ b) modulo 2, and \"\n        f\"the sequence starts with (a, b) = ({a}, {b}).\\n\"\n        f\"The sequence generates pairs where each next pair's numbers are expanded by multiplying by a small prime.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "f15bae7b6f3b",
+      "parent_id": "8bef946324bf",
+      "generation": 11,
+      "p_hat": 0.6,
+      "h_score": 127.52240676879883,
+      "rq_score": 30.605377624511718,
+      "fitness": 30.605377624511718,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 30.605377624511718
+        },
+        "_behavior_sig_5": "1281e16f226f023397549c4d0a2a589d72b659041c0f7e340489e709513c09b0",
+        "_template_sig_5": "f66fb6c72e9d0f38ccd6755f5f084a5cf1f7d69babcab3e3f8c3a348cf517110",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Count the prime numbers in the range.\n    answer = sum(1 for num in numbers if sympy.isprime(num))\n\n    # Independent route: Verify the count by directly enumerating primes.\n    check = 0\n    for num in numbers:\n        if sympy.isprime(num):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many prime numbers k with 1 <= k <= {n} are there? State only the integer.\\n\"\n        f\"The problem asks for the count of prime numbers in the range from 1 to {n}.\\n\"\n        f\"The count is determined by directly enumerating prime numbers in the range.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "088b9de3472d",
+      "parent_id": "4f804f515d92",
+      "generation": 10,
+      "p_hat": 0.4,
+      "h_score": 101.28810329437256,
+      "rq_score": 24.309144790649412,
+      "fitness": 24.309144790649412,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 24.309144790649412
+        },
+        "_behavior_sig_5": "8319294d17da3309f526aa60696adb79326d9dad541585b1c11b1ac7f3c1c7d2",
+        "_template_sig_5": "1a542f6c0f596d95a0f914d3325edfa99cda95bb59e1d81a9585d9a2c91f7833",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Find the number of primes where each prime's position in the range is also a prime\n    def is_prime_position(num):\n        idx = numbers.index(num) + 1\n        return sympy.isprime(idx)\n\n    answer = sum(1 for num in numbers if sympy.isprime(num) and is_prime_position(num))\n\n    # Independent route: Verify the count by explicitly checking each number for primality and its position.\n    check = 0\n    for num in numbers:\n        if sympy.isprime(num) and is_prime_position(num):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many prime numbers k with 1 <= k <= {n} have their position in the range from 1 to {n} also be a prime number? State only the integer.\\n\"\n        f\"The problem asks for the count of prime numbers in the range from 1 to {n} whose position is also a prime number.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "8dd8bd4d5bbc",
+      "parent_id": "bd4929fe732d",
+      "generation": 9,
+      "p_hat": 0.6666666666666666,
+      "h_score": 107.03045908610027,
+      "rq_score": 23.78454646357784,
+      "fitness": 23.78454646357784,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 23.78454646357784
+        },
+        "_behavior_sig_5": "8246f395f726918ce89e5701cfb45466395e970bcf0623894e302ffea60c74ad",
+        "_template_sig_5": "cbfd62108e61ce2d5f7a396b097852414f25eff3b6087ca03560fe74a3e5944f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"induction\"\n\n\ndef find_max_combination(n, min_size, max_size):\n    if n == 0:\n        return 0\n    \n    if n < min_size:\n        return -1\n    \n    max_count = 0\n    \n    for size in range(min_size, max_size + 1):\n        if size <= n:\n            remaining_n = n - size\n            count = find_max_combination(remaining_n, min_size, size - 1)\n            \n            if count != -1:\n                max_count = max(max_count, count + 1)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_size = rng.randint(2, 5)\n    max_size = rng.randint(5, 15)\n    n = rng.randint(1000, 5000)\n    \n    answer = find_max_combination(n, min_size, max_size)\n\n    check = -1\n    for size in range(min_size, max_size + 1):\n        if size <= n:\n            remaining_n = n - size\n            count = find_max_combination(remaining_n, min_size, size - 1)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider distinct integers from a set with elements having size from {min_size} to {max_size} (inclusive). \"\n        f\"What is the maximum number of distinct integers that can be selected such that no integer exceeds the total {n} and all selected integers sum to exactly {n}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "ea0bd70c5124",
+      "parent_id": "1c7f1d200900",
+      "generation": 21,
+      "p_hat": 0.75,
+      "h_score": 127.13793563842773,
+      "rq_score": 23.8383629322052,
+      "fitness": 23.8383629322052,
+      "niche_group": 1,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 23.8383629322052
+        },
+        "_behavior_sig_5": "627efeb9ec431868d85734b89a52a4df663ca9e7e2b25deb347afa91fa391146",
+        "_template_sig_5": "107b34b9dd752a293bef96e32b2486117318d3b13e6fe1483bf72ee116b38200",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"contradiction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate two random sets within the range\n    A = set(rng.sample(range(1, n + 1), k=rng.randint(5, n - 5)))\n    B = set(rng.sample(range(1, n + 1), k=rng.randint(5, n - 5)))\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (len(A.symmetric_difference(B)) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(A, B)]\n    for i in range(1, 10):  # Generate a few more pairs to test the invariant\n        A_next = sequence[-1][0].union({rng.randint(1, n)})\n        B_next = sequence[-1][1].union({rng.randint(1, n)})\n        sequence.append((A_next, B_next))\n        invariant_next = (len(A_next.symmetric_difference(B_next)) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    A_final, B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (len(A_final.symmetric_difference(B_final)) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (len(A.symmetric_difference(B)) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are subsets \"\n        f\"of the set {set(range(1, n + 1))}. Define the invariant as the \"\n        f\"symmetric difference of A and B modulo 2. Starting with (A, B) = \"\n        f\"({A}, {B}), generate a sequence of pairs where the invariant \"\n        f\"remains constant. Prove that the invariant cannot reach a state of 0 \"\n        f\"before a certain number of steps. State the integer representing the \"\n        f\"final value of the invariant.\\n\"\n        f\"The invariant is defined as the symmetric difference of A and B modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({A}, {B}).\\n\"\n        f\"The sequence generates pairs where each next pair's sets are expanded by adding a new element.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "b9e833cbc729",
+      "parent_id": "8bef946324bf",
+      "generation": 11,
+      "p_hat": 0.4,
+      "h_score": 183.4775074005127,
+      "rq_score": 44.03460177612305,
+      "fitness": 44.03460177612305,
+      "niche_group": 1,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 44.03460177612305
+        },
+        "_behavior_sig_5": "5848a4fd8fde64f60fe53841c5df8ba98bfa74c28ada5cb1378d25f1fa8a4f2f",
+        "_template_sig_5": "2af8cf8e9f66f79f11280e71a4de6bb8ce2c7652f6014c8b3c3b68dfb93d84af",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate two random sets within the range\n    A = set(rng.sample(range(1, n + 1), k=rng.randint(5, n - 5)))\n    B = set(rng.sample(range(1, n + 1), k=rng.randint(5, n - 5)))\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (len(A.symmetric_difference(B)) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(A, B)]\n    for i in range(1, 10):  # Generate a few more pairs to test the invariant\n        A_next = sequence[-1][0].union({rng.randint(1, n)})\n        B_next = sequence[-1][1].union({rng.randint(1, n)})\n        sequence.append((A_next, B_next))\n        invariant_next = (len(A_next.symmetric_difference(B_next)) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    A_final, B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (len(A_final.symmetric_difference(B_final)) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (len(A.symmetric_difference(B)) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are subsets \"\n        f\"of the set {set(range(1, n + 1))}. Define the invariant as the \"\n        f\"symmetric difference of A and B modulo 2. Starting with (A, B) = \"\n        f\"({A}, {B}), generate a sequence of pairs where the invariant \"\n        f\"remains constant. What is the value of the invariant for the final \"\n        f\"pair (A, B)? State only the integer.\\n\"\n        f\"The invariant is defined as the symmetric difference of A and B modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({A}, {B}).\\n\"\n        f\"The sequence generates pairs where each next pair's sets are expanded by adding a new element.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "8bef946324bf",
+      "parent_id": "af31fec5cf8c",
+      "generation": 10,
+      "p_hat": 0.2222222222222222,
+      "h_score": 203.11046346028647,
+      "rq_score": 35.10551220301247,
+      "fitness": 35.10551220301247,
+      "niche_group": 1,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 35.10551220301247
+        },
+        "_behavior_sig_5": "21073a792fb689b08427cb3c9c351843ae139d0f3129ffc7dc08e23445402610",
+        "_template_sig_5": "4e6f854332f56f6fcb3e9f90ac3f2828e8c54ff0cbf4fdb9cc4bd793a94c8c41",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate two random sets within the range\n    A = set(rng.sample(range(1, n + 1), k=rng.randint(5, n - 5)))\n    B = set(rng.sample(range(1, n + 1), k=rng.randint(5, n - 5)))\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (len(A.symmetric_difference(B)) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(A, B)]\n    for i in range(1, 10):  # Generate a few more pairs to test the invariant\n        A_next = sequence[-1][0].union({rng.randint(1, n)})\n        B_next = sequence[-1][1].union({rng.randint(1, n)})\n        sequence.append((A_next, B_next))\n        invariant_next = (len(A_next.symmetric_difference(B_next)) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    A_final, B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (len(A_final.symmetric_difference(B_final)) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (len(A.symmetric_difference(B)) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are subsets \"\n        f\"of the set {set(range(1, n + 1))}. Define the invariant as the \"\n        f\"symmetric difference of A and B modulo 2. Starting with (A, B) = \"\n        f\"({A}, {B}), generate a sequence of pairs where the invariant \"\n        f\"remains constant. Instead of proving that the invariant cannot reach a state of 0 \"\n        f\"before a certain number of steps, calculate the total number of distinct symmetric \"\n        f\"differences modulo 2 that can occur in the sequence. State the integer representing \"\n        f\"the total count of these distinct values.\\n\"\n        f\"The invariant is defined as the symmetric difference of A and B modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({A}, {B}).\\n\"\n        f\"The sequence generates pairs where each next pair's sets are expanded by adding a new element.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "380380b5b0ae",
+      "parent_id": "b9e833cbc729",
+      "generation": 12,
+      "p_hat": 0.1,
+      "h_score": 171.99286575317382,
+      "rq_score": 15.479357917785645,
+      "fitness": 15.479357917785645,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 15.479357917785645
+        },
+        "_behavior_sig_5": "420baf6cfcb87244e23f8e903c4cdf6ebb963702ebeb62e4387a0f131ae4bf19",
+        "_template_sig_5": "d8fe0bd4953f45c2cb2e0c6e287929bf22b2264f422d443dedec15624ae40d57",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"combinatorics\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 10)\n    k = rng.randint(1, n)\n\n    # Generate a random set of k elements from a set of n elements\n    original_set = rng.sample(range(n), k)\n    set_size = len(original_set)\n\n    # Find the number of subsets where each subset's size is also a prime number\n    def is_prime_size(subset_size):\n        return sympy.isprime(subset_size)\n\n    answer = sum(1 for size in range(1, set_size + 1) if is_prime_size(size))\n\n    # Independent route: Verify the count by explicitly checking each possible subset size.\n    check = 0\n    for size in range(1, set_size + 1):\n        if is_prime_size(size):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many subset sizes of a set containing {k} elements, where the sizes themselves are prime numbers, can be formed? State only the integer.\\n\"\n        f\"The problem asks for the count of subset sizes in a set of {k} elements where the subset size is also a prime number.\\n\"\n        f\"The set in question has elements: {original_set}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "9b541ab87911",
+      "parent_id": "8dd8bd4d5bbc",
+      "generation": 10,
+      "p_hat": 0.9,
+      "h_score": 76.12824897766113,
+      "rq_score": 6.8515424079895,
+      "fitness": 6.8515424079895,
+      "niche_group": 1,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 6.8515424079895
+        },
+        "_behavior_sig_5": "757b6bb3ef82059ca127a65e33707c78427a313e8cbe915eb953924e3117b972",
+        "_template_sig_5": "bfa0fd8a389eda858f00bdd1998779cf0108accd25dc30497796fea77eca346a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n\n\ndef find_max_exponent(n, min_exp, max_exp):\n    if n == 0:\n        return 0\n    \n    if n < min_exp:\n        return -1\n    \n    max_count = 0\n    \n    for exponent in range(min_exp, max_exp + 1):\n        if exponent <= n:\n            remaining_n = n - exponent\n            count = find_max_exponent(remaining_n, min_exp, exponent - 1)\n            \n            if count != -1:\n                max_count = max(max_count, count + 1)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_exp = rng.randint(3, 10)\n    max_exp = rng.randint(20, 40)\n    n = rng.randint(50, 100)\n    \n    answer = find_max_exponent(n, min_exp, max_exp)\n\n    check = -1\n    for exponent in range(min_exp, max_exp + 1):\n        if exponent <= n:\n            remaining_n = n - exponent\n            count = find_max_exponent(remaining_n, min_exp, exponent - 1)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a sequence of integers where the first term starts at {min_exp} and the last term is {max_exp}. \"\n        f\"What is the maximum number of distinct terms that can be selected such that no term exceeds the total {n} and all selected terms sum to exactly {n}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "fc1cfbef0919",
+      "parent_id": "8a0d2414b4b7",
+      "generation": 20,
+      "p_hat": 0.7,
+      "h_score": 113.30283317565917,
+      "rq_score": 23.793594966888428,
+      "fitness": 23.793594966888428,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 23.793594966888428
+        },
+        "_behavior_sig_5": "2ed37d014a3fbcc32c13e1249643ad979b2e05285fa28ddf67446f410effcb45",
+        "_template_sig_5": "d1aed016caf857d2de68e9025e48c7fdbaca9fddd13c595f65d5c3c814361dca",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 15)\n    length = rng.randint(10, 20)\n\n    # Generate two random sequences of a given length\n    seq_A = [rng.randint(0, 1) for _ in range(length)]\n    seq_B = [rng.randint(0, 1) for _ in range(length)]\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (sum(1 for a, b in zip(seq_A, seq_B) if a != b) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(seq_A, seq_B)]\n    for i in range(1, 5):  # Generate a few more pairs to test the invariant\n        seq_A_next = seq_A.copy()\n        seq_B_next = seq_B.copy()\n        seq_A_next[rng.randint(0, length - 1)] += rng.choice([0, 1]) % 2\n        seq_B_next[rng.randint(0, length - 1)] += rng.choice([0, 1]) % 2\n        sequence.append((seq_A_next, seq_B_next))\n        invariant_next = (sum(1 for a, b in zip(seq_A_next, seq_B_next) if a != b) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    seq_A_final, seq_B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (sum(1 for a, b in zip(seq_A_final, seq_B_final) if a != b) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (sum(1 for a, b in zip(seq_A, seq_B) if a != b) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are sequences of integers of length {length}, \"\n        f\"each containing 0s and 1s. Define the invariant as the symmetric difference of the elements of A and B modulo 2. \"\n        f\"Starting with (A, B) = ({seq_A}, {seq_B}), generate a sequence of pairs where the invariant remains constant. \"\n        f\"What is the value of the invariant for the final pair (A, B)? State only the integer.\\n\"\n        f\"The invariant is defined as the symmetric difference of the elements of A and B modulo 2, and the sequence starts with (A, B) = ({seq_A}, {seq_B}).\\n\"\n        f\"The sequence generates pairs where each next pair's elements are adjusted by changing their value.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "02f6227f3d73",
+      "parent_id": "e8ac98cfbbb0",
+      "generation": 12,
+      "p_hat": 0.4444444444444444,
+      "h_score": 181.9167561001248,
+      "rq_score": 44.917717555586364,
+      "fitness": 44.917717555586364,
+      "niche_group": 2,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 44.917717555586364
+        },
+        "_behavior_sig_5": "3a81b7495464f140654e6422a68b151c2d5f22fc79fcb752aebf948da15ac6c3",
+        "_template_sig_5": "4e8267900181b80f3214f65070a6be24dd64085e12f7475ea25803eddea59512",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Transform the problem by asking for the count of Fibonacci numbers themselves, rather than non-Fibonacci numbers.\n    fib_numbers = sorted(sympy.fibonacci(n) for n in range(1, 10))  # Example Fibonacci numbers\n    answer = sum(1 for num in numbers if num in fib_numbers)\n\n    # Independent route: Verify the transformation by explicitly counting Fibonacci numbers.\n    check = 0\n    for num in numbers:\n        if num in fib_numbers:\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many Fibonacci numbers k with 1 <= k <= {n} are there? State only the integer.\\n\"\n        f\"The problem asks for the count of Fibonacci numbers in the range from 1 to {n}.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "098c13cda1e2",
+      "parent_id": "4c66978599fc",
+      "generation": 11,
+      "p_hat": 0.4,
+      "h_score": 170.36972770690917,
+      "rq_score": 40.8887346496582,
+      "fitness": 40.8887346496582,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 40.8887346496582
+        },
+        "_behavior_sig_5": "fed71a6d080e08dd5b2db9a7155d7ec42e6f91b9009a0d0942da8f2494886b8a",
+        "_template_sig_5": "8cdae82d88d13bcc5e8cdc799c2f57d03f20e60b6faf4f181eb632abf1539028",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"sequence\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Transform the problem by converting the count of Fibonacci numbers to a related quantity,\n    # such as the count of non-Fibonacci numbers in the range.\n    fib_numbers = sorted(sympy.fibonacci(n) for n in range(1, 10))  # Example Fibonacci numbers\n    answer = len(numbers) - sum(1 for num in numbers if num in fib_numbers)\n\n    # Independent route: Verify the transformation by explicitly counting non-Fibonacci numbers.\n    check = 0\n    for num in numbers:\n        if num not in fib_numbers:\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many non-Fibonacci numbers k with 1 <= k <= {n} are there? State only the integer.\\n\"\n        f\"The problem asks for the count of non-Fibonacci numbers in the range from 1 to {n}.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "4c66978599fc",
+      "parent_id": "e5ab67f7e97b",
+      "generation": 10,
+      "p_hat": 0.6,
+      "h_score": 514.9928424835205,
+      "rq_score": 123.5982821960449,
+      "fitness": 123.5982821960449,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 123.5982821960449
+        },
+        "_behavior_sig_5": "d2534309730892d1580489bffae35ea7d262c26f9e969af78a9d5305d972c0c9",
+        "_template_sig_5": "b41ce57e275f15d1ddaef0f31e414f818b94c62bdc50b184164d845dc0aca590",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)\n    degree = rng.randint(1, n)\n\n    # Generate two random polynomials of a given degree\n    coeffs_A = [rng.choice(range(-n, n + 1)) for _ in range(degree + 1)]\n    coeffs_B = [rng.choice(range(-n, n + 1)) for _ in range(degree + 1)]\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (sum(1 for a, b in zip(coeffs_A, coeffs_B) if a != b) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(coeffs_A, coeffs_B)]\n    for i in range(1, 5):  # Generate a few more pairs to test the invariant\n        coeffs_A_next = coeffs_A.copy()\n        coeffs_B_next = coeffs_B.copy()\n        coeffs_A_next[rng.randint(0, degree)] += rng.choice(range(-n, n + 1))\n        coeffs_B_next[rng.randint(0, degree)] += rng.choice(range(-n, n + 1))\n        sequence.append((coeffs_A_next, coeffs_B_next))\n        invariant_next = (sum(1 for a, b in zip(coeffs_A_next, coeffs_B_next) if a != b) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    coeffs_A_final, coeffs_B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (sum(1 for a, b in zip(coeffs_A_final, coeffs_B_final) if a != b) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (sum(1 for a, b in zip(coeffs_A, coeffs_B) if a != b) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are polynomials of degree {degree} \"\n        f\"with coefficients in the range -{n} to {n}. Define the invariant as the symmetric difference \"\n        f\"of the coefficients of A and B modulo 2. Starting with (A, B) = ({coeffs_A}, {coeffs_B}), \"\n        f\"generate a sequence of pairs where the invariant remains constant. What is the value of the \"\n        f\"invariant for the final pair (A, B)? State only the integer.\\n\"\n        f\"The invariant is defined as the symmetric difference of the coefficients of A and B modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({coeffs_A}, {coeffs_B}).\\n\"\n        f\"The sequence generates pairs where each next pair's coefficients are adjusted by adding or subtracting a random value.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "e8ac98cfbbb0",
+      "parent_id": "8bef946324bf",
+      "generation": 11,
+      "p_hat": 0.1,
+      "h_score": 406.2943344116211,
+      "rq_score": 36.5664900970459,
+      "fitness": 36.5664900970459,
+      "niche_group": 3,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 36.5664900970459
+        },
+        "_behavior_sig_5": "b3827928b7c117753e658e2e156d1f90fabceb66b00de16fb37373958f9e7cc3",
+        "_template_sig_5": "7eabf18679ca56be463fd4cdfd9f9fb12ec2292611c8b78b729003b4dfae2694",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)\n    degree = rng.randint(1, n)\n\n    # Generate two random polynomials of a given degree\n    coeffs_A = [rng.choice(range(-n, n + 1)) for _ in range(degree + 1)]\n    coeffs_B = [rng.choice(range(-n, n + 1)) for _ in range(degree + 1)]\n\n    # Define the invariant: the symmetric difference modulo 2 remains constant\n    invariant = (sum(1 for a, b in zip(coeffs_A, coeffs_B) if a != b) % 2)\n\n    # Generate a sequence of pairs (A, B) and check if the invariant holds\n    sequence = [(coeffs_A, coeffs_B)]\n    for i in range(1, 5):  # Generate a few more pairs to test the invariant\n        coeffs_A_next = coeffs_A.copy()\n        coeffs_B_next = coeffs_B.copy()\n        coeffs_A_next[rng.randint(0, degree)] += rng.choice(range(-n, n + 1))\n        coeffs_B_next[rng.randint(0, degree)] += rng.choice(range(-n, n + 1))\n        sequence.append((coeffs_A_next, coeffs_B_next))\n        invariant_next = (sum(1 for a, b in zip(coeffs_A_next, coeffs_B_next) if a != b) % 2)\n        if invariant_next != invariant:\n            sequence.pop()  # Backtrack if the invariant breaks\n            break\n\n    # The last valid pair (A, B) where the invariant holds\n    coeffs_A_final, coeffs_B_final = sequence[-1]\n\n    # Calculate the invariant for the final pair\n    answer = (sum(1 for a, b in zip(coeffs_A_final, coeffs_B_final) if a != b) % 2)\n\n    # Independent route: Calculate the invariant for the initial pair and verify it remains the same.\n    check = (sum(1 for a, b in zip(coeffs_A, coeffs_B) if a != b) % 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence of pairs (A, B) where A and B are polynomials of degree {degree} \"\n        f\"with coefficients in the range -{n} to {n}. Define the invariant as the symmetric difference \"\n        f\"of the coefficients of A and B modulo 2. Starting with (A, B) = ({coeffs_A}, {coeffs_B}), \"\n        f\"generate a sequence of pairs where the invariant remains constant. How many coefficient changes \"\n        f\"are needed to maintain the invariant in the final pair (A, B)? State only the integer.\\n\"\n        f\"The invariant is defined as the symmetric difference of the coefficients of A and B modulo 2, and \"\n        f\"the sequence starts with (A, B) = ({coeffs_A}, {coeffs_B}).\\n\"\n        f\"The sequence generates pairs where each next pair's coefficients are adjusted by adding or subtracting a random value.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "b5b266827a2a",
+      "parent_id": "e8ac98cfbbb0",
+      "generation": 12,
+      "p_hat": 0.6,
+      "h_score": 280.01851177215576,
+      "rq_score": 67.20444282531739,
+      "fitness": 67.20444282531739,
+      "niche_group": 3,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 67.20444282531739
+        },
+        "_behavior_sig_5": "5e5f576a957515fd871cc4587e979b1141a913576a688959522a95403a6d694f",
+        "_template_sig_5": "772e63366d08156b4f34eec49b0591f6480fbb7d5615cf10628ad5abc255e518",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    degree = rng.randint(1, 4)\n    coefficients = sorted(rng.sample(range(-10, 11), degree + 1))\n\n    # Generate a polynomial with random coefficients\n    def polynomial(x):\n        return sum(coeff * (x ** i) for i, coeff in enumerate(coefficients))\n\n    # Transform the polynomial into a simpler form that allows for counting non-zero values\n    # Here, we transform the polynomial into a linear form by factoring out the highest degree term\n    highest_degree = degree\n    highest_coeff = coefficients[highest_degree]\n    x_values = range(-10, 11)\n    transformed_values = [polynomial(x) // highest_coeff if highest_coeff != 0 else 0 for x in x_values]\n\n    # Calculate the number of values of x for which the transformed polynomial does not evaluate to zero\n    # This is the same as the original polynomial, but now we are counting the non-zero values of the transformed polynomial\n    answer = sum(1 for x in transformed_values if x != 0)\n\n    # Independent route: Use a complementary approach to verify the answer\n    known_transformed_values = {x for x in transformed_values if x == 0}\n    check = 21 - len(known_transformed_values)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Given the polynomial p(x) = {coefficients[-1]}x^{degree} + {coefficients[-2]}x^{degree - 1} + ... + {coefficients[0]}, \"\n        f\"transform it into a simpler form by factoring out the highest degree term. How many values of x in the range -10 to 10 inclusive \"\n        f\"make the transformed polynomial non-zero? State only the integer.\\n\"\n        f\"The polynomial is p(x) = {coefficients[-1]}x^{degree} + {coefficients[-2]}x^{degree - 1} + ... + {coefficients[0]}.\\n\"\n        f\"The problem asks for the count of x values in the range -10 to 10 inclusive that are not roots of the transformed polynomial.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "cb9fc8db13b3",
+      "parent_id": "9ac49f2925f9",
+      "generation": 10,
+      "p_hat": 0.7,
+      "h_score": 105.14304885864257,
+      "rq_score": 22.08004026031494,
+      "fitness": 22.08004026031494,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 22.08004026031494
+        },
+        "_behavior_sig_5": "4a45485f35611c8629a6ef8b531f7fd31ea97e04fb9ddf186ed3d6b282f7349b",
+        "_template_sig_5": "3902c93ddb35d4f3be57aa88dda5b68cd822801091c9de35f6153d3ff0e92ecb",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 10)\n    k = rng.randint(1, n)\n\n    # Generate a random set of k points on a grid\n    points = [(x, y) for x in range(n) for y in range(n)]\n    rng.shuffle(points)\n    selected_points = points[:k]\n\n    # Define a function to check if two points are collinear with the origin (0,0)\n    def are_collinear(p1, p2):\n        return (p1[1] * p2[0]) == (p2[1] * p1[0])\n\n    # Calculate the number of pairs of collinear points\n    answer = sum(1 for i in range(len(selected_points)) for j in range(i + 1, len(selected_points)) if are_collinear(selected_points[i], selected_points[j]))\n\n    # Independent route: Verify the count by explicitly checking each possible pair of points.\n    check = 0\n    for i in range(len(selected_points)):\n        for j in range(i + 1, len(selected_points)):\n            if are_collinear(selected_points[i], selected_points[j]):\n                check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many pairs of collinear points can be formed from a set of {k} randomly selected points on a {n}x{n} grid? State only the integer.\\n\"\n        f\"The problem asks for the count of pairs of collinear points among a set of {k} points selected from a grid of size {n}x{n}.\\n\"\n        f\"The points in question are: {selected_points}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "b636f9b63064",
+      "parent_id": "9b541ab87911",
+      "generation": 11,
+      "p_hat": 0.1,
+      "h_score": 175.1602352142334,
+      "rq_score": 15.76442116928101,
+      "fitness": 15.76442116928101,
+      "niche_group": 4,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 15.76442116928101
+        },
+        "_behavior_sig_5": "0654d19a920e79632b714880856c7c7d3a809a286f1d9f2f8f3265c3d957c567",
+        "_template_sig_5": "0f8fecaa6b7204daee3a6a9caa376852ac494e08ad084e89445aed1f86598aaa",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

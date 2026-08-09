@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "analysis_status": "preregistered_before_representation_extraction",
+  "preregistration_scope": "new runs collected after this configuration is frozen; excludes mutation_method_comparison_notebook",
+  "current_notebook_pilot_excluded_from_confirmatory_inference": true,
+  "frozen_solver": {
+    "checkpoint": "/data1/yhoon113/qwen3-8b-base",
+    "num_hidden_layers": 36,
+    "attention_implementation": "sdpa",
+    "dtype": "bfloat16",
+    "evaluation_mode": true,
+    "dropout_disabled": true
+  },
+  "representation": {
+    "primary_decoder_block_rule": "floor(2 * num_hidden_layers / 3) - 1",
+    "primary_decoder_block_zero_based": 23,
+    "primary_pooling": "mean_prompt_tokens",
+    "robustness_decoder_block_offsets": [
+      -1,
+      1
+    ],
+    "robustness_poolings": [
+      "mean_prompt_tokens",
+      "last_prompt_token"
+    ],
+    "l2_normalize": true,
+    "max_prompt_tokens": 2048
+  },
+  "generation_space": {
+    "validity_policy": "strict",
+    "parent_split_unit": "parent_program_id",
+    "calibration_fraction": 0.5,
+    "split_seed": 314159,
+    "pca_fit_condition": "plain_only",
+    "pca_center": false,
+    "pca_subspace_geometry": "origin_anchored_uncentered_svd_of_raw_plain_displacements",
+    "pca_cumulative_variance": 0.95,
+    "knn_k": 5,
+    "coverage_quantile": 0.95,
+    "distance": "cosine",
+    "primary_metric": "orthogonal_displacement",
+    "bootstrap_replicates": 10000,
+    "bootstrap_seed": 271828
+  },
+  "controls": {
+    "primary_effect": "unadjusted_paired_difference",
+    "robustness_effect": "paired_ridge_adjusted_intercept",
+    "ridge_alpha": 1.0,
+    "numeric_controls": [
+      "rq",
+      "token_length",
+      "numeric_count",
+      "numeric_span",
+      "numeric_max_abs"
+    ],
+    "design_invariants": [
+      "parent_program_id",
+      "evolution_iteration",
+      "generator_draw_idx",
+      "instance_seed_range"
+    ],
+    "categorical_controls": [
+      "concept_group",
+      "concept_type",
+      "operator"
+    ]
+  },
+  "inference_gates": {
+    "minimum_independent_runs": 3,
+    "minimum_heldout_parents": 20,
+    "minimum_paired_generators_per_parent": 3,
+    "minimum_archive_generators": 50,
+    "minimum_plain_calibration_generators_per_retained_component": 5
+  },
+  "capability_space": {
+    "conditions": [
+      "base",
+      "plain",
+      "reasoning"
+    ],
+    "transfer_levels": [
+      "in_family",
+      "structural",
+      "cross_domain"
+    ],
+    "forgetting_levels": [
+      "archive",
+      "benchmark"
+    ],
+    "primary_metric": "difference_in_differences",
+    "equal_compute_required": true,
+    "confirmatory_heldout_provenance_required": true,
+    "complete_base_plain_reasoning_units_required": true,
+    "minimum_independent_runs": 3,
+    "in_family_ci_above_zero_required": true,
+    "structural_or_cross_domain_ci_above_zero_required": true,
+    "per_target_reasoning_move_ci_above_zero_required": true,
+    "generation_report_required_for_final_claim": true
+  },
+  "sensitivity": {
+    "pca_cumulative_variance": [
+      0.8,
+      0.9,
+      0.95
+    ],
+    "pca_center": [
+      true,
+      false
+    ],
+    "knn_k": [
+      3,
+      5,
+      10
+    ],
+    "coverage_quantile": [
+      0.9,
+      0.95,
+      0.99
+    ]
+  }
+}

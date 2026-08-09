@@ -1,0 +1,705 @@
+{
+  "benchmark_sha256": "b3c7c3f93a3d8d777ac7a70563b851defbe1ad4c5508fb58d3e4f9ea99a24ba7",
+  "checkpoints": [
+    {
+      "global_step": 0,
+      "score_percent": 39.79166666666667,
+      "best_score_percent": 39.79166666666667,
+      "correct": 191,
+      "num_examples": 480,
+      "active_outer_iteration": null,
+      "cumulative_inner_iterations": 0,
+      "cumulative_insertions": 0,
+      "per_program": {
+        "id__08_recurrence": {
+          "correct": 17,
+          "num_examples": 40,
+          "accuracy": 0.425,
+          "group": "sequence",
+          "skill": "induction"
+        },
+        "id__09_linear_algebra": {
+          "correct": 28,
+          "num_examples": 40,
+          "accuracy": 0.7,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "id__10_inequalities": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "id__11_kth_root_count": {
+          "correct": 12,
+          "num_examples": 40,
+          "accuracy": 0.3,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "id__12_derangement_fixed_points": {
+          "correct": 14,
+          "num_examples": 40,
+          "accuracy": 0.35,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "id__18_absolute_quadratic_cases": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "algebra",
+          "skill": "casework"
+        },
+        "ood_v2__01_weighted_binary_recurrence": {
+          "correct": 1,
+          "num_examples": 40,
+          "accuracy": 0.025,
+          "group": "sequence",
+          "skill": "induction"
+        },
+        "ood_v2__02_symmetric_power_sum_three": {
+          "correct": 3,
+          "num_examples": 40,
+          "accuracy": 0.075,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "ood_v2__03_shifted_quadratic_minimum": {
+          "correct": 6,
+          "num_examples": 40,
+          "accuracy": 0.15,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "ood_v2__04_three_level_power_tower": {
+          "correct": 8,
+          "num_examples": 40,
+          "accuracy": 0.2,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "ood_v2__05_banded_lattice_paths": {
+          "correct": 0,
+          "num_examples": 40,
+          "accuracy": 0.0,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "ood_v2__06_weighted_absolute_centers": {
+          "correct": 22,
+          "num_examples": 40,
+          "accuracy": 0.55,
+          "group": "algebra",
+          "skill": "casework"
+        }
+      },
+      "per_concept": {
+        "algebra/casework": {
+          "correct": 62,
+          "num_examples": 80,
+          "accuracy": 0.775,
+          "group": "algebra",
+          "skill": "casework"
+        },
+        "algebra/transformation": {
+          "correct": 31,
+          "num_examples": 80,
+          "accuracy": 0.3875,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "combinatorics/counting": {
+          "correct": 14,
+          "num_examples": 80,
+          "accuracy": 0.175,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "inequality/transformation": {
+          "correct": 46,
+          "num_examples": 80,
+          "accuracy": 0.575,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "number_theory/transformation": {
+          "correct": 20,
+          "num_examples": 80,
+          "accuracy": 0.25,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "sequence/induction": {
+          "correct": 18,
+          "num_examples": 80,
+          "accuracy": 0.225,
+          "group": "sequence",
+          "skill": "induction"
+        }
+      }
+    },
+    {
+      "global_step": 32,
+      "score_percent": 52.708333333333336,
+      "best_score_percent": 52.708333333333336,
+      "correct": 253,
+      "num_examples": 480,
+      "active_outer_iteration": 10,
+      "cumulative_inner_iterations": 320,
+      "cumulative_insertions": 31,
+      "per_program": {
+        "id__08_recurrence": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "sequence",
+          "skill": "induction"
+        },
+        "id__09_linear_algebra": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "id__10_inequalities": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "id__11_kth_root_count": {
+          "correct": 30,
+          "num_examples": 40,
+          "accuracy": 0.75,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "id__12_derangement_fixed_points": {
+          "correct": 17,
+          "num_examples": 40,
+          "accuracy": 0.425,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "id__18_absolute_quadratic_cases": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "algebra",
+          "skill": "casework"
+        },
+        "ood_v2__01_weighted_binary_recurrence": {
+          "correct": 0,
+          "num_examples": 40,
+          "accuracy": 0.0,
+          "group": "sequence",
+          "skill": "induction"
+        },
+        "ood_v2__02_symmetric_power_sum_three": {
+          "correct": 2,
+          "num_examples": 40,
+          "accuracy": 0.05,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "ood_v2__03_shifted_quadratic_minimum": {
+          "correct": 13,
+          "num_examples": 40,
+          "accuracy": 0.325,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "ood_v2__04_three_level_power_tower": {
+          "correct": 6,
+          "num_examples": 40,
+          "accuracy": 0.15,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "ood_v2__05_banded_lattice_paths": {
+          "correct": 0,
+          "num_examples": 40,
+          "accuracy": 0.0,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "ood_v2__06_weighted_absolute_centers": {
+          "correct": 25,
+          "num_examples": 40,
+          "accuracy": 0.625,
+          "group": "algebra",
+          "skill": "casework"
+        }
+      },
+      "per_concept": {
+        "algebra/casework": {
+          "correct": 65,
+          "num_examples": 80,
+          "accuracy": 0.8125,
+          "group": "algebra",
+          "skill": "casework"
+        },
+        "algebra/transformation": {
+          "correct": 42,
+          "num_examples": 80,
+          "accuracy": 0.525,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "combinatorics/counting": {
+          "correct": 17,
+          "num_examples": 80,
+          "accuracy": 0.2125,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "inequality/transformation": {
+          "correct": 53,
+          "num_examples": 80,
+          "accuracy": 0.6625,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "number_theory/transformation": {
+          "correct": 36,
+          "num_examples": 80,
+          "accuracy": 0.45,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "sequence/induction": {
+          "correct": 40,
+          "num_examples": 80,
+          "accuracy": 0.5,
+          "group": "sequence",
+          "skill": "induction"
+        }
+      }
+    },
+    {
+      "global_step": 64,
+      "score_percent": 54.58333333333333,
+      "best_score_percent": 54.58333333333333,
+      "correct": 262,
+      "num_examples": 480,
+      "active_outer_iteration": 20,
+      "cumulative_inner_iterations": 640,
+      "cumulative_insertions": 70,
+      "per_program": {
+        "id__08_recurrence": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "sequence",
+          "skill": "induction"
+        },
+        "id__09_linear_algebra": {
+          "correct": 38,
+          "num_examples": 40,
+          "accuracy": 0.95,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "id__10_inequalities": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "id__11_kth_root_count": {
+          "correct": 33,
+          "num_examples": 40,
+          "accuracy": 0.825,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "id__12_derangement_fixed_points": {
+          "correct": 20,
+          "num_examples": 40,
+          "accuracy": 0.5,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "id__18_absolute_quadratic_cases": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "algebra",
+          "skill": "casework"
+        },
+        "ood_v2__01_weighted_binary_recurrence": {
+          "correct": 0,
+          "num_examples": 40,
+          "accuracy": 0.0,
+          "group": "sequence",
+          "skill": "induction"
+        },
+        "ood_v2__02_symmetric_power_sum_three": {
+          "correct": 3,
+          "num_examples": 40,
+          "accuracy": 0.075,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "ood_v2__03_shifted_quadratic_minimum": {
+          "correct": 19,
+          "num_examples": 40,
+          "accuracy": 0.475,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "ood_v2__04_three_level_power_tower": {
+          "correct": 9,
+          "num_examples": 40,
+          "accuracy": 0.225,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "ood_v2__05_banded_lattice_paths": {
+          "correct": 0,
+          "num_examples": 40,
+          "accuracy": 0.0,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "ood_v2__06_weighted_absolute_centers": {
+          "correct": 20,
+          "num_examples": 40,
+          "accuracy": 0.5,
+          "group": "algebra",
+          "skill": "casework"
+        }
+      },
+      "per_concept": {
+        "algebra/casework": {
+          "correct": 60,
+          "num_examples": 80,
+          "accuracy": 0.75,
+          "group": "algebra",
+          "skill": "casework"
+        },
+        "algebra/transformation": {
+          "correct": 41,
+          "num_examples": 80,
+          "accuracy": 0.5125,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "combinatorics/counting": {
+          "correct": 20,
+          "num_examples": 80,
+          "accuracy": 0.25,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "inequality/transformation": {
+          "correct": 59,
+          "num_examples": 80,
+          "accuracy": 0.7375,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "number_theory/transformation": {
+          "correct": 42,
+          "num_examples": 80,
+          "accuracy": 0.525,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "sequence/induction": {
+          "correct": 40,
+          "num_examples": 80,
+          "accuracy": 0.5,
+          "group": "sequence",
+          "skill": "induction"
+        }
+      }
+    },
+    {
+      "global_step": 96,
+      "score_percent": 55.41666666666667,
+      "best_score_percent": 55.41666666666667,
+      "correct": 266,
+      "num_examples": 480,
+      "active_outer_iteration": 27,
+      "cumulative_inner_iterations": 864,
+      "cumulative_insertions": 107,
+      "per_program": {
+        "id__08_recurrence": {
+          "correct": 39,
+          "num_examples": 40,
+          "accuracy": 0.975,
+          "group": "sequence",
+          "skill": "induction"
+        },
+        "id__09_linear_algebra": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "id__10_inequalities": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "id__11_kth_root_count": {
+          "correct": 36,
+          "num_examples": 40,
+          "accuracy": 0.9,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "id__12_derangement_fixed_points": {
+          "correct": 17,
+          "num_examples": 40,
+          "accuracy": 0.425,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "id__18_absolute_quadratic_cases": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "algebra",
+          "skill": "casework"
+        },
+        "ood_v2__01_weighted_binary_recurrence": {
+          "correct": 4,
+          "num_examples": 40,
+          "accuracy": 0.1,
+          "group": "sequence",
+          "skill": "induction"
+        },
+        "ood_v2__02_symmetric_power_sum_three": {
+          "correct": 3,
+          "num_examples": 40,
+          "accuracy": 0.075,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "ood_v2__03_shifted_quadratic_minimum": {
+          "correct": 13,
+          "num_examples": 40,
+          "accuracy": 0.325,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "ood_v2__04_three_level_power_tower": {
+          "correct": 8,
+          "num_examples": 40,
+          "accuracy": 0.2,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "ood_v2__05_banded_lattice_paths": {
+          "correct": 0,
+          "num_examples": 40,
+          "accuracy": 0.0,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "ood_v2__06_weighted_absolute_centers": {
+          "correct": 26,
+          "num_examples": 40,
+          "accuracy": 0.65,
+          "group": "algebra",
+          "skill": "casework"
+        }
+      },
+      "per_concept": {
+        "algebra/casework": {
+          "correct": 66,
+          "num_examples": 80,
+          "accuracy": 0.825,
+          "group": "algebra",
+          "skill": "casework"
+        },
+        "algebra/transformation": {
+          "correct": 43,
+          "num_examples": 80,
+          "accuracy": 0.5375,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "combinatorics/counting": {
+          "correct": 17,
+          "num_examples": 80,
+          "accuracy": 0.2125,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "inequality/transformation": {
+          "correct": 53,
+          "num_examples": 80,
+          "accuracy": 0.6625,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "number_theory/transformation": {
+          "correct": 44,
+          "num_examples": 80,
+          "accuracy": 0.55,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "sequence/induction": {
+          "correct": 43,
+          "num_examples": 80,
+          "accuracy": 0.5375,
+          "group": "sequence",
+          "skill": "induction"
+        }
+      }
+    },
+    {
+      "global_step": 128,
+      "score_percent": 55.625,
+      "best_score_percent": 55.625,
+      "correct": 267,
+      "num_examples": 480,
+      "active_outer_iteration": 36,
+      "cumulative_inner_iterations": 1152,
+      "cumulative_insertions": 152,
+      "per_program": {
+        "id__08_recurrence": {
+          "correct": 39,
+          "num_examples": 40,
+          "accuracy": 0.975,
+          "group": "sequence",
+          "skill": "induction"
+        },
+        "id__09_linear_algebra": {
+          "correct": 38,
+          "num_examples": 40,
+          "accuracy": 0.95,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "id__10_inequalities": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "id__11_kth_root_count": {
+          "correct": 37,
+          "num_examples": 40,
+          "accuracy": 0.925,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "id__12_derangement_fixed_points": {
+          "correct": 13,
+          "num_examples": 40,
+          "accuracy": 0.325,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "id__18_absolute_quadratic_cases": {
+          "correct": 40,
+          "num_examples": 40,
+          "accuracy": 1.0,
+          "group": "algebra",
+          "skill": "casework"
+        },
+        "ood_v2__01_weighted_binary_recurrence": {
+          "correct": 2,
+          "num_examples": 40,
+          "accuracy": 0.05,
+          "group": "sequence",
+          "skill": "induction"
+        },
+        "ood_v2__02_symmetric_power_sum_three": {
+          "correct": 4,
+          "num_examples": 40,
+          "accuracy": 0.1,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "ood_v2__03_shifted_quadratic_minimum": {
+          "correct": 18,
+          "num_examples": 40,
+          "accuracy": 0.45,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "ood_v2__04_three_level_power_tower": {
+          "correct": 6,
+          "num_examples": 40,
+          "accuracy": 0.15,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "ood_v2__05_banded_lattice_paths": {
+          "correct": 0,
+          "num_examples": 40,
+          "accuracy": 0.0,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "ood_v2__06_weighted_absolute_centers": {
+          "correct": 30,
+          "num_examples": 40,
+          "accuracy": 0.75,
+          "group": "algebra",
+          "skill": "casework"
+        }
+      },
+      "per_concept": {
+        "algebra/casework": {
+          "correct": 70,
+          "num_examples": 80,
+          "accuracy": 0.875,
+          "group": "algebra",
+          "skill": "casework"
+        },
+        "algebra/transformation": {
+          "correct": 42,
+          "num_examples": 80,
+          "accuracy": 0.525,
+          "group": "algebra",
+          "skill": "transformation"
+        },
+        "combinatorics/counting": {
+          "correct": 13,
+          "num_examples": 80,
+          "accuracy": 0.1625,
+          "group": "combinatorics",
+          "skill": "counting"
+        },
+        "inequality/transformation": {
+          "correct": 58,
+          "num_examples": 80,
+          "accuracy": 0.725,
+          "group": "inequality",
+          "skill": "transformation"
+        },
+        "number_theory/transformation": {
+          "correct": 43,
+          "num_examples": 80,
+          "accuracy": 0.5375,
+          "group": "number_theory",
+          "skill": "transformation"
+        },
+        "sequence/induction": {
+          "correct": 41,
+          "num_examples": 80,
+          "accuracy": 0.5125,
+          "group": "sequence",
+          "skill": "induction"
+        }
+      }
+    }
+  ]
+}

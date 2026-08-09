@@ -1,0 +1,782 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 23,
+      "total_niches": 48,
+      "coverage": 0.4791666666666667,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 0.75,
+      "mean_rq": 30.79144679288215,
+      "max_rq": 58.25734677314758,
+      "total_insertions": 94,
+      "total_replacements": 0,
+      "total_selections": 192
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    p = rng.choice([2, 3])\n    q = rng.randint(1, 5)\n    c = rng.randint(1, 5)\n    n = rng.randint(6, 10)\n    val = c\n    for _ in range(n):\n        val = p * val + q\n    answer = val\n\n    # Independent route: the closed form of a(n) = p*a(n-1) + q, instead of\n    # iterating the recurrence n times.\n    check = p ** n * c + q * (p ** n - 1) // (p - 1)\n    assert answer == check, f\"answer={answer} check={check}\"\n    problem = (\n        f\"A sequence is defined by a(0) = {c} and \"\n        f\"a(n) = {p} * a(n-1) + {q} for n >= 1. Find a({n}).\"\n    )\n\n    return problem, str(answer)\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n",
+      "program_id": "d9a33e8b1a9c",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.8,
+      "h_score": 51.83498344421387,
+      "rq_score": 8.293597351074217,
+      "fitness": 8.293597351074217,
+      "niche_group": 0,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "08_recurrence.py",
+        "group": "sequence",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 8.293597351074217
+        },
+        "_behavior_sig_5": "2b80f7c3e97700e670b5e2b1aa2a2a8320f35f2b5ac36e518e841d50828ac96c",
+        "_template_sig_5": "f48eb21096776b5f8ee63f31303f65b26fcb7dd112c52792bcf8af675f49023a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    x = rng.randint(-6, 6)\n    y = rng.randint(-6, 6)\n    z = rng.randint(-6, 6)\n\n    # Construct equations where adding all three gives a multiple of x+y+z.\n    rows = [\n        [rng.randint(1, 4), rng.randint(-3, 3), rng.randint(-3, 3)],\n        [rng.randint(-3, 3), rng.randint(1, 4), rng.randint(-3, 3)],\n        [0, 0, 0],\n    ]\n\n    # Make row sums by column equal to k, so E1+E2+E3 = k(x+y+z).\n    k = rng.choice([2, 3, 4, 5])\n    rows[2] = [\n        k - rows[0][0] - rows[1][0],\n        k - rows[0][1] - rows[1][1],\n        k - rows[0][2] - rows[1][2],\n    ]\n\n    sol = [x, y, z]\n    rhs = [sum(row[j] * sol[j] for j in range(3)) for row in rows]\n    answer = (sum(rhs)) // k\n\n    # Independent route: the solution the system was built around, instead of\n    # summing the three equations and dividing by the common column total.\n    check = x + y + z\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def fmt(row, rhs_val):\n        parts = []\n        for coef, var in zip(row, [\"x\", \"y\", \"z\"]):\n            if coef == 0:\n                continue\n            sign = \"+\" if coef > 0 else \"-\"\n            abscoef = abs(coef)\n            term = var if abscoef == 1 else f\"{abscoef}{var}\"\n            if not parts:\n                parts.append(term if coef > 0 else f\"-{term}\")\n            else:\n                parts.append(f\" {sign} {term}\")\n        return \"\".join(parts) + f\" = {rhs_val}\"\n\n    problem = (\n        f\"Suppose x, y, and z satisfy the following system:\\n\"\n        f\"{fmt(rows[0], rhs[0])}\\n\"\n        f\"{fmt(rows[1], rhs[1])}\\n\"\n        f\"{fmt(rows[2], rhs[2])}\\n\"\n        f\"Find x + y + z.\"\n    )\n\n    return problem, str(answer)\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n",
+      "program_id": "4bb63a52cd14",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.7,
+      "h_score": 83.70394401550293,
+      "rq_score": 17.577828243255617,
+      "fitness": 17.577828243255617,
+      "niche_group": 0,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "09_linear_algebra.py",
+        "group": "algebra",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 17.577828243255617
+        },
+        "_behavior_sig_5": "f7578d9190c1667d82296794af589d043b3f0dc28776106f5588d70624c2796b",
+        "_template_sig_5": "2fe55020c2bb8eb04fbed0761b27de640c8167fb935f5d598dcd2da94ea57e8b",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT: s must stay a multiple of 3. The real optimum is a = b = c\n    # = s/3, so the answer ((s + 3k)/3)^3 is an integer exactly when 3 | s.\n    # Keep the invariant in the construction (3 * m), never in a value list.\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every positive integer triple summing to s.\n    # Since 3 | s, the real optimum a = b = c = s/3 is a lattice point, so\n    # the searched maximum must equal the formula.\n    check = max(\n        (a + k) * (b + k) * (s - a - b + k)\n        for a in range(1, s - 1)\n        for b in range(1, s - a)\n    )\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let a, b, c be positive real numbers with a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(max_product)\n\nGROUP = \"inequality\"\nSKILL = \"transformation\"",
+      "program_id": "9515b0477fcf",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.7,
+      "h_score": 89.94165496826172,
+      "rq_score": 18.887747543334964,
+      "fitness": 18.887747543334964,
+      "niche_group": 0,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "10_inequalities.py",
+        "group": "inequality",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 18.887747543334964
+        },
+        "_behavior_sig_5": "20e766b073afd191acd68b4bafa1b87376de49863ce6d9450983e77624a66393",
+        "_template_sig_5": "e33f9d7203a503bc5fd529abcdf1c6266817f985e18fc102d6c019f42bae805a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nK_MAX = 72  # cap on the shown exponent k = t * u\n\n\ndef _prime_factors(n):\n    factors = set()\n    d = 2\n    while d * d <= n:\n        while n % d == 0:\n            factors.add(d)\n            n //= d\n        d += 1\n    if n > 1:\n        factors.add(n)\n    return factors\n\n\ndef _primitive_root(p):\n    factors = sorted(_prime_factors(p - 1))  # sorted(): determinism rule\n    for g in range(2, p):\n        if all(pow(g, (p - 1) // q, p) != 1 for q in factors):\n            return g\n    return 2\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT chain, carried by construction instead of curated lists:\n    #   t (= the answer) cycles over [2, 24] so answers stay evenly covered;\n    #   primes are DERIVED by a trial-division filter, never typed in;\n    #   p is drawn from the derived primes with t | p - 1;\n    #   k = t * u with gcd(u, (p-1)/t) = 1  ->  gcd(k, p-1) = t * gcd(u, v) = t;\n    #   e = t * j                           ->  t | ind(a), so x^k = a is solvable.\n    t = 2 + (seed % 23)\n\n    primes = [n for n in range(29, 294)  # widen these bounds freely\n              if all(n % d for d in range(2, math.isqrt(n) + 1))]\n    eligible = [q for q in primes if (q - 1) % t == 0]\n    assert eligible, f\"no prime p with {t} | p-1 in range: widen the prime range\"\n    p = rng.choice(eligible)\n\n    v = (p - 1) // t\n    u_options = [u for u in (1, 2, 3)\n                 if t * u <= K_MAX and math.gcd(u, v) == 1]\n    u = rng.choice(u_options)              # u = 1 always valid: never empty\n    k = t * u\n    e = t * rng.randint(1, (p - 2) // t)   # multiple of t in [t, p-2]\n\n    g = _primitive_root(p)\n    a = pow(g, e, p)\n    answer = t\n\n    assert math.gcd(k, p - 1) == t and e % t == 0, (\n        \"invariant violated: gcd(k, p-1) == t and t | e must hold\"\n    )\n\n    # Independent route: count the solutions of x^k = a by testing every\n    # residue, instead of reading the count off gcd(k, p-1).\n    check = sum(1 for x in range(p) if pow(x, k, p) == a)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let p = {p}, and let g = {g} be a primitive root modulo p. \"\n        f\"For the residue a = {a}, how many residue classes x modulo {p} \"\n        f\"satisfy x^{k} ≡ a (mod {p})?\"\n    )\n    return problem, str(answer)\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"",
+      "program_id": "945b22e16e37",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.5555555555555556,
+      "h_score": 223.34808010525174,
+      "rq_score": 55.147674100062154,
+      "fitness": 55.147674100062154,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "11_kth_root_count.py",
+        "group": "number_theory",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 55.147674100062154
+        },
+        "_behavior_sig_5": "ea7fac5013cb775d67bd901c1c34f1d9cd7a2a204a4b59ab5f5d34e67def1968",
+        "_template_sig_5": "19e1cea0d247cd7971a14a6fa1c5c3f047979bbb8830b73e167f0ff380625809",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # b is even so that every case yields an integer: the solutions come in\n    # pairs -beta +/- sqrt(t), whose squares add to 2*beta**2 + 2*t.\n    # |beta| >= 2 keeps the single-solution case away from the guessable\n    # answers 0 and 1.\n    beta = rng.choice([-9, -8, -7, -6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9])\n    k = rng.randint(1, 12)\n    b = 2 * beta\n\n    # |f(x)| = k splits into f(x) = k and f(x) = -k. Writing f(x) as\n    # (x + beta)**2 + (c - beta**2), the two branches have shifted radicands\n    #     upper = beta**2 - c + k     (from f(x) = k)\n    #     lower = beta**2 - c - k     (from f(x) = -k)\n    # which differ by 2k, so how many solutions exist is decided by where\n    # beta**2 - c sits relative to +/- k. c is chosen from the interval that\n    # realises the wanted case, rotating with the seed so every branch occurs.\n    case = seed % 4\n    if case == 0:\n        c = beta * beta - k - rng.randint(1, 25)   # lower > 0  -> four solutions\n    elif case == 1:\n        c = beta * beta - k                        # lower == 0 -> three solutions\n    elif case == 2:\n        c = beta * beta + rng.randint(-k + 1, k - 1)   # lower < 0 < upper -> two\n    else:\n        c = beta * beta + k                        # upper == 0 -> one solution\n\n    upper = beta * beta - c + k\n    lower = beta * beta - c - k\n\n    # Each branch contributes a different expression, and no single one of them\n    # is valid across the four cases -- which is the whole solve.\n    answer = 0\n    for radicand in (upper, lower):\n        if radicand > 0:\n            answer += 2 * beta * beta + 2 * radicand   # two solutions\n        elif radicand == 0:\n            answer += beta * beta                      # one repeated solution\n\n    # Independent route: solve both quadratics with the ordinary formula in\n    # floating point and add up the squares of the distinct real solutions,\n    # instead of deciding the case from upper and lower.\n    solutions = []\n    for constant in (c - k, c + k):\n        disc = b * b - 4 * constant\n        if disc < 0:\n            continue\n        root = math.sqrt(disc)\n        solutions.append((-b + root) / 2)\n        if root > 0:\n            solutions.append((-b - root) / 2)\n    check = sum(x * x for x in solutions)\n    assert abs(check - answer) < 1e-6, f\"answer={answer} check={check}\"\n\n    linear = f\"+ {b}x\" if b > 0 else f\"- {abs(b)}x\"\n    constant = f\"+ {c}\" if c > 0 else f\"- {abs(c)}\"\n    problem = (\n        f\"Let f(x) = x^2 {linear} {constant}. Find the sum of the squares of \"\n        f\"all real solutions of |f(x)| = {k}. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"casework\"\n",
+      "program_id": "e9efe4a2b47f",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.5555555555555556,
+      "h_score": 112.64914194742839,
+      "rq_score": 27.814602949982316,
+      "fitness": 27.814602949982316,
+      "niche_group": 0,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "18_absolute_quadratic_cases.py",
+        "group": "algebra",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 27.814602949982316
+        },
+        "_behavior_sig_5": "1cabe17f34aca765f6d1003000ab3094fc73927c21be90ea47dbff33333f6b12",
+        "_template_sig_5": "e2d3ed99a55dd21f408d28264fce340e2143ccf0817ef0f8f7d23479a9d5d145",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    beta = rng.choice([-9, -8, -7, -6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9])\n    k = rng.randint(1, 12)\n    b = 2 * beta\n\n    c = beta * beta + rng.randint(-k + 1, k - 1)   # lower < 0 < upper -> two solutions\n\n    upper = beta * beta - c + k\n    lower = beta * beta - c - k\n\n    answer = 2 * beta * beta + 2 * upper   # two solutions, each contributing to their squares\n\n    # Independent route: solve both quadratics with the ordinary formula in\n    # floating point and add up the squares of the distinct real solutions,\n    # instead of computing the answer uniformly.\n    solutions = []\n    for constant in (c - k, c + k):\n        disc = b * b - 4 * constant\n        if disc < 0:\n            continue\n        root = math.sqrt(disc)\n        solutions.append((-b + root) / 2)\n        if root > 0:\n            solutions.append((-b - root) / 2)\n    check = sum(x * x for x in solutions)\n    assert abs(check - answer) < 1e-6, f\"answer={answer} check={check}\"\n\n    linear = f\"+ {b}x\" if b > 0 else f\"- {abs(b)}x\"\n    constant = f\"+ {c}\" if c > 0 else f\"- {abs(c)}\"\n    problem = (\n        f\"Let f(x) = x^2 {linear} {constant}. Find the sum of the squares of \"\n        f\"all real solutions of |f(x)| = {k}. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"counting\"",
+      "program_id": "db512730896c",
+      "parent_id": "e9efe4a2b47f",
+      "generation": 1,
+      "p_hat": 0.8,
+      "h_score": 95.37861671447754,
+      "rq_score": 15.260578674316404,
+      "fitness": 15.260578674316404,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 15.260578674316404
+        },
+        "_behavior_sig_5": "c839252a632a1ff64d68ae548ebf6a0e1a0940c0f2186b906afcbae713eb0111",
+        "_template_sig_5": "6c04205660a659c827da1f8d83f702ad154086a24c720844139ff14643a553ae",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"inequality\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT: a, b, c are chosen such that their sum remains equal to s\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    # Constructing a brute-force approach to maximize the product (a + k)(b + k)(c + k)\n    # without relying on the AM-GM inequality.\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every combination of a, b, c summing to s.\n    # Since 3 | s, the optimal values a = b = c = s/3 give the maximum product.\n    def find_max_product(s, k):\n        best_value = 0\n        for a in range(1, s - 1):\n            for b in range(1, s - a):\n                c = s - a - b\n                value = (a + k) * (b + k) * (c + k)\n                if value > best_value:\n                    best_value = value\n        return best_value\n\n    check = find_max_product(s, k)\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let a, b, c be positive integers with a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(check)",
+      "program_id": "0d892592aabe",
+      "parent_id": "9515b0477fcf",
+      "generation": 1,
+      "p_hat": 0.6666666666666666,
+      "h_score": 214.81557337443033,
+      "rq_score": 47.736794083206746,
+      "fitness": 47.736794083206746,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "inequality",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 47.736794083206746
+        },
+        "_behavior_sig_5": "62ef19956e9e304a46f8693f96b8f5d0ee73a1687a05c258cdb65b5b1ed17664",
+        "_template_sig_5": "516c5eee1cd3f0a46f05027bfacef2a16eda27de7d79cc5231380f97acc40df2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"inequality\"\nSKILL = \"extremal_principle\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    m = rng.randint(2, 10)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 30}\n    k = rng.randint(1, 5)           # k >= 1 keeps every factor positive\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: test every positive integer triple summing to s.\n    # Since 3 | s, the real optimum a = b = c = s/3 is a lattice point, so\n    # the searched maximum must equal the formula.\n    check = max(\n        (a + k) * (b + k) * (s - a - b + k)\n        for a in range(1, s - 1)\n        for b in range(1, s - a)\n    )\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Find the maximum value of (a + {k})(b + {k})(c + {k}) among all \"\n        f\"positive integers a, b, c such that a + b + c = {s}. \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(max_product)",
+      "program_id": "b69d0d093882",
+      "parent_id": "9515b0477fcf",
+      "generation": 1,
+      "p_hat": 0.5,
+      "h_score": 224.43082122802736,
+      "rq_score": 56.10770530700684,
+      "fitness": 56.10770530700684,
+      "niche_group": 0,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "inequality",
+        "skill": "extremal_principle",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 56.10770530700684
+        },
+        "_behavior_sig_5": "937b48566d409332ee11411df18ae84647470eaed08fc2286e3279946175a673",
+        "_template_sig_5": "4f4e7fd6143351b4c33d32eafe290c1fabf06c45d464e64457490d33dad1e77a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"inequality\"\nSKILL = \"extremal_principle\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every combination of a, b, c summing to s.\n    # Since 3 | s, the optimal values a = b = c = s/3 give the maximum product.\n    def find_max_product(s, k):\n        best_value = 0\n        for a in range(1, s - 1):\n            for b in range(1, s - a):\n                c = s - a - b\n                value = (a + k) * (b + k) * (c + k)\n                if value > best_value:\n                    best_value = value\n        return best_value\n\n    check = find_max_product(s, k)\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let \\(a\\), \\(b\\), and \\(c\\) be positive integers with \\(a + b + c = {s}\\). \"\n        f\"What is the maximum value of \\((a + {k})(b + {k})(c + {k})\\)? \"\n        f\"Provide the value as an integer.\"\n    )\n\n    return problem, str(check)",
+      "program_id": "b0dfc323af1c",
+      "parent_id": "0d892592aabe",
+      "generation": 2,
+      "p_hat": 0.5,
+      "h_score": 101.90139694213867,
+      "rq_score": 25.47534923553467,
+      "fitness": 25.47534923553467,
+      "niche_group": 1,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "inequality",
+        "skill": "extremal_principle",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 25.47534923553467
+        },
+        "_behavior_sig_5": "e0607e84af82743176003c8c48f5c48faaf5334aa5d0ba72ae4e52ef891a79e5",
+        "_template_sig_5": "746f853775a170b171e2cabd56ec696ccf42d4d0c41e5a3baccb671f06fe6cbe",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT: a, b, c are chosen such that their sum remains equal to s\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    # Constructing a brute-force approach to maximize the product (a + k)(b + k)(c + k)\n    # without relying on the AM-GM inequality.\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every combination of a, b, c summing to s.\n    # Since 3 | s, the optimal values a = b = c = s/3 give the maximum product.\n    def find_max_product(s, k):\n        best_value = 0\n        for a in range(1, s - 1):\n            for b in range(1, s - a):\n                c = s - a - b\n                value = (a + k) * (b + k) * (c + k)\n                if value > best_value:\n                    best_value = value\n        return best_value\n\n    check = find_max_product(s, k)\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let a, b, c be terms in a sequence where a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(check)",
+      "program_id": "7701c2ad7a09",
+      "parent_id": "7d01b05055fa",
+      "generation": 3,
+      "p_hat": 0.7,
+      "h_score": 186.01863479614258,
+      "rq_score": 39.06391330718994,
+      "fitness": 39.06391330718994,
+      "niche_group": 1,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 39.06391330718994
+        },
+        "_behavior_sig_5": "1ade0bfca4bf7c98f5c289da756063af1a53209a1164aafb68bbaac7e4a7a7a5",
+        "_template_sig_5": "07bd4c3744ddfdc6d9bb993ec91c04ee773044066d2e25107ecbbd44e188be2c",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT: coefficients must satisfy the condition for a valid polynomial\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    # Constructing a brute-force approach to maximize the product (a + k)(b + k)(c + k)\n    # without relying on the AM-GM inequality.\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every combination of a, b, c summing to s.\n    # Since 3 | s, the optimal values a = b = c = s/3 give the maximum product.\n    def find_max_product(s, k):\n        best_value = 0\n        for a in range(1, s - 1):\n            for b in range(1, s - a):\n                c = s - a - b\n                value = (a + k) * (b + k) * (c + k)\n                if value > best_value:\n                    best_value = value\n        return best_value\n\n    check = find_max_product(s, k)\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let a, b, c be coefficients of a polynomial P(x) = ax^2 + bx + c. \"\n        f\"Find the maximum value of (a + {k})(b + {k})(c + {k}) given that \"\n        f\"a + b + c = {s}.\"\n    )\n\n    return problem, str(check)",
+      "program_id": "1595075ee8ca",
+      "parent_id": "7d01b05055fa",
+      "generation": 3,
+      "p_hat": 0.8,
+      "h_score": 152.63285293579102,
+      "rq_score": 24.42125646972656,
+      "fitness": 24.42125646972656,
+      "niche_group": 1,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 24.42125646972656
+        },
+        "_behavior_sig_5": "bfe851a2a158ac7dbe334ee63952ecaf9631c7a8d71600549c7fe3ae828b35b9",
+        "_template_sig_5": "66cac623c18f599bad467ba220e98332243bfcd52982ae1a3b2c092686310998",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    a = rng.randint(10, 20)\n    b = rng.randint(10, 20)\n    c = rng.randint(10, 20)\n\n    sides = [\n        [rng.randint(1, 4), rng.randint(-3, 3), rng.randint(-3, 3)],\n        [rng.randint(-3, 3), rng.randint(1, 4), rng.randint(-3, 3)],\n        [0, 0, 0],\n    ]\n\n    k = rng.choice([2, 3, 4, 5])\n    sides[2] = [\n        k - sides[0][0] - sides[1][0],\n        k - sides[0][1] - sides[1][1],\n        k - sides[0][2] - sides[1][2],\n    ]\n\n    sol = [a, b, c]\n    rhs = [sum(side[j] * sol[j] for j in range(3)) for side in sides]\n    answer = (sum(rhs)) // k\n\n    # Independent route: the sum of a + b + c, obtained by directly summing the\n    # individual variables as the system was constructed.\n    check = a + b + c\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def fmt(side, rhs_val):\n        parts = []\n        for coef, side_name in zip(side, [\"a\", \"b\", \"c\"]):\n            if coef == 0:\n                continue\n            sign = \"+\" if coef > 0 else \"-\"\n            abscoef = abs(coef)\n            term = side_name if abscoef == 1 else f\"{abscoef}{side_name}\"\n            if not parts:\n                parts.append(term if coef > 0 else f\"-{term}\")\n            else:\n                parts.append(f\" {sign} {term}\")\n        return \"\".join(parts) + f\" = {rhs_val}\"\n\n    problem = (\n        f\"Suppose a, b, and c are the lengths of the sides of a triangle that satisfy the following system:\\n\"\n        f\"{fmt(sides[0], rhs[0])}\\n\"\n        f\"{fmt(sides[1], rhs[1])}\\n\"\n        f\"{fmt(sides[2], rhs[2])}\\n\"\n        f\"Find the integer value of a + b + c.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "8a39c5f55188",
+      "parent_id": "c2f2d2142298",
+      "generation": 2,
+      "p_hat": 0.8,
+      "h_score": 209.72555274963378,
+      "rq_score": 33.5560884399414,
+      "fitness": 33.5560884399414,
+      "niche_group": 1,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 33.5560884399414
+        },
+        "_behavior_sig_5": "2b43202020490dd558685ac86f34b793bb4b2f3246471e0bb0f7b2536cbe3716",
+        "_template_sig_5": "c125797c20f18c3352fea1973edf25081e31165b045c9860865320dc0e835e92",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT: a, b, c are chosen such that their sum remains equal to s\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    # The maximum product (a + k)(b + k)(c + k) is achieved when a = b = c = s / 3.\n    # This is a simplification because the equality constraint reduces the search space.\n    max_product = (s / 3 + k) ** 3  # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every combination of a, b, c summing to s.\n    # Since 3 | s, the optimal values a = b = c = s/3 give the maximum product.\n    def find_max_product(s, k):\n        best_value = 0\n        for a in range(1, s - 1):\n            for b in range(1, s - a):\n                c = s - a - b\n                value = (a + k) * (b + k) * (c + k)\n                if value > best_value:\n                    best_value = value\n        return best_value\n\n    check = find_max_product(s, k)\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Consider a sequence where a + b + c = {s}. What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(check)",
+      "program_id": "d3cbe2136da7",
+      "parent_id": "7701c2ad7a09",
+      "generation": 4,
+      "p_hat": 0.6,
+      "h_score": 165.61175994873048,
+      "rq_score": 39.74682238769531,
+      "fitness": 39.74682238769531,
+      "niche_group": 1,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 39.74682238769531
+        },
+        "_behavior_sig_5": "6e752dc3055f1b9e4508d82557f74b5e38843789792bc3ffc5c18f6f302b5115",
+        "_template_sig_5": "406bf934bc6ddf281d6ba52edcedba2a5f16bc44d75b82ffe40cdf6faa718b14",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT: a, b, c are chosen such that their sum remains equal to s\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    # Constructing a brute-force approach to maximize the product (a + k)(b + k)(c + k)\n    # without relying on the AM-GM inequality.\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every combination of a, b, c summing to s.\n    # Since 3 | s, the optimal values a = b = c = s/3 give the maximum product.\n    def find_max_product(s, k):\n        best_value = 0\n        for a in range(1, s - 1):\n            for b in range(1, s - a):\n                c = s - a - b\n                value = (a + k) * (b + k) * (c + k)\n                if value > best_value:\n                    best_value = value\n        return best_value\n\n    check = find_max_product(s, k)\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"A triangle has side lengths a, b, and c such that a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(check)",
+      "program_id": "cf5484caf914",
+      "parent_id": "7701c2ad7a09",
+      "generation": 4,
+      "p_hat": 0.8,
+      "h_score": 124.56733283996581,
+      "rq_score": 19.930773254394527,
+      "fitness": 19.930773254394527,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 19.930773254394527
+        },
+        "_behavior_sig_5": "85c76b10e546df253f4a551d4e47055256a26c19cceb215153cd30999a090b3e",
+        "_template_sig_5": "f660471b7716c60700b9a601c3a70c88ca8082494375c9c553d32e9964ab7dee",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT chain, carried by construction instead of curated lists:\n    #   t (= the answer) cycles over [2, 24] so answers stay evenly covered;\n    #   primes are DERIVED by a trial-division filter, never typed in;\n    #   p is drawn from the derived primes with t | p - 1;\n    #   k = t * u with gcd(u, (p-1)/t) = 1  ->  gcd(k, p-1) = t * gcd(u, v) = t;\n    #   e = t * j                           ->  t | ind(a), so x^k = a is solvable.\n    t = 2 + (seed % 23)\n\n    primes = [n for n in range(29, 294)  # widen these bounds freely\n              if all(n % d for d in range(2, math.isqrt(n) + 1))]\n    eligible = [q for q in primes if (q - 1) % t == 0]\n    assert eligible, f\"no prime p with {t} | p-1 in range: widen the prime range\"\n    p = rng.choice(eligible)\n\n    v = (p - 1) // t\n    u_options = [u for u in (1, 2, 3)\n                 if t * u <= 72 and math.gcd(u, v) == 1]\n    u = rng.choice(u_options)              # u = 1 always valid: never empty\n    k = t * u\n    e = t * rng.randint(1, (p - 2) // t)   # multiple of t in [t, p-2]\n\n    g = 2  # Let g be a fixed primitive root modulo p\n    a = pow(g, e, p)\n    answer = t\n\n    assert math.gcd(k, p - 1) == t and e % t == 0, (\n        \"invariant violated: gcd(k, p-1) == t and t | e must hold\"\n    )\n\n    # Independent route: count the solutions of x^k = a by testing every\n    # residue, instead of reading the count off gcd(k, p-1).\n    check = sum(1 for x in range(p) if pow(x, k, p) == a)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let \\( p = {p} \\) be a prime, and let \\( g = 2 \\) be a primitive root modulo \\( p \\). \"\n        f\"For the residue \\( a = {a} \\), how many residue classes \\( x \\) modulo \\( p \\) \"\n        f\"satisfy \\( x^{k} \\equiv a \\pmod{p} \\), where \\( k = {k} \\)?\"\n    )\n    return problem, str(answer)",
+      "program_id": "24950dcab57b",
+      "parent_id": "945b22e16e37",
+      "generation": 1,
+      "p_hat": 0.2222222222222222,
+      "h_score": 183.38391960991754,
+      "rq_score": 31.695986105417845,
+      "fitness": 31.695986105417845,
+      "niche_group": 1,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 31.695986105417845
+        },
+        "_behavior_sig_5": "d248757043e56b1e3578544549e627c1acf1b1fcc471238e082cc79f8839cc98",
+        "_template_sig_5": "c8278fe98d1dcc9201474fd8bfb0567a0bfad22f8ae0d858570b8f52e19436e2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w = rng.randint(5, 15)\n    h = rng.randint(5, 15)\n\n    # The parent's operation of summing and dividing corresponds to finding the\n    # area of the triangle by subtracting the areas of smaller triangles from a\n    # larger one.\n    area_large = w * h\n    area_smaller1 = rng.randint(1, area_large - 1)\n    area_smaller2 = rng.randint(1, area_large - area_smaller1 - 1)\n    answer = area_large - area_smaller1 - area_smaller2\n\n    # Independent route: compute the area of the large triangle and then the\n    # areas of the smaller triangles, which is the same but with different\n    # quantities.\n    check = w * h - area_smaller1 - area_smaller2\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a rectangle with width {w} and height {h}. If you cut out \"\n        f\"two smaller rectangles from it, with areas {area_smaller1} and \"\n        f\"{area_smaller2}, how much area is left? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "7df921a6923c",
+      "parent_id": "4bb63a52cd14",
+      "generation": 1,
+      "p_hat": 0.6666666666666666,
+      "h_score": 99.1404660542806,
+      "rq_score": 22.03121467872902,
+      "fitness": 22.03121467872902,
+      "niche_group": 1,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 22.03121467872902
+        },
+        "_behavior_sig_5": "13d8abb7d96e987c5b1e0a7fa9a81005312a7ebe91c239aa3ef9f611d1643833",
+        "_template_sig_5": "2b0408efeec3b69ad669d0cb159ec7a3a0346a9d05a5983cb85151e1a63c86d0",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every combination of a, b, c summing to s.\n    # Since 3 | s, the optimal values a = b = c = s/3 give the maximum product.\n    def find_max_product(s, k):\n        best_value = 0\n        for a in range(1, s - 1):\n            for b in range(1, s - a):\n                c = s - a - b\n                value = (a + k) * (b + k) * (c + k)\n                if value > best_value:\n                    best_value = value\n        return best_value\n\n    check = find_max_product(s, k)\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k}) when a, b, c \"\n        f\"are integers such that a + b + c = {s} and a, b, c are multiples of a \"\n        f\"fixed positive integer k?\"\n    )\n\n    return problem, str(check)",
+      "program_id": "ec2abb44013e",
+      "parent_id": "cf5484caf914",
+      "generation": 5,
+      "p_hat": 0.4,
+      "h_score": 148.07633743286132,
+      "rq_score": 35.53832098388671,
+      "fitness": 35.53832098388671,
+      "niche_group": 2,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 35.53832098388671
+        },
+        "_behavior_sig_5": "000fb5efdde136fc4e29018667c4bb48ec6d5b46fc0e3d93c394920e494420a4",
+        "_template_sig_5": "11bc0648b0ed3c3a5183a64b1e3079afb29db843a76ba1d1bcb07b10c7022b1c",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"contradiction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    a = rng.randint(1, 10)\n    b = rng.randint(1, 10)\n    c = rng.randint(1, 10)\n\n    while not (a + b > c and a + c > b and b + c > a):\n        a = rng.randint(1, 10)\n        b = rng.randint(1, 10)\n        c = rng.randint(1, 10)\n\n    sides = [\n        [rng.randint(1, 4), rng.randint(-3, 3), rng.randint(-3, 3)],\n        [rng.randint(-3, 3), rng.randint(1, 4), rng.randint(-3, 3)],\n        [0, 0, 0],\n    ]\n\n    k = rng.choice([2, 3, 4, 5])\n    sides[2] = [\n        k - sides[0][0] - sides[1][0],\n        k - sides[0][1] - sides[1][1],\n        k - sides[0][2] - sides[1][2],\n    ]\n\n    rhs = [sum(side[j] * [a, b, c][j] for j in range(3)) for side in sides]\n    check = max(rhs)\n\n    assert check == max(rhs), f\"check={check} max_rhs={max(rhs)}\"\n\n    def fmt(side, rhs_val):\n        parts = []\n        for coef, side_name in zip(side, [\"a\", \"b\", \"c\"]):\n            if coef == 0:\n                continue\n            sign = \"+\" if coef > 0 else \"-\"\n            abscoef = abs(coef)\n            term = side_name if abscoef == 1 else f\"{abscoef}{side_name}\"\n            if not parts:\n                parts.append(term if coef > 0 else f\"-{term}\")\n            else:\n                parts.append(f\" {sign} {term}\")\n        return \"\".join(parts) + f\" = {rhs_val}\"\n\n    problem = (\n        f\"Suppose a, b, and c are the lengths of the sides of a triangle that satisfy the following system:\\n\"\n        f\"{fmt(sides[0], rhs[0])}\\n\"\n        f\"{fmt(sides[1], rhs[1])}\\n\"\n        f\"{fmt(sides[2], rhs[2])}\\n\"\n        f\"Prove that the maximum possible value of a, b, or c is {check}.\"\n    )\n\n    return problem, str(check)",
+      "program_id": "58f28ab23ac8",
+      "parent_id": "8a39c5f55188",
+      "generation": 3,
+      "p_hat": 0.125,
+      "h_score": 96.24451971054077,
+      "rq_score": 10.526744343340397,
+      "fitness": 10.526744343340397,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 10.526744343340397
+        },
+        "_behavior_sig_5": "1a088e5dc17f58584747c1f3a8b25c432bc4e4caa01da879e4adcda77ea5ea34",
+        "_template_sig_5": "e536cc0a7a10f4caa99e93107a9fd6970c8356f0960713d3887f666f1b2e2978",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Complement over the grid, with the union of the two diagonals expanded by\n    # inclusion-exclusion. A segment from (0,0) to (w,h) meets gcd(w,h)+1\n    # lattice points, and the diagonals cross at the centre, which is a lattice\n    # point exactly when w and h are both even.\n    w, h = rng.randint(10, 20), rng.randint(10, 20)\n\n    total = (w + 1) * (h + 1)\n    on_each = math.gcd(w, h) + 1\n    on_both = 1 if w % 2 == 0 and h % 2 == 0 else 0\n    answer = total - (2 * on_each - on_both)\n\n    # Independent route: walk every lattice point of the rectangle and test it\n    # against the two diagonal equations, instead of counting by complement.\n    check = sum(\n        1\n        for x in range(w + 1)\n        for y in range(h + 1)\n        if x * h != y * w and x * h + y * w != w * h\n    )\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the grid of points with integer coordinates 0 <= x <= {w} \"\n        f\"and 0 <= y <= {h}. How many of them lie on neither diagonal of the \"\n        f\"rectangle? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "9f06adb5f246",
+      "parent_id": "24950dcab57b",
+      "generation": 2,
+      "p_hat": 0.3333333333333333,
+      "h_score": 158.07101779513889,
+      "rq_score": 35.126892843364196,
+      "fitness": 35.126892843364196,
+      "niche_group": 2,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 35.126892843364196
+        },
+        "_behavior_sig_5": "84df53096e61215257c29571182afc4a91896478d988b9116f989caa0d1013e9",
+        "_template_sig_5": "ed0251c77a971eb0aad711176de418ca0e44d7b49dbe9b0ff5510ad5a76451ea",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    m = rng.randint(2, 14)  # free parameter; widen freely\n    s = 3 * m               # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)   # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    # The maximum product (a + k)(b + k)(c + k) is achieved when a = b = c = s / 3.\n    max_product = (s / 3 + k) ** 3  # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every combination of a, b, c summing to s.\n    def find_max_product(s, k):\n        best_value = 0\n        for a in range(1, s):\n            for b in range(1, s - a + 1):\n                c = s - a - b\n                value = (a + k) * (b + k) * (c + k)\n                if value > best_value:\n                    best_value = value\n        return best_value\n\n    check = find_max_product(s, k)\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Given a + b + c = {s}, find the values of a, b, and c that maximize (a + {k})(b + {k})(c + {k}) and calculate the maximum product.\"\n    )\n\n    return problem, str(check)",
+      "program_id": "2c9cf8586a2a",
+      "parent_id": "d3cbe2136da7",
+      "generation": 5,
+      "p_hat": 0.5,
+      "h_score": 192.59140625,
+      "rq_score": 48.1478515625,
+      "fitness": 48.1478515625,
+      "niche_group": 2,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 48.1478515625
+        },
+        "_behavior_sig_5": "b7a46322a694bd99f2db1b7f644d2b1cf235e334c946b66e90f4249271e2643f",
+        "_template_sig_5": "83cdf25d383c3d304a077ad9c3ad4c0e6ff1046f34e8dd5b07d3b1164b40dbd0",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"inequality\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: iterate over all combinations of a, b, c such that a + b + c = s,\n    # and calculate the value of (a + k)(b + k)(c + k) for each combination.\n    def find_max_product(s, k):\n        max_value = 0\n        for a in range(1, s - 1):\n            for b in range(1, s - a):\n                c = s - a - b\n                value = (a + k) * (b + k) * (c + k)\n                if value > max_value:\n                    max_value = value\n        return max_value\n\n    check = find_max_product(s, k)\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let \\(a\\), \\(b\\), and \\(c\\) be positive integers with \\(a + b + c = {s}\\). \"\n        f\"Find the maximum value of \\((a + {k})(b + {k})(c + {k})\\). \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(check)",
+      "program_id": "8fd3de64ff11",
+      "parent_id": "b0dfc323af1c",
+      "generation": 3,
+      "p_hat": 0.6,
+      "h_score": 93.76419677734376,
+      "rq_score": 22.5034072265625,
+      "fitness": 22.5034072265625,
+      "niche_group": 2,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "inequality",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 22.5034072265625
+        },
+        "_behavior_sig_5": "720d90bfbd3606815379230e212e994adafd262351c868c7388f30a3a176cee2",
+        "_template_sig_5": "b8fc903334b3d5e7bebc975cfd54ea20bf53eba31650725347a99c141a851883",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    p = rng.randint(3, 15)  # Prime numbers from 3 to 15\n    m = rng.randint(10, 30)  # A random integer\n\n    # The problem statement is focused on numbers divisible by `p` within a specific range.\n    # The inclusion-exclusion principle is applied to find the count of numbers not divisible by `p`.\n    # The total count is `m` (the upper limit), and we subtract the count of multiples of `p`.\n    total = m\n    multiples_of_p = m // p\n    answer = total - multiples_of_p\n\n    # Independent route to verify the answer: loop through all numbers up to `m` and count those not divisible by `p`.\n    check = sum(1 for k in range(1, m + 1) if k % p != 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider all integers k with 1 <= k <= {m}. How many of them are \"\n        f\"not divisible by {p}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "bf5cffd2b3cd",
+      "parent_id": "9f06adb5f246",
+      "generation": 3,
+      "p_hat": 0.5,
+      "h_score": 233.02938709259033,
+      "rq_score": 58.25734677314758,
+      "fitness": 58.25734677314758,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 58.25734677314758
+        },
+        "_behavior_sig_5": "0f86d178f545fa729b59c55f5e1348a1591975bf0a0df1f5c835aa987116195a",
+        "_template_sig_5": "1f8879cc3c3422e14d48aa787bd3139df6932f02739ecc98e1e74dd0b2756b33",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    # To count the number of distinct sequences (a, b, c) where a + b + c = s\n    # and each term is a positive integer, we can use the stars and bars method.\n    # The number of solutions in positive integers is given by the combination formula C(n-1, r-1)\n    # where n is the total sum s and r is the number of variables minus one due to the invariant.\n    count = math.comb(s - 1, 2)\n\n    # Independent route: search every combination of a, b, c summing to s.\n    # This is to verify the combinatorial formula.\n    def count_sequences(s):\n        count = 0\n        for a in range(1, s):\n            for b in range(1, s - a + 1):\n                c = s - a - b\n                if c >= 1:\n                    count += 1\n        return count\n\n    check = count_sequences(s)\n    assert count == check, f\"count={count} check={check}\"\n\n    problem = (\n        f\"How many distinct sequences (a, b, c) of positive integers satisfy \"\n        f\"a + b + c = {s}?\"\n    )\n\n    return problem, str(count)",
+      "program_id": "dd31ab6f6b45",
+      "parent_id": "d3cbe2136da7",
+      "generation": 5,
+      "p_hat": 0.9,
+      "h_score": 170.60867080688476,
+      "rq_score": 15.354780372619626,
+      "fitness": 15.354780372619626,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 15.354780372619626
+        },
+        "_behavior_sig_5": "f99d3023a457ce121eca20fb6c58a9cf89317da0bf96fb12bb1d10a05e421e35",
+        "_template_sig_5": "98a073da918d02a6e21ee144417b359f82a8520860311c662d2a12eae300c5f8",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

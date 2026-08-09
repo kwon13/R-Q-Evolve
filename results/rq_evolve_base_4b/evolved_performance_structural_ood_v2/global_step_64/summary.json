@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-08T03:10:49+00:00",
+  "benchmark": "evolved_performance_structural_ood_v2",
+  "benchmark_sha256": "e2076da43023e4a4b139ffa1a7374e4248e2e558f270c44d03212e8bb36767c4",
+  "model": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_64/hf_merged",
+  "tokenizer": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_64/hf_merged",
+  "global_step": 64,
+  "grader": "last-boxed + rq_evolve.reward.answers_match",
+  "sampling": {
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "n": 1,
+    "seed": 0,
+    "max_tokens": 4096,
+    "vllm_sampler_backend": "pytorch",
+    "vllm_use_flashinfer_sampler": "0"
+  },
+  "elapsed_sec": 92.8,
+  "correct": 37,
+  "num_examples": 240,
+  "micro_accuracy": 0.15416666666666667,
+  "macro_accuracy": 0.15416666666666667,
+  "score_percent": 15.416666666666668,
+  "per_program": {
+    "01_weighted_binary_recurrence": {
+      "correct": 1,
+      "num_examples": 40,
+      "accuracy": 0.025,
+      "group": "sequence",
+      "skill": "induction"
+    },
+    "02_symmetric_power_sum_three": {
+      "correct": 4,
+      "num_examples": 40,
+      "accuracy": 0.1,
+      "group": "algebra",
+      "skill": "transformation"
+    },
+    "03_shifted_quadratic_minimum": {
+      "correct": 5,
+      "num_examples": 40,
+      "accuracy": 0.125,
+      "group": "inequality",
+      "skill": "transformation"
+    },
+    "04_three_level_power_tower": {
+      "correct": 6,
+      "num_examples": 40,
+      "accuracy": 0.15,
+      "group": "number_theory",
+      "skill": "transformation"
+    },
+    "05_banded_lattice_paths": {
+      "correct": 0,
+      "num_examples": 40,
+      "accuracy": 0.0,
+      "group": "combinatorics",
+      "skill": "counting"
+    },
+    "06_weighted_absolute_centers": {
+      "correct": 21,
+      "num_examples": 40,
+      "accuracy": 0.525,
+      "group": "algebra",
+      "skill": "casework"
+    }
+  }
+}

@@ -1,0 +1,542 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 15,
+      "total_niches": 48,
+      "coverage": 0.3125,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 0.625,
+      "mean_rq": 34.532216186659745,
+      "max_rq": 116.87632751464844,
+      "total_insertions": 307,
+      "total_replacements": 19,
+      "total_selections": 640
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1, 100)\n    k = rng.randint(1, n)\n    x = rng.randint(1, n)\n\n    # Split into two cases: the integer x is either included or excluded in the subset.\n    if x <= k:\n        answer = math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        answer = math.comb(n - 1, k)\n\n    # Independent route: compute the same quantity by enumerating the cases explicitly.\n    check = 0\n    if x <= k:\n        check += math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        check += math.comb(n - 1, k)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are there such that when you select {k} integers from this range, the integer {x} is either included or excluded? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "b2ba029d0181",
+      "parent_id": "029348091ae5",
+      "generation": 4,
+      "p_hat": 0.5,
+      "h_score": 467.50531005859375,
+      "rq_score": 116.87632751464844,
+      "fitness": 116.87632751464844,
+      "niche_group": 0,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 116.87632751464844
+        },
+        "_behavior_sig_5": "dbce94e9d3cd962b8c3134d05d970217dfc2b7ff692f65e6843ef559ea327497",
+        "_template_sig_5": "6243b383d807a3be3529e39fec6439ef7d7f4e8ead6a53da2449b392d794df29",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"induction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # EXTREMAL_PRINCIPLE: The integers must have equal sum and product to be\n    # optimal, so the arithmetic mean of each constraint term must be 1.\n    m = rng.randint(100, 200)       # free parameter; widen freely\n    s = 3 * m                       # s in {300, 303, ..., 600}\n    k = rng.randint(1, 10)          # k >= 1 keeps every factor positive\n\n    # Independent route: derive the maximum product using the AM-GM inequality.\n    # Since \\( a + b + c = s \\) and \\( s \\) is divisible by 3, the optimal solution\n    # is \\( a = b = c = \\frac{s}{3} \\). Thus, the maximum product is\n    # \\( \\left(\\frac{s}{3} + k\\right)^3 \\).\n    max_product = int((s / 3 + k) ** 3)  # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: verify the formula by testing the boundary cases.\n    # The maximum product is achieved when \\( a = b = c = \\frac{s}{3} \\).\n    # Substituting these values into the product formula gives the same result.\n    check = max(\n        (a + k) * (b + k) * (s - a - b + k)\n        for a in range(1, s - 1)\n        for b in range(1, s - a)\n    )\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let \\( a, b, c \\) be positive integers with \\( a + b + c = {s} \\). \"\n        f\"What is the maximum value of \\( (a + {k})(b + {k})(c + {k}) \\)?\"\n    )\n\n    return problem, str(max_product)",
+      "program_id": "b21ca2ce840e",
+      "parent_id": "d22144bb5bbc",
+      "generation": 2,
+      "p_hat": 0.9,
+      "h_score": 39.06832618713379,
+      "rq_score": 3.5161493568420408,
+      "fitness": 3.5161493568420408,
+      "niche_group": 0,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "induction",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 3.5161493568420408
+        },
+        "_behavior_sig_5": "068bec8175c7bb6827a5d4af2c3519c9b8a3df4a83e8b769c6ca212f56cfa4e0",
+        "_template_sig_5": "1b1d7db874d2ce965efded28f0d6f82158db3fdbc7a9d28e194c4a208ebf8470",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"contradiction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # EXTREMAL_PRINCIPLE: The integers must have equal sum and product to be\n    # optimal, so the arithmetic mean of each constraint term must be 1.\n    m = rng.randint(100, 200)  # free parameter; widen freely\n    s = 3 * m                 # s in {300, 303, ..., 600}\n    k = rng.randint(1, 10)    # k >= 1 keeps every factor positive\n\n    # Derive the maximum product by solving the constraints directly.\n    # Given \\( a + b + c = s \\) and \\( a \\cdot b \\cdot c = (a+k)(b+k)(c+k) \\),\n    # the only solution is \\( a = b = c = \\frac{s}{3} \\).\n    max_product = int((s / 3 + k) ** 3)  # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: demonstrate that any deviation from \\( a = b = c \\)\n    # leads to a smaller product.\n    def calculate_product(a, b, c):\n        return (a + k) * (b + k) * (c + k)\n\n    # Test if any deviation from \\( a = b = c \\) results in a smaller product.\n    # Choose \\( a \\neq b \\neq c \\) and compute the product for various cases.\n    check = float('-inf')\n    for a in range(1, s - 1):\n        for b in range(1, s - a):\n            c = s - a - b\n            if a * b * c != (a + k) * (b + k) * (c + k):  # Contradiction check\n                product = calculate_product(a, b, c)\n                if product > check:\n                    check = product\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let \\( a, b, c \\) be positive integers with \\( a + b + c = {s} \\). \"\n        f\"What is the maximum value of \\( (a + {k})(b + {k})(c + {k}) \\)? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(max_product)",
+      "program_id": "6f482b78a1d5",
+      "parent_id": "b21ca2ce840e",
+      "generation": 3,
+      "p_hat": 0.7,
+      "h_score": 60.06745948791504,
+      "rq_score": 12.614166492462159,
+      "fitness": 12.614166492462159,
+      "niche_group": 0,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 12.614166492462159
+        },
+        "_behavior_sig_5": "0dd8456ff8825e11536b65f8a75ba9bd88155cc7653e03346a3f5073a5f815c9",
+        "_template_sig_5": "5cedfd3ef79bb9dabdd1eeabba387180de39b5d01672046c25e4600e4eadb8e8",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    primes = sorted(rng.sample([2, 3, 5, 7, 11, 13], 2))\n    n = rng.randint(1000, 5000)\n\n    p, q = primes\n    gcd_pq = math.gcd(p, q)\n    lcm_pq = p * q // gcd_pq\n    union = (n // p + n // q - n // lcm_pq)\n    answer = n - union\n\n    check = sum(1 for k in range(1, n + 1) if k % p and k % q)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are not divisible by \"\n        f\"neither {p} nor {q}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "26ad164f6071",
+      "parent_id": "4467835e3fd6",
+      "generation": 4,
+      "p_hat": 0.9,
+      "h_score": 95.14479351043701,
+      "rq_score": 8.56303141593933,
+      "fitness": 8.56303141593933,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 8.56303141593933
+        },
+        "_behavior_sig_5": "496160d946396e3b1a6c696f870e2efacd06bd0bbed8447a640e7b2397885b87",
+        "_template_sig_5": "588b986ca68f5d06db8921b7a9b7bc4803671c0e210c3c7f7f8b73b6626e0d9f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    p, q, r = rng.sample([2, 3, 5, 7, 11], 3)\n    n = rng.randint(100, 200)\n\n    # Total number of integers from 1 to n\n    total = n\n\n    # Count integers that are multiples of the sum of the three primes\n    sum_of_primes = p + q + r\n    multiples_of_sum = n // sum_of_primes\n\n    # Count integers that are multiples of the product of the three primes\n    product_of_primes = p * q * r\n    multiples_of_product = n // product_of_primes\n\n    # Use inclusion-exclusion to count integers that are multiples of both the sum and product of the primes\n    # Calculate the least common multiple (LCM) of the sum and the product\n    lcm = abs(sum_of_primes * product_of_primes) // math.gcd(sum_of_primes, product_of_primes)\n    multiples_of_both = n // lcm\n\n    # The number of integers not multiples of the sum or the product of the primes\n    answer = total - multiples_of_sum - multiples_of_product + multiples_of_both\n\n    # Independent route: test every integer in range against the three stated conditions,\n    # instead of counting by complement.\n    check = sum(1 for k in range(1, n + 1) if k % sum_of_primes and k % product_of_primes)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider three distinct prime numbers p, q, and r. How many \"\n        f\"integers from 1 to {n} are not multiples of the sum {sum_of_primes} \"\n        f\"or the product {product_of_primes} of these primes? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "35920c0a51ad",
+      "parent_id": "89e8edbbbc12",
+      "generation": 4,
+      "p_hat": 0.625,
+      "h_score": 138.4688901901245,
+      "rq_score": 32.45364613831043,
+      "fitness": 32.45364613831043,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 32.45364613831043
+        },
+        "_behavior_sig_5": "e99f99799752695aab026f688b09eaab8c8091a71bdfa1a47f131229398a1f30",
+        "_template_sig_5": "df4cfb9e7df02adc90b13adbf2fa24d040431c89b99b86e4cac3d475fc6af7a0",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    k = rng.randint(1, n)\n    x = rng.randint(0, n)\n\n    # Construct a set of n elements where one element x is restricted and choose k elements.\n    # The answer is the number of valid subsets, considering that x can either be included or excluded.\n    if x <= k:\n        answer = math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        answer = math.comb(n - 1, k)\n\n    # Independent route: compute the same quantity by enumerating the cases explicitly.\n    check = 0\n    if x <= k:\n        check += math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        check += math.comb(n - 1, k)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a set of {n} elements where one specific element x is restricted. \"\n        f\"In how many ways can you choose {k} elements from this set? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "029348091ae5",
+      "parent_id": "e3243d059570",
+      "generation": 3,
+      "p_hat": 0.7,
+      "h_score": 76.21522235870361,
+      "rq_score": 16.00519669532776,
+      "fitness": 16.00519669532776,
+      "niche_group": 1,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 16.00519669532776
+        },
+        "_behavior_sig_5": "e2629d84fb70c08322cb4e2444cd3a9d35b9132bc94db657f736de7530bdfba0",
+        "_template_sig_5": "8b58105845482bc20272e79f40a3fd31981c59e8a1214546dedf5502f086d0e3",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 30)\n    k = rng.randint(1, n)\n\n    # Same shape as the parent: total minus the union, with the union expanded\n    # by inclusion-exclusion. Divisibility replaces incidence as the relation\n    # that decides membership.\n    total = rng.choice(range(n + 1))\n    set_a = rng.choice(range(total + 1))\n    set_b = rng.choice(range(total + 1))\n    union = (set_a + set_b - min(set_a, set_b))\n    answer = total - union\n\n    # Independent route: count the number of sets that are not subsets of A and B,\n    # instead of counting by complement.\n    check = total - set_a - set_b + min(set_a, set_b)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the set of integers from 0 to {total}. How many of them \"\n        f\"are not subsets of both sets A = {set_a} and B = {set_b}? State only \"\n        f\"the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "cdbc263a4f8a",
+      "parent_id": "4467835e3fd6",
+      "generation": 4,
+      "p_hat": 0.2,
+      "h_score": 91.74254035949707,
+      "rq_score": 14.678806457519535,
+      "fitness": 14.678806457519535,
+      "niche_group": 1,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "invariant",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 14.678806457519535
+        },
+        "_behavior_sig_5": "45d9c423a5e64c83f948f6ae722a1674a9338f136f0e3a13f3af669471fd70ff",
+        "_template_sig_5": "5f4242ec3b0961aee50ea85cb55679420358b1731b039a2feac8b92d1cff51be",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    total = rng.randint(1, 50)\n    set_a = rng.randint(1, total)\n    set_b = rng.randint(1, total)\n\n    # The number of elements not in either set A or set B can be calculated by\n    # subtracting the size of the union of A and B from the total number of\n    # elements. The union size is calculated using the formula:\n    # |A ∪ B| = |A| + |B| - |A ∩ B|\n    # However, since we're counting elements outside both sets, we actually\n    # want to count |total - |A ∪ B||.\n    intersection = min(set_a, set_b)\n    union = set_a + set_b - intersection\n    answer = total - union\n\n    # Independent route: directly count the number of elements not in both A and B\n    # by considering all elements from 0 to total and excluding those in either A\n    # or B. This method is explicit and avoids the inclusion-exclusion overlap.\n    check = total - set_a - set_b + intersection\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"In a set containing numbers from 0 to {total}, there are {set_a} \"\n        f\"elements in set A and {set_b} elements in set B. How many numbers are \"\n        f\"not in either set A or set B? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "9852e1e2dab3",
+      "parent_id": "cdbc263a4f8a",
+      "generation": 5,
+      "p_hat": 0.4,
+      "h_score": 180.49833602905272,
+      "rq_score": 43.31960064697265,
+      "fitness": 43.31960064697265,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 43.31960064697265
+        },
+        "_behavior_sig_5": "46f0549f764bfd4adff424542b88b6f120bbc23a893a22c6ff3b2b94218b2db2",
+        "_template_sig_5": "620936dca6924d6a39c7b891b07f3b6cb17f36c19de2eae4f2927939218c4d62",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"sequence\"\nSKILL = \"casework\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    k = rng.randint(1, n)\n    x = rng.randint(0, n)\n\n    # Construct a sequence of n elements where one specific element x is restricted and choose k elements.\n    # The answer is the number of valid subsets, considering that x can either be included or excluded.\n    if x <= k:\n        answer = math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        answer = math.comb(n - 1, k)\n\n    # Independent route: compute the same quantity by enumerating the cases explicitly.\n    check = 0\n    if x <= k:\n        check += math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        check += math.comb(n - 1, k)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a sequence of {n} elements where one specific element at index x is restricted. \"\n        f\"In how many ways can you choose {k} elements from this sequence? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "c36f329071ac",
+      "parent_id": "029348091ae5",
+      "generation": 4,
+      "p_hat": 0.5555555555555556,
+      "h_score": 219.24165301852756,
+      "rq_score": 54.13374148605618,
+      "fitness": 54.13374148605618,
+      "niche_group": 2,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "casework",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 54.13374148605618
+        },
+        "_behavior_sig_5": "4332126840c404daa64c6c123d3799878251970e0ce37aa95d050259de97fbd7",
+        "_template_sig_5": "f886fd4cd10726c2d97df5b07d265f5e163020e1fa855743af031f1b5bf045de",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1, 10)\n    a0 = rng.randint(1, 100)\n    d = rng.randint(1, 5)\n\n    # Same shape as the parent: total minus the union, with the union expanded\n    # by inclusion-exclusion. Here, the sequence terms replace the set elements,\n    # and the union is computed based on the common terms.\n    sequence = [a0 + i * d for i in range(n)]\n    set_a = {x for x in sequence if x % 3 == 0}\n    set_b = {x for x in sequence if x % 5 == 0}\n    union = len(set_a) + len(set_b) - len(set_a.intersection(set_b))\n    answer = n - union\n\n    # Independent route: count the number of terms that are not multiples of 3 or 5,\n    # instead of counting by complement.\n    check = n - len(set_a) - len(set_b) + len(set_a.intersection(set_b))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the arithmetic sequence starting at {a0} with common difference \"\n        f\"{d}, consisting of {n} terms. How many of these terms are not multiples of \"\n        f\"3 or 5? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "46236563d4f7",
+      "parent_id": "cdbc263a4f8a",
+      "generation": 5,
+      "p_hat": 0.6666666666666666,
+      "h_score": 138.4376106262207,
+      "rq_score": 30.763913472493492,
+      "fitness": 30.763913472493492,
+      "niche_group": 2,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 30.763913472493492
+        },
+        "_behavior_sig_5": "24c5469edaceec3e624a8e2dcea846345a0c06e4a1c48276e434e9a802680cc6",
+        "_template_sig_5": "53bca6dd42992cb1197046fe206e2c98718f15f55f93af83ccb0478719592c55",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    x, y = sorted(rng.sample(range(1, 21), 2))\n    n = rng.randint(50, 150)\n\n    # Same shape as the parent: total minus the union, with the union expanded\n    # by inclusion-exclusion. Divisibility replaces incidence as the relation\n    # that decides membership.\n    sum_xy = x + y\n    product_xy = x * y\n    union = (n // sum_xy + n // product_xy - n // (sum_xy * product_xy))\n    answer = n - union\n\n    # Independent route: test every integer in range against the sum and product,\n    # instead of counting by complement.\n    check = sum(1 for k in range(1, n + 1) if k % sum_xy and k % product_xy)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are not multiples of the sum \"\n        f\"or product of {x} and {y}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "4467835e3fd6",
+      "parent_id": "c15709582372",
+      "generation": 3,
+      "p_hat": 0.7,
+      "h_score": 181.99253730773927,
+      "rq_score": 38.21843283462525,
+      "fitness": 38.21843283462525,
+      "niche_group": 3,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 38.21843283462525
+        },
+        "_behavior_sig_5": "15a33f9eca5f6c6ca1754472b014d8cb01c0ad3aa489ab941fc4cfac2b5ad87e",
+        "_template_sig_5": "d39c321a4add408a600617c4b5f05476a206d2acb2e0e76089b9f6001aea163d",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    x, y = sorted(rng.sample(range(1, 21), 2))\n    n = rng.randint(50, 150)\n\n    # Same shape as the parent: total minus the union, with the union expanded\n    # by inclusion-exclusion. Divisibility replaces incidence as the relation\n    # that decides membership.\n    sum_xy = x + y\n    product_xy = x * y\n    union = (n // sum_xy + n // product_xy - n // (sum_xy * product_xy))\n    answer = union\n\n    # Independent route: test every integer in range against the sum and product,\n    # instead of counting by complement.\n    check = sum(1 for k in range(1, n + 1) if k % sum_xy == 0 or k % product_xy == 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are multiples of the sum \"\n        f\"or product of {x} and {y}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "e1601d2e9f53",
+      "parent_id": "4467835e3fd6",
+      "generation": 4,
+      "p_hat": 0.75,
+      "h_score": 164.09209156036377,
+      "rq_score": 30.767267167568207,
+      "fitness": 30.767267167568207,
+      "niche_group": 3,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 30.767267167568207
+        },
+        "_behavior_sig_5": "6436fc192f054431bdd804d89b63f5e758a8d1748ef32eb50200bc9811a2e11c",
+        "_template_sig_5": "decef21a980a7a49f38aed672c32237e2cbaa030a6cb7a1b66998d7ab1bb93bd",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w, h = rng.randint(12, 30), rng.randint(12, 30)\n    center = ((w - 1) // 2, (h - 1) // 2)\n\n    # Construct a grid of points where the center point is restricted, and count the valid lattice points.\n    # The answer is the number of valid lattice points, considering that the center point can either be included or excluded.\n    if w % 2 != 0 or h % 2 != 0:\n        answer = (w + 1) * (h + 1)\n    else:\n        answer = (w + 1) * (h + 1) - 1\n\n    # Independent route: compute the same quantity by enumerating the cases explicitly.\n    check = 0\n    if w % 2 != 0 or h % 2 != 0:\n        check = (w + 1) * (h + 1)\n    else:\n        check = (w + 1) * (h + 1) - 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a grid of points with integer coordinates 0 <= x <= {w} \"\n        f\"and 0 <= y <= {h}. How many of them lie on the center point or not? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "eccc575d7450",
+      "parent_id": "029348091ae5",
+      "generation": 4,
+      "p_hat": 0.6666666666666666,
+      "h_score": 85.37563705444336,
+      "rq_score": 18.972363789876304,
+      "fitness": 18.972363789876304,
+      "niche_group": 4,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 18.972363789876304
+        },
+        "_behavior_sig_5": "970b6ad0d0ec5dce8e8f98a94891388e0779a6a283d37dd170540fcb46ab036c",
+        "_template_sig_5": "7ca951d9615ff5430ac9b9c3f2adca158b03027a6e027e77a610266e86748e67",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    a, b, c = rng.sample([3, 4, 5, 6, 7, 8, 9, 10], 3)\n    n = rng.randint(20, 40)\n\n    # Same shape as the parent: total minus the union, with the union expanded\n    # by inclusion-exclusion. Divisibility replaces incidence as the relation\n    # that decides membership.\n    area = (a * b) // 2\n    perimeter = a + b + c\n    union = (n // area + n // perimeter - n // (area * perimeter))\n    answer = n - union\n\n    # Independent route: test every integer in range against the three stated\n    # divisors, instead of counting by complement.\n    check = sum(1 for k in range(1, n + 1) if k % area and k % perimeter)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a rectangle with length {a} and width {b}. How many integers \"\n        f\"from 1 to {n} are not multiples of the area or perimeter of this \"\n        f\"rectangle? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "c15709582372",
+      "parent_id": "610513f0d741",
+      "generation": 2,
+      "p_hat": 0.7142857142857143,
+      "h_score": 150.8090989249093,
+      "rq_score": 30.77736712753251,
+      "fitness": 30.77736712753251,
+      "niche_group": 4,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 30.77736712753251
+        },
+        "_behavior_sig_5": "e10a8763a41d10325b8286d8af334d31e958e7f10def9eb0186e73bc0ca9df11",
+        "_template_sig_5": "ffe6e6d22e435e7985179ad1844b4c5a3234738511aea22b8824ebcfa4cac0d8",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    r = rng.randint(50, 200)\n    n = rng.randint(100, 500)\n\n    # Same shape as the parent: total minus the union, with the union expanded\n    # by inclusion-exclusion. Divisibility replaces incidence as the relation\n    # that decides membership.\n    sum_of_squares = (2 * r) ** 2\n    perimeter = 4 * r\n    union = (n // perimeter + n // sum_of_squares - n // (perimeter * sum_of_squares))\n    answer = union\n\n    # Independent route: test every integer in range against the perimeter and sum of squares,\n    # instead of counting by complement.\n    check = sum(1 for k in range(1, n + 1) if k % perimeter == 0 or k % sum_of_squares == 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are multiples of the perimeter \"\n        f\"or sum of squares of a circle with radius {r}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "a35106040987",
+      "parent_id": "e1601d2e9f53",
+      "generation": 5,
+      "p_hat": 0.625,
+      "h_score": 282.97912406921387,
+      "rq_score": 66.323232203722,
+      "fitness": 66.323232203722,
+      "niche_group": 4,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 66.323232203722
+        },
+        "_behavior_sig_5": "ea1c813df185e743453b30aae3e64ed861556c30f1624fcbf6a1542c0c9a1165",
+        "_template_sig_5": "ea062aa7b91fd3f14b8d7b4b368870d5aaf38c77928298d70eaa445074e26487",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

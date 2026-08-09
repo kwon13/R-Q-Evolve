@@ -1,0 +1,761 @@
+INFO 08-08 02:29:04 [__init__.py:216] Automatically detected platform cuda.
+The tokenizer you are loading from '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+2026-08-08 02:29:08,947 INFO rq_evolve.math_eval: [math_eval] loaded olympiadbench: 675 examples
+INFO 08-08 02:29:08 [utils.py:233] non-default args: {'tokenizer': '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged', 'dtype': 'bfloat16', 'max_model_len': 8192, 'gpu_memory_utilization': 0.85, 'disable_log_stats': True, 'enforce_eager': True, 'model': '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged'}
+INFO 08-08 02:29:08 [model.py:547] Resolved architecture: Qwen3ForCausalLM
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO 08-08 02:29:08 [model.py:1510] Using max model len 8192
+INFO 08-08 02:29:09 [scheduler.py:205] Chunked prefill is enabled with max_num_batched_tokens=8192.
+INFO 08-08 02:29:09 [__init__.py:381] Cudagraph is disabled under eager mode
+The tokenizer you are loading from '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:09 [core.py:644] Waiting for init message from front-end.
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:09 [core.py:77] Initializing a V1 LLM engine (v0.11.0) with config: model='/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged', speculative_config=None, tokenizer='/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=8192, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, disable_custom_all_reduce=False, quantization=None, enforce_eager=True, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser=''), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None), seed=0, served_model_name=/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged, enable_prefix_caching=True, chunked_prefill_enabled=True, pooler_config=None, compilation_config={"level":0,"debug_dump_path":"","cache_dir":"","backend":"","custom_ops":[],"splitting_ops":null,"use_inductor":true,"compile_sizes":[],"inductor_compile_config":{"enable_auto_functionalized_v2":false},"inductor_passes":{},"cudagraph_mode":0,"use_cudagraph":true,"cudagraph_num_of_warmups":0,"cudagraph_capture_sizes":[],"cudagraph_copy_inputs":false,"full_cuda_graph":false,"use_inductor_graph_partition":false,"pass_config":{},"max_capture_size":0,"local_cache_dir":null}
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:12 [parallel_state.py:1208] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, TP rank 0, EP rank 0
+[1;36m(EngineCore_DP0 pid=550190)[0;0m WARNING 08-08 02:29:12 [topk_topp_sampler.py:59] FlashInfer is available, but it is not enabled. Falling back to the PyTorch-native implementation of top-p & top-k sampling. For the best performance, please set VLLM_USE_FLASHINFER_SAMPLER=1.
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:12 [gpu_model_runner.py:2602] Starting to load model /data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged...
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:12 [gpu_model_runner.py:2634] Loading model from scratch...
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:13 [cuda.py:366] Using Flash Attention backend on V1 engine.
+[1;36m(EngineCore_DP0 pid=550190)[0;0m Loading safetensors checkpoint shards:   0% Completed | 0/2 [00:00<?, ?it/s]
+[1;36m(EngineCore_DP0 pid=550190)[0;0m Loading safetensors checkpoint shards:  50% Completed | 1/2 [00:00<00:00,  1.25it/s]
+[1;36m(EngineCore_DP0 pid=550190)[0;0m Loading safetensors checkpoint shards: 100% Completed | 2/2 [00:01<00:00,  1.46it/s]
+[1;36m(EngineCore_DP0 pid=550190)[0;0m Loading safetensors checkpoint shards: 100% Completed | 2/2 [00:01<00:00,  1.42it/s]
+[1;36m(EngineCore_DP0 pid=550190)[0;0m 
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:14 [default_loader.py:267] Loading weights took 1.46 seconds
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:15 [gpu_model_runner.py:2653] Model loading took 7.5532 GiB and 1.627012 seconds
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:16 [gpu_worker.py:298] Available KV cache memory: 58.26 GiB
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:16 [kv_cache_utils.py:1087] GPU KV cache size: 424,240 tokens
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:16 [kv_cache_utils.py:1091] Maximum concurrency for 8,192 tokens per request: 51.79x
+[1;36m(EngineCore_DP0 pid=550190)[0;0m WARNING 08-08 02:29:16 [cudagraph_dispatcher.py:106] cudagraph dispatching keys are not initialized. No cudagraph will be used.
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:16 [core.py:210] init engine (profile, create kv cache, warmup model) took 1.58 seconds
+[1;36m(EngineCore_DP0 pid=550190)[0;0m The tokenizer you are loading from '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+[1;36m(EngineCore_DP0 pid=550190)[0;0m INFO 08-08 02:29:17 [__init__.py:381] Cudagraph is disabled under eager mode
+INFO 08-08 02:29:17 [llm.py:306] Supported_tasks: ['generate']
+2026-08-08 02:29:17,292 INFO eval_vllm_math: Evaluating olympiadbench (675 problems)
+Adding requests:   0%|          | 0/675 [00:00<?, ?it/s]Adding requests:  20%|██        | 135/675 [00:00<00:00, 1345.00it/s]Adding requests:  56%|█████▌    | 375/675 [00:00<00:00, 1961.32it/s]Adding requests:  97%|█████████▋| 653/675 [00:00<00:00, 2330.89it/s]Adding requests: 100%|██████████| 675/675 [00:00<00:00, 2190.26it/s]
+Processed prompts:   0%|          | 0/675 [00:00<?, ?it/s, est. speed input: 0.00 toks/s, output: 0.00 toks/s]Processed prompts:   0%|          | 1/675 [00:08<1:36:16,  8.57s/it, est. speed input: 8.52 toks/s, output: 34.07 toks/s]Processed prompts:   0%|          | 2/675 [00:08<40:33,  3.62s/it, est. speed input: 24.89 toks/s, output: 67.55 toks/s] Processed prompts:   0%|          | 3/675 [00:09<24:53,  2.22s/it, est. speed input: 29.52 toks/s, output: 97.28 toks/s]Processed prompts:   1%|          | 4/675 [00:09<15:34,  1.39s/it, est. speed input: 40.62 toks/s, output: 129.95 toks/s]Processed prompts:   1%|          | 5/675 [00:09<11:09,  1.00it/s, est. speed input: 54.00 toks/s, output: 159.73 toks/s]Processed prompts:   1%|          | 6/675 [00:10<10:13,  1.09it/s, est. speed input: 57.36 toks/s, output: 181.54 toks/s]Processed prompts:   1%|          | 7/675 [00:10<07:20,  1.52it/s, est. speed input: 62.99 toks/s, output: 212.66 toks/s]Processed prompts:   1%|▏         | 9/675 [00:10<04:12,  2.63it/s, est. speed input: 79.72 toks/s, output: 275.90 toks/s]Processed prompts:   1%|▏         | 10/675 [00:11<03:55,  2.82it/s, est. speed input: 88.47 toks/s, output: 302.01 toks/s]Processed prompts:   2%|▏         | 14/675 [00:11<01:48,  6.10it/s, est. speed input: 126.98 toks/s, output: 429.03 toks/s]Processed prompts:   2%|▏         | 16/675 [00:11<02:01,  5.42it/s, est. speed input: 138.56 toks/s, output: 476.97 toks/s]Processed prompts:   3%|▎         | 18/675 [00:11<01:56,  5.63it/s, est. speed input: 166.78 toks/s, output: 528.78 toks/s]Processed prompts:   3%|▎         | 19/675 [00:12<01:58,  5.55it/s, est. speed input: 172.20 toks/s, output: 552.72 toks/s]Processed prompts:   3%|▎         | 20/675 [00:12<01:51,  5.89it/s, est. speed input: 175.93 toks/s, output: 579.10 toks/s]Processed prompts:   3%|▎         | 21/675 [00:12<01:54,  5.72it/s, est. speed input: 179.47 toks/s, output: 602.23 toks/s]Processed prompts:   3%|▎         | 23/675 [00:12<01:30,  7.19it/s, est. speed input: 192.31 toks/s, output: 657.97 toks/s]Processed prompts:   4%|▎         | 24/675 [00:12<01:42,  6.36it/s, est. speed input: 195.51 toks/s, output: 678.45 toks/s]Processed prompts:   4%|▍         | 28/675 [00:13<01:06,  9.67it/s, est. speed input: 258.27 toks/s, output: 791.39 toks/s]Processed prompts:   4%|▍         | 30/675 [00:13<00:59, 10.79it/s, est. speed input: 270.98 toks/s, output: 846.81 toks/s]Processed prompts:   5%|▍         | 32/675 [00:13<00:58, 11.08it/s, est. speed input: 280.71 toks/s, output: 898.62 toks/s]Processed prompts:   5%|▌         | 34/675 [00:13<01:17,  8.31it/s, est. speed input: 288.36 toks/s, output: 935.60 toks/s]Processed prompts:   5%|▌         | 37/675 [00:13<01:00, 10.48it/s, est. speed input: 299.82 toks/s, output: 1017.35 toks/s]Processed prompts:   6%|▌         | 39/675 [00:14<01:20,  7.94it/s, est. speed input: 318.31 toks/s, output: 1049.63 toks/s]Processed prompts:   6%|▌         | 41/675 [00:14<01:28,  7.16it/s, est. speed input: 329.52 toks/s, output: 1085.71 toks/s]Processed prompts:   7%|▋         | 44/675 [00:14<01:03,  9.88it/s, est. speed input: 352.32 toks/s, output: 1169.71 toks/s]Processed prompts:   7%|▋         | 46/675 [00:15<01:06,  9.51it/s, est. speed input: 358.49 toks/s, output: 1212.75 toks/s]Processed prompts:   7%|▋         | 48/675 [00:15<01:07,  9.29it/s, est. speed input: 361.96 toks/s, output: 1255.69 toks/s]Processed prompts:   7%|▋         | 50/675 [00:15<01:29,  7.02it/s, est. speed input: 368.00 toks/s, output: 1279.11 toks/s]Processed prompts:   8%|▊         | 51/675 [00:15<01:24,  7.36it/s, est. speed input: 373.55 toks/s, output: 1301.19 toks/s]Processed prompts:   8%|▊         | 52/675 [00:15<01:20,  7.72it/s, est. speed input: 375.96 toks/s, output: 1322.97 toks/s]Processed prompts:   8%|▊         | 54/675 [00:16<01:11,  8.75it/s, est. speed input: 387.98 toks/s, output: 1368.96 toks/s]Processed prompts:   8%|▊         | 56/675 [00:16<01:28,  6.99it/s, est. speed input: 393.61 toks/s, output: 1395.72 toks/s]Processed prompts:   9%|▊         | 58/675 [00:16<01:16,  8.02it/s, est. speed input: 420.05 toks/s, output: 1440.91 toks/s]Processed prompts:   9%|▊         | 59/675 [00:16<01:17,  7.91it/s, est. speed input: 428.29 toks/s, output: 1459.37 toks/s]Processed prompts:   9%|▉         | 60/675 [00:16<01:14,  8.24it/s, est. speed input: 436.03 toks/s, output: 1480.38 toks/s]Processed prompts:   9%|▉         | 61/675 [00:17<01:49,  5.61it/s, est. speed input: 435.59 toks/s, output: 1478.87 toks/s]Processed prompts:   9%|▉         | 63/675 [00:17<01:26,  7.04it/s, est. speed input: 449.58 toks/s, output: 1523.28 toks/s]Processed prompts:  10%|▉         | 65/675 [00:17<01:38,  6.18it/s, est. speed input: 461.42 toks/s, output: 1548.43 toks/s]Processed prompts:  10%|█         | 68/675 [00:18<01:10,  8.55it/s, est. speed input: 479.46 toks/s, output: 1621.05 toks/s]Processed prompts:  10%|█         | 70/675 [00:18<01:02,  9.75it/s, est. speed input: 498.09 toks/s, output: 1667.85 toks/s]Processed prompts:  11%|█         | 73/675 [00:18<00:49, 12.16it/s, est. speed input: 516.09 toks/s, output: 1741.72 toks/s]Processed prompts:  11%|█         | 75/675 [00:18<01:21,  7.38it/s, est. speed input: 515.29 toks/s, output: 1747.74 toks/s]Processed prompts:  12%|█▏        | 78/675 [00:19<01:01,  9.66it/s, est. speed input: 531.07 toks/s, output: 1821.64 toks/s]Processed prompts:  12%|█▏        | 80/675 [00:19<00:59,  9.93it/s, est. speed input: 539.84 toks/s, output: 1862.19 toks/s]Processed prompts:  12%|█▏        | 82/675 [00:19<00:56, 10.44it/s, est. speed input: 557.37 toks/s, output: 1904.22 toks/s]Processed prompts:  12%|█▏        | 84/675 [00:19<00:57, 10.19it/s, est. speed input: 559.51 toks/s, output: 1941.53 toks/s]Processed prompts:  13%|█▎        | 86/675 [00:19<01:03,  9.22it/s, est. speed input: 563.00 toks/s, output: 1972.54 toks/s]Processed prompts:  13%|█▎        | 88/675 [00:20<01:11,  8.24it/s, est. speed input: 566.01 toks/s, output: 1999.62 toks/s]Processed prompts:  13%|█▎        | 90/675 [00:20<01:02,  9.34it/s, est. speed input: 571.56 toks/s, output: 2042.20 toks/s]Processed prompts:  14%|█▎        | 92/675 [00:20<01:07,  8.65it/s, est. speed input: 576.55 toks/s, output: 2072.03 toks/s]Processed prompts:  14%|█▍        | 93/675 [00:20<01:12,  8.03it/s, est. speed input: 575.12 toks/s, output: 2083.62 toks/s]Processed prompts:  14%|█▍        | 94/675 [00:20<01:10,  8.28it/s, est. speed input: 582.62 toks/s, output: 2101.50 toks/s]Processed prompts:  14%|█▍        | 95/675 [00:21<01:11,  8.06it/s, est. speed input: 584.05 toks/s, output: 2116.31 toks/s]Processed prompts:  14%|█▍        | 96/675 [00:21<01:13,  7.84it/s, est. speed input: 587.89 toks/s, output: 2130.76 toks/s]Processed prompts:  14%|█▍        | 97/675 [00:21<01:15,  7.70it/s, est. speed input: 593.13 toks/s, output: 2145.39 toks/s]Processed prompts:  15%|█▍        | 98/675 [00:21<01:15,  7.61it/s, est. speed input: 598.34 toks/s, output: 2160.01 toks/s]Processed prompts:  15%|█▍        | 100/675 [00:21<01:08,  8.37it/s, est. speed input: 600.59 toks/s, output: 2195.28 toks/s]Processed prompts:  15%|█▍        | 101/675 [00:21<01:24,  6.83it/s, est. speed input: 603.10 toks/s, output: 2199.96 toks/s]Processed prompts:  15%|█▌        | 102/675 [00:22<01:27,  6.57it/s, est. speed input: 606.54 toks/s, output: 2211.13 toks/s]Processed prompts:  16%|█▌        | 106/675 [00:22<00:50, 11.24it/s, est. speed input: 631.78 toks/s, output: 2304.70 toks/s]Processed prompts:  16%|█▌        | 108/675 [00:22<01:03,  8.89it/s, est. speed input: 644.39 toks/s, output: 2325.78 toks/s]Processed prompts:  16%|█▌        | 109/675 [00:22<01:02,  9.00it/s, est. speed input: 655.29 toks/s, output: 2342.95 toks/s]Processed prompts:  16%|█▋        | 110/675 [00:22<01:05,  8.63it/s, est. speed input: 658.77 toks/s, output: 2356.81 toks/s]Processed prompts:  16%|█▋        | 111/675 [00:23<01:24,  6.71it/s, est. speed input: 656.53 toks/s, output: 2357.41 toks/s]Processed prompts:  17%|█▋        | 113/675 [00:23<01:45,  5.31it/s, est. speed input: 656.08 toks/s, output: 2362.39 toks/s]Processed prompts:  17%|█▋        | 115/675 [00:23<01:35,  5.87it/s, est. speed input: 666.55 toks/s, output: 2390.16 toks/s]Processed prompts:  17%|█▋        | 116/675 [00:23<01:27,  6.38it/s, est. speed input: 668.83 toks/s, output: 2407.49 toks/s]Processed prompts:  17%|█▋        | 118/675 [00:24<01:16,  7.25it/s, est. speed input: 673.06 toks/s, output: 2441.51 toks/s]Processed prompts:  18%|█▊        | 121/675 [00:24<00:59,  9.25it/s, est. speed input: 686.25 toks/s, output: 2502.48 toks/s]Processed prompts:  18%|█▊        | 122/675 [00:24<00:59,  9.31it/s, est. speed input: 688.81 toks/s, output: 2519.33 toks/s]Processed prompts:  18%|█▊        | 123/675 [00:24<00:59,  9.35it/s, est. speed input: 689.04 toks/s, output: 2535.96 toks/s]Processed prompts:  19%|█▊        | 125/675 [00:24<00:51, 10.58it/s, est. speed input: 697.78 toks/s, output: 2563.88 toks/s]Processed prompts:  19%|█▉        | 127/675 [00:25<01:03,  8.64it/s, est. speed input: 703.83 toks/s, output: 2586.31 toks/s]Processed prompts:  19%|█▉        | 129/675 [00:25<00:58,  9.35it/s, est. speed input: 707.87 toks/s, output: 2622.40 toks/s]Processed prompts:  19%|█▉        | 131/675 [00:25<01:37,  5.55it/s, est. speed input: 697.50 toks/s, output: 2608.09 toks/s]Processed prompts:  20%|█▉        | 132/675 [00:26<01:56,  4.64it/s, est. speed input: 692.85 toks/s, output: 2598.54 toks/s]Processed prompts:  20%|█▉        | 134/675 [00:26<01:26,  6.27it/s, est. speed input: 703.72 toks/s, output: 2642.17 toks/s]Processed prompts:  20%|██        | 136/675 [00:26<01:31,  5.90it/s, est. speed input: 704.14 toks/s, output: 2658.61 toks/s]Processed prompts:  21%|██        | 139/675 [00:26<01:04,  8.33it/s, est. speed input: 711.58 toks/s, output: 2724.54 toks/s]Processed prompts:  21%|██        | 141/675 [00:27<01:04,  8.29it/s, est. speed input: 710.78 toks/s, output: 2753.80 toks/s]Processed prompts:  21%|██        | 143/675 [00:27<01:12,  7.34it/s, est. speed input: 710.05 toks/s, output: 2756.39 toks/s]Processed prompts:  21%|██▏       | 145/675 [00:27<01:05,  8.15it/s, est. speed input: 714.08 toks/s, output: 2792.05 toks/s]Processed prompts:  22%|██▏       | 146/675 [00:27<01:18,  6.76it/s, est. speed input: 711.58 toks/s, output: 2792.07 toks/s]Processed prompts:  22%|██▏       | 147/675 [00:28<01:27,  6.04it/s, est. speed input: 709.18 toks/s, output: 2795.36 toks/s]Processed prompts:  22%|██▏       | 149/675 [00:28<01:06,  7.96it/s, est. speed input: 712.59 toks/s, output: 2823.84 toks/s]Processed prompts:  22%|██▏       | 151/675 [00:28<00:59,  8.80it/s, est. speed input: 713.20 toks/s, output: 2859.27 toks/s]Processed prompts:  23%|██▎       | 153/675 [00:28<01:06,  7.87it/s, est. speed input: 717.23 toks/s, output: 2881.69 toks/s]Processed prompts:  23%|██▎       | 154/675 [00:28<01:14,  7.03it/s, est. speed input: 716.40 toks/s, output: 2887.81 toks/s]Processed prompts:  23%|██▎       | 155/675 [00:29<01:13,  7.07it/s, est. speed input: 715.53 toks/s, output: 2900.74 toks/s]Processed prompts:  23%|██▎       | 156/675 [00:29<01:09,  7.50it/s, est. speed input: 716.79 toks/s, output: 2916.81 toks/s]Processed prompts:  24%|██▎       | 160/675 [00:29<00:40, 12.79it/s, est. speed input: 734.00 toks/s, output: 3008.32 toks/s]Processed prompts:  24%|██▍       | 163/675 [00:29<00:36, 13.99it/s, est. speed input: 753.60 toks/s, output: 3050.55 toks/s]Processed prompts:  24%|██▍       | 165/675 [00:29<00:49, 10.26it/s, est. speed input: 755.74 toks/s, output: 3068.72 toks/s]Processed prompts:  25%|██▍       | 167/675 [00:30<00:50, 10.12it/s, est. speed input: 761.89 toks/s, output: 3100.70 toks/s]Processed prompts:  25%|██▌       | 169/675 [00:30<00:55,  9.04it/s, est. speed input: 766.04 toks/s, output: 3124.85 toks/s]Processed prompts:  25%|██▌       | 171/675 [00:30<00:57,  8.78it/s, est. speed input: 767.41 toks/s, output: 3152.65 toks/s]Processed prompts:  26%|██▌       | 173/675 [00:30<00:57,  8.71it/s, est. speed input: 766.93 toks/s, output: 3153.34 toks/s]Processed prompts:  26%|██▌       | 175/675 [00:31<00:55,  8.95it/s, est. speed input: 770.47 toks/s, output: 3184.70 toks/s]Processed prompts:  26%|██▋       | 178/675 [00:31<00:45, 10.92it/s, est. speed input: 774.62 toks/s, output: 3233.48 toks/s]Processed prompts:  27%|██▋       | 180/675 [00:31<01:10,  6.99it/s, est. speed input: 764.87 toks/s, output: 3228.12 toks/s]Processed prompts:  27%|██▋       | 182/675 [00:32<01:09,  7.09it/s, est. speed input: 774.73 toks/s, output: 3253.12 toks/s]Processed prompts:  27%|██▋       | 184/675 [00:32<01:03,  7.67it/s, est. speed input: 775.93 toks/s, output: 3259.55 toks/s]Processed prompts:  27%|██▋       | 185/675 [00:32<01:09,  7.00it/s, est. speed input: 773.94 toks/s, output: 3247.45 toks/s]Processed prompts:  28%|██▊       | 187/675 [00:32<01:06,  7.30it/s, est. speed input: 773.90 toks/s, output: 3274.94 toks/s]Processed prompts:  28%|██▊       | 189/675 [00:32<01:01,  7.93it/s, est. speed input: 775.73 toks/s, output: 3290.72 toks/s]Processed prompts:  28%|██▊       | 190/675 [00:33<00:59,  8.16it/s, est. speed input: 776.37 toks/s, output: 3306.30 toks/s]Processed prompts:  28%|██▊       | 191/675 [00:33<01:27,  5.55it/s, est. speed input: 770.82 toks/s, output: 3293.03 toks/s]Processed prompts:  28%|██▊       | 192/675 [00:33<01:29,  5.38it/s, est. speed input: 769.59 toks/s, output: 3299.13 toks/s]Processed prompts:  29%|██▊       | 193/675 [00:34<01:55,  4.18it/s, est. speed input: 766.30 toks/s, output: 3286.47 toks/s]Processed prompts:  29%|██▊       | 194/675 [00:34<01:42,  4.69it/s, est. speed input: 769.07 toks/s, output: 3288.92 toks/s]Processed prompts:  29%|██▉       | 195/675 [00:34<01:37,  4.93it/s, est. speed input: 771.06 toks/s, output: 3298.43 toks/s]Processed prompts:  29%|██▉       | 196/675 [00:34<01:24,  5.68it/s, est. speed input: 771.62 toks/s, output: 3314.32 toks/s]Processed prompts:  29%|██▉       | 197/675 [00:34<01:32,  5.16it/s, est. speed input: 770.62 toks/s, output: 3317.67 toks/s]Processed prompts:  29%|██▉       | 198/675 [00:34<01:38,  4.82it/s, est. speed input: 767.97 toks/s, output: 3320.96 toks/s]Processed prompts:  30%|██▉       | 200/675 [00:35<01:09,  6.80it/s, est. speed input: 773.28 toks/s, output: 3359.09 toks/s]Processed prompts:  30%|██▉       | 201/675 [00:35<01:12,  6.53it/s, est. speed input: 771.43 toks/s, output: 3360.30 toks/s]Processed prompts:  30%|███       | 203/675 [00:35<01:09,  6.82it/s, est. speed input: 805.49 toks/s, output: 3370.60 toks/s]Processed prompts:  30%|███       | 205/675 [00:35<01:02,  7.56it/s, est. speed input: 805.48 toks/s, output: 3387.46 toks/s]Processed prompts:  31%|███       | 206/675 [00:36<01:15,  6.20it/s, est. speed input: 801.55 toks/s, output: 3387.95 toks/s]Processed prompts:  31%|███       | 207/675 [00:36<01:24,  5.55it/s, est. speed input: 798.58 toks/s, output: 3391.16 toks/s]Processed prompts:  31%|███       | 210/675 [00:36<00:53,  8.63it/s, est. speed input: 808.44 toks/s, output: 3454.84 toks/s]Processed prompts:  31%|███▏      | 212/675 [00:36<00:54,  8.44it/s, est. speed input: 808.09 toks/s, output: 3483.15 toks/s]Processed prompts:  32%|███▏      | 214/675 [00:36<00:52,  8.71it/s, est. speed input: 814.62 toks/s, output: 3497.78 toks/s]Processed prompts:  32%|███▏      | 215/675 [00:36<00:52,  8.83it/s, est. speed input: 814.95 toks/s, output: 3513.54 toks/s]Processed prompts:  32%|███▏      | 216/675 [00:37<00:57,  7.96it/s, est. speed input: 813.95 toks/s, output: 3514.55 toks/s]Processed prompts:  32%|███▏      | 218/675 [00:37<01:08,  6.70it/s, est. speed input: 811.57 toks/s, output: 3530.59 toks/s]Processed prompts:  32%|███▏      | 219/675 [00:37<01:16,  5.94it/s, est. speed input: 808.68 toks/s, output: 3524.49 toks/s]Processed prompts:  33%|███▎      | 221/675 [00:37<01:03,  7.19it/s, est. speed input: 813.32 toks/s, output: 3559.22 toks/s]Processed prompts:  33%|███▎      | 223/675 [00:38<01:00,  7.48it/s, est. speed input: 813.94 toks/s, output: 3577.58 toks/s]Processed prompts:  33%|███▎      | 224/675 [00:38<01:09,  6.46it/s, est. speed input: 810.76 toks/s, output: 3572.79 toks/s]Processed prompts:  33%|███▎      | 225/675 [00:38<01:14,  6.02it/s, est. speed input: 809.67 toks/s, output: 3579.40 toks/s]Processed prompts:  34%|███▎      | 227/675 [00:38<01:07,  6.68it/s, est. speed input: 809.22 toks/s, output: 3587.88 toks/s]Processed prompts:  34%|███▍      | 229/675 [00:39<00:59,  7.45it/s, est. speed input: 809.50 toks/s, output: 3604.18 toks/s]Processed prompts:  34%|███▍      | 230/675 [00:39<01:12,  6.16it/s, est. speed input: 805.77 toks/s, output: 3594.20 toks/s]Processed prompts:  34%|███▍      | 231/675 [00:39<01:10,  6.34it/s, est. speed input: 806.42 toks/s, output: 3606.94 toks/s]Processed prompts:  35%|███▍      | 234/675 [00:40<01:22,  5.37it/s, est. speed input: 801.37 toks/s, output: 3580.15 toks/s]Processed prompts:  35%|███▌      | 237/675 [00:40<01:01,  7.16it/s, est. speed input: 809.77 toks/s, output: 3600.72 toks/s]Processed prompts:  35%|███▌      | 238/675 [00:40<00:58,  7.44it/s, est. speed input: 809.73 toks/s, output: 3603.91 toks/s]Processed prompts:  36%|███▌      | 240/675 [00:40<00:59,  7.33it/s, est. speed input: 839.44 toks/s, output: 3606.79 toks/s]Processed prompts:  36%|███▌      | 241/675 [00:40<01:04,  6.68it/s, est. speed input: 836.58 toks/s, output: 3598.98 toks/s]Processed prompts:  36%|███▌      | 243/675 [00:41<01:00,  7.08it/s, est. speed input: 838.83 toks/s, output: 3618.66 toks/s]Processed prompts:  36%|███▌      | 244/675 [00:41<01:03,  6.75it/s, est. speed input: 836.80 toks/s, output: 3628.69 toks/s]Processed prompts:  36%|███▋      | 245/675 [00:41<01:09,  6.19it/s, est. speed input: 838.78 toks/s, output: 3636.02 toks/s]Processed prompts:  37%|███▋      | 247/675 [00:41<01:00,  7.06it/s, est. speed input: 839.02 toks/s, output: 3641.38 toks/s]Processed prompts:  37%|███▋      | 249/675 [00:42<00:57,  7.36it/s, est. speed input: 839.58 toks/s, output: 3655.36 toks/s]Processed prompts:  37%|███▋      | 250/675 [00:42<01:23,  5.06it/s, est. speed input: 832.52 toks/s, output: 3628.36 toks/s]Processed prompts:  37%|███▋      | 252/675 [00:42<01:07,  6.30it/s, est. speed input: 834.02 toks/s, output: 3652.11 toks/s]Processed prompts:  37%|███▋      | 253/675 [00:42<01:05,  6.44it/s, est. speed input: 833.95 toks/s, output: 3651.00 toks/s]Processed prompts:  38%|███▊      | 256/675 [00:43<01:08,  6.12it/s, est. speed input: 831.11 toks/s, output: 3655.27 toks/s]Processed prompts:  38%|███▊      | 257/675 [00:43<01:18,  5.33it/s, est. speed input: 828.15 toks/s, output: 3645.42 toks/s]Processed prompts:  38%|███▊      | 259/675 [00:43<01:02,  6.71it/s, est. speed input: 829.83 toks/s, output: 3654.73 toks/s]Processed prompts:  39%|███▊      | 260/675 [00:44<01:29,  4.66it/s, est. speed input: 822.98 toks/s, output: 3640.34 toks/s]Processed prompts:  39%|███▉      | 263/675 [00:44<00:59,  6.89it/s, est. speed input: 824.96 toks/s, output: 3661.67 toks/s]Processed prompts:  39%|███▉      | 264/675 [00:44<01:02,  6.60it/s, est. speed input: 827.35 toks/s, output: 3664.19 toks/s]Processed prompts:  40%|███▉      | 267/675 [00:44<00:46,  8.77it/s, est. speed input: 829.81 toks/s, output: 3687.56 toks/s]Processed prompts:  40%|███▉      | 269/675 [00:45<01:03,  6.35it/s, est. speed input: 825.62 toks/s, output: 3680.37 toks/s]Processed prompts:  40%|████      | 270/675 [00:45<01:00,  6.69it/s, est. speed input: 826.01 toks/s, output: 3687.16 toks/s]Processed prompts:  40%|████      | 271/675 [00:45<00:59,  6.74it/s, est. speed input: 826.29 toks/s, output: 3700.68 toks/s]Processed prompts:  40%|████      | 272/675 [00:45<00:56,  7.13it/s, est. speed input: 827.69 toks/s, output: 3716.84 toks/s]Processed prompts:  40%|████      | 273/675 [00:45<00:53,  7.50it/s, est. speed input: 828.41 toks/s, output: 3723.97 toks/s]Processed prompts:  41%|████      | 276/675 [00:46<00:36, 10.84it/s, est. speed input: 831.43 toks/s, output: 3750.23 toks/s]Processed prompts:  41%|████      | 278/675 [00:46<00:38, 10.19it/s, est. speed input: 831.18 toks/s, output: 3782.48 toks/s]Processed prompts:  41%|████▏     | 280/675 [00:46<00:42,  9.35it/s, est. speed input: 830.31 toks/s, output: 3800.53 toks/s]Processed prompts:  42%|████▏     | 283/675 [00:46<00:34, 11.24it/s, est. speed input: 833.34 toks/s, output: 3829.29 toks/s]Processed prompts:  42%|████▏     | 286/675 [00:46<00:30, 12.81it/s, est. speed input: 834.96 toks/s, output: 3845.39 toks/s]Processed prompts:  43%|████▎     | 288/675 [00:47<00:33, 11.54it/s, est. speed input: 833.80 toks/s, output: 3868.43 toks/s]Processed prompts:  43%|████▎     | 290/675 [00:47<00:30, 12.77it/s, est. speed input: 835.92 toks/s, output: 3885.99 toks/s]Processed prompts:  43%|████▎     | 292/675 [00:47<00:36, 10.54it/s, est. speed input: 834.39 toks/s, output: 3900.10 toks/s]Processed prompts:  44%|████▎     | 294/675 [00:47<00:52,  7.29it/s, est. speed input: 831.30 toks/s, output: 3896.29 toks/s]Processed prompts:  44%|████▍     | 296/675 [00:48<01:01,  6.16it/s, est. speed input: 828.79 toks/s, output: 3888.71 toks/s]Processed prompts:  44%|████▍     | 297/675 [00:48<01:00,  6.29it/s, est. speed input: 829.43 toks/s, output: 3902.28 toks/s]Processed prompts:  44%|████▍     | 299/675 [00:48<00:55,  6.74it/s, est. speed input: 834.61 toks/s, output: 3901.78 toks/s]Processed prompts:  45%|████▍     | 301/675 [00:49<00:56,  6.58it/s, est. speed input: 832.84 toks/s, output: 3898.61 toks/s]Processed prompts:  45%|████▍     | 302/675 [00:49<01:12,  5.15it/s, est. speed input: 837.84 toks/s, output: 3882.45 toks/s]Processed prompts:  45%|████▌     | 304/675 [00:49<00:59,  6.27it/s, est. speed input: 839.04 toks/s, output: 3886.80 toks/s]Processed prompts:  45%|████▌     | 305/675 [00:49<01:00,  6.13it/s, est. speed input: 837.68 toks/s, output: 3885.92 toks/s]Processed prompts:  45%|████▌     | 306/675 [00:50<01:06,  5.52it/s, est. speed input: 835.09 toks/s, output: 3891.78 toks/s]Processed prompts:  46%|████▌     | 309/675 [00:50<00:53,  6.84it/s, est. speed input: 834.74 toks/s, output: 3910.56 toks/s]Processed prompts:  46%|████▌     | 311/675 [00:50<00:44,  8.15it/s, est. speed input: 835.03 toks/s, output: 3928.65 toks/s]Processed prompts:  46%|████▋     | 313/675 [00:50<00:41,  8.80it/s, est. speed input: 839.32 toks/s, output: 3937.26 toks/s]Processed prompts:  47%|████▋     | 314/675 [00:50<00:43,  8.39it/s, est. speed input: 838.24 toks/s, output: 3936.41 toks/s]Processed prompts:  47%|████▋     | 315/675 [00:51<00:44,  8.04it/s, est. speed input: 838.02 toks/s, output: 3950.07 toks/s]Processed prompts:  47%|████▋     | 316/675 [00:51<00:43,  8.25it/s, est. speed input: 838.64 toks/s, output: 3958.03 toks/s]Processed prompts:  47%|████▋     | 317/675 [00:51<00:48,  7.41it/s, est. speed input: 837.77 toks/s, output: 3951.34 toks/s]Processed prompts:  47%|████▋     | 318/675 [00:51<00:49,  7.28it/s, est. speed input: 837.41 toks/s, output: 3965.03 toks/s]Processed prompts:  47%|████▋     | 320/675 [00:51<00:44,  7.94it/s, est. speed input: 836.96 toks/s, output: 3985.62 toks/s]Processed prompts:  48%|████▊     | 321/675 [00:51<00:54,  6.52it/s, est. speed input: 835.18 toks/s, output: 3981.43 toks/s]Processed prompts:  48%|████▊     | 322/675 [00:52<00:56,  6.27it/s, est. speed input: 833.64 toks/s, output: 3992.51 toks/s]Processed prompts:  48%|████▊     | 323/675 [00:52<00:51,  6.81it/s, est. speed input: 836.50 toks/s, output: 4008.71 toks/s]Processed prompts:  48%|████▊     | 325/675 [00:52<00:40,  8.68it/s, est. speed input: 836.80 toks/s, output: 4020.77 toks/s]Processed prompts:  48%|████▊     | 326/675 [00:52<00:50,  6.89it/s, est. speed input: 846.82 toks/s, output: 4013.79 toks/s]Processed prompts:  49%|████▊     | 328/675 [00:52<00:40,  8.56it/s, est. speed input: 849.44 toks/s, output: 4051.79 toks/s]Processed prompts:  49%|████▉     | 330/675 [00:53<00:45,  7.63it/s, est. speed input: 855.60 toks/s, output: 4055.79 toks/s]Processed prompts:  49%|████▉     | 332/675 [00:53<00:40,  8.48it/s, est. speed input: 855.42 toks/s, output: 4066.64 toks/s]Processed prompts:  49%|████▉     | 334/675 [00:53<00:35,  9.63it/s, est. speed input: 865.77 toks/s, output: 4081.91 toks/s]Processed prompts:  50%|████▉     | 336/675 [00:53<00:40,  8.32it/s, est. speed input: 864.78 toks/s, output: 4094.20 toks/s]Processed prompts:  50%|█████     | 338/675 [00:53<00:37,  8.96it/s, est. speed input: 865.74 toks/s, output: 4105.33 toks/s]Processed prompts:  50%|█████     | 339/675 [00:54<00:45,  7.39it/s, est. speed input: 870.67 toks/s, output: 4098.99 toks/s]Processed prompts:  50%|█████     | 340/675 [00:54<01:08,  4.86it/s, est. speed input: 864.70 toks/s, output: 4078.84 toks/s]Processed prompts:  51%|█████     | 342/675 [00:54<00:59,  5.64it/s, est. speed input: 863.30 toks/s, output: 4080.75 toks/s]Processed prompts:  51%|█████     | 344/675 [00:55<00:48,  6.77it/s, est. speed input: 864.28 toks/s, output: 4106.95 toks/s]Processed prompts:  51%|█████     | 345/675 [00:55<00:46,  7.15it/s, est. speed input: 864.67 toks/s, output: 4110.30 toks/s]Processed prompts:  52%|█████▏    | 348/675 [00:55<00:38,  8.42it/s, est. speed input: 866.67 toks/s, output: 4131.47 toks/s]Processed prompts:  52%|█████▏    | 351/675 [00:55<00:32,  9.93it/s, est. speed input: 868.37 toks/s, output: 4143.02 toks/s]Processed prompts:  52%|█████▏    | 353/675 [00:56<00:56,  5.67it/s, est. speed input: 860.44 toks/s, output: 4108.75 toks/s]Processed prompts:  52%|█████▏    | 354/675 [00:56<00:54,  5.85it/s, est. speed input: 860.55 toks/s, output: 4115.00 toks/s]Processed prompts:  53%|█████▎    | 355/675 [00:56<00:51,  6.27it/s, est. speed input: 860.54 toks/s, output: 4117.85 toks/s]Processed prompts:  53%|█████▎    | 356/675 [00:56<00:49,  6.40it/s, est. speed input: 860.27 toks/s, output: 4131.90 toks/s]Processed prompts:  53%|█████▎    | 357/675 [00:56<00:48,  6.52it/s, est. speed input: 859.30 toks/s, output: 4126.97 toks/s]Processed prompts:  53%|█████▎    | 358/675 [00:57<00:47,  6.63it/s, est. speed input: 858.60 toks/s, output: 4132.86 toks/s]Processed prompts:  53%|█████▎    | 359/675 [00:57<00:44,  7.16it/s, est. speed input: 858.88 toks/s, output: 4140.06 toks/s]Processed prompts:  53%|█████▎    | 360/675 [00:57<00:44,  7.11it/s, est. speed input: 858.49 toks/s, output: 4147.64 toks/s]Processed prompts:  54%|█████▍    | 363/675 [00:57<00:32,  9.57it/s, est. speed input: 860.92 toks/s, output: 4165.94 toks/s]Processed prompts:  54%|█████▍    | 365/675 [00:58<00:43,  7.18it/s, est. speed input: 858.63 toks/s, output: 4169.49 toks/s]Processed prompts:  54%|█████▍    | 367/675 [00:58<00:37,  8.14it/s, est. speed input: 858.42 toks/s, output: 4193.28 toks/s]Processed prompts:  55%|█████▍    | 369/675 [00:58<00:31,  9.84it/s, est. speed input: 860.13 toks/s, output: 4203.86 toks/s]Processed prompts:  55%|█████▍    | 371/675 [00:58<00:31,  9.63it/s, est. speed input: 859.92 toks/s, output: 4209.54 toks/s]Processed prompts:  55%|█████▌    | 373/675 [00:58<00:33,  9.05it/s, est. speed input: 862.08 toks/s, output: 4219.84 toks/s]Processed prompts:  56%|█████▌    | 375/675 [00:59<00:39,  7.67it/s, est. speed input: 859.39 toks/s, output: 4224.05 toks/s]Processed prompts:  56%|█████▌    | 377/675 [00:59<00:33,  8.86it/s, est. speed input: 861.06 toks/s, output: 4234.02 toks/s]Processed prompts:  56%|█████▌    | 379/675 [00:59<00:34,  8.58it/s, est. speed input: 860.03 toks/s, output: 4231.28 toks/s]Processed prompts:  56%|█████▋    | 380/675 [00:59<00:46,  6.38it/s, est. speed input: 859.00 toks/s, output: 4219.20 toks/s]Processed prompts:  56%|█████▋    | 381/675 [01:00<00:59,  4.95it/s, est. speed input: 854.99 toks/s, output: 4209.26 toks/s]Processed prompts:  57%|█████▋    | 382/675 [01:00<00:57,  5.08it/s, est. speed input: 855.56 toks/s, output: 4221.25 toks/s]Processed prompts:  57%|█████▋    | 384/675 [01:00<00:41,  7.06it/s, est. speed input: 857.03 toks/s, output: 4231.14 toks/s]Processed prompts:  57%|█████▋    | 385/675 [01:00<00:47,  6.09it/s, est. speed input: 856.77 toks/s, output: 4238.50 toks/s]Processed prompts:  57%|█████▋    | 387/675 [01:01<01:03,  4.56it/s, est. speed input: 860.43 toks/s, output: 4226.64 toks/s]Processed prompts:  58%|█████▊    | 389/675 [01:01<00:51,  5.54it/s, est. speed input: 861.73 toks/s, output: 4239.37 toks/s]Processed prompts:  58%|█████▊    | 390/675 [01:01<00:57,  4.98it/s, est. speed input: 859.51 toks/s, output: 4229.33 toks/s]Processed prompts:  58%|█████▊    | 391/675 [01:02<00:53,  5.32it/s, est. speed input: 860.45 toks/s, output: 4232.22 toks/s]Processed prompts:  58%|█████▊    | 392/675 [01:02<00:47,  5.90it/s, est. speed input: 860.04 toks/s, output: 4230.50 toks/s]Processed prompts:  58%|█████▊    | 393/675 [01:02<00:43,  6.47it/s, est. speed input: 859.59 toks/s, output: 4232.63 toks/s]Processed prompts:  58%|█████▊    | 394/675 [01:02<00:40,  7.00it/s, est. speed input: 859.35 toks/s, output: 4232.86 toks/s]Processed prompts:  59%|█████▊    | 395/675 [01:02<00:40,  6.96it/s, est. speed input: 859.29 toks/s, output: 4230.77 toks/s]Processed prompts:  59%|█████▊    | 396/675 [01:02<00:45,  6.12it/s, est. speed input: 857.89 toks/s, output: 4231.63 toks/s]Processed prompts:  59%|█████▉    | 397/675 [01:03<00:54,  5.07it/s, est. speed input: 856.24 toks/s, output: 4224.17 toks/s]Processed prompts:  59%|█████▉    | 398/675 [01:03<01:01,  4.48it/s, est. speed input: 853.56 toks/s, output: 4212.24 toks/s]Processed prompts:  59%|█████▉    | 399/675 [01:03<00:58,  4.75it/s, est. speed input: 852.19 toks/s, output: 4205.53 toks/s]Processed prompts:  59%|█████▉    | 401/675 [01:03<00:51,  5.28it/s, est. speed input: 850.17 toks/s, output: 4217.86 toks/s]Processed prompts:  60%|█████▉    | 402/675 [01:04<01:00,  4.51it/s, est. speed input: 846.81 toks/s, output: 4210.62 toks/s]Processed prompts:  60%|██████    | 405/675 [01:04<00:38,  7.09it/s, est. speed input: 852.36 toks/s, output: 4226.94 toks/s]Processed prompts:  60%|██████    | 406/675 [01:04<00:45,  5.90it/s, est. speed input: 850.51 toks/s, output: 4219.36 toks/s]Processed prompts:  60%|██████    | 408/675 [01:04<00:34,  7.75it/s, est. speed input: 851.85 toks/s, output: 4226.01 toks/s]Processed prompts:  61%|██████    | 409/675 [01:04<00:40,  6.50it/s, est. speed input: 850.30 toks/s, output: 4223.72 toks/s]Processed prompts:  61%|██████    | 410/675 [01:05<00:38,  6.92it/s, est. speed input: 850.43 toks/s, output: 4234.42 toks/s]Processed prompts:  61%|██████    | 411/675 [01:05<00:36,  7.33it/s, est. speed input: 850.95 toks/s, output: 4245.27 toks/s]Processed prompts:  61%|██████    | 412/675 [01:05<00:38,  6.76it/s, est. speed input: 850.58 toks/s, output: 4244.71 toks/s]Processed prompts:  62%|██████▏   | 416/675 [01:05<00:24, 10.66it/s, est. speed input: 855.58 toks/s, output: 4261.92 toks/s]Processed prompts:  62%|██████▏   | 418/675 [01:05<00:28,  9.13it/s, est. speed input: 854.54 toks/s, output: 4263.43 toks/s]Processed prompts:  62%|██████▏   | 419/675 [01:06<00:29,  8.63it/s, est. speed input: 853.63 toks/s, output: 4268.07 toks/s]Processed prompts:  62%|██████▏   | 420/675 [01:06<00:39,  6.41it/s, est. speed input: 852.18 toks/s, output: 4253.20 toks/s]Processed prompts:  62%|██████▏   | 421/675 [01:06<00:36,  6.93it/s, est. speed input: 852.21 toks/s, output: 4263.92 toks/s]Processed prompts:  63%|██████▎   | 423/675 [01:06<00:33,  7.43it/s, est. speed input: 852.07 toks/s, output: 4264.51 toks/s]Processed prompts:  63%|██████▎   | 424/675 [01:06<00:39,  6.34it/s, est. speed input: 849.96 toks/s, output: 4256.14 toks/s]Processed prompts:  63%|██████▎   | 427/675 [01:07<00:31,  7.97it/s, est. speed input: 851.92 toks/s, output: 4265.85 toks/s]Processed prompts:  63%|██████▎   | 428/675 [01:07<00:41,  6.01it/s, est. speed input: 848.64 toks/s, output: 4255.09 toks/s]Processed prompts:  64%|██████▎   | 429/675 [01:07<00:37,  6.51it/s, est. speed input: 849.16 toks/s, output: 4260.71 toks/s]Processed prompts:  64%|██████▍   | 431/675 [01:07<00:29,  8.22it/s, est. speed input: 850.21 toks/s, output: 4274.26 toks/s]Processed prompts:  64%|██████▍   | 433/675 [01:07<00:23, 10.30it/s, est. speed input: 854.37 toks/s, output: 4281.45 toks/s]Processed prompts:  65%|██████▍   | 436/675 [01:08<00:16, 14.25it/s, est. speed input: 857.74 toks/s, output: 4307.20 toks/s]Processed prompts:  65%|██████▌   | 439/675 [01:08<00:14, 16.44it/s, est. speed input: 860.10 toks/s, output: 4321.35 toks/s]Processed prompts:  65%|██████▌   | 441/675 [01:08<00:25,  9.21it/s, est. speed input: 856.47 toks/s, output: 4310.04 toks/s]Processed prompts:  66%|██████▌   | 443/675 [01:08<00:27,  8.56it/s, est. speed input: 856.56 toks/s, output: 4307.13 toks/s]Processed prompts:  66%|██████▌   | 445/675 [01:09<00:23,  9.67it/s, est. speed input: 857.40 toks/s, output: 4322.11 toks/s]Processed prompts:  66%|██████▋   | 448/675 [01:09<00:20, 11.14it/s, est. speed input: 859.39 toks/s, output: 4350.30 toks/s]Processed prompts:  67%|██████▋   | 450/675 [01:09<00:17, 12.60it/s, est. speed input: 860.68 toks/s, output: 4363.59 toks/s]Processed prompts:  67%|██████▋   | 454/675 [01:09<00:13, 16.83it/s, est. speed input: 864.44 toks/s, output: 4397.75 toks/s]Processed prompts:  68%|██████▊   | 457/675 [01:09<00:12, 17.24it/s, est. speed input: 868.73 toks/s, output: 4420.65 toks/s]Processed prompts:  68%|██████▊   | 459/675 [01:09<00:15, 14.06it/s, est. speed input: 871.11 toks/s, output: 4415.08 toks/s]Processed prompts:  68%|██████▊   | 461/675 [01:10<00:17, 12.22it/s, est. speed input: 871.77 toks/s, output: 4421.11 toks/s]Processed prompts:  69%|██████▊   | 463/675 [01:10<00:20, 10.19it/s, est. speed input: 870.40 toks/s, output: 4420.59 toks/s]Processed prompts:  69%|██████▉   | 465/675 [01:10<00:22,  9.36it/s, est. speed input: 869.52 toks/s, output: 4441.62 toks/s]Processed prompts:  69%|██████▉   | 468/675 [01:10<00:18, 11.48it/s, est. speed input: 875.53 toks/s, output: 4454.30 toks/s]Processed prompts:  70%|██████▉   | 470/675 [01:11<00:27,  7.39it/s, est. speed input: 871.45 toks/s, output: 4445.97 toks/s]Processed prompts:  70%|██████▉   | 472/675 [01:11<00:25,  8.01it/s, est. speed input: 873.92 toks/s, output: 4448.85 toks/s]Processed prompts:  70%|███████   | 474/675 [01:11<00:23,  8.56it/s, est. speed input: 874.10 toks/s, output: 4451.24 toks/s]Processed prompts:  71%|███████   | 477/675 [01:12<00:20,  9.53it/s, est. speed input: 875.36 toks/s, output: 4459.79 toks/s]Processed prompts:  71%|███████   | 479/675 [01:12<00:30,  6.38it/s, est. speed input: 871.04 toks/s, output: 4434.03 toks/s]Processed prompts:  72%|███████▏  | 484/675 [01:12<00:18, 10.40it/s, est. speed input: 879.07 toks/s, output: 4459.29 toks/s]Processed prompts:  72%|███████▏  | 486/675 [01:13<00:21,  8.89it/s, est. speed input: 879.73 toks/s, output: 4448.81 toks/s]Processed prompts:  72%|███████▏  | 488/675 [01:13<00:20,  8.94it/s, est. speed input: 878.83 toks/s, output: 4443.82 toks/s]Processed prompts:  73%|███████▎  | 490/675 [01:13<00:21,  8.68it/s, est. speed input: 879.52 toks/s, output: 4449.62 toks/s]Processed prompts:  73%|███████▎  | 492/675 [01:13<00:22,  8.20it/s, est. speed input: 879.74 toks/s, output: 4451.47 toks/s]Processed prompts:  73%|███████▎  | 493/675 [01:14<00:23,  7.82it/s, est. speed input: 878.68 toks/s, output: 4449.78 toks/s]Processed prompts:  73%|███████▎  | 496/675 [01:14<00:16, 10.75it/s, est. speed input: 881.02 toks/s, output: 4470.01 toks/s]Processed prompts:  74%|███████▍  | 498/675 [01:14<00:19,  9.07it/s, est. speed input: 881.90 toks/s, output: 4468.80 toks/s]Processed prompts:  74%|███████▍  | 500/675 [01:14<00:17,  9.91it/s, est. speed input: 882.02 toks/s, output: 4481.38 toks/s]Processed prompts:  74%|███████▍  | 502/675 [01:14<00:15, 11.16it/s, est. speed input: 884.00 toks/s, output: 4510.70 toks/s]Processed prompts:  75%|███████▍  | 504/675 [01:14<00:15, 11.08it/s, est. speed input: 884.32 toks/s, output: 4516.24 toks/s]Processed prompts:  75%|███████▍  | 506/675 [01:15<00:19,  8.83it/s, est. speed input: 882.22 toks/s, output: 4511.01 toks/s]Processed prompts:  75%|███████▌  | 508/675 [01:15<00:20,  8.29it/s, est. speed input: 881.04 toks/s, output: 4511.89 toks/s]Processed prompts:  76%|███████▌  | 511/675 [01:15<00:14, 11.16it/s, est. speed input: 882.56 toks/s, output: 4540.91 toks/s]Processed prompts:  76%|███████▌  | 513/675 [01:16<00:23,  6.95it/s, est. speed input: 878.55 toks/s, output: 4522.27 toks/s]Processed prompts:  76%|███████▋  | 515/675 [01:16<00:19,  8.01it/s, est. speed input: 879.75 toks/s, output: 4531.02 toks/s]Processed prompts:  77%|███████▋  | 519/675 [01:16<00:12, 12.05it/s, est. speed input: 882.54 toks/s, output: 4567.00 toks/s]Processed prompts:  77%|███████▋  | 521/675 [01:16<00:12, 12.34it/s, est. speed input: 883.82 toks/s, output: 4572.14 toks/s]Processed prompts:  77%|███████▋  | 523/675 [01:16<00:14, 10.57it/s, est. speed input: 883.02 toks/s, output: 4567.27 toks/s]Processed prompts:  78%|███████▊  | 525/675 [01:17<00:16,  9.15it/s, est. speed input: 881.51 toks/s, output: 4573.21 toks/s]Processed prompts:  78%|███████▊  | 527/675 [01:17<00:17,  8.32it/s, est. speed input: 880.81 toks/s, output: 4572.84 toks/s]Processed prompts:  78%|███████▊  | 529/675 [01:18<00:24,  5.87it/s, est. speed input: 879.35 toks/s, output: 4554.75 toks/s]Processed prompts:  79%|███████▊  | 530/675 [01:18<00:26,  5.50it/s, est. speed input: 877.62 toks/s, output: 4549.91 toks/s]Processed prompts:  79%|███████▉  | 533/675 [01:18<00:18,  7.66it/s, est. speed input: 879.24 toks/s, output: 4563.82 toks/s]Processed prompts:  79%|███████▉  | 536/675 [01:18<00:14,  9.30it/s, est. speed input: 886.84 toks/s, output: 4583.53 toks/s]Processed prompts:  80%|███████▉  | 538/675 [01:19<00:15,  8.77it/s, est. speed input: 887.06 toks/s, output: 4589.77 toks/s]Processed prompts:  80%|████████  | 541/675 [01:19<00:12, 11.05it/s, est. speed input: 890.95 toks/s, output: 4603.59 toks/s]Processed prompts:  80%|████████  | 543/675 [01:19<00:11, 11.14it/s, est. speed input: 891.70 toks/s, output: 4613.24 toks/s]Processed prompts:  81%|████████  | 546/675 [01:20<00:19,  6.50it/s, est. speed input: 888.95 toks/s, output: 4588.41 toks/s]Processed prompts:  81%|████████  | 548/675 [01:20<00:16,  7.56it/s, est. speed input: 889.40 toks/s, output: 4593.88 toks/s]Processed prompts:  82%|████████▏ | 552/675 [01:20<00:13,  9.12it/s, est. speed input: 891.41 toks/s, output: 4607.91 toks/s]Processed prompts:  82%|████████▏ | 554/675 [01:20<00:15,  7.74it/s, est. speed input: 889.20 toks/s, output: 4613.46 toks/s]Processed prompts:  82%|████████▏ | 556/675 [01:21<00:13,  8.58it/s, est. speed input: 889.49 toks/s, output: 4621.89 toks/s]Processed prompts:  83%|████████▎ | 558/675 [01:21<00:12,  9.12it/s, est. speed input: 889.69 toks/s, output: 4627.17 toks/s]Processed prompts:  83%|████████▎ | 561/675 [01:21<00:11,  9.92it/s, est. speed input: 890.51 toks/s, output: 4639.12 toks/s]Processed prompts:  83%|████████▎ | 563/675 [01:22<00:19,  5.78it/s, est. speed input: 885.31 toks/s, output: 4609.67 toks/s]Processed prompts:  84%|████████▎ | 564/675 [01:22<00:18,  5.88it/s, est. speed input: 884.92 toks/s, output: 4607.89 toks/s]Processed prompts:  84%|████████▎ | 565/675 [01:22<00:17,  6.15it/s, est. speed input: 884.76 toks/s, output: 4609.68 toks/s]Processed prompts:  84%|████████▍ | 566/675 [01:22<00:20,  5.34it/s, est. speed input: 882.83 toks/s, output: 4606.77 toks/s]Processed prompts:  84%|████████▍ | 568/675 [01:23<00:15,  6.83it/s, est. speed input: 884.77 toks/s, output: 4620.01 toks/s]Processed prompts:  85%|████████▍ | 571/675 [01:23<00:13,  7.70it/s, est. speed input: 884.87 toks/s, output: 4639.38 toks/s]Processed prompts:  85%|████████▍ | 572/675 [01:23<00:17,  5.94it/s, est. speed input: 882.23 toks/s, output: 4630.44 toks/s]Processed prompts:  85%|████████▍ | 573/675 [01:24<00:23,  4.26it/s, est. speed input: 878.28 toks/s, output: 4612.21 toks/s]Processed prompts:  85%|████████▌ | 574/675 [01:24<00:26,  3.75it/s, est. speed input: 876.29 toks/s, output: 4603.08 toks/s]Processed prompts:  85%|████████▌ | 575/675 [01:24<00:26,  3.71it/s, est. speed input: 874.17 toks/s, output: 4596.32 toks/s]Processed prompts:  85%|████████▌ | 576/675 [01:25<00:23,  4.18it/s, est. speed input: 874.27 toks/s, output: 4596.26 toks/s]Processed prompts:  85%|████████▌ | 577/675 [01:25<00:25,  3.81it/s, est. speed input: 872.70 toks/s, output: 4596.00 toks/s]Processed prompts:  86%|████████▌ | 579/675 [01:25<00:23,  4.15it/s, est. speed input: 872.47 toks/s, output: 4600.09 toks/s]Processed prompts:  86%|████████▌ | 582/675 [01:25<00:13,  6.90it/s, est. speed input: 875.59 toks/s, output: 4619.45 toks/s]Processed prompts:  87%|████████▋ | 584/675 [01:26<00:12,  7.04it/s, est. speed input: 874.79 toks/s, output: 4624.23 toks/s]Processed prompts:  87%|████████▋ | 585/675 [01:26<00:15,  5.73it/s, est. speed input: 872.52 toks/s, output: 4615.61 toks/s]Processed prompts:  87%|████████▋ | 586/675 [01:26<00:20,  4.34it/s, est. speed input: 870.81 toks/s, output: 4605.22 toks/s]Processed prompts:  87%|████████▋ | 588/675 [01:27<00:15,  5.66it/s, est. speed input: 871.52 toks/s, output: 4615.20 toks/s]Processed prompts:  87%|████████▋ | 590/675 [01:27<00:17,  4.90it/s, est. speed input: 868.38 toks/s, output: 4607.40 toks/s]Processed prompts:  88%|████████▊ | 591/675 [01:28<00:32,  2.55it/s, est. speed input: 858.50 toks/s, output: 4561.86 toks/s]Processed prompts:  88%|████████▊ | 594/675 [01:28<00:19,  4.20it/s, est. speed input: 860.26 toks/s, output: 4588.83 toks/s]Processed prompts:  88%|████████▊ | 596/675 [01:29<00:16,  4.76it/s, est. speed input: 859.38 toks/s, output: 4602.64 toks/s]Processed prompts:  88%|████████▊ | 597/675 [01:29<00:15,  4.93it/s, est. speed input: 858.46 toks/s, output: 4611.51 toks/s]Processed prompts:  89%|████████▊ | 599/675 [01:29<00:12,  5.86it/s, est. speed input: 857.98 toks/s, output: 4622.14 toks/s]Processed prompts:  89%|████████▉ | 600/675 [01:30<00:16,  4.63it/s, est. speed input: 855.29 toks/s, output: 4611.67 toks/s]Processed prompts:  89%|████████▉ | 602/675 [01:30<00:16,  4.56it/s, est. speed input: 853.63 toks/s, output: 4625.96 toks/s]Processed prompts:  89%|████████▉ | 603/675 [01:32<00:37,  1.91it/s, est. speed input: 838.99 toks/s, output: 4561.27 toks/s]Processed prompts:  89%|████████▉ | 604/675 [01:32<00:37,  1.89it/s, est. speed input: 835.02 toks/s, output: 4549.01 toks/s]Processed prompts:  90%|████████▉ | 605/675 [01:34<00:54,  1.29it/s, est. speed input: 822.94 toks/s, output: 4489.73 toks/s]Processed prompts:  90%|████████▉ | 606/675 [01:34<00:47,  1.44it/s, est. speed input: 820.08 toks/s, output: 4479.48 toks/s]Processed prompts:  90%|█████████ | 608/675 [01:35<00:39,  1.69it/s, est. speed input: 813.61 toks/s, output: 4473.46 toks/s]Processed prompts:  90%|█████████ | 609/675 [01:36<00:39,  1.67it/s, est. speed input: 809.27 toks/s, output: 4458.58 toks/s]Processed prompts:  90%|█████████ | 610/675 [01:36<00:38,  1.71it/s, est. speed input: 805.29 toks/s, output: 4453.97 toks/s]Processed prompts:  91%|█████████ | 611/675 [01:38<00:50,  1.27it/s, est. speed input: 795.33 toks/s, output: 4409.88 toks/s]Processed prompts:  91%|█████████ | 612/675 [01:40<01:09,  1.10s/it, est. speed input: 780.94 toks/s, output: 4341.50 toks/s]Processed prompts:  91%|█████████ | 613/675 [01:40<00:54,  1.13it/s, est. speed input: 779.37 toks/s, output: 4347.47 toks/s]Processed prompts:  91%|█████████ | 614/675 [01:45<01:59,  1.96s/it, est. speed input: 746.15 toks/s, output: 4169.88 toks/s]Processed prompts:  91%|█████████ | 615/675 [01:45<01:34,  1.57s/it, est. speed input: 742.63 toks/s, output: 4162.31 toks/s]Processed prompts:  91%|█████████▏| 616/675 [01:46<01:24,  1.44s/it, est. speed input: 735.50 toks/s, output: 4144.20 toks/s]Processed prompts:  91%|█████████▏| 617/675 [01:50<02:04,  2.15s/it, est. speed input: 710.75 toks/s, output: 4016.73 toks/s]Processed prompts:  92%|█████████▏| 618/675 [01:53<02:05,  2.20s/it, est. speed input: 697.24 toks/s, output: 3951.60 toks/s]Processed prompts:  92%|█████████▏| 619/675 [01:54<01:50,  1.97s/it, est. speed input: 689.48 toks/s, output: 3924.15 toks/s]Processed prompts:  92%|█████████▏| 620/675 [01:56<01:54,  2.07s/it, est. speed input: 677.05 toks/s, output: 3865.37 toks/s]Processed prompts:  92%|█████████▏| 621/675 [01:58<01:47,  1.99s/it, est. speed input: 667.96 toks/s, output: 3830.14 toks/s]Processed prompts:  92%|█████████▏| 622/675 [01:58<01:18,  1.48s/it, est. speed input: 666.88 toks/s, output: 3845.83 toks/s]Processed prompts:  92%|█████████▏| 623/675 [02:06<02:46,  3.21s/it, est. speed input: 629.10 toks/s, output: 3646.49 toks/s]Processed prompts:  92%|█████████▏| 624/675 [02:09<02:51,  3.37s/it, est. speed input: 612.27 toks/s, output: 3560.24 toks/s]Processed prompts:  93%|█████████▎| 625/675 [02:11<02:25,  2.91s/it, est. speed input: 604.82 toks/s, output: 3541.33 toks/s]Processed prompts:  94%|█████████▍| 635/675 [02:15<00:33,  1.18it/s, est. speed input: 601.92 toks/s, output: 3739.64 toks/s]Processed prompts:  94%|█████████▍| 636/675 [02:18<00:40,  1.04s/it, est. speed input: 590.88 toks/s, output: 3689.56 toks/s]Processed prompts:  94%|█████████▍| 637/675 [02:20<00:45,  1.19s/it, est. speed input: 582.21 toks/s, output: 3660.61 toks/s]Processed prompts:  95%|█████████▍| 638/675 [02:21<00:43,  1.17s/it, est. speed input: 579.13 toks/s, output: 3662.00 toks/s]Processed prompts:  95%|█████████▍| 639/675 [02:23<00:46,  1.29s/it, est. speed input: 572.34 toks/s, output: 3636.11 toks/s]Processed prompts:  95%|█████████▍| 640/675 [02:23<00:38,  1.09s/it, est. speed input: 571.64 toks/s, output: 3657.46 toks/s]Processed prompts:  95%|█████████▍| 641/675 [02:23<00:31,  1.07it/s, est. speed input: 570.80 toks/s, output: 3675.14 toks/s]Processed prompts:  95%|█████████▌| 642/675 [02:24<00:26,  1.24it/s, est. speed input: 570.44 toks/s, output: 3693.36 toks/s]Processed prompts:  95%|█████████▌| 644/675 [02:24<00:17,  1.82it/s, est. speed input: 570.44 toks/s, output: 3737.95 toks/s]Processed prompts:  96%|█████████▌| 645/675 [02:25<00:17,  1.75it/s, est. speed input: 568.80 toks/s, output: 3749.38 toks/s]Processed prompts:  96%|█████████▌| 646/675 [02:25<00:14,  1.99it/s, est. speed input: 568.12 toks/s, output: 3769.96 toks/s]Processed prompts:  96%|█████████▌| 647/675 [02:26<00:20,  1.37it/s, est. speed input: 563.42 toks/s, output: 3762.43 toks/s]Processed prompts:  96%|█████████▌| 648/675 [02:27<00:15,  1.70it/s, est. speed input: 563.38 toks/s, output: 3785.18 toks/s]Processed prompts:  96%|█████████▌| 649/675 [02:27<00:12,  2.12it/s, est. speed input: 563.40 toks/s, output: 3808.47 toks/s]Processed prompts:  96%|█████████▋| 650/675 [02:28<00:20,  1.23it/s, est. speed input: 558.07 toks/s, output: 3793.60 toks/s]Processed prompts:  96%|█████████▋| 651/675 [02:29<00:18,  1.29it/s, est. speed input: 556.56 toks/s, output: 3803.39 toks/s]Processed prompts:  97%|█████████▋| 652/675 [02:31<00:26,  1.14s/it, est. speed input: 549.65 toks/s, output: 3779.40 toks/s]Processed prompts:  97%|█████████▋| 653/675 [02:32<00:21,  1.00it/s, est. speed input: 548.07 toks/s, output: 3790.10 toks/s]Processed prompts:  97%|█████████▋| 654/675 [02:32<00:15,  1.34it/s, est. speed input: 548.19 toks/s, output: 3813.40 toks/s]Processed prompts:  97%|█████████▋| 655/675 [02:32<00:11,  1.75it/s, est. speed input: 548.38 toks/s, output: 3836.21 toks/s]Processed prompts:  97%|█████████▋| 656/675 [02:33<00:10,  1.73it/s, est. speed input: 547.09 toks/s, output: 3848.17 toks/s]Processed prompts:  97%|█████████▋| 657/675 [02:33<00:08,  2.22it/s, est. speed input: 547.00 toks/s, output: 3871.03 toks/s]Processed prompts:  97%|█████████▋| 658/675 [02:34<00:09,  1.85it/s, est. speed input: 544.85 toks/s, output: 3878.71 toks/s]Processed prompts:  98%|█████████▊| 659/675 [02:34<00:07,  2.06it/s, est. speed input: 543.97 toks/s, output: 3896.23 toks/s]Processed prompts:  98%|█████████▊| 660/675 [02:35<00:07,  1.91it/s, est. speed input: 545.93 toks/s, output: 3907.29 toks/s]Processed prompts:  98%|█████████▊| 661/675 [02:35<00:06,  2.28it/s, est. speed input: 545.65 toks/s, output: 3927.57 toks/s]Processed prompts:  98%|█████████▊| 662/675 [02:35<00:04,  2.93it/s, est. speed input: 545.70 toks/s, output: 3951.06 toks/s]Processed prompts:  99%|█████████▊| 665/675 [02:36<00:02,  3.76it/s, est. speed input: 546.14 toks/s, output: 4014.01 toks/s]Processed prompts:  99%|█████████▉| 667/675 [02:37<00:03,  2.37it/s, est. speed input: 542.43 toks/s, output: 4029.65 toks/s]Processed prompts:  99%|█████████▉| 668/675 [02:37<00:02,  2.71it/s, est. speed input: 542.90 toks/s, output: 4051.57 toks/s]Processed prompts:  99%|█████████▉| 669/675 [02:37<00:01,  3.05it/s, est. speed input: 542.67 toks/s, output: 4072.80 toks/s]Processed prompts:  99%|█████████▉| 670/675 [02:39<00:02,  1.90it/s, est. speed input: 540.60 toks/s, output: 4069.07 toks/s]Processed prompts:  99%|█████████▉| 671/675 [02:39<00:01,  2.20it/s, est. speed input: 540.20 toks/s, output: 4088.59 toks/s]Processed prompts: 100%|█████████▉| 672/675 [02:39<00:01,  2.09it/s, est. speed input: 538.75 toks/s, output: 4100.16 toks/s]Processed prompts: 100%|█████████▉| 674/675 [02:41<00:00,  1.87it/s, est. speed input: 536.11 toks/s, output: 4120.14 toks/s]Processed prompts: 100%|██████████| 675/675 [02:41<00:00,  1.87it/s, est. speed input: 536.70 toks/s, output: 4145.57 toks/s]Processed prompts: 100%|██████████| 675/675 [02:41<00:00,  4.19it/s, est. speed input: 536.70 toks/s, output: 4145.57 toks/s]
+2026-08-08 02:32:02,411 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:02,412 INFO openai._base_client: Retrying request to /chat/completions in 0.484461 seconds
+2026-08-08 02:32:02,847 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:02,941 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:02,983 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:03,037 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:03,038 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:03,057 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:03,058 INFO openai._base_client: Retrying request to /chat/completions in 0.778677 seconds
+2026-08-08 02:32:03,097 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:03,152 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:03,153 INFO openai._base_client: Retrying request to /chat/completions in 0.384951 seconds
+2026-08-08 02:32:03,613 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:03,624 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:03,692 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:03,700 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:03,700 INFO openai._base_client: Retrying request to /chat/completions in 0.823538 seconds
+2026-08-08 02:32:03,769 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:03,788 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:03,788 INFO openai._base_client: Retrying request to /chat/completions in 0.413460 seconds
+2026-08-08 02:32:03,804 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:04,009 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:04,263 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:04,417 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:04,463 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:04,568 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:04,595 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:04,834 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,011 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:05,012 INFO openai._base_client: Retrying request to /chat/completions in 0.461425 seconds
+2026-08-08 02:32:05,047 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,094 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,154 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,204 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,233 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,290 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,472 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:05,473 INFO openai._base_client: Retrying request to /chat/completions in 0.399403 seconds
+2026-08-08 02:32:05,768 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,787 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,828 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,834 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:05,951 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:05,951 INFO openai._base_client: Retrying request to /chat/completions in 0.447002 seconds
+2026-08-08 02:32:06,136 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:06,193 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:06,316 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:06,363 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:06,385 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:06,554 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:06,635 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:06,796 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:06,864 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,149 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,184 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,221 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,289 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,364 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,366 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:07,366 INFO openai._base_client: Retrying request to /chat/completions in 0.464268 seconds
+2026-08-08 02:32:07,381 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,399 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:07,400 INFO openai._base_client: Retrying request to /chat/completions in 0.385415 seconds
+2026-08-08 02:32:07,459 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,493 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,718 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,946 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,986 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:07,996 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:07,996 INFO openai._base_client: Retrying request to /chat/completions in 0.965276 seconds
+2026-08-08 02:32:08,070 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:08,071 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:08,229 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:08,239 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:08,239 INFO openai._base_client: Retrying request to /chat/completions in 0.389417 seconds
+2026-08-08 02:32:08,357 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:08,398 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:08,561 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:08,623 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:08,727 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:08,727 INFO openai._base_client: Retrying request to /chat/completions in 0.398052 seconds
+2026-08-08 02:32:08,728 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:08,800 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:08,800 INFO openai._base_client: Retrying request to /chat/completions in 0.439646 seconds
+2026-08-08 02:32:08,976 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:08,990 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:09,156 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:09,203 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:09,246 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:09,301 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:09,301 INFO openai._base_client: Retrying request to /chat/completions in 0.965002 seconds
+2026-08-08 02:32:09,414 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:09,414 INFO openai._base_client: Retrying request to /chat/completions in 0.428260 seconds
+2026-08-08 02:32:09,546 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:09,558 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:09,725 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:09,726 INFO openai._base_client: Retrying request to /chat/completions in 0.402992 seconds
+2026-08-08 02:32:09,727 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:09,851 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:09,973 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:10,143 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:10,144 INFO openai._base_client: Retrying request to /chat/completions in 0.384151 seconds
+2026-08-08 02:32:10,175 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:10,231 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:10,341 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:10,341 INFO openai._base_client: Retrying request to /chat/completions in 0.452746 seconds
+2026-08-08 02:32:10,433 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:10,445 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:10,446 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:10,733 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:10,860 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:10,911 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:10,912 INFO openai._base_client: Retrying request to /chat/completions in 0.385004 seconds
+2026-08-08 02:32:10,985 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:11,035 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:11,116 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:11,151 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:11,152 INFO openai._base_client: Retrying request to /chat/completions in 0.455312 seconds
+2026-08-08 02:32:11,407 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:11,408 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:11,446 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:11,601 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:11,616 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:11,616 INFO openai._base_client: Retrying request to /chat/completions in 0.408975 seconds
+2026-08-08 02:32:11,629 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:11,770 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:11,770 INFO openai._base_client: Retrying request to /chat/completions in 0.949869 seconds
+2026-08-08 02:32:11,778 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:11,779 INFO openai._base_client: Retrying request to /chat/completions in 0.474459 seconds
+2026-08-08 02:32:11,839 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:11,894 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:11,926 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:12,001 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:12,001 INFO openai._base_client: Retrying request to /chat/completions in 0.389207 seconds
+2026-08-08 02:32:12,088 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:12,088 INFO openai._base_client: Retrying request to /chat/completions in 0.379751 seconds
+2026-08-08 02:32:12,095 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:12,157 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:12,262 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:12,263 INFO openai._base_client: Retrying request to /chat/completions in 0.389859 seconds
+2026-08-08 02:32:12,640 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:12,678 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:12,818 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:12,892 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:12,893 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:32:12,937 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:12,981 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:12,981 INFO openai._base_client: Retrying request to /chat/completions in 0.377151 seconds
+2026-08-08 02:32:13,104 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:13,105 INFO openai._base_client: Retrying request to /chat/completions in 0.496496 seconds
+2026-08-08 02:32:13,222 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:13,246 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:13,270 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:13,317 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:13,385 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:13,386 INFO openai._base_client: Retrying request to /chat/completions in 0.407294 seconds
+2026-08-08 02:32:13,527 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:13,859 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:13,931 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:13,948 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:14,144 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:14,177 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:14,296 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:14,344 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:14,345 INFO openai._base_client: Retrying request to /chat/completions in 0.476607 seconds
+2026-08-08 02:32:14,466 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:14,577 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:14,587 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:14,658 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:14,717 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:14,760 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:14,760 INFO openai._base_client: Retrying request to /chat/completions in 0.389800 seconds
+2026-08-08 02:32:14,777 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,110 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,163 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,168 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,174 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,316 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,339 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:15,340 INFO openai._base_client: Retrying request to /chat/completions in 0.430214 seconds
+2026-08-08 02:32:15,344 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:15,344 INFO openai._base_client: Retrying request to /chat/completions in 0.478985 seconds
+2026-08-08 02:32:15,384 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,504 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,881 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,889 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,929 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:15,932 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:15,932 INFO openai._base_client: Retrying request to /chat/completions in 0.919417 seconds
+2026-08-08 02:32:16,001 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:16,092 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:16,093 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:16,465 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:16,505 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:16,565 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:16,578 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:16,592 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:16,727 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:16,728 INFO openai._base_client: Retrying request to /chat/completions in 0.461777 seconds
+2026-08-08 02:32:16,756 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:16,757 INFO openai._base_client: Retrying request to /chat/completions in 0.446421 seconds
+2026-08-08 02:32:16,788 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:16,816 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:16,990 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:16,990 INFO openai._base_client: Retrying request to /chat/completions in 0.410368 seconds
+2026-08-08 02:32:17,011 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:17,121 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:17,199 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:17,459 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:17,625 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:17,626 INFO openai._base_client: Retrying request to /chat/completions in 0.493574 seconds
+2026-08-08 02:32:17,638 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:17,678 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:17,765 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:17,776 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:17,831 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:17,845 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:17,845 INFO openai._base_client: Retrying request to /chat/completions in 0.388690 seconds
+2026-08-08 02:32:18,009 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:18,280 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:18,410 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:18,439 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:18,440 INFO openai._base_client: Retrying request to /chat/completions in 0.400556 seconds
+2026-08-08 02:32:18,522 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:18,554 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:18,657 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:18,665 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:18,671 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:18,760 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:19,061 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:19,223 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:19,225 INFO openai._base_client: Retrying request to /chat/completions in 0.383360 seconds
+2026-08-08 02:32:19,243 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:19,287 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:19,393 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:19,454 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:19,464 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:19,514 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:19,549 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:19,563 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:19,564 INFO openai._base_client: Retrying request to /chat/completions in 0.435044 seconds
+2026-08-08 02:32:19,921 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:19,980 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,140 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,167 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,230 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,241 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,305 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:20,305 INFO openai._base_client: Retrying request to /chat/completions in 0.481968 seconds
+2026-08-08 02:32:20,355 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,400 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:20,400 INFO openai._base_client: Retrying request to /chat/completions in 0.483180 seconds
+2026-08-08 02:32:20,571 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,657 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,681 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,726 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,856 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,934 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:20,957 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:20,958 INFO openai._base_client: Retrying request to /chat/completions in 0.827788 seconds
+2026-08-08 02:32:20,971 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:20,971 INFO openai._base_client: Retrying request to /chat/completions in 0.499832 seconds
+2026-08-08 02:32:21,279 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:21,487 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:21,503 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:21,609 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:21,646 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:21,649 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:21,649 INFO openai._base_client: Retrying request to /chat/completions in 0.415198 seconds
+2026-08-08 02:32:21,664 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:21,665 INFO openai._base_client: Retrying request to /chat/completions in 0.476130 seconds
+2026-08-08 02:32:21,870 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:21,881 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:22,056 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:22,056 INFO openai._base_client: Retrying request to /chat/completions in 0.442096 seconds
+2026-08-08 02:32:22,085 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:22,137 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:22,275 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:22,299 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:22,310 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:22,310 INFO openai._base_client: Retrying request to /chat/completions in 0.460830 seconds
+2026-08-08 02:32:22,442 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:22,442 INFO openai._base_client: Retrying request to /chat/completions in 0.393271 seconds
+2026-08-08 02:32:22,573 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:22,635 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:22,690 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:22,972 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:23,287 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:23,292 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:23,350 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:23,384 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:23,401 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:23,433 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:23,454 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:23,454 INFO openai._base_client: Retrying request to /chat/completions in 0.448122 seconds
+2026-08-08 02:32:23,480 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:23,481 INFO openai._base_client: Retrying request to /chat/completions in 0.483696 seconds
+2026-08-08 02:32:23,546 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:23,847 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,053 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,075 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:24,076 INFO openai._base_client: Retrying request to /chat/completions in 0.978280 seconds
+2026-08-08 02:32:24,148 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,193 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,198 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,252 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,317 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:24,318 INFO openai._base_client: Retrying request to /chat/completions in 0.392997 seconds
+2026-08-08 02:32:24,361 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:24,361 INFO openai._base_client: Retrying request to /chat/completions in 0.398015 seconds
+2026-08-08 02:32:24,459 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,619 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,643 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,782 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,784 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:24,923 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:24,923 INFO openai._base_client: Retrying request to /chat/completions in 0.766663 seconds
+2026-08-08 02:32:24,954 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:24,955 INFO openai._base_client: Retrying request to /chat/completions in 0.464722 seconds
+2026-08-08 02:32:24,956 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:24,957 INFO openai._base_client: Retrying request to /chat/completions in 0.498686 seconds
+2026-08-08 02:32:25,012 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:25,207 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:25,208 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:32:25,253 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:25,349 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:25,411 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:25,518 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:25,519 INFO openai._base_client: Retrying request to /chat/completions in 0.381807 seconds
+2026-08-08 02:32:25,584 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:25,584 INFO openai._base_client: Retrying request to /chat/completions in 0.911689 seconds
+2026-08-08 02:32:25,801 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:25,974 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:25,975 INFO openai._base_client: Retrying request to /chat/completions in 0.457830 seconds
+2026-08-08 02:32:25,978 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:26,021 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:26,062 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:26,062 INFO openai._base_client: Retrying request to /chat/completions in 0.780469 seconds
+2026-08-08 02:32:26,212 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:26,302 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:26,303 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:26,664 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:26,665 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:32:26,695 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:26,840 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:26,840 INFO openai._base_client: Retrying request to /chat/completions in 0.469071 seconds
+2026-08-08 02:32:26,856 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:26,923 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:26,959 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:27,014 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:27,015 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:32:27,075 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:27,378 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:27,480 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:27,482 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:27,551 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:27,552 INFO openai._base_client: Retrying request to /chat/completions in 0.404375 seconds
+2026-08-08 02:32:27,652 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:27,665 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:27,665 INFO openai._base_client: Retrying request to /chat/completions in 0.429581 seconds
+2026-08-08 02:32:27,940 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:27,988 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:28,118 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:28,215 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:28,276 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:28,277 INFO openai._base_client: Retrying request to /chat/completions in 0.420350 seconds
+2026-08-08 02:32:28,666 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:28,670 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:28,715 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:28,739 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:28,847 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:28,848 INFO openai._base_client: Retrying request to /chat/completions in 0.412269 seconds
+2026-08-08 02:32:29,210 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:29,218 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:29,289 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:29,378 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:29,405 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:29,435 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:29,445 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:29,467 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:29,467 INFO openai._base_client: Retrying request to /chat/completions in 0.402907 seconds
+2026-08-08 02:32:29,572 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:29,572 INFO openai._base_client: Retrying request to /chat/completions in 0.457037 seconds
+2026-08-08 02:32:29,605 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:29,605 INFO openai._base_client: Retrying request to /chat/completions in 0.409020 seconds
+2026-08-08 02:32:29,736 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:29,848 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:29,890 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:29,901 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:29,902 INFO openai._base_client: Retrying request to /chat/completions in 0.446826 seconds
+2026-08-08 02:32:30,020 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:30,021 INFO openai._base_client: Retrying request to /chat/completions in 0.378461 seconds
+2026-08-08 02:32:30,054 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:30,054 INFO openai._base_client: Retrying request to /chat/completions in 0.384938 seconds
+2026-08-08 02:32:30,170 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:30,170 INFO openai._base_client: Retrying request to /chat/completions in 0.862294 seconds
+2026-08-08 02:32:30,183 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:30,194 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:30,194 INFO openai._base_client: Retrying request to /chat/completions in 0.907947 seconds
+2026-08-08 02:32:30,276 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:30,509 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:30,509 INFO openai._base_client: Retrying request to /chat/completions in 0.867300 seconds
+2026-08-08 02:32:30,834 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:31,009 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:31,037 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:31,199 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:31,199 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:32:31,204 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:31,358 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:31,415 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:31,637 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:31,652 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:31,714 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:31,808 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:31,951 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:32,019 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:32,114 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:32,226 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:32,293 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:32,294 INFO openai._base_client: Retrying request to /chat/completions in 0.424677 seconds
+2026-08-08 02:32:32,331 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:32,398 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:32,404 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:32,568 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:32,569 INFO openai._base_client: Retrying request to /chat/completions in 0.481109 seconds
+2026-08-08 02:32:32,659 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:32,846 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:32,889 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:33,098 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:33,112 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:33,225 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:33,226 INFO openai._base_client: Retrying request to /chat/completions in 0.812204 seconds
+2026-08-08 02:32:33,227 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:33,344 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:33,353 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:33,397 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:33,398 INFO openai._base_client: Retrying request to /chat/completions in 0.406310 seconds
+2026-08-08 02:32:33,457 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:33,545 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:33,663 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:33,813 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:33,965 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:33,965 INFO openai._base_client: Retrying request to /chat/completions in 0.788020 seconds
+2026-08-08 02:32:34,003 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:34,129 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:34,212 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:34,272 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:34,386 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:34,387 INFO openai._base_client: Retrying request to /chat/completions in 0.397898 seconds
+2026-08-08 02:32:34,570 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:34,631 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:34,719 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:34,732 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:34,750 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:34,885 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:34,886 INFO openai._base_client: Retrying request to /chat/completions in 0.460985 seconds
+2026-08-08 02:32:34,943 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:35,095 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:35,420 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:35,482 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:35,562 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:35,586 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:35,587 INFO openai._base_client: Retrying request to /chat/completions in 0.450117 seconds
+2026-08-08 02:32:35,633 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:35,640 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:35,681 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:35,834 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:35,840 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:36,277 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:36,321 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:36,445 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:36,446 INFO openai._base_client: Retrying request to /chat/completions in 0.401600 seconds
+2026-08-08 02:32:36,474 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:36,540 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:36,549 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:36,563 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:36,566 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:36,598 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:36,741 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:36,741 INFO openai._base_client: Retrying request to /chat/completions in 0.429797 seconds
+2026-08-08 02:32:37,105 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,119 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,133 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,235 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,408 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,578 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,580 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,752 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:37,752 INFO openai._base_client: Retrying request to /chat/completions in 0.404842 seconds
+2026-08-08 02:32:37,789 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,790 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,809 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,875 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:37,928 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:38,091 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:38,121 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:38,301 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:38,302 INFO openai._base_client: Retrying request to /chat/completions in 0.410815 seconds
+2026-08-08 02:32:38,325 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:38,326 INFO openai._base_client: Retrying request to /chat/completions in 0.774999 seconds
+2026-08-08 02:32:38,340 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:38,382 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:38,398 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:38,603 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:38,675 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:38,755 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:38,767 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:38,767 INFO openai._base_client: Retrying request to /chat/completions in 0.492410 seconds
+2026-08-08 02:32:38,927 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:38,928 INFO openai._base_client: Retrying request to /chat/completions in 0.422005 seconds
+2026-08-08 02:32:38,990 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:39,067 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:39,107 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:39,205 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:39,264 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:39,265 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:32:39,370 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:39,716 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:39,722 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:39,769 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:39,796 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:39,885 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:39,886 INFO openai._base_client: Retrying request to /chat/completions in 0.451743 seconds
+2026-08-08 02:32:39,973 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:39,974 INFO openai._base_client: Retrying request to /chat/completions in 0.393981 seconds
+2026-08-08 02:32:40,015 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:40,029 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:40,033 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:40,066 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:40,181 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:40,182 INFO openai._base_client: Retrying request to /chat/completions in 0.486307 seconds
+2026-08-08 02:32:40,363 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:40,492 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:40,492 INFO openai._base_client: Retrying request to /chat/completions in 0.875302 seconds
+2026-08-08 02:32:40,536 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:40,537 INFO openai._base_client: Retrying request to /chat/completions in 0.487501 seconds
+2026-08-08 02:32:40,683 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:40,740 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:40,776 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:40,828 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:40,828 INFO openai._base_client: Retrying request to /chat/completions in 0.979179 seconds
+2026-08-08 02:32:40,910 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:40,953 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:40,953 INFO openai._base_client: Retrying request to /chat/completions in 0.484430 seconds
+2026-08-08 02:32:41,245 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:41,330 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:41,515 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:41,521 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:41,813 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:41,825 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:41,931 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,098 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,105 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,247 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,258 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,297 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,408 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:42,409 INFO openai._base_client: Retrying request to /chat/completions in 0.474703 seconds
+2026-08-08 02:32:42,515 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,519 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,731 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,762 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,932 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:42,992 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:43,058 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:43,163 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:43,227 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:43,228 INFO openai._base_client: Retrying request to /chat/completions in 0.454729 seconds
+2026-08-08 02:32:43,295 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:43,362 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:43,379 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:43,465 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:43,465 INFO openai._base_client: Retrying request to /chat/completions in 0.486289 seconds
+2026-08-08 02:32:43,510 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:43,544 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:43,545 INFO openai._base_client: Retrying request to /chat/completions in 0.467751 seconds
+2026-08-08 02:32:43,658 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:43,843 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:43,844 INFO openai._base_client: Retrying request to /chat/completions in 0.799906 seconds
+2026-08-08 02:32:43,851 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:43,931 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:44,195 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:44,209 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:44,374 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:44,447 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:44,677 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:44,678 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:44,717 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:44,847 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:44,848 INFO openai._base_client: Retrying request to /chat/completions in 0.489613 seconds
+2026-08-08 02:32:44,868 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:44,991 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,074 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,114 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,170 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,269 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,301 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:45,302 INFO openai._base_client: Retrying request to /chat/completions in 0.462609 seconds
+2026-08-08 02:32:45,400 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,506 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:45,507 INFO openai._base_client: Retrying request to /chat/completions in 0.785221 seconds
+2026-08-08 02:32:45,542 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,643 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,650 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,730 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,820 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:45,821 INFO openai._base_client: Retrying request to /chat/completions in 0.437625 seconds
+2026-08-08 02:32:45,836 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:45,901 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:45,902 INFO openai._base_client: Retrying request to /chat/completions in 0.482911 seconds
+2026-08-08 02:32:45,931 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:45,932 INFO openai._base_client: Retrying request to /chat/completions in 0.797097 seconds
+2026-08-08 02:32:46,007 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:46,007 INFO openai._base_client: Retrying request to /chat/completions in 0.412962 seconds
+2026-08-08 02:32:46,130 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:46,160 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:46,337 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:46,676 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:46,876 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,007 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,046 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,098 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,161 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,379 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,423 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,461 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,563 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,629 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:47,630 INFO openai._base_client: Retrying request to /chat/completions in 0.462386 seconds
+2026-08-08 02:32:47,648 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,674 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,734 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:47,735 INFO openai._base_client: Retrying request to /chat/completions in 0.442512 seconds
+2026-08-08 02:32:47,797 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:47,814 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:48,007 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:48,254 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:48,377 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:48,405 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:48,478 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:48,684 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:48,836 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:48,846 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:48,963 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,003 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,055 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,071 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,105 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,232 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:49,233 INFO openai._base_client: Retrying request to /chat/completions in 0.491935 seconds
+2026-08-08 02:32:49,396 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,427 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,460 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,559 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:49,560 INFO openai._base_client: Retrying request to /chat/completions in 0.494315 seconds
+2026-08-08 02:32:49,603 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:49,604 INFO openai._base_client: Retrying request to /chat/completions in 0.488607 seconds
+2026-08-08 02:32:49,675 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,832 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,843 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:49,883 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:50,010 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:50,057 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:50,057 INFO openai._base_client: Retrying request to /chat/completions in 0.471438 seconds
+2026-08-08 02:32:50,228 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:50,229 INFO openai._base_client: Retrying request to /chat/completions in 0.773423 seconds
+2026-08-08 02:32:50,320 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:50,417 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:50,422 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:50,439 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:50,652 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:50,669 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:50,831 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:50,831 INFO openai._base_client: Retrying request to /chat/completions in 0.473429 seconds
+2026-08-08 02:32:51,012 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:51,050 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:51,182 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:51,198 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:51,221 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:51,221 INFO openai._base_client: Retrying request to /chat/completions in 0.469009 seconds
+2026-08-08 02:32:51,255 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:51,293 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:51,479 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:51,479 INFO openai._base_client: Retrying request to /chat/completions in 0.891419 seconds
+2026-08-08 02:32:51,667 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:51,732 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:51,831 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:51,899 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:51,900 INFO openai._base_client: Retrying request to /chat/completions in 0.407517 seconds
+2026-08-08 02:32:51,981 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:51,988 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:52,006 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:52,007 INFO openai._base_client: Retrying request to /chat/completions in 0.380553 seconds
+2026-08-08 02:32:52,085 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:52,349 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:52,368 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:52,539 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:52,539 INFO openai._base_client: Retrying request to /chat/completions in 0.396026 seconds
+2026-08-08 02:32:52,657 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:52,684 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:52,987 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:53,004 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:53,010 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:53,011 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:53,013 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:53,102 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:53,103 INFO openai._base_client: Retrying request to /chat/completions in 0.772222 seconds
+2026-08-08 02:32:53,189 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:53,190 INFO openai._base_client: Retrying request to /chat/completions in 0.484302 seconds
+2026-08-08 02:32:53,394 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:53,447 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:53,523 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:53,582 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:53,679 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:53,840 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:32:53,840 INFO openai._base_client: Retrying request to /chat/completions in 0.759653 seconds
+2026-08-08 02:32:54,453 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:55,329 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:32:55,367 INFO eval_vllm_math: olympiadbench: pass@1=46.37% (pre-gpt 32.44%, +94 flips) n=675
+2026-08-08 02:32:55,643 INFO eval_vllm_math: AVG pass@1 = 46.37%

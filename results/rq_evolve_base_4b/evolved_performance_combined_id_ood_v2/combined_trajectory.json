@@ -1,0 +1,529 @@
+{
+  "definition": "Balanced Evolve Performance = 0.5 * Seed-ID EPS + 0.5 * Structural-OOD-v2 EPS",
+  "seed_id_benchmark_sha256": "1d8a01cc32a7db28391de71b8e10e6da3f352ced2ca37d98d99e324499d38104",
+  "structural_ood_v2_benchmark_sha256": "e2076da43023e4a4b139ffa1a7374e4248e2e558f270c44d03212e8bb36767c4",
+  "checkpoints": [
+    {
+      "global_step": 0,
+      "seed_id_score_percent": 62.5,
+      "structural_ood_v2_score_percent": 15.833333333333332,
+      "balanced_score_percent": 39.166666666666664,
+      "best_balanced_score_percent": 39.166666666666664,
+      "seed_id_correct": 150,
+      "seed_id_examples": 240,
+      "structural_ood_v2_correct": 38,
+      "structural_ood_v2_examples": 240,
+      "combined_correct": 188,
+      "combined_examples": 480,
+      "cumulative_inner_iterations": 0,
+      "concepts": [
+        {
+          "group": "algebra",
+          "skill": "casework",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 50.0,
+          "balanced_accuracy_percent": 75.0
+        },
+        {
+          "group": "algebra",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 75.0,
+          "structural_ood_v2_accuracy_percent": 7.5,
+          "balanced_accuracy_percent": 41.25
+        },
+        {
+          "group": "combinatorics",
+          "skill": "counting",
+          "seed_id_accuracy_percent": 35.0,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 17.5
+        },
+        {
+          "group": "inequality",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 10.0,
+          "balanced_accuracy_percent": 55.0
+        },
+        {
+          "group": "number_theory",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 30.0,
+          "structural_ood_v2_accuracy_percent": 20.0,
+          "balanced_accuracy_percent": 25.0
+        },
+        {
+          "group": "sequence",
+          "skill": "induction",
+          "seed_id_accuracy_percent": 35.0,
+          "structural_ood_v2_accuracy_percent": 7.5,
+          "balanced_accuracy_percent": 21.25
+        }
+      ]
+    },
+    {
+      "global_step": 32,
+      "seed_id_score_percent": 79.58333333333334,
+      "structural_ood_v2_score_percent": 15.833333333333332,
+      "balanced_score_percent": 47.708333333333336,
+      "best_balanced_score_percent": 47.708333333333336,
+      "seed_id_correct": 191,
+      "seed_id_examples": 240,
+      "structural_ood_v2_correct": 38,
+      "structural_ood_v2_examples": 240,
+      "combined_correct": 229,
+      "combined_examples": 480,
+      "cumulative_inner_iterations": 384,
+      "concepts": [
+        {
+          "group": "algebra",
+          "skill": "casework",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 42.5,
+          "balanced_accuracy_percent": 71.25
+        },
+        {
+          "group": "algebra",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 95.0,
+          "structural_ood_v2_accuracy_percent": 12.5,
+          "balanced_accuracy_percent": 53.75
+        },
+        {
+          "group": "combinatorics",
+          "skill": "counting",
+          "seed_id_accuracy_percent": 37.5,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 18.75
+        },
+        {
+          "group": "inequality",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 12.5,
+          "balanced_accuracy_percent": 56.25
+        },
+        {
+          "group": "number_theory",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 45.0,
+          "structural_ood_v2_accuracy_percent": 27.500000000000004,
+          "balanced_accuracy_percent": 36.25
+        },
+        {
+          "group": "sequence",
+          "skill": "induction",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 50.0
+        }
+      ]
+    },
+    {
+      "global_step": 64,
+      "seed_id_score_percent": 81.25,
+      "structural_ood_v2_score_percent": 15.416666666666668,
+      "balanced_score_percent": 48.333333333333336,
+      "best_balanced_score_percent": 48.333333333333336,
+      "seed_id_correct": 195,
+      "seed_id_examples": 240,
+      "structural_ood_v2_correct": 37,
+      "structural_ood_v2_examples": 240,
+      "combined_correct": 232,
+      "combined_examples": 480,
+      "cumulative_inner_iterations": 704,
+      "concepts": [
+        {
+          "group": "algebra",
+          "skill": "casework",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 52.5,
+          "balanced_accuracy_percent": 76.25
+        },
+        {
+          "group": "algebra",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 95.0,
+          "structural_ood_v2_accuracy_percent": 10.0,
+          "balanced_accuracy_percent": 52.5
+        },
+        {
+          "group": "combinatorics",
+          "skill": "counting",
+          "seed_id_accuracy_percent": 40.0,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 20.0
+        },
+        {
+          "group": "inequality",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 12.5,
+          "balanced_accuracy_percent": 56.25
+        },
+        {
+          "group": "number_theory",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 52.5,
+          "structural_ood_v2_accuracy_percent": 15.0,
+          "balanced_accuracy_percent": 33.75
+        },
+        {
+          "group": "sequence",
+          "skill": "induction",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 2.5,
+          "balanced_accuracy_percent": 51.25
+        }
+      ]
+    },
+    {
+      "global_step": 96,
+      "seed_id_score_percent": 77.91666666666669,
+      "structural_ood_v2_score_percent": 22.083333333333336,
+      "balanced_score_percent": 50.000000000000014,
+      "best_balanced_score_percent": 50.000000000000014,
+      "seed_id_correct": 187,
+      "seed_id_examples": 240,
+      "structural_ood_v2_correct": 53,
+      "structural_ood_v2_examples": 240,
+      "combined_correct": 240,
+      "combined_examples": 480,
+      "cumulative_inner_iterations": 960,
+      "concepts": [
+        {
+          "group": "algebra",
+          "skill": "casework",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 55.00000000000001,
+          "balanced_accuracy_percent": 77.5
+        },
+        {
+          "group": "algebra",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 97.5,
+          "structural_ood_v2_accuracy_percent": 20.0,
+          "balanced_accuracy_percent": 58.75
+        },
+        {
+          "group": "combinatorics",
+          "skill": "counting",
+          "seed_id_accuracy_percent": 45.0,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 22.5
+        },
+        {
+          "group": "inequality",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 20.0,
+          "balanced_accuracy_percent": 60.0
+        },
+        {
+          "group": "number_theory",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 25.0,
+          "structural_ood_v2_accuracy_percent": 37.5,
+          "balanced_accuracy_percent": 31.25
+        },
+        {
+          "group": "sequence",
+          "skill": "induction",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 50.0
+        }
+      ]
+    },
+    {
+      "global_step": 128,
+      "seed_id_score_percent": 80.00000000000001,
+      "structural_ood_v2_score_percent": 35.41666666666667,
+      "balanced_score_percent": 57.70833333333334,
+      "best_balanced_score_percent": 57.70833333333334,
+      "seed_id_correct": 192,
+      "seed_id_examples": 240,
+      "structural_ood_v2_correct": 85,
+      "structural_ood_v2_examples": 240,
+      "combined_correct": 277,
+      "combined_examples": 480,
+      "cumulative_inner_iterations": 1280,
+      "concepts": [
+        {
+          "group": "algebra",
+          "skill": "casework",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 45.0,
+          "balanced_accuracy_percent": 72.5
+        },
+        {
+          "group": "algebra",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 97.5,
+          "structural_ood_v2_accuracy_percent": 25.0,
+          "balanced_accuracy_percent": 61.25
+        },
+        {
+          "group": "combinatorics",
+          "skill": "counting",
+          "seed_id_accuracy_percent": 37.5,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 18.75
+        },
+        {
+          "group": "inequality",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 77.5,
+          "balanced_accuracy_percent": 88.75
+        },
+        {
+          "group": "number_theory",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 45.0,
+          "structural_ood_v2_accuracy_percent": 37.5,
+          "balanced_accuracy_percent": 41.25
+        },
+        {
+          "group": "sequence",
+          "skill": "induction",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 27.500000000000004,
+          "balanced_accuracy_percent": 63.75
+        }
+      ]
+    },
+    {
+      "global_step": 160,
+      "seed_id_score_percent": 84.58333333333333,
+      "structural_ood_v2_score_percent": 32.916666666666664,
+      "balanced_score_percent": 58.75,
+      "best_balanced_score_percent": 58.75,
+      "seed_id_correct": 203,
+      "seed_id_examples": 240,
+      "structural_ood_v2_correct": 79,
+      "structural_ood_v2_examples": 240,
+      "combined_correct": 282,
+      "combined_examples": 480,
+      "cumulative_inner_iterations": 1504,
+      "concepts": [
+        {
+          "group": "algebra",
+          "skill": "casework",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 42.5,
+          "balanced_accuracy_percent": 71.25
+        },
+        {
+          "group": "algebra",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 97.5,
+          "structural_ood_v2_accuracy_percent": 17.5,
+          "balanced_accuracy_percent": 57.5
+        },
+        {
+          "group": "combinatorics",
+          "skill": "counting",
+          "seed_id_accuracy_percent": 50.0,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 25.0
+        },
+        {
+          "group": "inequality",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 75.0,
+          "balanced_accuracy_percent": 87.5
+        },
+        {
+          "group": "number_theory",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 60.0,
+          "structural_ood_v2_accuracy_percent": 37.5,
+          "balanced_accuracy_percent": 48.75
+        },
+        {
+          "group": "sequence",
+          "skill": "induction",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 25.0,
+          "balanced_accuracy_percent": 62.5
+        }
+      ]
+    },
+    {
+      "global_step": 192,
+      "seed_id_score_percent": 79.16666666666666,
+      "structural_ood_v2_score_percent": 30.416666666666664,
+      "balanced_score_percent": 54.79166666666666,
+      "best_balanced_score_percent": 58.75,
+      "seed_id_correct": 190,
+      "seed_id_examples": 240,
+      "structural_ood_v2_correct": 73,
+      "structural_ood_v2_examples": 240,
+      "combined_correct": 263,
+      "combined_examples": 480,
+      "cumulative_inner_iterations": 1824,
+      "concepts": [
+        {
+          "group": "algebra",
+          "skill": "casework",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 57.49999999999999,
+          "balanced_accuracy_percent": 78.75
+        },
+        {
+          "group": "algebra",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 97.5,
+          "structural_ood_v2_accuracy_percent": 10.0,
+          "balanced_accuracy_percent": 53.75
+        },
+        {
+          "group": "combinatorics",
+          "skill": "counting",
+          "seed_id_accuracy_percent": 25.0,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 12.5
+        },
+        {
+          "group": "inequality",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 87.5,
+          "balanced_accuracy_percent": 93.75
+        },
+        {
+          "group": "number_theory",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 52.5,
+          "structural_ood_v2_accuracy_percent": 25.0,
+          "balanced_accuracy_percent": 38.75
+        },
+        {
+          "group": "sequence",
+          "skill": "induction",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 2.5,
+          "balanced_accuracy_percent": 51.25
+        }
+      ]
+    },
+    {
+      "global_step": 224,
+      "seed_id_score_percent": 79.58333333333333,
+      "structural_ood_v2_score_percent": 28.33333333333334,
+      "balanced_score_percent": 53.958333333333336,
+      "best_balanced_score_percent": 58.75,
+      "seed_id_correct": 191,
+      "seed_id_examples": 240,
+      "structural_ood_v2_correct": 68,
+      "structural_ood_v2_examples": 240,
+      "combined_correct": 259,
+      "combined_examples": 480,
+      "cumulative_inner_iterations": 2208,
+      "concepts": [
+        {
+          "group": "algebra",
+          "skill": "casework",
+          "seed_id_accuracy_percent": 97.5,
+          "structural_ood_v2_accuracy_percent": 60.0,
+          "balanced_accuracy_percent": 78.75
+        },
+        {
+          "group": "algebra",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 97.5,
+          "structural_ood_v2_accuracy_percent": 10.0,
+          "balanced_accuracy_percent": 53.75
+        },
+        {
+          "group": "combinatorics",
+          "skill": "counting",
+          "seed_id_accuracy_percent": 30.0,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 15.0
+        },
+        {
+          "group": "inequality",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 70.0,
+          "balanced_accuracy_percent": 85.0
+        },
+        {
+          "group": "number_theory",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 52.5,
+          "structural_ood_v2_accuracy_percent": 27.500000000000004,
+          "balanced_accuracy_percent": 40.0
+        },
+        {
+          "group": "sequence",
+          "skill": "induction",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 2.5,
+          "balanced_accuracy_percent": 51.25
+        }
+      ]
+    },
+    {
+      "global_step": 256,
+      "seed_id_score_percent": 79.16666666666666,
+      "structural_ood_v2_score_percent": 23.333333333333336,
+      "balanced_score_percent": 51.25,
+      "best_balanced_score_percent": 58.75,
+      "seed_id_correct": 190,
+      "seed_id_examples": 240,
+      "structural_ood_v2_correct": 56,
+      "structural_ood_v2_examples": 240,
+      "combined_correct": 246,
+      "combined_examples": 480,
+      "cumulative_inner_iterations": 2464,
+      "concepts": [
+        {
+          "group": "algebra",
+          "skill": "casework",
+          "seed_id_accuracy_percent": 97.5,
+          "structural_ood_v2_accuracy_percent": 55.00000000000001,
+          "balanced_accuracy_percent": 76.25
+        },
+        {
+          "group": "algebra",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 92.5,
+          "structural_ood_v2_accuracy_percent": 12.5,
+          "balanced_accuracy_percent": 52.5
+        },
+        {
+          "group": "combinatorics",
+          "skill": "counting",
+          "seed_id_accuracy_percent": 22.5,
+          "structural_ood_v2_accuracy_percent": 0.0,
+          "balanced_accuracy_percent": 11.25
+        },
+        {
+          "group": "inequality",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 30.0,
+          "balanced_accuracy_percent": 65.0
+        },
+        {
+          "group": "number_theory",
+          "skill": "transformation",
+          "seed_id_accuracy_percent": 62.5,
+          "structural_ood_v2_accuracy_percent": 30.0,
+          "balanced_accuracy_percent": 46.25
+        },
+        {
+          "group": "sequence",
+          "skill": "induction",
+          "seed_id_accuracy_percent": 100.0,
+          "structural_ood_v2_accuracy_percent": 12.5,
+          "balanced_accuracy_percent": 56.25
+        }
+      ]
+    }
+  ]
+}

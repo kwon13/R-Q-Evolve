@@ -1,0 +1,3101 @@
+{
+  "actual_primary_settings": {
+    "analyzed_representation_keys": [
+      "layer_022__last_prompt_token",
+      "layer_022__masked_mean",
+      "layer_023__last_prompt_token",
+      "layer_023__masked_mean",
+      "layer_024__last_prompt_token",
+      "layer_024__masked_mean"
+    ],
+    "bootstrap_replicates": 10000,
+    "coverage_quantile": 0.95,
+    "knn_k": 5,
+    "pca_centered": false,
+    "pca_variance_threshold": 0.95,
+    "primary_representation_key": "layer_023__masked_mean",
+    "validity_policy": "strict"
+  },
+  "analysis_kind": "generation_space",
+  "capability_note": "Capability expansion requires equal-compute training plus independent held-out transfer and is never inferred from this report.",
+  "capability_space_claim_allowed": false,
+  "claim_criteria": {
+    "controls_adjusted_effect_positive_with_ci_above_zero": false,
+    "independent_runs_and_parents_gate": false,
+    "layer_pooling_direction_consistent": false,
+    "limited_generation_space_claim_allowed": false,
+    "orthogonal_effect_positive_with_ci_above_zero": false,
+    "preregistered_protocol_and_pair_design_passed": false,
+    "strict_valid_matched_generators_present": false
+  },
+  "config_path": "/data1/yhoon113/R-Q-Evolve/configs/expansion_hypothesis.json",
+  "config_sha256": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd",
+  "confirmatory_protocol_audit": {
+    "checks": [
+      {
+        "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/experiment_manifest.json",
+        "name": "experiment_manifest_present",
+        "passed": true
+      },
+      {
+        "detail": {
+          "actual": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd",
+          "declared": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd"
+        },
+        "name": "supplied_config_matches_preregistered_hash",
+        "passed": true
+      },
+      {
+        "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/preregistered_config.json",
+        "name": "stored_preregistered_config_integrity",
+        "passed": true
+      },
+      {
+        "detail": "preregistered_before_representation_extraction",
+        "name": "config_declares_preregistered_before_extraction",
+        "passed": true
+      },
+      {
+        "detail": null,
+        "name": "source_generation_manifest_present",
+        "passed": false
+      },
+      {
+        "detail": {
+          "declared": 15,
+          "observed": 15
+        },
+        "name": "manifest_instance_count_matches",
+        "passed": true
+      },
+      {
+        "detail": {
+          "declared": 5,
+          "observed": 5
+        },
+        "name": "manifest_generator_count_matches",
+        "passed": true
+      },
+      {
+        "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/representation_inputs.jsonl",
+        "name": "representation_input_manifest_present",
+        "passed": true
+      },
+      {
+        "detail": {
+          "expected_rows": 15,
+          "observed_rows": 15
+        },
+        "name": "representation_inputs_match_instance_manifest_and_leakage_contract",
+        "passed": true
+      },
+      {
+        "detail": {
+          "declared": 15,
+          "observed": 15
+        },
+        "name": "manifest_representation_input_count_matches",
+        "passed": true
+      },
+      {
+        "detail": {
+          "artifact": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41",
+          "input_manifest": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41"
+        },
+        "name": "representation_artifact_input_hash_matches",
+        "passed": true
+      },
+      {
+        "detail": {
+          "manifest": "/data1/yhoon113/qwen3-8b-base",
+          "representation": "/data1/yhoon113/qwen3-8b-base"
+        },
+        "name": "frozen_solver_checkpoint_matches",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": "/data1/yhoon113/qwen3-8b-base",
+          "preregistered": "/data1/yhoon113/qwen3-8b-base"
+        },
+        "name": "frozen_solver_matches_preregistered_checkpoint",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": "eval",
+          "preregistered": true
+        },
+        "name": "representation_eval_mode",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": "sdpa",
+          "preregistered": "sdpa"
+        },
+        "name": "representation_attention_implementation_matches",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": "bfloat16",
+          "preregistered": "bfloat16"
+        },
+        "name": "representation_dtype_matches",
+        "passed": true
+      },
+      {
+        "detail": false,
+        "name": "representation_cache_disabled",
+        "passed": true
+      },
+      {
+        "detail": "fp32_l2",
+        "name": "representation_l2_normalized",
+        "passed": true
+      },
+      {
+        "detail": {
+          "explicit": 23,
+          "num_hidden_layers": 36,
+          "rule_result": 23
+        },
+        "name": "primary_layer_rule_matches_explicit_index",
+        "passed": true
+      },
+      {
+        "detail": {
+          "missing": []
+        },
+        "name": "preregistered_layer_pooling_arrays_present",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": "strict",
+          "preregistered": "strict"
+        },
+        "name": "preregistered_primary_setting.validity_policy",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": "layer_023__masked_mean",
+          "preregistered": "layer_023__masked_mean"
+        },
+        "name": "preregistered_primary_setting.primary_representation_key",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": [
+            "layer_022__last_prompt_token",
+            "layer_022__masked_mean",
+            "layer_023__last_prompt_token",
+            "layer_023__masked_mean",
+            "layer_024__last_prompt_token",
+            "layer_024__masked_mean"
+          ],
+          "preregistered": [
+            "layer_022__last_prompt_token",
+            "layer_022__masked_mean",
+            "layer_023__last_prompt_token",
+            "layer_023__masked_mean",
+            "layer_024__last_prompt_token",
+            "layer_024__masked_mean"
+          ]
+        },
+        "name": "preregistered_primary_setting.analyzed_representation_keys",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": 0.95,
+          "preregistered": 0.95
+        },
+        "name": "preregistered_primary_setting.pca_variance_threshold",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": false,
+          "preregistered": false
+        },
+        "name": "preregistered_primary_setting.pca_centered",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": 5,
+          "preregistered": 5
+        },
+        "name": "preregistered_primary_setting.knn_k",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": 0.95,
+          "preregistered": 0.95
+        },
+        "name": "preregistered_primary_setting.coverage_quantile",
+        "passed": true
+      },
+      {
+        "detail": {
+          "observed": 10000,
+          "preregistered": 10000
+        },
+        "name": "preregistered_primary_setting.bootstrap_replicates",
+        "passed": true
+      },
+      {
+        "detail": {
+          "pairs": 2,
+          "passed_pairs": 0
+        },
+        "name": "paired_generator_design_parity",
+        "passed": false
+      }
+    ],
+    "failures": [
+      "source_generation_manifest_present",
+      "paired_generator_design_parity"
+    ],
+    "generator_pair_design": {
+      "failures": [
+        "pair 0adc5a7aecec4c3c: required provenance field generator_checkpoint_id is missing",
+        "pair 0adc5a7aecec4c3c: required provenance field source_model_id is missing",
+        "pair 0adc5a7aecec4c3c: required provenance field source_run_manifest_sha256 is missing",
+        "pair 0adc5a7aecec4c3c: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+        "pair 0adc5a7aecec4c3c: required provenance field total_generator_max_token_budget is missing",
+        "pair 0adc5a7aecec4c3c: required provenance field plan_stage_max_tokens is missing",
+        "pair 0adc5a7aecec4c3c: required provenance field code_stage_max_tokens is missing",
+        "pair 0adc5a7aecec4c3c: required provenance field sampling_seed_policy is missing",
+        "pair 0adc5a7aecec4c3c: required provenance field generator_sampling_seed_range is missing",
+        "pair 0adc5a7aecec4c3c: required provenance field llm_seed is missing",
+        "pair 0adc5a7aecec4c3c: required provenance field instance_seed_policy is missing",
+        "pair 0adc5a7aecec4c3c: required provenance field child_rollout_budget is missing",
+        "pair 87f981b40bd9e667: required provenance field generator_checkpoint_id is missing",
+        "pair 87f981b40bd9e667: required provenance field source_model_id is missing",
+        "pair 87f981b40bd9e667: required provenance field source_run_manifest_sha256 is missing",
+        "pair 87f981b40bd9e667: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+        "pair 87f981b40bd9e667: required provenance field total_generator_max_token_budget is missing",
+        "pair 87f981b40bd9e667: required provenance field plan_stage_max_tokens is missing",
+        "pair 87f981b40bd9e667: required provenance field code_stage_max_tokens is missing",
+        "pair 87f981b40bd9e667: required provenance field sampling_seed_policy is missing",
+        "pair 87f981b40bd9e667: required provenance field generator_sampling_seed_range is missing",
+        "pair 87f981b40bd9e667: required provenance field llm_seed is missing",
+        "pair 87f981b40bd9e667: required provenance field instance_seed_policy is missing",
+        "pair 87f981b40bd9e667: required provenance field child_rollout_budget is missing"
+      ],
+      "n_child_generator_rows": 4,
+      "n_generator_pairs": 2,
+      "n_passed_pairs": 0,
+      "optional_equal_fields": [
+        "acceptance_budget",
+        "acceptance_retry_budget"
+      ],
+      "pair_reports": [
+        {
+          "failures": [
+            "required provenance field generator_checkpoint_id is missing",
+            "required provenance field source_model_id is missing",
+            "required provenance field source_run_manifest_sha256 is missing",
+            "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "required provenance field total_generator_max_token_budget is missing",
+            "required provenance field plan_stage_max_tokens is missing",
+            "required provenance field code_stage_max_tokens is missing",
+            "required provenance field sampling_seed_policy is missing",
+            "required provenance field generator_sampling_seed_range is missing",
+            "required provenance field llm_seed is missing",
+            "required provenance field instance_seed_policy is missing",
+            "required provenance field child_rollout_budget is missing"
+          ],
+          "generator_pair_id": "0adc5a7aecec4c3c",
+          "passed": false
+        },
+        {
+          "failures": [
+            "required provenance field generator_checkpoint_id is missing",
+            "required provenance field source_model_id is missing",
+            "required provenance field source_run_manifest_sha256 is missing",
+            "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "required provenance field total_generator_max_token_budget is missing",
+            "required provenance field plan_stage_max_tokens is missing",
+            "required provenance field code_stage_max_tokens is missing",
+            "required provenance field sampling_seed_policy is missing",
+            "required provenance field generator_sampling_seed_range is missing",
+            "required provenance field llm_seed is missing",
+            "required provenance field instance_seed_policy is missing",
+            "required provenance field child_rollout_budget is missing"
+          ],
+          "generator_pair_id": "87f981b40bd9e667",
+          "passed": false
+        }
+      ],
+      "passed": false,
+      "required_equal_fields": [
+        "solver_checkpoint_id",
+        "generator_checkpoint_id",
+        "source_model_id",
+        "source_run_manifest_sha256",
+        "generator_candidate_draw_count",
+        "llm_generation_call_count",
+        "total_generator_max_token_budget",
+        "plan_stage_max_tokens",
+        "code_stage_max_tokens",
+        "sampling_seed_policy",
+        "generator_sampling_seed_range",
+        "llm_seed",
+        "generator_draw_idx",
+        "instance_seed_policy",
+        "instance_seed_range",
+        "evaluation_seeds",
+        "requested_instance_budget",
+        "child_rollout_budget"
+      ]
+    },
+    "passed": false
+  },
+  "experiment_manifest_path": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/experiment_manifest.json",
+  "generator_manifest_path": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/generator_manifest.jsonl",
+  "instance_manifest_path": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/instance_manifest.jsonl",
+  "instance_manifest_sha256": "03bcbab490e531528fd5fcf93b693446330e128bfc9aee39b00d365c87b093d7",
+  "internal_trajectory_analysis": {
+    "implementation": "rq_evolve.expansion_trajectory",
+    "reason": "The comparison artifacts contain generated text/token IDs but not per-token, per-layer response hidden states.",
+    "role": "Optional StALT/internal-dynamics diagnostic only; never a semantic novelty or capability-expansion endpoint.",
+    "status": "not_run"
+  },
+  "primary": {
+    "confirmatory_protocol_audit": {
+      "checks": [
+        {
+          "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/experiment_manifest.json",
+          "name": "experiment_manifest_present",
+          "passed": true
+        },
+        {
+          "detail": {
+            "actual": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd",
+            "declared": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd"
+          },
+          "name": "supplied_config_matches_preregistered_hash",
+          "passed": true
+        },
+        {
+          "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/preregistered_config.json",
+          "name": "stored_preregistered_config_integrity",
+          "passed": true
+        },
+        {
+          "detail": "preregistered_before_representation_extraction",
+          "name": "config_declares_preregistered_before_extraction",
+          "passed": true
+        },
+        {
+          "detail": null,
+          "name": "source_generation_manifest_present",
+          "passed": false
+        },
+        {
+          "detail": {
+            "declared": 15,
+            "observed": 15
+          },
+          "name": "manifest_instance_count_matches",
+          "passed": true
+        },
+        {
+          "detail": {
+            "declared": 5,
+            "observed": 5
+          },
+          "name": "manifest_generator_count_matches",
+          "passed": true
+        },
+        {
+          "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/representation_inputs.jsonl",
+          "name": "representation_input_manifest_present",
+          "passed": true
+        },
+        {
+          "detail": {
+            "expected_rows": 15,
+            "observed_rows": 15
+          },
+          "name": "representation_inputs_match_instance_manifest_and_leakage_contract",
+          "passed": true
+        },
+        {
+          "detail": {
+            "declared": 15,
+            "observed": 15
+          },
+          "name": "manifest_representation_input_count_matches",
+          "passed": true
+        },
+        {
+          "detail": {
+            "artifact": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41",
+            "input_manifest": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41"
+          },
+          "name": "representation_artifact_input_hash_matches",
+          "passed": true
+        },
+        {
+          "detail": {
+            "manifest": "/data1/yhoon113/qwen3-8b-base",
+            "representation": "/data1/yhoon113/qwen3-8b-base"
+          },
+          "name": "frozen_solver_checkpoint_matches",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": "/data1/yhoon113/qwen3-8b-base",
+            "preregistered": "/data1/yhoon113/qwen3-8b-base"
+          },
+          "name": "frozen_solver_matches_preregistered_checkpoint",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": "eval",
+            "preregistered": true
+          },
+          "name": "representation_eval_mode",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": "sdpa",
+            "preregistered": "sdpa"
+          },
+          "name": "representation_attention_implementation_matches",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": "bfloat16",
+            "preregistered": "bfloat16"
+          },
+          "name": "representation_dtype_matches",
+          "passed": true
+        },
+        {
+          "detail": false,
+          "name": "representation_cache_disabled",
+          "passed": true
+        },
+        {
+          "detail": "fp32_l2",
+          "name": "representation_l2_normalized",
+          "passed": true
+        },
+        {
+          "detail": {
+            "explicit": 23,
+            "num_hidden_layers": 36,
+            "rule_result": 23
+          },
+          "name": "primary_layer_rule_matches_explicit_index",
+          "passed": true
+        },
+        {
+          "detail": {
+            "missing": []
+          },
+          "name": "preregistered_layer_pooling_arrays_present",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": "strict",
+            "preregistered": "strict"
+          },
+          "name": "preregistered_primary_setting.validity_policy",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": "layer_023__masked_mean",
+            "preregistered": "layer_023__masked_mean"
+          },
+          "name": "preregistered_primary_setting.primary_representation_key",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": [
+              "layer_022__last_prompt_token",
+              "layer_022__masked_mean",
+              "layer_023__last_prompt_token",
+              "layer_023__masked_mean",
+              "layer_024__last_prompt_token",
+              "layer_024__masked_mean"
+            ],
+            "preregistered": [
+              "layer_022__last_prompt_token",
+              "layer_022__masked_mean",
+              "layer_023__last_prompt_token",
+              "layer_023__masked_mean",
+              "layer_024__last_prompt_token",
+              "layer_024__masked_mean"
+            ]
+          },
+          "name": "preregistered_primary_setting.analyzed_representation_keys",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": 0.95,
+            "preregistered": 0.95
+          },
+          "name": "preregistered_primary_setting.pca_variance_threshold",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": false,
+            "preregistered": false
+          },
+          "name": "preregistered_primary_setting.pca_centered",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": 5,
+            "preregistered": 5
+          },
+          "name": "preregistered_primary_setting.knn_k",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": 0.95,
+            "preregistered": 0.95
+          },
+          "name": "preregistered_primary_setting.coverage_quantile",
+          "passed": true
+        },
+        {
+          "detail": {
+            "observed": 10000,
+            "preregistered": 10000
+          },
+          "name": "preregistered_primary_setting.bootstrap_replicates",
+          "passed": true
+        },
+        {
+          "detail": {
+            "pairs": 2,
+            "passed_pairs": 0
+          },
+          "name": "paired_generator_design_parity",
+          "passed": false
+        }
+      ],
+      "failures": [
+        "source_generation_manifest_present",
+        "paired_generator_design_parity"
+      ],
+      "generator_pair_design": {
+        "failures": [
+          "pair 0adc5a7aecec4c3c: required provenance field generator_checkpoint_id is missing",
+          "pair 0adc5a7aecec4c3c: required provenance field source_model_id is missing",
+          "pair 0adc5a7aecec4c3c: required provenance field source_run_manifest_sha256 is missing",
+          "pair 0adc5a7aecec4c3c: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+          "pair 0adc5a7aecec4c3c: required provenance field total_generator_max_token_budget is missing",
+          "pair 0adc5a7aecec4c3c: required provenance field plan_stage_max_tokens is missing",
+          "pair 0adc5a7aecec4c3c: required provenance field code_stage_max_tokens is missing",
+          "pair 0adc5a7aecec4c3c: required provenance field sampling_seed_policy is missing",
+          "pair 0adc5a7aecec4c3c: required provenance field generator_sampling_seed_range is missing",
+          "pair 0adc5a7aecec4c3c: required provenance field llm_seed is missing",
+          "pair 0adc5a7aecec4c3c: required provenance field instance_seed_policy is missing",
+          "pair 0adc5a7aecec4c3c: required provenance field child_rollout_budget is missing",
+          "pair 87f981b40bd9e667: required provenance field generator_checkpoint_id is missing",
+          "pair 87f981b40bd9e667: required provenance field source_model_id is missing",
+          "pair 87f981b40bd9e667: required provenance field source_run_manifest_sha256 is missing",
+          "pair 87f981b40bd9e667: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+          "pair 87f981b40bd9e667: required provenance field total_generator_max_token_budget is missing",
+          "pair 87f981b40bd9e667: required provenance field plan_stage_max_tokens is missing",
+          "pair 87f981b40bd9e667: required provenance field code_stage_max_tokens is missing",
+          "pair 87f981b40bd9e667: required provenance field sampling_seed_policy is missing",
+          "pair 87f981b40bd9e667: required provenance field generator_sampling_seed_range is missing",
+          "pair 87f981b40bd9e667: required provenance field llm_seed is missing",
+          "pair 87f981b40bd9e667: required provenance field instance_seed_policy is missing",
+          "pair 87f981b40bd9e667: required provenance field child_rollout_budget is missing"
+        ],
+        "n_child_generator_rows": 4,
+        "n_generator_pairs": 2,
+        "n_passed_pairs": 0,
+        "optional_equal_fields": [
+          "acceptance_budget",
+          "acceptance_retry_budget"
+        ],
+        "pair_reports": [
+          {
+            "failures": [
+              "required provenance field generator_checkpoint_id is missing",
+              "required provenance field source_model_id is missing",
+              "required provenance field source_run_manifest_sha256 is missing",
+              "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+              "required provenance field total_generator_max_token_budget is missing",
+              "required provenance field plan_stage_max_tokens is missing",
+              "required provenance field code_stage_max_tokens is missing",
+              "required provenance field sampling_seed_policy is missing",
+              "required provenance field generator_sampling_seed_range is missing",
+              "required provenance field llm_seed is missing",
+              "required provenance field instance_seed_policy is missing",
+              "required provenance field child_rollout_budget is missing"
+            ],
+            "generator_pair_id": "0adc5a7aecec4c3c",
+            "passed": false
+          },
+          {
+            "failures": [
+              "required provenance field generator_checkpoint_id is missing",
+              "required provenance field source_model_id is missing",
+              "required provenance field source_run_manifest_sha256 is missing",
+              "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+              "required provenance field total_generator_max_token_budget is missing",
+              "required provenance field plan_stage_max_tokens is missing",
+              "required provenance field code_stage_max_tokens is missing",
+              "required provenance field sampling_seed_policy is missing",
+              "required provenance field generator_sampling_seed_range is missing",
+              "required provenance field llm_seed is missing",
+              "required provenance field instance_seed_policy is missing",
+              "required provenance field child_rollout_budget is missing"
+            ],
+            "generator_pair_id": "87f981b40bd9e667",
+            "passed": false
+          }
+        ],
+        "passed": false,
+        "required_equal_fields": [
+          "solver_checkpoint_id",
+          "generator_checkpoint_id",
+          "source_model_id",
+          "source_run_manifest_sha256",
+          "generator_candidate_draw_count",
+          "llm_generation_call_count",
+          "total_generator_max_token_budget",
+          "plan_stage_max_tokens",
+          "code_stage_max_tokens",
+          "sampling_seed_policy",
+          "generator_sampling_seed_range",
+          "llm_seed",
+          "generator_draw_idx",
+          "instance_seed_policy",
+          "instance_seed_range",
+          "evaluation_seeds",
+          "requested_instance_budget",
+          "child_rollout_budget"
+        ]
+      },
+      "passed": false
+    },
+    "descriptive_only": true,
+    "generator_metrics": [],
+    "incomplete_instance_pairs": [],
+    "inferential_valid": false,
+    "inferential_valid_before_protocol_audit": false,
+    "instance_metrics": [],
+    "mode": "confirmatory",
+    "paired_metrics": [],
+    "representation_key": "layer_023__masked_mean",
+    "status": "insufficient_matched_pairs",
+    "validity_policy": "strict",
+    "warnings": [
+      "No shared plain/reasoning instance pairs passed the validity rule.",
+      "confirmatory_protocol_gate_failed: source_generation_manifest_present, paired_generator_design_parity"
+    ]
+  },
+  "primary_representation_key": "layer_023__masked_mean",
+  "representation_input_manifest_path": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/representation_inputs.jsonl",
+  "representation_metadata": {
+    "arrays": {
+      "layer_022__last_prompt_token": {
+        "dtype": "float32",
+        "shape": [
+          15,
+          4096
+        ]
+      },
+      "layer_022__masked_mean": {
+        "dtype": "float32",
+        "shape": [
+          15,
+          4096
+        ]
+      },
+      "layer_023__last_prompt_token": {
+        "dtype": "float32",
+        "shape": [
+          15,
+          4096
+        ]
+      },
+      "layer_023__masked_mean": {
+        "dtype": "float32",
+        "shape": [
+          15,
+          4096
+        ]
+      },
+      "layer_024__last_prompt_token": {
+        "dtype": "float32",
+        "shape": [
+          15,
+          4096
+        ]
+      },
+      "layer_024__masked_mean": {
+        "dtype": "float32",
+        "shape": [
+          15,
+          4096
+        ]
+      }
+    },
+    "attention_implementation": "sdpa",
+    "chat_generation_boundary": true,
+    "checkpoint_hash_mode": "grouped_file_content",
+    "checkpoint_sha256": "ceef77477d74319fce6982da83f7620e5baa52af0ae2498de86513270c0e7eaf",
+    "checkpoint_source": "/data1/yhoon113/qwen3-8b-base",
+    "config_hash_mode": "grouped_file_content",
+    "config_sha256": "fa6a35b0f8bd8e3456d09788dd9342f54ae85faa4fb273512d496078a4e90fc8",
+    "dtype": "bfloat16",
+    "hash_algorithm": "sha256",
+    "input_contract": "SOLVER_SYSTEM_PROMPT + visible problem_text only",
+    "layer_indices": {
+      "adjacent": [
+        22,
+        24
+      ],
+      "all": [
+        22,
+        23,
+        24
+      ],
+      "indexing": "zero_based_decoder_block",
+      "primary": 23
+    },
+    "model_mode": "eval",
+    "normalization": "fp32_l2",
+    "npz_sha256": "35db2dba64a9f608877dea758fb651781dcdae9ea2b632eeef5616431d79176d",
+    "num_problems": 15,
+    "pooling_modes": [
+      "masked_mean",
+      "last_prompt_token"
+    ],
+    "prompt_hashes_sha256": [
+      "8f0236b5e28983459d8e059461a2b3c29b92e456ad338107f9bcbc4f15de09be",
+      "949d7a0a0e86b0da40904b800e0ffb9bb7b5db0bf3546a17b68f080a76c56edc",
+      "bea87156ee2b8234a36d359583f3de450dd81ac6fe6e54b0ec90ca5e6c544c3e",
+      "6a17e46dc33cb54f6844b0e2e0a7948da6a22b4592357ea4945f6aac6eb889cd",
+      "19dac0d6260b5f9202a467cfa54d823beafb1915ccd32dc76221e474de4fe92c",
+      "76142cb624ad982af5feec682d32418ca7687cfab2f280961f076c30ae320b7d",
+      "6908d28935def047022e888a2e2897fdac5fe6ee9c5b60dded9ca97ed1a3949f",
+      "8e4528c4df8ced92dc41f8e75cf0c99b400a0817833c937d7b61393d9cdbc258",
+      "986a704916f814dcc1048215de3f66ff18fd683bfaa18aab3db37fe6c010bc44",
+      "ed465ed1b4ff30acec6740935a9269d5b84e9eb34d12ad19d919b01f556852ae",
+      "c3ebdd2e73612d239a57caef804dd7b203cc69c9a52bc08bc993f3ad62f8e53d",
+      "950e2d19eff8ae567f6f354724b4d8d52b9d7238b70a6916ae592a901472fa32",
+      "9f5e24f40a407c40e3c1633364ef10132b54f19c1a1931f21c0503adbe41f702",
+      "3fc7dab49dc2519ace84042b007140d80bef88c4bff46f86d5ced0186800d88a",
+      "b43b3fed42cab3d98096262d42b1cc83a8678a4639533458a59d2930ca90ebb0"
+    ],
+    "representation_definition": "frozen_solver_selected_decoder_block_prompt_states",
+    "representation_input_path": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/representation_inputs.jsonl",
+    "representation_input_sha256": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41",
+    "sample_ids": [
+      "791abaa8a2d94187",
+      "77ec01331f4daccd",
+      "2670f3deec3fee34",
+      "4a7f953c1c714628",
+      "4958630e3d16568e",
+      "462a2b92fe58f625",
+      "f4dfa86b4b88880b",
+      "6f43d7ef0c589649",
+      "7630fc9dc9efd379",
+      "bc89c3ac7da2c083",
+      "d6a1d86aa244a32c",
+      "a2d1318bbf07da15",
+      "025eac67e1a6ca6c",
+      "dc85510849057075",
+      "d6384840dfb3b4d9"
+    ],
+    "schema_version": 1,
+    "stores_raw_prompts": false,
+    "token_counts": [
+      76,
+      82,
+      91,
+      71,
+      88,
+      58,
+      59,
+      58,
+      59,
+      58,
+      90,
+      90,
+      90,
+      90,
+      90
+    ],
+    "token_id_hashes_sha256": [
+      "b43917d3a7091fb5701ac238ac4dc1f8d12c65470044014662dbe465f9ab21d3",
+      "2725db20c692c8ae41a8d6030f0973752b80ecc5fa37a86d35d3fef5d7a537a4",
+      "423fd9cd9345c35bbbc706da0287ceff161a9a10facc66c0acfd6a6c85706e7c",
+      "4cf4db53ef7618c2d1e8fdedaad7ce3f9a2ea8683aef12cd114d5509ebe85edd",
+      "4b981e2f16e2a2ccf2134f4d2ab7967bc2bad5b6e14be4c3880aa0c78c12648c",
+      "ba3cc43e6b7905db9e4b7247c3f4f5aa1e4c10374f8d0557e6c76496e8ae49bd",
+      "543ad8f52734d183f34b259bf75c5bd4737461967b600d7336830767b10c1d1f",
+      "498dd80fdb1914aec6ddae1205a20de9acd015b30251c559d721fb908d470d09",
+      "7ecab31dec544134e2f5b5404241c777774a83f4f4525404a24649a0e1329928",
+      "c9f022fa5ce559f90ca3d4b4228a92d9b60fc698bdcad2e291747b4956175f00",
+      "a70e24220db25c0aacd158b975d5bea3adc908c6944d4ef84a6809d4ef10287e",
+      "fff59131f9eea92001443af840318cb99ef44e910e84023fde7c3f13e0fa5fbb",
+      "555fd1452b38b126020f16984c7d4783f8ae6523f08e6e8bb6b948295b77f45d",
+      "a9cb5decea437e3920203bafe890e34ce9dff8fc13170f4c00632e7d97713ed8",
+      "558897fa8d7e584075d21f0c95a446cde9970e717697431bf2390437bfa03ee1"
+    ],
+    "tokenizer_hash_mode": "grouped_file_content",
+    "tokenizer_sha256": "fd3ced28f39a0c8d76cdeb6aef5655fe71559b34422b5e8765b190e20c7bd4d4",
+    "tokenizer_source": "/data1/yhoon113/qwen3-8b-base",
+    "use_cache": false
+  },
+  "robustness": {
+    "layer_022__last_prompt_token": {
+      "confirmatory_protocol_audit": {
+        "checks": [
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/experiment_manifest.json",
+            "name": "experiment_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "actual": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd",
+              "declared": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd"
+            },
+            "name": "supplied_config_matches_preregistered_hash",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/preregistered_config.json",
+            "name": "stored_preregistered_config_integrity",
+            "passed": true
+          },
+          {
+            "detail": "preregistered_before_representation_extraction",
+            "name": "config_declares_preregistered_before_extraction",
+            "passed": true
+          },
+          {
+            "detail": null,
+            "name": "source_generation_manifest_present",
+            "passed": false
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_instance_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 5,
+              "observed": 5
+            },
+            "name": "manifest_generator_count_matches",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/representation_inputs.jsonl",
+            "name": "representation_input_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "expected_rows": 15,
+              "observed_rows": 15
+            },
+            "name": "representation_inputs_match_instance_manifest_and_leakage_contract",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_representation_input_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "artifact": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41",
+              "input_manifest": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41"
+            },
+            "name": "representation_artifact_input_hash_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "manifest": "/data1/yhoon113/qwen3-8b-base",
+              "representation": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_checkpoint_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "/data1/yhoon113/qwen3-8b-base",
+              "preregistered": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_matches_preregistered_checkpoint",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "eval",
+              "preregistered": true
+            },
+            "name": "representation_eval_mode",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "sdpa",
+              "preregistered": "sdpa"
+            },
+            "name": "representation_attention_implementation_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "bfloat16",
+              "preregistered": "bfloat16"
+            },
+            "name": "representation_dtype_matches",
+            "passed": true
+          },
+          {
+            "detail": false,
+            "name": "representation_cache_disabled",
+            "passed": true
+          },
+          {
+            "detail": "fp32_l2",
+            "name": "representation_l2_normalized",
+            "passed": true
+          },
+          {
+            "detail": {
+              "explicit": 23,
+              "num_hidden_layers": 36,
+              "rule_result": 23
+            },
+            "name": "primary_layer_rule_matches_explicit_index",
+            "passed": true
+          },
+          {
+            "detail": {
+              "missing": []
+            },
+            "name": "preregistered_layer_pooling_arrays_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "strict",
+              "preregistered": "strict"
+            },
+            "name": "preregistered_primary_setting.validity_policy",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "layer_023__masked_mean",
+              "preregistered": "layer_023__masked_mean"
+            },
+            "name": "preregistered_primary_setting.primary_representation_key",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ],
+              "preregistered": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ]
+            },
+            "name": "preregistered_primary_setting.analyzed_representation_keys",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.pca_variance_threshold",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": false,
+              "preregistered": false
+            },
+            "name": "preregistered_primary_setting.pca_centered",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 5,
+              "preregistered": 5
+            },
+            "name": "preregistered_primary_setting.knn_k",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.coverage_quantile",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 10000,
+              "preregistered": 10000
+            },
+            "name": "preregistered_primary_setting.bootstrap_replicates",
+            "passed": true
+          },
+          {
+            "detail": {
+              "pairs": 2,
+              "passed_pairs": 0
+            },
+            "name": "paired_generator_design_parity",
+            "passed": false
+          }
+        ],
+        "failures": [
+          "source_generation_manifest_present",
+          "paired_generator_design_parity"
+        ],
+        "generator_pair_design": {
+          "failures": [
+            "pair 0adc5a7aecec4c3c: required provenance field generator_checkpoint_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_model_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_run_manifest_sha256 is missing",
+            "pair 0adc5a7aecec4c3c: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 0adc5a7aecec4c3c: required provenance field total_generator_max_token_budget is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field plan_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field code_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field sampling_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field generator_sampling_seed_range is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field llm_seed is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field instance_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field child_rollout_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_checkpoint_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_model_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_run_manifest_sha256 is missing",
+            "pair 87f981b40bd9e667: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 87f981b40bd9e667: required provenance field total_generator_max_token_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field plan_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field code_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field sampling_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_sampling_seed_range is missing",
+            "pair 87f981b40bd9e667: required provenance field llm_seed is missing",
+            "pair 87f981b40bd9e667: required provenance field instance_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field child_rollout_budget is missing"
+          ],
+          "n_child_generator_rows": 4,
+          "n_generator_pairs": 2,
+          "n_passed_pairs": 0,
+          "optional_equal_fields": [
+            "acceptance_budget",
+            "acceptance_retry_budget"
+          ],
+          "pair_reports": [
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "0adc5a7aecec4c3c",
+              "passed": false
+            },
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "87f981b40bd9e667",
+              "passed": false
+            }
+          ],
+          "passed": false,
+          "required_equal_fields": [
+            "solver_checkpoint_id",
+            "generator_checkpoint_id",
+            "source_model_id",
+            "source_run_manifest_sha256",
+            "generator_candidate_draw_count",
+            "llm_generation_call_count",
+            "total_generator_max_token_budget",
+            "plan_stage_max_tokens",
+            "code_stage_max_tokens",
+            "sampling_seed_policy",
+            "generator_sampling_seed_range",
+            "llm_seed",
+            "generator_draw_idx",
+            "instance_seed_policy",
+            "instance_seed_range",
+            "evaluation_seeds",
+            "requested_instance_budget",
+            "child_rollout_budget"
+          ]
+        },
+        "passed": false
+      },
+      "descriptive_only": true,
+      "generator_metrics": [],
+      "incomplete_instance_pairs": [],
+      "inferential_valid": false,
+      "inferential_valid_before_protocol_audit": false,
+      "instance_metrics": [],
+      "mode": "confirmatory",
+      "paired_metrics": [],
+      "representation_key": "layer_022__last_prompt_token",
+      "status": "insufficient_matched_pairs",
+      "validity_policy": "strict",
+      "warnings": [
+        "No shared plain/reasoning instance pairs passed the validity rule.",
+        "confirmatory_protocol_gate_failed: source_generation_manifest_present, paired_generator_design_parity"
+      ]
+    },
+    "layer_022__masked_mean": {
+      "confirmatory_protocol_audit": {
+        "checks": [
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/experiment_manifest.json",
+            "name": "experiment_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "actual": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd",
+              "declared": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd"
+            },
+            "name": "supplied_config_matches_preregistered_hash",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/preregistered_config.json",
+            "name": "stored_preregistered_config_integrity",
+            "passed": true
+          },
+          {
+            "detail": "preregistered_before_representation_extraction",
+            "name": "config_declares_preregistered_before_extraction",
+            "passed": true
+          },
+          {
+            "detail": null,
+            "name": "source_generation_manifest_present",
+            "passed": false
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_instance_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 5,
+              "observed": 5
+            },
+            "name": "manifest_generator_count_matches",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/representation_inputs.jsonl",
+            "name": "representation_input_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "expected_rows": 15,
+              "observed_rows": 15
+            },
+            "name": "representation_inputs_match_instance_manifest_and_leakage_contract",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_representation_input_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "artifact": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41",
+              "input_manifest": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41"
+            },
+            "name": "representation_artifact_input_hash_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "manifest": "/data1/yhoon113/qwen3-8b-base",
+              "representation": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_checkpoint_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "/data1/yhoon113/qwen3-8b-base",
+              "preregistered": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_matches_preregistered_checkpoint",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "eval",
+              "preregistered": true
+            },
+            "name": "representation_eval_mode",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "sdpa",
+              "preregistered": "sdpa"
+            },
+            "name": "representation_attention_implementation_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "bfloat16",
+              "preregistered": "bfloat16"
+            },
+            "name": "representation_dtype_matches",
+            "passed": true
+          },
+          {
+            "detail": false,
+            "name": "representation_cache_disabled",
+            "passed": true
+          },
+          {
+            "detail": "fp32_l2",
+            "name": "representation_l2_normalized",
+            "passed": true
+          },
+          {
+            "detail": {
+              "explicit": 23,
+              "num_hidden_layers": 36,
+              "rule_result": 23
+            },
+            "name": "primary_layer_rule_matches_explicit_index",
+            "passed": true
+          },
+          {
+            "detail": {
+              "missing": []
+            },
+            "name": "preregistered_layer_pooling_arrays_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "strict",
+              "preregistered": "strict"
+            },
+            "name": "preregistered_primary_setting.validity_policy",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "layer_023__masked_mean",
+              "preregistered": "layer_023__masked_mean"
+            },
+            "name": "preregistered_primary_setting.primary_representation_key",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ],
+              "preregistered": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ]
+            },
+            "name": "preregistered_primary_setting.analyzed_representation_keys",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.pca_variance_threshold",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": false,
+              "preregistered": false
+            },
+            "name": "preregistered_primary_setting.pca_centered",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 5,
+              "preregistered": 5
+            },
+            "name": "preregistered_primary_setting.knn_k",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.coverage_quantile",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 10000,
+              "preregistered": 10000
+            },
+            "name": "preregistered_primary_setting.bootstrap_replicates",
+            "passed": true
+          },
+          {
+            "detail": {
+              "pairs": 2,
+              "passed_pairs": 0
+            },
+            "name": "paired_generator_design_parity",
+            "passed": false
+          }
+        ],
+        "failures": [
+          "source_generation_manifest_present",
+          "paired_generator_design_parity"
+        ],
+        "generator_pair_design": {
+          "failures": [
+            "pair 0adc5a7aecec4c3c: required provenance field generator_checkpoint_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_model_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_run_manifest_sha256 is missing",
+            "pair 0adc5a7aecec4c3c: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 0adc5a7aecec4c3c: required provenance field total_generator_max_token_budget is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field plan_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field code_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field sampling_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field generator_sampling_seed_range is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field llm_seed is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field instance_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field child_rollout_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_checkpoint_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_model_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_run_manifest_sha256 is missing",
+            "pair 87f981b40bd9e667: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 87f981b40bd9e667: required provenance field total_generator_max_token_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field plan_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field code_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field sampling_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_sampling_seed_range is missing",
+            "pair 87f981b40bd9e667: required provenance field llm_seed is missing",
+            "pair 87f981b40bd9e667: required provenance field instance_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field child_rollout_budget is missing"
+          ],
+          "n_child_generator_rows": 4,
+          "n_generator_pairs": 2,
+          "n_passed_pairs": 0,
+          "optional_equal_fields": [
+            "acceptance_budget",
+            "acceptance_retry_budget"
+          ],
+          "pair_reports": [
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "0adc5a7aecec4c3c",
+              "passed": false
+            },
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "87f981b40bd9e667",
+              "passed": false
+            }
+          ],
+          "passed": false,
+          "required_equal_fields": [
+            "solver_checkpoint_id",
+            "generator_checkpoint_id",
+            "source_model_id",
+            "source_run_manifest_sha256",
+            "generator_candidate_draw_count",
+            "llm_generation_call_count",
+            "total_generator_max_token_budget",
+            "plan_stage_max_tokens",
+            "code_stage_max_tokens",
+            "sampling_seed_policy",
+            "generator_sampling_seed_range",
+            "llm_seed",
+            "generator_draw_idx",
+            "instance_seed_policy",
+            "instance_seed_range",
+            "evaluation_seeds",
+            "requested_instance_budget",
+            "child_rollout_budget"
+          ]
+        },
+        "passed": false
+      },
+      "descriptive_only": true,
+      "generator_metrics": [],
+      "incomplete_instance_pairs": [],
+      "inferential_valid": false,
+      "inferential_valid_before_protocol_audit": false,
+      "instance_metrics": [],
+      "mode": "confirmatory",
+      "paired_metrics": [],
+      "representation_key": "layer_022__masked_mean",
+      "status": "insufficient_matched_pairs",
+      "validity_policy": "strict",
+      "warnings": [
+        "No shared plain/reasoning instance pairs passed the validity rule.",
+        "confirmatory_protocol_gate_failed: source_generation_manifest_present, paired_generator_design_parity"
+      ]
+    },
+    "layer_023__last_prompt_token": {
+      "confirmatory_protocol_audit": {
+        "checks": [
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/experiment_manifest.json",
+            "name": "experiment_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "actual": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd",
+              "declared": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd"
+            },
+            "name": "supplied_config_matches_preregistered_hash",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/preregistered_config.json",
+            "name": "stored_preregistered_config_integrity",
+            "passed": true
+          },
+          {
+            "detail": "preregistered_before_representation_extraction",
+            "name": "config_declares_preregistered_before_extraction",
+            "passed": true
+          },
+          {
+            "detail": null,
+            "name": "source_generation_manifest_present",
+            "passed": false
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_instance_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 5,
+              "observed": 5
+            },
+            "name": "manifest_generator_count_matches",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/representation_inputs.jsonl",
+            "name": "representation_input_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "expected_rows": 15,
+              "observed_rows": 15
+            },
+            "name": "representation_inputs_match_instance_manifest_and_leakage_contract",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_representation_input_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "artifact": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41",
+              "input_manifest": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41"
+            },
+            "name": "representation_artifact_input_hash_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "manifest": "/data1/yhoon113/qwen3-8b-base",
+              "representation": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_checkpoint_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "/data1/yhoon113/qwen3-8b-base",
+              "preregistered": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_matches_preregistered_checkpoint",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "eval",
+              "preregistered": true
+            },
+            "name": "representation_eval_mode",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "sdpa",
+              "preregistered": "sdpa"
+            },
+            "name": "representation_attention_implementation_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "bfloat16",
+              "preregistered": "bfloat16"
+            },
+            "name": "representation_dtype_matches",
+            "passed": true
+          },
+          {
+            "detail": false,
+            "name": "representation_cache_disabled",
+            "passed": true
+          },
+          {
+            "detail": "fp32_l2",
+            "name": "representation_l2_normalized",
+            "passed": true
+          },
+          {
+            "detail": {
+              "explicit": 23,
+              "num_hidden_layers": 36,
+              "rule_result": 23
+            },
+            "name": "primary_layer_rule_matches_explicit_index",
+            "passed": true
+          },
+          {
+            "detail": {
+              "missing": []
+            },
+            "name": "preregistered_layer_pooling_arrays_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "strict",
+              "preregistered": "strict"
+            },
+            "name": "preregistered_primary_setting.validity_policy",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "layer_023__masked_mean",
+              "preregistered": "layer_023__masked_mean"
+            },
+            "name": "preregistered_primary_setting.primary_representation_key",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ],
+              "preregistered": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ]
+            },
+            "name": "preregistered_primary_setting.analyzed_representation_keys",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.pca_variance_threshold",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": false,
+              "preregistered": false
+            },
+            "name": "preregistered_primary_setting.pca_centered",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 5,
+              "preregistered": 5
+            },
+            "name": "preregistered_primary_setting.knn_k",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.coverage_quantile",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 10000,
+              "preregistered": 10000
+            },
+            "name": "preregistered_primary_setting.bootstrap_replicates",
+            "passed": true
+          },
+          {
+            "detail": {
+              "pairs": 2,
+              "passed_pairs": 0
+            },
+            "name": "paired_generator_design_parity",
+            "passed": false
+          }
+        ],
+        "failures": [
+          "source_generation_manifest_present",
+          "paired_generator_design_parity"
+        ],
+        "generator_pair_design": {
+          "failures": [
+            "pair 0adc5a7aecec4c3c: required provenance field generator_checkpoint_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_model_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_run_manifest_sha256 is missing",
+            "pair 0adc5a7aecec4c3c: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 0adc5a7aecec4c3c: required provenance field total_generator_max_token_budget is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field plan_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field code_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field sampling_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field generator_sampling_seed_range is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field llm_seed is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field instance_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field child_rollout_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_checkpoint_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_model_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_run_manifest_sha256 is missing",
+            "pair 87f981b40bd9e667: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 87f981b40bd9e667: required provenance field total_generator_max_token_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field plan_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field code_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field sampling_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_sampling_seed_range is missing",
+            "pair 87f981b40bd9e667: required provenance field llm_seed is missing",
+            "pair 87f981b40bd9e667: required provenance field instance_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field child_rollout_budget is missing"
+          ],
+          "n_child_generator_rows": 4,
+          "n_generator_pairs": 2,
+          "n_passed_pairs": 0,
+          "optional_equal_fields": [
+            "acceptance_budget",
+            "acceptance_retry_budget"
+          ],
+          "pair_reports": [
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "0adc5a7aecec4c3c",
+              "passed": false
+            },
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "87f981b40bd9e667",
+              "passed": false
+            }
+          ],
+          "passed": false,
+          "required_equal_fields": [
+            "solver_checkpoint_id",
+            "generator_checkpoint_id",
+            "source_model_id",
+            "source_run_manifest_sha256",
+            "generator_candidate_draw_count",
+            "llm_generation_call_count",
+            "total_generator_max_token_budget",
+            "plan_stage_max_tokens",
+            "code_stage_max_tokens",
+            "sampling_seed_policy",
+            "generator_sampling_seed_range",
+            "llm_seed",
+            "generator_draw_idx",
+            "instance_seed_policy",
+            "instance_seed_range",
+            "evaluation_seeds",
+            "requested_instance_budget",
+            "child_rollout_budget"
+          ]
+        },
+        "passed": false
+      },
+      "descriptive_only": true,
+      "generator_metrics": [],
+      "incomplete_instance_pairs": [],
+      "inferential_valid": false,
+      "inferential_valid_before_protocol_audit": false,
+      "instance_metrics": [],
+      "mode": "confirmatory",
+      "paired_metrics": [],
+      "representation_key": "layer_023__last_prompt_token",
+      "status": "insufficient_matched_pairs",
+      "validity_policy": "strict",
+      "warnings": [
+        "No shared plain/reasoning instance pairs passed the validity rule.",
+        "confirmatory_protocol_gate_failed: source_generation_manifest_present, paired_generator_design_parity"
+      ]
+    },
+    "layer_023__masked_mean": {
+      "confirmatory_protocol_audit": {
+        "checks": [
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/experiment_manifest.json",
+            "name": "experiment_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "actual": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd",
+              "declared": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd"
+            },
+            "name": "supplied_config_matches_preregistered_hash",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/preregistered_config.json",
+            "name": "stored_preregistered_config_integrity",
+            "passed": true
+          },
+          {
+            "detail": "preregistered_before_representation_extraction",
+            "name": "config_declares_preregistered_before_extraction",
+            "passed": true
+          },
+          {
+            "detail": null,
+            "name": "source_generation_manifest_present",
+            "passed": false
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_instance_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 5,
+              "observed": 5
+            },
+            "name": "manifest_generator_count_matches",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/representation_inputs.jsonl",
+            "name": "representation_input_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "expected_rows": 15,
+              "observed_rows": 15
+            },
+            "name": "representation_inputs_match_instance_manifest_and_leakage_contract",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_representation_input_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "artifact": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41",
+              "input_manifest": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41"
+            },
+            "name": "representation_artifact_input_hash_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "manifest": "/data1/yhoon113/qwen3-8b-base",
+              "representation": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_checkpoint_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "/data1/yhoon113/qwen3-8b-base",
+              "preregistered": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_matches_preregistered_checkpoint",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "eval",
+              "preregistered": true
+            },
+            "name": "representation_eval_mode",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "sdpa",
+              "preregistered": "sdpa"
+            },
+            "name": "representation_attention_implementation_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "bfloat16",
+              "preregistered": "bfloat16"
+            },
+            "name": "representation_dtype_matches",
+            "passed": true
+          },
+          {
+            "detail": false,
+            "name": "representation_cache_disabled",
+            "passed": true
+          },
+          {
+            "detail": "fp32_l2",
+            "name": "representation_l2_normalized",
+            "passed": true
+          },
+          {
+            "detail": {
+              "explicit": 23,
+              "num_hidden_layers": 36,
+              "rule_result": 23
+            },
+            "name": "primary_layer_rule_matches_explicit_index",
+            "passed": true
+          },
+          {
+            "detail": {
+              "missing": []
+            },
+            "name": "preregistered_layer_pooling_arrays_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "strict",
+              "preregistered": "strict"
+            },
+            "name": "preregistered_primary_setting.validity_policy",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "layer_023__masked_mean",
+              "preregistered": "layer_023__masked_mean"
+            },
+            "name": "preregistered_primary_setting.primary_representation_key",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ],
+              "preregistered": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ]
+            },
+            "name": "preregistered_primary_setting.analyzed_representation_keys",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.pca_variance_threshold",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": false,
+              "preregistered": false
+            },
+            "name": "preregistered_primary_setting.pca_centered",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 5,
+              "preregistered": 5
+            },
+            "name": "preregistered_primary_setting.knn_k",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.coverage_quantile",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 10000,
+              "preregistered": 10000
+            },
+            "name": "preregistered_primary_setting.bootstrap_replicates",
+            "passed": true
+          },
+          {
+            "detail": {
+              "pairs": 2,
+              "passed_pairs": 0
+            },
+            "name": "paired_generator_design_parity",
+            "passed": false
+          }
+        ],
+        "failures": [
+          "source_generation_manifest_present",
+          "paired_generator_design_parity"
+        ],
+        "generator_pair_design": {
+          "failures": [
+            "pair 0adc5a7aecec4c3c: required provenance field generator_checkpoint_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_model_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_run_manifest_sha256 is missing",
+            "pair 0adc5a7aecec4c3c: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 0adc5a7aecec4c3c: required provenance field total_generator_max_token_budget is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field plan_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field code_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field sampling_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field generator_sampling_seed_range is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field llm_seed is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field instance_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field child_rollout_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_checkpoint_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_model_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_run_manifest_sha256 is missing",
+            "pair 87f981b40bd9e667: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 87f981b40bd9e667: required provenance field total_generator_max_token_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field plan_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field code_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field sampling_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_sampling_seed_range is missing",
+            "pair 87f981b40bd9e667: required provenance field llm_seed is missing",
+            "pair 87f981b40bd9e667: required provenance field instance_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field child_rollout_budget is missing"
+          ],
+          "n_child_generator_rows": 4,
+          "n_generator_pairs": 2,
+          "n_passed_pairs": 0,
+          "optional_equal_fields": [
+            "acceptance_budget",
+            "acceptance_retry_budget"
+          ],
+          "pair_reports": [
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "0adc5a7aecec4c3c",
+              "passed": false
+            },
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "87f981b40bd9e667",
+              "passed": false
+            }
+          ],
+          "passed": false,
+          "required_equal_fields": [
+            "solver_checkpoint_id",
+            "generator_checkpoint_id",
+            "source_model_id",
+            "source_run_manifest_sha256",
+            "generator_candidate_draw_count",
+            "llm_generation_call_count",
+            "total_generator_max_token_budget",
+            "plan_stage_max_tokens",
+            "code_stage_max_tokens",
+            "sampling_seed_policy",
+            "generator_sampling_seed_range",
+            "llm_seed",
+            "generator_draw_idx",
+            "instance_seed_policy",
+            "instance_seed_range",
+            "evaluation_seeds",
+            "requested_instance_budget",
+            "child_rollout_budget"
+          ]
+        },
+        "passed": false
+      },
+      "descriptive_only": true,
+      "generator_metrics": [],
+      "incomplete_instance_pairs": [],
+      "inferential_valid": false,
+      "inferential_valid_before_protocol_audit": false,
+      "instance_metrics": [],
+      "mode": "confirmatory",
+      "paired_metrics": [],
+      "representation_key": "layer_023__masked_mean",
+      "status": "insufficient_matched_pairs",
+      "validity_policy": "strict",
+      "warnings": [
+        "No shared plain/reasoning instance pairs passed the validity rule.",
+        "confirmatory_protocol_gate_failed: source_generation_manifest_present, paired_generator_design_parity"
+      ]
+    },
+    "layer_024__last_prompt_token": {
+      "confirmatory_protocol_audit": {
+        "checks": [
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/experiment_manifest.json",
+            "name": "experiment_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "actual": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd",
+              "declared": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd"
+            },
+            "name": "supplied_config_matches_preregistered_hash",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/preregistered_config.json",
+            "name": "stored_preregistered_config_integrity",
+            "passed": true
+          },
+          {
+            "detail": "preregistered_before_representation_extraction",
+            "name": "config_declares_preregistered_before_extraction",
+            "passed": true
+          },
+          {
+            "detail": null,
+            "name": "source_generation_manifest_present",
+            "passed": false
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_instance_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 5,
+              "observed": 5
+            },
+            "name": "manifest_generator_count_matches",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/representation_inputs.jsonl",
+            "name": "representation_input_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "expected_rows": 15,
+              "observed_rows": 15
+            },
+            "name": "representation_inputs_match_instance_manifest_and_leakage_contract",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_representation_input_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "artifact": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41",
+              "input_manifest": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41"
+            },
+            "name": "representation_artifact_input_hash_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "manifest": "/data1/yhoon113/qwen3-8b-base",
+              "representation": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_checkpoint_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "/data1/yhoon113/qwen3-8b-base",
+              "preregistered": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_matches_preregistered_checkpoint",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "eval",
+              "preregistered": true
+            },
+            "name": "representation_eval_mode",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "sdpa",
+              "preregistered": "sdpa"
+            },
+            "name": "representation_attention_implementation_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "bfloat16",
+              "preregistered": "bfloat16"
+            },
+            "name": "representation_dtype_matches",
+            "passed": true
+          },
+          {
+            "detail": false,
+            "name": "representation_cache_disabled",
+            "passed": true
+          },
+          {
+            "detail": "fp32_l2",
+            "name": "representation_l2_normalized",
+            "passed": true
+          },
+          {
+            "detail": {
+              "explicit": 23,
+              "num_hidden_layers": 36,
+              "rule_result": 23
+            },
+            "name": "primary_layer_rule_matches_explicit_index",
+            "passed": true
+          },
+          {
+            "detail": {
+              "missing": []
+            },
+            "name": "preregistered_layer_pooling_arrays_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "strict",
+              "preregistered": "strict"
+            },
+            "name": "preregistered_primary_setting.validity_policy",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "layer_023__masked_mean",
+              "preregistered": "layer_023__masked_mean"
+            },
+            "name": "preregistered_primary_setting.primary_representation_key",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ],
+              "preregistered": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ]
+            },
+            "name": "preregistered_primary_setting.analyzed_representation_keys",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.pca_variance_threshold",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": false,
+              "preregistered": false
+            },
+            "name": "preregistered_primary_setting.pca_centered",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 5,
+              "preregistered": 5
+            },
+            "name": "preregistered_primary_setting.knn_k",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.coverage_quantile",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 10000,
+              "preregistered": 10000
+            },
+            "name": "preregistered_primary_setting.bootstrap_replicates",
+            "passed": true
+          },
+          {
+            "detail": {
+              "pairs": 2,
+              "passed_pairs": 0
+            },
+            "name": "paired_generator_design_parity",
+            "passed": false
+          }
+        ],
+        "failures": [
+          "source_generation_manifest_present",
+          "paired_generator_design_parity"
+        ],
+        "generator_pair_design": {
+          "failures": [
+            "pair 0adc5a7aecec4c3c: required provenance field generator_checkpoint_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_model_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_run_manifest_sha256 is missing",
+            "pair 0adc5a7aecec4c3c: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 0adc5a7aecec4c3c: required provenance field total_generator_max_token_budget is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field plan_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field code_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field sampling_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field generator_sampling_seed_range is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field llm_seed is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field instance_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field child_rollout_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_checkpoint_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_model_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_run_manifest_sha256 is missing",
+            "pair 87f981b40bd9e667: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 87f981b40bd9e667: required provenance field total_generator_max_token_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field plan_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field code_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field sampling_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_sampling_seed_range is missing",
+            "pair 87f981b40bd9e667: required provenance field llm_seed is missing",
+            "pair 87f981b40bd9e667: required provenance field instance_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field child_rollout_budget is missing"
+          ],
+          "n_child_generator_rows": 4,
+          "n_generator_pairs": 2,
+          "n_passed_pairs": 0,
+          "optional_equal_fields": [
+            "acceptance_budget",
+            "acceptance_retry_budget"
+          ],
+          "pair_reports": [
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "0adc5a7aecec4c3c",
+              "passed": false
+            },
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "87f981b40bd9e667",
+              "passed": false
+            }
+          ],
+          "passed": false,
+          "required_equal_fields": [
+            "solver_checkpoint_id",
+            "generator_checkpoint_id",
+            "source_model_id",
+            "source_run_manifest_sha256",
+            "generator_candidate_draw_count",
+            "llm_generation_call_count",
+            "total_generator_max_token_budget",
+            "plan_stage_max_tokens",
+            "code_stage_max_tokens",
+            "sampling_seed_policy",
+            "generator_sampling_seed_range",
+            "llm_seed",
+            "generator_draw_idx",
+            "instance_seed_policy",
+            "instance_seed_range",
+            "evaluation_seeds",
+            "requested_instance_budget",
+            "child_rollout_budget"
+          ]
+        },
+        "passed": false
+      },
+      "descriptive_only": true,
+      "generator_metrics": [],
+      "incomplete_instance_pairs": [],
+      "inferential_valid": false,
+      "inferential_valid_before_protocol_audit": false,
+      "instance_metrics": [],
+      "mode": "confirmatory",
+      "paired_metrics": [],
+      "representation_key": "layer_024__last_prompt_token",
+      "status": "insufficient_matched_pairs",
+      "validity_policy": "strict",
+      "warnings": [
+        "No shared plain/reasoning instance pairs passed the validity rule.",
+        "confirmatory_protocol_gate_failed: source_generation_manifest_present, paired_generator_design_parity"
+      ]
+    },
+    "layer_024__masked_mean": {
+      "confirmatory_protocol_audit": {
+        "checks": [
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/experiment_manifest.json",
+            "name": "experiment_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "actual": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd",
+              "declared": "991e34bf4303b27b95a15ffa8fef0180e0296dd9746aa44eb142d21e05d3b1fd"
+            },
+            "name": "supplied_config_matches_preregistered_hash",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/preregistered_config.json",
+            "name": "stored_preregistered_config_integrity",
+            "passed": true
+          },
+          {
+            "detail": "preregistered_before_representation_extraction",
+            "name": "config_declares_preregistered_before_extraction",
+            "passed": true
+          },
+          {
+            "detail": null,
+            "name": "source_generation_manifest_present",
+            "passed": false
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_instance_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 5,
+              "observed": 5
+            },
+            "name": "manifest_generator_count_matches",
+            "passed": true
+          },
+          {
+            "detail": "/data1/yhoon113/R-Q-Evolve/rq_output/reasoning_expansion_pilot/representation_inputs.jsonl",
+            "name": "representation_input_manifest_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "expected_rows": 15,
+              "observed_rows": 15
+            },
+            "name": "representation_inputs_match_instance_manifest_and_leakage_contract",
+            "passed": true
+          },
+          {
+            "detail": {
+              "declared": 15,
+              "observed": 15
+            },
+            "name": "manifest_representation_input_count_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "artifact": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41",
+              "input_manifest": "4d3246251774a6d3ca2a73a4284714dc00466aad7e2c3383bc3ed6e93b16fe41"
+            },
+            "name": "representation_artifact_input_hash_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "manifest": "/data1/yhoon113/qwen3-8b-base",
+              "representation": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_checkpoint_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "/data1/yhoon113/qwen3-8b-base",
+              "preregistered": "/data1/yhoon113/qwen3-8b-base"
+            },
+            "name": "frozen_solver_matches_preregistered_checkpoint",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "eval",
+              "preregistered": true
+            },
+            "name": "representation_eval_mode",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "sdpa",
+              "preregistered": "sdpa"
+            },
+            "name": "representation_attention_implementation_matches",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "bfloat16",
+              "preregistered": "bfloat16"
+            },
+            "name": "representation_dtype_matches",
+            "passed": true
+          },
+          {
+            "detail": false,
+            "name": "representation_cache_disabled",
+            "passed": true
+          },
+          {
+            "detail": "fp32_l2",
+            "name": "representation_l2_normalized",
+            "passed": true
+          },
+          {
+            "detail": {
+              "explicit": 23,
+              "num_hidden_layers": 36,
+              "rule_result": 23
+            },
+            "name": "primary_layer_rule_matches_explicit_index",
+            "passed": true
+          },
+          {
+            "detail": {
+              "missing": []
+            },
+            "name": "preregistered_layer_pooling_arrays_present",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "strict",
+              "preregistered": "strict"
+            },
+            "name": "preregistered_primary_setting.validity_policy",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": "layer_023__masked_mean",
+              "preregistered": "layer_023__masked_mean"
+            },
+            "name": "preregistered_primary_setting.primary_representation_key",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ],
+              "preregistered": [
+                "layer_022__last_prompt_token",
+                "layer_022__masked_mean",
+                "layer_023__last_prompt_token",
+                "layer_023__masked_mean",
+                "layer_024__last_prompt_token",
+                "layer_024__masked_mean"
+              ]
+            },
+            "name": "preregistered_primary_setting.analyzed_representation_keys",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.pca_variance_threshold",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": false,
+              "preregistered": false
+            },
+            "name": "preregistered_primary_setting.pca_centered",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 5,
+              "preregistered": 5
+            },
+            "name": "preregistered_primary_setting.knn_k",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 0.95,
+              "preregistered": 0.95
+            },
+            "name": "preregistered_primary_setting.coverage_quantile",
+            "passed": true
+          },
+          {
+            "detail": {
+              "observed": 10000,
+              "preregistered": 10000
+            },
+            "name": "preregistered_primary_setting.bootstrap_replicates",
+            "passed": true
+          },
+          {
+            "detail": {
+              "pairs": 2,
+              "passed_pairs": 0
+            },
+            "name": "paired_generator_design_parity",
+            "passed": false
+          }
+        ],
+        "failures": [
+          "source_generation_manifest_present",
+          "paired_generator_design_parity"
+        ],
+        "generator_pair_design": {
+          "failures": [
+            "pair 0adc5a7aecec4c3c: required provenance field generator_checkpoint_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_model_id is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field source_run_manifest_sha256 is missing",
+            "pair 0adc5a7aecec4c3c: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 0adc5a7aecec4c3c: required provenance field total_generator_max_token_budget is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field plan_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field code_stage_max_tokens is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field sampling_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field generator_sampling_seed_range is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field llm_seed is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field instance_seed_policy is missing",
+            "pair 0adc5a7aecec4c3c: required provenance field child_rollout_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_checkpoint_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_model_id is missing",
+            "pair 87f981b40bd9e667: required provenance field source_run_manifest_sha256 is missing",
+            "pair 87f981b40bd9e667: paired field llm_generation_call_count differs: plain=1, reasoning=2",
+            "pair 87f981b40bd9e667: required provenance field total_generator_max_token_budget is missing",
+            "pair 87f981b40bd9e667: required provenance field plan_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field code_stage_max_tokens is missing",
+            "pair 87f981b40bd9e667: required provenance field sampling_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field generator_sampling_seed_range is missing",
+            "pair 87f981b40bd9e667: required provenance field llm_seed is missing",
+            "pair 87f981b40bd9e667: required provenance field instance_seed_policy is missing",
+            "pair 87f981b40bd9e667: required provenance field child_rollout_budget is missing"
+          ],
+          "n_child_generator_rows": 4,
+          "n_generator_pairs": 2,
+          "n_passed_pairs": 0,
+          "optional_equal_fields": [
+            "acceptance_budget",
+            "acceptance_retry_budget"
+          ],
+          "pair_reports": [
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "0adc5a7aecec4c3c",
+              "passed": false
+            },
+            {
+              "failures": [
+                "required provenance field generator_checkpoint_id is missing",
+                "required provenance field source_model_id is missing",
+                "required provenance field source_run_manifest_sha256 is missing",
+                "paired field llm_generation_call_count differs: plain=1, reasoning=2",
+                "required provenance field total_generator_max_token_budget is missing",
+                "required provenance field plan_stage_max_tokens is missing",
+                "required provenance field code_stage_max_tokens is missing",
+                "required provenance field sampling_seed_policy is missing",
+                "required provenance field generator_sampling_seed_range is missing",
+                "required provenance field llm_seed is missing",
+                "required provenance field instance_seed_policy is missing",
+                "required provenance field child_rollout_budget is missing"
+              ],
+              "generator_pair_id": "87f981b40bd9e667",
+              "passed": false
+            }
+          ],
+          "passed": false,
+          "required_equal_fields": [
+            "solver_checkpoint_id",
+            "generator_checkpoint_id",
+            "source_model_id",
+            "source_run_manifest_sha256",
+            "generator_candidate_draw_count",
+            "llm_generation_call_count",
+            "total_generator_max_token_budget",
+            "plan_stage_max_tokens",
+            "code_stage_max_tokens",
+            "sampling_seed_policy",
+            "generator_sampling_seed_range",
+            "llm_seed",
+            "generator_draw_idx",
+            "instance_seed_policy",
+            "instance_seed_range",
+            "evaluation_seeds",
+            "requested_instance_budget",
+            "child_rollout_budget"
+          ]
+        },
+        "passed": false
+      },
+      "descriptive_only": true,
+      "generator_metrics": [],
+      "incomplete_instance_pairs": [],
+      "inferential_valid": false,
+      "inferential_valid_before_protocol_audit": false,
+      "instance_metrics": [],
+      "mode": "confirmatory",
+      "paired_metrics": [],
+      "representation_key": "layer_024__masked_mean",
+      "status": "insufficient_matched_pairs",
+      "validity_policy": "strict",
+      "warnings": [
+        "No shared plain/reasoning instance pairs passed the validity rule.",
+        "confirmatory_protocol_gate_failed: source_generation_manifest_present, paired_generator_design_parity"
+      ]
+    }
+  },
+  "schema_version": 1,
+  "sensitivity_analysis": {
+    "primary_claim_uses_sensitivity": false,
+    "rows": [
+      {
+        "adjusted_ci_high": null,
+        "adjusted_ci_low": null,
+        "adjusted_o_difference": null,
+        "claim_eligible": false,
+        "coverage_epsilon": null,
+        "coverage_quantile": 0.95,
+        "distance": "cosine",
+        "inferential_valid": false,
+        "knn_k": 5,
+        "mean_o_difference": null,
+        "note": "Prespecified sensitivity only; never replaces the primary analysis.",
+        "novelty_effective_k": null,
+        "o_ci_high": null,
+        "o_ci_low": null,
+        "pca_centered": true,
+        "pca_cumulative_explained_variance": null,
+        "pca_n_components": null,
+        "pca_variance_threshold": 0.8,
+        "representation_key": "layer_023__masked_mean",
+        "status": "insufficient_matched_pairs",
+        "warnings": [
+          "No shared plain/reasoning instance pairs passed the validity rule."
+        ]
+      },
+      {
+        "adjusted_ci_high": null,
+        "adjusted_ci_low": null,
+        "adjusted_o_difference": null,
+        "claim_eligible": false,
+        "coverage_epsilon": null,
+        "coverage_quantile": 0.95,
+        "distance": "cosine",
+        "inferential_valid": false,
+        "knn_k": 5,
+        "mean_o_difference": null,
+        "note": "Prespecified sensitivity only; never replaces the primary analysis.",
+        "novelty_effective_k": null,
+        "o_ci_high": null,
+        "o_ci_low": null,
+        "pca_centered": false,
+        "pca_cumulative_explained_variance": null,
+        "pca_n_components": null,
+        "pca_variance_threshold": 0.8,
+        "representation_key": "layer_023__masked_mean",
+        "status": "insufficient_matched_pairs",
+        "warnings": [
+          "No shared plain/reasoning instance pairs passed the validity rule."
+        ]
+      },
+      {
+        "adjusted_ci_high": null,
+        "adjusted_ci_low": null,
+        "adjusted_o_difference": null,
+        "claim_eligible": false,
+        "coverage_epsilon": null,
+        "coverage_quantile": 0.95,
+        "distance": "cosine",
+        "inferential_valid": false,
+        "knn_k": 5,
+        "mean_o_difference": null,
+        "note": "Prespecified sensitivity only; never replaces the primary analysis.",
+        "novelty_effective_k": null,
+        "o_ci_high": null,
+        "o_ci_low": null,
+        "pca_centered": true,
+        "pca_cumulative_explained_variance": null,
+        "pca_n_components": null,
+        "pca_variance_threshold": 0.9,
+        "representation_key": "layer_023__masked_mean",
+        "status": "insufficient_matched_pairs",
+        "warnings": [
+          "No shared plain/reasoning instance pairs passed the validity rule."
+        ]
+      },
+      {
+        "adjusted_ci_high": null,
+        "adjusted_ci_low": null,
+        "adjusted_o_difference": null,
+        "claim_eligible": false,
+        "coverage_epsilon": null,
+        "coverage_quantile": 0.95,
+        "distance": "cosine",
+        "inferential_valid": false,
+        "knn_k": 5,
+        "mean_o_difference": null,
+        "note": "Prespecified sensitivity only; never replaces the primary analysis.",
+        "novelty_effective_k": null,
+        "o_ci_high": null,
+        "o_ci_low": null,
+        "pca_centered": false,
+        "pca_cumulative_explained_variance": null,
+        "pca_n_components": null,
+        "pca_variance_threshold": 0.9,
+        "representation_key": "layer_023__masked_mean",
+        "status": "insufficient_matched_pairs",
+        "warnings": [
+          "No shared plain/reasoning instance pairs passed the validity rule."
+        ]
+      },
+      {
+        "adjusted_ci_high": null,
+        "adjusted_ci_low": null,
+        "adjusted_o_difference": null,
+        "claim_eligible": false,
+        "coverage_epsilon": null,
+        "coverage_quantile": 0.95,
+        "distance": "cosine",
+        "inferential_valid": false,
+        "knn_k": 5,
+        "mean_o_difference": null,
+        "note": "Prespecified sensitivity only; never replaces the primary analysis.",
+        "novelty_effective_k": null,
+        "o_ci_high": null,
+        "o_ci_low": null,
+        "pca_centered": true,
+        "pca_cumulative_explained_variance": null,
+        "pca_n_components": null,
+        "pca_variance_threshold": 0.95,
+        "representation_key": "layer_023__masked_mean",
+        "status": "insufficient_matched_pairs",
+        "warnings": [
+          "No shared plain/reasoning instance pairs passed the validity rule."
+        ]
+      },
+      {
+        "adjusted_ci_high": null,
+        "adjusted_ci_low": null,
+        "adjusted_o_difference": null,
+        "claim_eligible": false,
+        "coverage_epsilon": null,
+        "coverage_quantile": 0.95,
+        "distance": "cosine",
+        "inferential_valid": false,
+        "knn_k": 5,
+        "mean_o_difference": null,
+        "note": "Prespecified sensitivity only; never replaces the primary analysis.",
+        "novelty_effective_k": null,
+        "o_ci_high": null,
+        "o_ci_low": null,
+        "pca_centered": false,
+        "pca_cumulative_explained_variance": null,
+        "pca_n_components": null,
+        "pca_variance_threshold": 0.95,
+        "representation_key": "layer_023__masked_mean",
+        "status": "insufficient_matched_pairs",
+        "warnings": [
+          "No shared plain/reasoning instance pairs passed the validity rule."
+        ]
+      }
+    ],
+    "status": "completed"
+  }
+}

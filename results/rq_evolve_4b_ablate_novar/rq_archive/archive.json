@@ -1,0 +1,607 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 17,
+      "total_niches": 48,
+      "coverage": 0.3541666666666667,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 0.75,
+      "mean_rq": 28.817327536520494,
+      "max_rq": 149.99952151626348,
+      "total_insertions": 653,
+      "total_replacements": 63,
+      "total_selections": 1152
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"induction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    primes = sorted(rng.sample([3, 5, 7, 11, 13, 17], 3))\n    n = rng.randint(3000, 40000)\n\n    # Same shape as the parent: total minus the union, with the union expanded\n    # by inclusion-exclusion. Divisibility replaces incidence as the relation\n    # that decides membership.\n    p, q, r = primes\n    union = (n // p + n // q + n // r\n             - n // (p * q) - n // (p * r) - n // (q * r)\n             + n // (p * q * r))\n    answer = n - union\n\n    # Independent route: test every integer in range against the three stated\n    # divisors, instead of counting by complement.\n    check = sum(1 for k in range(1, n + 1) if k % p and k % q and k % r)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are divisible by none of \"\n        f\"{p}, {q} and {r}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "313172a1a46b",
+      "parent_id": "0702cd61176f",
+      "generation": 10,
+      "p_hat": 0.125,
+      "h_score": 1371.4241967201233,
+      "rq_score": 149.99952151626348,
+      "fitness": 149.99952151626348,
+      "niche_group": 0,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "induction",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 149.99952151626348
+        },
+        "_behavior_sig_5": "6a15836e2e6ade8ff2bf0a4e6fedd220b53cf43a9fce2de3f68c0321001f0217",
+        "_template_sig_5": "b79258856de70d2b8ab66f4256d0f562b2eea17c72f54eceeb4a428afa932809",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    p = rng.choice([3, 5, 7, 11, 13])  # Choose a prime number from a predefined set.\n    n = rng.randint(1000, 2000)  # Choosing a positive integer within a reasonable range.\n\n    # Setting up the total count of integers less than or equal to n.\n    total = n\n\n    # Calculating the count of multiples of p up to n.\n    multiples_of_p = n // p\n\n    # Answer is the total minus the number of multiples of p.\n    answer = total - multiples_of_p\n\n    # Independent route: counting the integers less than or equal to n that are not multiples of p.\n    check = len([x for x in range(1, n + 1) if x % p != 0])\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k, where 1 <= k <= {n}, are there that are not divisible by {p}? \"\n        \"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "90c42211eb36",
+      "parent_id": "83374899ebd7",
+      "generation": 10,
+      "p_hat": 0.7777777777777778,
+      "h_score": 207.60154914855957,
+      "rq_score": 35.88174923555351,
+      "fitness": 35.88174923555351,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 35.88174923555351
+        },
+        "_behavior_sig_5": "3bb2ab0c5a1c8383f7465e3c9b37c7c1e03e768d36781e628239e48e095b5fa9",
+        "_template_sig_5": "ad069ec7284869e7780f2f64a16d16d60fd8628f7d1e0267213b964a49585f8e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"induction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(50, 150)  # Choosing a composite number with a reasonable number of divisors.\n\n    # Setting up the total number of divisors of n.\n    divisors = set()\n\n    # Finding all divisors of n.\n    for i in range(1, int(n ** 0.5) + 1):\n        if n % i == 0:\n            divisors.add(i)\n            divisors.add(n // i)\n\n    total = len(divisors)\n\n    # Calculating the number of divisors excluding perfect squares (to simulate \"tangential\" divisors).\n    perfect_squares = {i ** 2 for i in range(1, int(n ** 0.5) + 1) if i ** 2 <= n}\n    intersection = len(divisors & perfect_squares)\n    answer = total - intersection\n\n    # Independent route: counting the divisors that are not perfect squares directly.\n    check = total - len(divisors & perfect_squares)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the number of divisors that are not perfect squares.\n    problem = f\"How many integers k, where k is a divisor of {n}, are there that are not perfect squares? Calculate the answer using the given composite number.\"\n\n    return problem, str(answer)",
+      "program_id": "86b90656aba4",
+      "parent_id": "2ced14b2d6c5",
+      "generation": 8,
+      "p_hat": 0.8,
+      "h_score": 79.9719425201416,
+      "rq_score": 12.795510803222653,
+      "fitness": 12.795510803222653,
+      "niche_group": 1,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 12.795510803222653
+        },
+        "_behavior_sig_5": "1978d71479281f0cdf4e027bc6f07e01cd68ac7a2e325e37067bece7aabdb569",
+        "_template_sig_5": "cbd22c3634129b58238fd968bffdec5d2a25b0ccfa00b059b9f2c841893b3ba4",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 20)  # Number of items on a shelf\n    r = rng.randint(1, n)  # Number of items to choose\n\n    # Determine the number of unique sets of length r formed by selecting\n    # r items out of n items on a shelf. Since the selection is unordered,\n    # we use combinations to find the number of ways to choose r items from n.\n    from math import comb\n    answer = comb(n, r)\n\n    # Independent route: manually checking the combination formula\n    check = math.prod(range(n, n - r, -1)) // math.prod(range(1, r + 1))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many unique sets of {r} items can be formed by selecting \"\n        f\"{r} items out of {n} items placed on a shelf? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "4d836cd63884",
+      "parent_id": "75e263272659",
+      "generation": 12,
+      "p_hat": 0.9,
+      "h_score": 86.8724349975586,
+      "rq_score": 7.818519149780273,
+      "fitness": 7.818519149780273,
+      "niche_group": 1,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 7.818519149780273
+        },
+        "_behavior_sig_5": "7222f8857bfb6c15357ba271db941ac067dcd18bbca7ab6a8afb1cc5ede47038",
+        "_template_sig_5": "fb505cc45a31dcbf7b6bc050a27be14ba4cca10593f7d24e0e8ca0fa139495d8",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1, 100)  # Choosing a positive integer within a reasonable range.\n\n    # Setting up the total number of divisors of n.\n    divisors = set()\n\n    # Finding all divisors of n.\n    for i in range(1, int(math.sqrt(n)) + 1):\n        if n % i == 0:\n            divisors.add(i)\n            if i * i != n:  # Avoid adding the square root twice if n is a perfect square.\n                divisors.add(n // i)\n\n    total = len(divisors)\n\n    # Calculating the number of divisors that are perfect squares.\n    perfect_squares = {i ** 2 for i in range(1, int(math.sqrt(n)) + 1) if i ** 2 <= n}\n    intersection = len(divisors & perfect_squares)\n    answer = total - intersection\n\n    # Independent route: counting the divisors that are not perfect squares directly.\n    check = total - len(divisors & perfect_squares)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the number of divisors that are not perfect squares.\n    problem = (\n        f\"How many integers k, where k is a divisor of {n}, are there that are not perfect squares? \"\n        \"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "83374899ebd7",
+      "parent_id": "86b90656aba4",
+      "generation": 9,
+      "p_hat": 0.7,
+      "h_score": 111.30322799682617,
+      "rq_score": 23.373677879333496,
+      "fitness": 23.373677879333496,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 23.373677879333496
+        },
+        "_behavior_sig_5": "0cfaab57740fb8301a50e4a8647597c8cd0ef0d4b3d2c31217b7f9d7337e9b56",
+        "_template_sig_5": "869c3a6f19eeb07e05eb54e608a8f58bf7ce48286f3ef261345292a14bdf67f1",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\nimport sympy\n\nGROUP = \"combinatorics\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # The problem involves a grid of points with integer coordinates 0 <= x <= w and 0 <= y <= h.\n    w = rng.randint(30, 60)\n    h = rng.randint(30, 60)\n\n    # The load-bearing structure is counting the number of points on the grid that do not lie on any line segment.\n    total_points = (w + 1) * (h + 1)\n\n    # Define the lines y = x and y = -x + (w + h)\n    def point_on_line(x, y):\n        return y == x or y == -x + (w + h)\n\n    # Count the number of points not on any of the lines\n    points_not_on_lines = sum(1 for x in range(w + 1) for y in range(h + 1) if not point_on_line(x, y))\n\n    # Independent route: count the number of points not on any of the lines by direct enumeration\n    check = total_points - sum(1 for x in range(w + 1) for y in range(h + 1) if point_on_line(x, y))\n    assert points_not_on_lines == check, f\"points_not_on_lines={points_not_on_lines} check={check}\"\n\n    problem = (\n        f\"Consider the grid of points with integer coordinates 0 <= x <= {w} \"\n        f\"and 0 <= y <= {h}. How many of them do not lie on the line segments \"\n        f\"defined by y = x and y = -x + ({w} + {h})? State only the integer.\"\n    )\n    return problem, str(points_not_on_lines)",
+      "program_id": "256b68a1aacd",
+      "parent_id": "945b22e16e37",
+      "generation": 1,
+      "p_hat": 0.9,
+      "h_score": 88.7553207397461,
+      "rq_score": 7.987978866577147,
+      "fitness": 7.987978866577147,
+      "niche_group": 1,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 7.987978866577147
+        },
+        "_behavior_sig_5": "854b7f5118c3259b524504f87bdd42c957de6b499b952a9302a0900eff535445",
+        "_template_sig_5": "f846cf25fa3d7cdc3a1833618408c88a4f159edecf826dc4a11bfd5557f3119a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"casework\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a sequence problem involving terms.\n    term1 = rng.randint(10, 100)  # First term of the sequence\n    term2 = rng.randint(10, 100)  # Second term of the sequence\n\n    # The product of the terms will be the same regardless of the order due to the commutative property of multiplication.\n    answer = term1 * term2\n\n    # Independent route: considering the terms in reverse order does not change the product.\n    check = term2 * term1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the product of terms considering the order.\n    problem = (\n        f\"Consider a sequence with terms {term1} and {term2}. \"\n        f\"What is the product of these terms if the order is reversed? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "dd99afaf9623",
+      "parent_id": "f1ce6301945d",
+      "generation": 11,
+      "p_hat": 0.8571428571428571,
+      "h_score": 103.14803423200335,
+      "rq_score": 12.63037153861266,
+      "fitness": 12.63037153861266,
+      "niche_group": 2,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "casework",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 12.63037153861266
+        },
+        "_behavior_sig_5": "767726c09b69f76f0c19fdbdaafdd83cc2c653d51c88f3594c3d9d9b40e54344",
+        "_template_sig_5": "90de0e4d817c2cc878bc439882ebd71edabe461aef65f31dd9c2744536b6fd09",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Generating parameters for a sequence with a geometric progression pattern.\n    base = rng.randint(10, 99)  # Base value for the sequence\n    ratio = rng.randint(2, 10)  # Ratio by which each term increases\n    term1 = base * ratio\n    term2 = base * (ratio ** 2)  # Second term of the sequence, following geometric progression\n\n    # Calculating the sum of the first two terms, assuming the sequence continues geometrically.\n    answer = term1 + term2\n\n    # Independent route: verifying the sum of the first two terms by directly computing the sum.\n    check = base * ratio + base * (ratio ** 2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the sum of the first two terms.\n    problem = (\n        f\"There is a geometric sequence with the first term being {base} * {ratio} \"\n        f\"and the second term being {base} * ({ratio}^2). What is the sum of the first two terms of the sequence? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "67ccda57a6e4",
+      "parent_id": "f1ce6301945d",
+      "generation": 11,
+      "p_hat": 0.7,
+      "h_score": 98.27568969726562,
+      "rq_score": 20.637894836425783,
+      "fitness": 20.637894836425783,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 20.637894836425783
+        },
+        "_behavior_sig_5": "bf1a07b6a87be4488095f4cb4ee83a842d64178ec6673a85961dafac537bf4fe",
+        "_template_sig_5": "5a0ca3b7944cc3982327f2b172ecc6ddeb9a54737a8a4563a79527b19768a998",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"sequence\"\nSKILL = \"contradiction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n_terms = rng.randint(10, 50)  # Number of terms in the sequence\n    a = rng.randint(1, 10)  # First term of the sequence\n    d = rng.randint(1, 10)  # Common difference of the sequence\n\n    # Formulate the arithmetic sequence.\n    sequence = [a + i * d for i in range(n_terms)]\n\n    # For contradiction, assume there exists at least one perfect square term.\n    # Define a hypothetical perfect square term in the sequence.\n    # Since the sequence is arithmetic, we consider the general form of the term:\n    # a + kd = term for some k in range(n_terms).\n    # If a + kd is a perfect square, say m^2, then we have:\n    # a + kd = m^2 -> kd = m^2 - a.\n    # Because d is a fixed integer, for any given a and m, there are only a finite number of k that satisfy this equation.\n    # However, the sequence contains a large number of terms (n_terms is often greater than 10).\n    # Therefore, if there were more than one perfect square in the sequence, the sequence would necessarily be limited by the value of d and a.\n    # Hence, we establish that at most one term in the sequence can be a perfect square due to the arithmetic properties.\n\n    # To find the actual count of perfect square terms, we will follow the parent's approach.\n    answer = sum(1 for term in sequence if math.isqrt(term) ** 2 == term)\n\n    # Independent route: For each term, check if it is a perfect square by comparing it to the square of its integer square root.\n    check = 0\n    for term in sequence:\n        root = math.isqrt(term)\n        check += 1 if root * root == term else 0\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Formulate a question about the number of perfect square terms in the sequence.\n    problem = (\n        f\"Consider an arithmetic sequence with {n_terms} terms, first term {a}, \"\n        f\"and common difference {d}. Given that there can be at most one perfect square term due to the nature of arithmetic sequences, how many terms in this sequence are perfect squares? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "2235cdd177df",
+      "parent_id": "3fcfdafcc5af",
+      "generation": 10,
+      "p_hat": 0.7777777777777778,
+      "h_score": 85.63598505655925,
+      "rq_score": 14.801281367800364,
+      "fitness": 14.801281367800364,
+      "niche_group": 2,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 14.801281367800364
+        },
+        "_behavior_sig_5": "78883f4499e6ebcf0cdc7aa3a3e703187ffe043426bd5b05ff845152c27a09c0",
+        "_template_sig_5": "b061534eb7a008d2f8fa2417056f55fdd0f084656447511f6badec169d70b4d2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Parameters for the arithmetic sequence domain, ensuring the sequence is non-trivial.\n    n_terms = rng.randint(10, 50)  # Number of terms in the sequence\n    a = rng.randint(1, 10)  # First term of the sequence\n    d = rng.randint(1, 10)  # Common difference of the sequence\n\n    # Direct summation approach to find the sum of the arithmetic sequence.\n    total_sum = n_terms * (2 * a + (n_terms - 1) * d) // 2\n\n    # Independent route: Calculate the sum by considering the arithmetic sequence\n    # in two separate sequences that are mirror images of each other, hence summing to twice the original.\n    sequence_1 = [a + i * d for i in range(n_terms)]\n    sequence_2 = [a + (n_terms - 1 - i) * d for i in range(n_terms)]\n    invariant_sum = sum(sequence_1[i] + sequence_2[i] for i in range(n_terms)) // 2\n\n    assert total_sum == invariant_sum, f\"total_sum={total_sum} invariant_sum={invariant_sum}\"\n\n    # Formulate a question about the sum of the sequence that forces the use of the invariant.\n    problem = (\n        f\"Consider an arithmetic sequence with {n_terms} terms, first term {a}, \"\n        f\"and common difference {d}. Prove that the sum of this sequence can be \"\n        f\"expressed as half the sum of two sequences that are mirror images of each other. \"\n        f\"What is the sum of this original sequence? State only the integer.\"\n    )\n\n    return problem, str(total_sum)",
+      "program_id": "dc7a324e9e03",
+      "parent_id": "4ccfc557616c",
+      "generation": 8,
+      "p_hat": 0.8888888888888888,
+      "h_score": 87.0317005581326,
+      "rq_score": 8.595723511914334,
+      "fitness": 8.595723511914334,
+      "niche_group": 2,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 8.595723511914334
+        },
+        "_behavior_sig_5": "e9438903e25666690f88061fbb64865ed8408840c11a51a82032103e3d27eaa3",
+        "_template_sig_5": "d237eeb2a40383e9d77f0f3bdc6b76ec0d23800759bed48dacaabb65ab668c88",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Parameters for the sequence domain, ensuring the sequence is non-trivial.\n    n_terms = rng.randint(10, 50)  # Number of terms in the sequence\n    a = rng.randint(1, 10)  # First term of the sequence\n    d = rng.randint(1, 10)  # Common difference of the sequence\n\n    # Define the arithmetic sequence\n    sequence = [a + i * d for i in range(n_terms)]\n\n    # Independent route: Calculate the number of non-empty subsets of the sequence\n    # by recognizing that each term can either be included or not included in a subset.\n    total_subsets = 2 ** n_terms - 1  # Subtract 1 to exclude the empty subset\n\n    assert total_subsets == 2 ** n_terms - 1, f\"total_subsets={total_subsets} expected={2 ** n_terms - 1}\"\n\n    # Formulate a question about the number of non-empty subsets of the sequence\n    problem = (\n        f\"Consider an arithmetic sequence with {n_terms} terms, first term {a}, \"\n        f\"and common difference {d}. How many non-empty subsets of this sequence \"\n        f\"can be formed? State only the integer.\"\n    )\n\n    return problem, str(total_subsets)",
+      "program_id": "bb8796108d5b",
+      "parent_id": "dc7a324e9e03",
+      "generation": 9,
+      "p_hat": 0.8,
+      "h_score": 272.5903717041016,
+      "rq_score": 43.61445947265625,
+      "fitness": 43.61445947265625,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 43.61445947265625
+        },
+        "_behavior_sig_5": "da3ef55ae8f3b600f2057abfde99c31e43627406ff3acb138d1e768f104ee8f9",
+        "_template_sig_5": "a58d7525e422ee8bf982f8d2d5534d25814e52f8d57febe14eead30a7a2f5383",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a sequence problem involving terms.\n    term1 = rng.randint(100, 200)  # First term of the sequence\n    term2 = rng.randint(50, 150)  # Second term of the sequence\n\n    # Calculating the product of the terms.\n    # The product of the terms is term1 times term2.\n    answer = term1 * term2\n\n    # Independent route: reversing the order of the terms does not change the product.\n    check = term2 * term1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the product of terms after reversing their order.\n    problem = (\n        f\"There is a sequence with terms {term1} and {term2}. \"\n        f\"What is the product of the terms if their order is reversed? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "f1ce6301945d",
+      "parent_id": "c1eaeab22c75",
+      "generation": 10,
+      "p_hat": 0.875,
+      "h_score": 118.16342401504517,
+      "rq_score": 12.924124501645565,
+      "fitness": 12.924124501645565,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 12.924124501645565
+        },
+        "_behavior_sig_5": "f9589cf01df21bd35f9caaf254d25c29c4e342527730f2679a5fda527bcfea05",
+        "_template_sig_5": "40831a7c4282900ea585be1f4c8f3102113e25d04fcc4394d996c436be3134e5",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for an algebra problem involving variables and constants.\n    a = rng.randint(1, 10)  # First coefficient or constant\n    b = rng.randint(1, 10)  # Second coefficient or constant\n    x = rng.randint(1, 20)  # Variable\n\n    # Calculating the product of the terms.\n    # The product of the terms is a times b times x.\n    answer = a * b * x\n\n    # Independent route: reversing the order of the terms does not change the product.\n    check = b * x * a\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the product of terms after reversing their order.\n    problem = (\n        f\"There is an algebraic expression with coefficients or constants {a}, {b} and variable {x}. \"\n        f\"What is the product of the terms if their order is reversed? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "38f4aa5929eb",
+      "parent_id": "f1ce6301945d",
+      "generation": 11,
+      "p_hat": 0.875,
+      "h_score": 98.9907054901123,
+      "rq_score": 10.827108412981033,
+      "fitness": 10.827108412981033,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 10.827108412981033
+        },
+        "_behavior_sig_5": "97034dbc3de0aaeb15d6522014b0262bc93a298856878314cf6f5167ff6ad05b",
+        "_template_sig_5": "5cf41be46c2314ba9aa3b63ae914fbc82f540dcac845851208f47f0abb04ca16",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"induction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w, h = rng.randint(12, 30), rng.randint(12, 30)\n\n    # Complement over the grid, with the union of the two diagonals expanded by\n    # inclusion-exclusion. A segment from (0,0) to (w,h) meets gcd(w,h)+1\n    # lattice points, and the diagonals cross at the centre, which is a lattice\n    # point exactly when w and h are both even.\n    total = (w + 1) * (h + 1)\n    on_each = math.gcd(w, h) + 1\n    on_both = 1 if w % 2 == 0 and h % 2 == 0 else 0\n    answer = total - (2 * on_each - on_both)\n\n    # Independent route: walk every lattice point of the rectangle and test it\n    # against the two diagonal equations, instead of counting by complement.\n    check = sum(\n        1\n        for x in range(w + 1)\n        for y in range(h + 1)\n        if x * h != y * w and x * h + y * w != w * h\n    )\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the grid of points with integer coordinates 0 <= x <= {w} \"\n        f\"and 0 <= y <= {h}. How many of them lie on neither diagonal of the \"\n        f\"rectangle? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "0702cd61176f",
+      "parent_id": "86b90656aba4",
+      "generation": 9,
+      "p_hat": 0.3,
+      "h_score": 95.18641357421875,
+      "rq_score": 19.989146850585936,
+      "fitness": 19.989146850585936,
+      "niche_group": 4,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 19.989146850585936
+        },
+        "_behavior_sig_5": "2cb2240bc23f7fc8abcdfe0137ffc7d89b4d6e7b959f15e8338cf55c01be2643",
+        "_template_sig_5": "ed0251c77a971eb0aad711176de418ca0e44d7b49dbe9b0ff5510ad5a76451ea",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"geometry\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)  # Number of points on a circle\n    r = rng.randint(1, n)  # Number of points to choose\n\n    # Determine the number of unique sequences of length r formed by selecting\n    # r points out of n points on a circle. Due to the invariant property of the\n    # circular arrangement, sequences that can be rotated into each other are\n    # considered the same. Thus, we need to adjust the permutation count to\n    # account for these rotational symmetries.\n    from math import perm\n    initial_permutations = perm(n, r)\n    if r > 1:\n        answer = initial_permutations // r\n    else:\n        answer = initial_permutations  # For r = 1, no rotation is needed\n\n    # Independent route: manually checking the adjusted permutation formula\n    check = initial_permutations // r if r > 1 else initial_permutations\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many unique sequences of length {r} can be formed by selecting \"\n        f\"{r} points out of {n} points placed on a circle, where rotations of \"\n        f\"the same sequence are considered identical? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "68d74a6e02ab",
+      "parent_id": "e98e67b8b602",
+      "generation": 11,
+      "p_hat": 0.5555555555555556,
+      "h_score": 105.99727291531033,
+      "rq_score": 26.172166151928476,
+      "fitness": 26.172166151928476,
+      "niche_group": 4,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 26.172166151928476
+        },
+        "_behavior_sig_5": "7723be23f91b093aff8acff35599c19cf33d4df6fd4777af0ae5473ba7d18a34",
+        "_template_sig_5": "736d4e4bfc34b5582dcd60d0e7e9da061c6e3b6fde7f7bfdd25cd5f352a1bbfa",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)  # Number of points on a circle\n    r = rng.randint(1, n)  # Number of points to choose\n\n    # Determine the number of unique sequences of length r formed by selecting\n    # r points out of n points on a circle. Since the circle doesn't introduce\n    # rotational symmetry that affects the count, the number of such sequences\n    # is the same as the number of permutations of n items taken r at a time.\n    from math import perm\n    answer = perm(n, r)\n\n    # Independent route: manually checking the permutation formula\n    check = math.prod(range(n, n - r, -1))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many unique sequences of length {r} can be formed by selecting \"\n        f\"{r} points out of {n} points placed on a circle? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "e98e67b8b602",
+      "parent_id": "5359e567fbbe",
+      "generation": 10,
+      "p_hat": 0.5555555555555556,
+      "h_score": 206.20251592000326,
+      "rq_score": 50.9142014617292,
+      "fitness": 50.9142014617292,
+      "niche_group": 4,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 50.9142014617292
+        },
+        "_behavior_sig_5": "99992707e5c46a79a5e8f6c289da80f7b3bbbd8fdc18aae1e97c2723b428493f",
+        "_template_sig_5": "fde0cfe18ba9d5c11cb95166d1dbf22f0501b3eaa0547b3d12d4dc300f2988d1",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a geometry problem involving angles.\n    angle1 = rng.randint(30, 60)  # First angle of the triangle\n    angle2 = rng.randint(30, 60)  # Second angle of the triangle\n\n    # Calculating the product of the angles.\n    # The product of the angles is angle1 times angle2.\n    answer = angle1 * angle2\n\n    # Independent route: swapping the order of the angles does not change the product.\n    check = angle2 * angle1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the product of angles after reversing their order.\n    problem = (\n        f\"There is a triangle with angles {angle1}° and {angle2}°. \"\n        f\"What is the product of the angles if their order is reversed? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "375f26d73898",
+      "parent_id": "f1ce6301945d",
+      "generation": 11,
+      "p_hat": 0.3333333333333333,
+      "h_score": 139.19009653727213,
+      "rq_score": 30.93113256383825,
+      "fitness": 30.93113256383825,
+      "niche_group": 4,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 30.93113256383825
+        },
+        "_behavior_sig_5": "267a24976c5906cdb2de22250d8fa1a77e3e4ef6b132096130eee91a417749f0",
+        "_template_sig_5": "4bdc362f2cef4fd1adb83d5395b149afdb91d196159421a921c77b1fe1827d58",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

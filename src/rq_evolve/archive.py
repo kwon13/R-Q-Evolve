@@ -520,7 +520,14 @@ class MAPElitesArchive:
         unlabelled = 0
         for champ_dict in payload.get("champions", []):
             program = ProblemProgram.from_dict(champ_dict)
-            cell = self.program_to_cell(program)
+            # _insert_cell, NOT program_to_cell: it is the only thing that reads
+            # self.binning. Under "grid" the two are identical, so this changes
+            # nothing for a grid archive; under "flat" it is the difference
+            # between restoring the archive and collapsing it, because every
+            # champion sharing a (GROUP, SKILL) pair would otherwise land on one
+            # cell and overwrite the others. A flat run that resumed from a
+            # snapshot silently became a partly-grid run.
+            cell = self._insert_cell(program)
             if cell is None:
                 unlabelled += 1
                 continue

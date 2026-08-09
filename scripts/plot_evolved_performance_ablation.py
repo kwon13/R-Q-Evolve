@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,47 @@ DEFAULT_RUNS = {
     "nounc": "rq_evolve_4b_ablate_nounc",
     "novar": "rq_evolve_4b_ablate_novar",
 }
+
+ARM_LABELS = {
+    "full": "R-Q-Evolve (Full 4B)",
+    "flat": "Flat archive (no MAP bins)",
+    "noreeval": "Without reevaluation",
+    "nounc": "Without uncertainty",
+    "novar": "Without variance",
+}
+
+ARM_COLORS = {
+    "full": "#2ca02c",
+    "flat": "#ff7f0e",
+    "noreeval": "#1f77b4",
+    "nounc": "#d62728",
+    "novar": "#9467bd",
+}
+
+# One entry per figure column pair: the line panel's title and draw order, the
+# bar panel's order, and that bar panel's tick labels. "full" is named
+# differently in the two panels because the second contrasts the R_Q factors
+# rather than the runs. A panel whose arms are not all selected is dropped, so
+# the same definition serves the five-arm 4B figure and a partial set such as
+# the three 8B runs.
+PANELS = (
+    (
+        "Ablation: Archive Structure & Reevaluation",
+        ("noreeval", "flat", "full"),
+        ("full", "flat", "noreeval"),
+        {"full": "Full", "flat": "Flat\narchive", "noreeval": "w/o reeval."},
+    ),
+    (
+        "Ablation: R_Q Score Components",
+        ("nounc", "novar", "full"),
+        ("full", "nounc", "novar"),
+        {
+            "full": "Full $R_Q$\n($L \\times U$)",
+            "nounc": "$L$ only\n($U = 1$)",
+            "novar": "$U$ only\n($L = 1$)",
+        },
+    ),
+)
 
 
 def _load_scores(results_dir: Path, max_step: int) -> tuple[str, dict[int, float]]:
@@ -41,20 +83,35 @@ def _load_scores(results_dir: Path, max_step: int) -> tuple[str, dict[int, float
     return next(iter(hashes)), scores
 
 
-def _load_math_benchmark_scores(scores_path: Path, step: int) -> dict[str, float]:
-    """Read the final, post-recheck pass@1 table from a run's scores.md."""
+SECTION_HEADERS = {
+    "final": "## pass@1 (final",
+    "pre-gpt": "## pass@1 (pre-GPT",
+}
 
+
+def _load_math_benchmark_scores(
+    scores_path: Path, step: int, section: str = "final"
+) -> dict[str, float]:
+    """Read one pass@1 table from a run's scores.md.
+
+    ``section`` selects the post-recheck table ("final") or the math_verify-only
+    one ("pre-gpt"). The pre-GPT table is the honest choice whenever the arms
+    being compared did not all get a working GPT-4o re-check — mixing the two
+    moves an arm by ~12 points on its own (see scripts/rerun_gpt_recheck.py).
+    """
+
+    header_prefix = SECTION_HEADERS[section]
     lines = scores_path.read_text(encoding="utf-8").splitlines()
     start = next(
         (
             index
             for index, line in enumerate(lines)
-            if line.startswith("## pass@1 (final")
+            if line.startswith(header_prefix)
         ),
         None,
     )
     if start is None:
-        raise ValueError(f"missing final pass@1 table in {scores_path}")
+        raise ValueError(f"missing {section} pass@1 table in {scores_path}")
     header: list[str] | None = None
     for line in lines[start + 1 :]:
         if line.startswith("## "):
@@ -69,7 +126,12 @@ def _load_math_benchmark_scores(scores_path: Path, step: int) -> dict[str, float
             continue
         if cells and cells[0] == str(step):
             assert header is not None
-            values = {name: float(value) for name, value in zip(header[1:], cells[1:])}
+            # The pre-GPT table annotates its AVG cell with the flip count,
+            # e.g. "43.93 (+693)"; keep only the number.
+            values = {
+                name: float(value.split()[0])
+                for name, value in zip(header[1:], cells[1:])
+            }
             benchmark_values = [value for name, value in values.items() if name != "AVG"]
             computed_average = sum(benchmark_values) / len(benchmark_values)
             if abs(computed_average - values["AVG"]) > 0.02:
@@ -78,7 +140,7 @@ def _load_math_benchmark_scores(scores_path: Path, step: int) -> dict[str, float
                     f"computed={computed_average}"
                 )
             return values
-    raise ValueError(f"step {step} missing from final pass@1 table in {scores_path}")
+    raise ValueError(f"step {step} missing from {section} pass@1 table in {scores_path}")
 
 
 def _write_tables(
@@ -86,14 +148,9 @@ def _write_tables(
     steps: list[int],
     series: dict[str, dict[int, float]],
     benchmark_scores: dict[str, dict[str, float]],
+    labels: dict[str, str],
+    section: str = "final",
 ) -> None:
-    labels = {
-        "full": "R-Q-Evolve (Full 4B)",
-        "flat": "Flat archive (no MAP bins)",
-        "noreeval": "Without reevaluation",
-        "nounc": "Without uncertainty",
-        "novar": "Without variance",
-    }
     csv_path = output_dir / "ablation_scores.csv"
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
@@ -117,13 +174,15 @@ def _write_tables(
     lines.extend(
         [
             "",
-            f"## Difference from Full 4B at step {steps[-1]}",
+            f"## Difference from {labels['full']} at step {steps[-1]}",
             "",
             "| ablation | EPS | delta vs. Full |",
             "|---|---:|---:|",
         ]
     )
-    for key in ("flat", "noreeval", "nounc", "novar"):
+    for key in series:
+        if key == "full":
+            continue
         value = series[key][steps[-1]]
         lines.append(f"| {labels[key]} | {value:.2f}% | {value - full_end:+.2f}%p |")
     benchmark_names = [
@@ -136,6 +195,9 @@ def _write_tables(
             "",
             (
                 "Final pass@1 after the stored R-Zero-aligned GPT-4o re-check. "
+                "AVG is the macro average over the seven benchmark columns."
+                if section == "final"
+                else "pass@1 from math_verify only, before any GPT-4o re-check. "
                 "AVG is the macro average over the seven benchmark columns."
             ),
             "",
@@ -165,10 +227,21 @@ def plot(args: argparse.Namespace) -> None:
     output_dir = args.output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    arms = [key.strip() for key in args.arms.split(",") if key.strip()]
+    unknown = [key for key in arms if key not in DEFAULT_RUNS]
+    if unknown:
+        raise ValueError(f"unknown arm(s) {unknown}; choose from {list(DEFAULT_RUNS)}")
+    if "full" not in arms:
+        raise ValueError("--arms must include 'full' (every delta is measured against it)")
+    labels = dict(ARM_LABELS)
+    if args.full_label:
+        labels["full"] = args.full_label
+
     series: dict[str, dict[int, float]] = {}
     benchmark_scores: dict[str, dict[str, float]] = {}
     hashes: set[str] = set()
-    for key, default_run in DEFAULT_RUNS.items():
+    for key in arms:
+        default_run = DEFAULT_RUNS[key]
         run_name = getattr(args, f"{key}_run") or default_run
         digest, scores = _load_scores(
             run_root / run_name / args.results_name, args.max_step
@@ -176,7 +249,9 @@ def plot(args: argparse.Namespace) -> None:
         hashes.add(digest)
         series[key] = scores
         benchmark_scores[key] = _load_math_benchmark_scores(
-            run_root / run_name / args.benchmark_scores_name, args.max_step
+            run_root / run_name / args.benchmark_scores_name,
+            args.max_step,
+            args.benchmark_scores_section,
         )
     if len(hashes) != 1:
         raise ValueError(f"runs use different benchmark hashes: {sorted(hashes)}")
@@ -194,44 +269,41 @@ def plot(args: argparse.Namespace) -> None:
         raise ValueError(
             f"runs contain different standard benchmark columns: {benchmark_columns}"
         )
-    _write_tables(output_dir, steps, series, benchmark_scores)
+    _write_tables(
+        output_dir,
+        steps,
+        series,
+        benchmark_scores,
+        labels,
+        args.benchmark_scores_section,
+    )
 
-    colors = {
-        "full": "#2ca02c",
-        "flat": "#ff7f0e",
-        "noreeval": "#1f77b4",
-        "nounc": "#d62728",
-        "novar": "#9467bd",
-    }
-    labels = {
-        "full": "R-Q-Evolve (Full 4B)",
-        "flat": "Flat archive (no MAP bins)",
-        "noreeval": "Without reevaluation",
-        "nounc": "Without uncertainty",
-        "novar": "Without variance",
-    }
-    panels = [
-        ("Ablation: Archive Structure & Reevaluation", ["noreeval", "flat", "full"]),
-        ("Ablation: R_Q Score Components", ["nounc", "novar", "full"]),
-    ]
-    bar_panels = [
-        ["full", "flat", "noreeval"],
-        ["full", "nounc", "novar"],
-    ]
+    colors = ARM_COLORS
+    selected = set(arms)
+    active = [entry for entry in PANELS if set(entry[1]) <= selected]
+    if not active:
+        raise ValueError(
+            f"arms {arms} do not fill any panel; each panel needs all of "
+            + " or ".join(str(list(entry[1])) for entry in PANELS)
+        )
+    panels = [(title, list(line_arms)) for title, line_arms, _, _ in active]
+    bar_panels = [list(bar_arms) for _, _, bar_arms, _ in active]
+    bar_labels = [[ticks[key] for key in bar_arms] for _, _, bar_arms, ticks in active]
 
     all_values = [value for values in series.values() for value in values.values()]
     lower = max(0.0, min(all_values) - 1.3)
     upper = min(100.0, max(all_values) + 1.8)
-    fig = plt.figure(figsize=(25, 7.6))
+    fig = plt.figure(figsize=(12.5 * len(active), 7.6))
     grid = fig.add_gridspec(
         1,
-        4,
-        width_ratios=[3.0, 1.25, 3.0, 1.25],
+        2 * len(active),
+        width_ratios=[3.0, 1.25] * len(active),
         wspace=0.30,
     )
-    axes = [fig.add_subplot(grid[0, 0]), fig.add_subplot(grid[0, 2])]
-    axes[1].sharey(axes[0])
-    bar_axes = [fig.add_subplot(grid[0, 1]), fig.add_subplot(grid[0, 3])]
+    axes = [fig.add_subplot(grid[0, 2 * i]) for i in range(len(active))]
+    for ax in axes[1:]:
+        ax.sharey(axes[0])
+    bar_axes = [fig.add_subplot(grid[0, 2 * i + 1]) for i in range(len(active))]
     tail_step = steps[-1] + max(4, (steps[-1] - steps[-2]) // 4)
     for ax, (title, keys) in zip(axes, panels):
         for key in keys:
@@ -269,20 +341,15 @@ def plot(args: argparse.Namespace) -> None:
     axes[0].set_ylabel(
         "Evolved Performance Score (%)", fontsize=15, weight="bold"
     )
-    axes[1].tick_params(axis="y", labelleft=False)
+    for ax in axes[1:]:
+        ax.tick_params(axis="y", labelleft=False)
 
-    bar_labels = [
-        ["Full 4B", "Flat\narchive", "w/o reeval."],
-        [
-            "Full $R_Q$\n($L \\times U$)",
-            "$L$ only\n($U = 1$)",
-            "$U$ only\n($L = 1$)",
-        ],
-    ]
     base_math_average = float(args.base_math_average)
     benchmark_values = [scores["AVG"] for scores in benchmark_scores.values()]
-    benchmark_lower = min(45.0, min([*benchmark_values, base_math_average]) - 1.0)
-    benchmark_upper = max(54.5, max(benchmark_values) + 1.2)
+    # Derived from the data rather than pinned to the 4B scale, so an 8B run
+    # (whose AVG sits near 60) does not render as three bars in a corner.
+    benchmark_lower = min([*benchmark_values, base_math_average]) - 1.0
+    benchmark_upper = max(benchmark_values) + 1.2
     for ax, keys, tick_labels in zip(bar_axes, bar_panels, bar_labels):
         values = [benchmark_scores[key]["AVG"] for key in keys]
         positions = list(range(len(keys)))
@@ -334,7 +401,8 @@ def plot(args: argparse.Namespace) -> None:
         ax.set_xticks(positions, tick_labels)
         ax.set_xlim(-0.55, len(keys) - 0.45)
         ax.set_ylim(benchmark_lower, benchmark_upper)
-        ax.set_yticks([46, 48, 50, 52, 54])
+        first_tick = 2 * math.ceil(benchmark_lower / 2)
+        ax.set_yticks(list(range(first_tick, int(benchmark_upper) + 1, 2)))
         ax.set_ylabel("Average Math Score", fontsize=12, weight="bold")
         ax.set_title(
             f"Benchmark AVG @ Step {steps[-1]}",
@@ -349,7 +417,7 @@ def plot(args: argparse.Namespace) -> None:
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
     fig.suptitle(
-        "R-Q-Evolve 4B Ablation on the Fixed 480-Problem Benchmark",
+        args.suptitle,
         fontsize=23,
         weight="bold",
         y=1.01,
@@ -386,12 +454,38 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--results-name", default="evolved_performance_480_v1")
     parser.add_argument("--benchmark-scores-name", default="scores.md")
     parser.add_argument(
+        "--benchmark-scores-section",
+        choices=sorted(SECTION_HEADERS),
+        default="final",
+        help=(
+            "which scores.md table to read: 'final' (post GPT-4o re-check) or "
+            "'pre-gpt' (math_verify only). Use pre-gpt when the arms did not "
+            "all get a working re-check"
+        ),
+    )
+    parser.add_argument(
         "--base-math-average",
         type=float,
         default=47.45,
         help="base-model seven-benchmark average shown as the dashed baseline",
     )
     parser.add_argument("--max-step", type=int, default=128)
+    parser.add_argument(
+        "--arms",
+        default=",".join(DEFAULT_RUNS),
+        help=(
+            "comma-separated arms to plot (must include 'full'); a panel is "
+            "drawn only when all of its arms are selected"
+        ),
+    )
+    parser.add_argument(
+        "--full-label",
+        help=f"legend label for the 'full' arm (default: {ARM_LABELS['full']!r})",
+    )
+    parser.add_argument(
+        "--suptitle",
+        default="R-Q-Evolve 4B Ablation on the Fixed 480-Problem Benchmark",
+    )
     for key, default_run in DEFAULT_RUNS.items():
         parser.add_argument(
             f"--{key}-run",

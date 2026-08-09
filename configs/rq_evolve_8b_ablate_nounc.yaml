@@ -1,0 +1,321 @@
+# ABLATION ARM (8B). Identical to rq_evolve_base.yaml except for the flag below,
+# the step count, and the output identity.
+#
+# R_Q = s(1-s) * H. The flag drops one factor from the priority that ranks
+# champions for mutation and for training-data selection. The stored rq_score
+# stays the true product, so a problem the policy solves outright (p_hat = 1)
+# scores 0 and is evicted in EVERY arm -- that rule is shared, so it cannot by
+# itself explain a difference between arms.
+#
+# 128 steps, not 256: the full-R_Q 8B run is flat from step 128 onward
+# (AVG 61.00 +/- 0.47 over steps 128-256), so the extra half buys no signal.
+# Its own global_step_128 is the control to compare against.
+# verl override (RL settings) is embedded inline below under `verl_config:`;
+# experiment_name/dir are set by the run script via RQ_EXP_NAME / RQ_LOCAL_DIR.
+
+archive:
+  epsilon: 0.3
+  ucb_c: 1.0
+  selection_strategy: random
+
+evolution:
+  seed_programs_dir: seed_programs
+  inner_iterations: 32
+  inner_iteration_batch_size: 32
+  num_rollouts: 10
+  # Ablation: drop the H term ONLY from the selection/mutation priority -- rank
+  # mutation parents and training-data drain by s(1-s) instead of s(1-s)*H. The
+  # grid is GROUP x SKILL either way and each champion's real R_Q is still
+  # logged; only the driving signal ignores H. false = production.
+  # ABLATION: H := 1 -- champions ranked by s(1-s) alone
+  select_ignores_uncertainty: true
+  # Mirror ablation: drop the s(1-s) pass-rate-variance term from the
+  # selection/mutation priority instead -- rank by H alone (s(1-s)*H -> H). The
+  # grid still logs real R_Q/H. MUTUALLY EXCLUSIVE with select_ignores_uncertainty
+  # (both true -> constant priority, no signal -> rejected at startup). To run
+  # this ablation set select_ignores_uncertainty: false and this: true (and give
+  # the run its own RQ_EXP_NAME / RQ_LOCAL_DIR so it doesn't share the none_h dir).
+  select_ignores_variance: false
+  # in_breadth is NOT a knob: it is the remainder = 1 - in_depth_ratio.
+  in_depth_ratio: 0.5        # -> in_breadth = 1 - 0.5 = 0.5  (50/50 depth/breadth)
+  verify_seeds: 5
+  frontier_p_hat_range: [0.0, 1.0]
+  # One multi-turn self-fix per rejected child: the model is shown its own
+  # program plus the exact rejection reason and asked to repair only that.
+  # Worth its extra generation because 38% of candidates now die on their own
+  # AssertionError -- a signal the model can act on, unlike a lint refusal.
+  # Requires the assert to carry both values; "AssertionError" with no message
+  # tells the model its cross-check failed but not which route was wrong.
+  fix_retry: true
+  # ON. The run with this off produced an archive where 20 of 26 champions had
+  # a visible defect -- "prove that X ... State only the integer", an answer
+  # printed in its own statement, an unsubstituted {m} -- and where the DEFECTIVE
+  # ones scored higher, because an incoherent problem makes the solver ramble
+  # and H is the entropy it spends. Program checks (lint, execution, assert)
+  # only ask whether the code agrees with itself; this is the only gate that
+  # asks whether the statement determines the answer.
+  # OFF for this run, replaced by ast_contract below. What the evaluator
+  # uniquely provided -- answer correctness, statement well-posedness, and
+  # skill_required -- is NOT recovered by a structural checker; only P2 (a
+  # statement that names its own technique) buys back a slice of the last one.
+  # Set back to true to restore the gate; every evaluator_* key below is left
+  # in place for exactly that.
+  use_evaluator: false
+  # Structural contract on the child's own cross-check. Runs before execution,
+  # so a rejection here also saves 5 sandbox runs, an evaluator call and 4
+  # solver rollouts. Measured on 456 archived champions: 45% flagged, and 0 of
+  # the 14 clean programs (6 seeds + 8 verified fixtures).
+  ast_contract: enforce
+  evaluator_provider: policy # policy = current rollout model; openai = OpenAI API
+  # Stage-specific sampling: solver rollouts keep the verl rollout temperature
+  # below; the evaluator stays deterministic.
+  # code_temperature is NOT 0. The mutation prompt is a pure function of
+  # (operator, parent), and sample_parent draws 32 times with replacement from
+  # an archive that held 10-16 champions, so greedy decoding makes 36-49% of a
+  # batch byte-identical to something already in it -- and identical children
+  # are then rejected as duplicate_behavior, so those slots yield nothing.
+  # Lowered 0.7 -> 0.4: label-contract and vocabulary violations, the only
+  # failures sampling noise explains, were 75 of 3360 candidates (2.2%), while
+  # 33% were a syntactically valid SKILL the evaluator judged untrue -- which
+  # temperature does not touch. 0.4 tightens instruction-following without
+  # collapsing the batch.
+  code_temperature: 0.4
+  code_top_p: 0.95
+  evaluator_temperature: 0.0
+  evaluator_top_p: 1.0
+  # evaluator_model: gpt-5.4-mini
+  # evaluator_reasoning_effort: low
+  # evaluator_timeout_s: 30
+  # evaluator_max_output_tokens: 4096
+  # evaluator_concurrency: 8
+
+training_data:
+  instances_per_program: 8
+  training_budget: null
+  strict_anti_reuse: true
+  # ABLATION: invert training-data priority. false (default) drains the
+  # HIGHEST-R_Q frontier champions into the batch first; true drains the
+  # LOWEST-R_Q first (the budget then binds on the least uncertain problems).
+  select_lowest_rq_first: false
+  # ABLATION: drop R_Q ordering entirely and drain frontier champions in a
+  # RANDOM (seeded) order. Takes precedence over select_lowest_rq_first. Give the
+  # run its own RQ_EXP_NAME / RQ_LOCAL_DIR so it doesn't share another ablation's
+  # archive. select_random_seed varies the shuffle (+ refresh count per iter).
+  select_random_order: False
+  select_random_seed: 0
+  # Expansion-study fixed-data mode. Leave null for normal online evolution.
+  # For paired training, copy this config twice, set a condition-specific JSONL
+  # and output directory, run --audit-static-data, then pin its reported counts.
+  static_training_jsonl: null
+  static_condition: null  # plain | reasoning
+  static_expected_rows: null
+  static_expected_tokens: null
+  static_epochs: 1
+
+verl:
+  enabled: true
+  # config_path is optional: if `verl_config` (below) is present it takes
+  # precedence and the standalone yaml is unnecessary.
+  config_path: null
+  reward_function: ./src/rq_evolve/reward.py:compute_score
+  evolve_on_first_epoch: false
+
+math_eval:
+  enabled: true
+  benchmarks: [math500, amc23, aime24, aime25, minerva_math, olympiadbench]
+  max_samples_per_benchmark: -1
+  sample_seed: 42
+  inflate_x32: false
+  grader: sympy
+
+# Streaming evolve-phase rollout (producer-consumer). streaming_enabled: false
+# restores the legacy whole-batch path bit-for-bit. chunk_size=1 means one
+# problem's num_rollouts generations per chunk: its verification/filtering/JSONL
+# run the moment its own rollouts finish, never blocked behind another chunk's
+# long generations. See docs/async_pipeline.md.
+async_rollout:
+  streaming_enabled: true
+  chunk_size: 1
+  max_in_flight_chunks: 8
+  request_timeout_s: 900
+  max_retries: 1
+  verify_workers: 4
+  queue_maxsize: 32
+  # strict = every sample must be from the current policy_version;
+  # bounded = lag <= max_policy_lag allowed. Evolve-phase weights are static
+  # (lag 0 by construction) -- this is the invariant gate for future overlap.
+  staleness_mode: bounded
+  max_policy_lag: 1
+  log_samples: true
+  entropy_mode: deferred
+
+# LoRA stays OFF for the base full-finetune experiment series (lr 1e-6 is tuned
+# for full FT). Enabled in configs/rq_evolve_smoke_lora.yaml and the DeepSeek
+# template. When enabled, defaults are rank 32 / alpha 64; run
+# scripts/preflight_check.py first (target-module match + vLLM LoRA support).
+lora:
+  enabled: false
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  sync_mode: auto
+
+# ----------------------------------------------------------------------------
+# verl override (was configs/verl_grpo_h_g8_fix.yaml). All edits to RL/rollout
+# settings live here.
+# ----------------------------------------------------------------------------
+verl_config:
+  data:
+    max_prompt_length: 6000
+    max_response_length: 5000
+    train_batch_size: 32
+    val_batch_size: 60000
+    shuffle: true
+    truncation: left
+    dataloader_num_workers: 0
+    filter_overlong_prompts: false
+    trust_remote_code: true
+
+  actor_rollout_ref:
+    model:
+      # EasyR1 worker.actor.model.model_path: Qwen/Qwen3-8B-Base
+      path: /data1/yhoon113/qwen3-8b-base
+      trust_remote_code: true
+      # 97GB GPU OOM 회피(bf16 logits ~22GB/micro-batch); 근거: docs/RUNTIME_NOTES.md#remove-padding
+      use_remove_padding: true
+      enable_gradient_checkpointing: true
+
+    actor:
+      strategy: fsdp
+      ppo_mini_batch_size: 32
+      ppo_micro_batch_size: null
+      ppo_micro_batch_size_per_gpu: 2
+      use_dynamic_bsz: false
+      # EasyR1 algorithm.use_kl_loss + kl_penalty + kl_coef
+      use_kl_loss: true
+      kl_loss_coef: 1.0e-3
+      kl_loss_type: low_var_kl
+      use_torch_compile: false
+      fsdp_config:
+        param_offload: false
+        optimizer_offload: false
+      optim:
+        lr: 1.0e-6
+        weight_decay: 1.0e-2
+        lr_warmup_steps_ratio: 0.0
+        # EasyR1 trainer.max_steps: 256 (LR schedule horizon)
+        total_training_steps: 128
+
+    ref:
+      log_prob_micro_batch_size: null
+      # full-vocab logits transient 축소로 evolve-phase OOM 회피; 근거: docs/RUNTIME_NOTES.md#ref-logprob
+      log_prob_micro_batch_size_per_gpu: 2
+      fsdp_config:
+        # Offload ref weights to CPU when not used; ref is forward-only and
+        # only needed for the per-step KL term.
+        param_offload: true
+
+    rollout:
+      name: vllm
+      # verl 0.7.x: rollout.mode='sync' was removed; only 'async' is accepted.
+      # AsyncActorRolloutRefWorker only overrides update_weights with
+      # blocking=False; generate_sequences/compute_log_prob fall through to
+      # the parent ActorRolloutRefWorker. Our backend routes generation
+      # through trainer.async_rollout_manager (AgentLoopManager) — never via
+      # actor_rollout_wg.generate_sequences — so the old "event loop already
+      # running" failure mode doesn't apply.
+      mode: async
+      # EasyR1 worker.rollout.temperature / top_p
+      temperature: 1.0
+      top_p: 0.95
+      # EasyR1 worker.rollout.n: 8  (GRPO group size, the "g8")
+      n: 8
+      # EasyR1 worker.rollout.tensor_parallel_size: 1
+      tensor_model_parallel_size: 1
+      # embed_tokens ~2374MB > verl 기본 2048MB 버킷; 근거: docs/RUNTIME_NOTES.md#weight-bucket
+      checkpoint_engine:
+        update_weights_bucket_megabytes: 4096
+      # resident vLLM + FSDP actor 공존 예산(0.45*97≈43GB); 근거: docs/RUNTIME_NOTES.md#gpu-memory
+      gpu_memory_utilization: 0.45
+      max_model_len: 12000
+      max_num_batched_tokens: 12000
+      dtype: bfloat16
+      enable_chunked_prefill: true
+      enforce_eager: false
+      # vLLM sleep/wake 비활성화 (cumem allocator crash 회피); 근거: docs/RUNTIME_NOTES.md#sleep-wake
+      free_cache_engine: false
+      enable_sleep_mode: false
+      log_prob_micro_batch_size: null
+      # evolve entropy 경로가 읽는 rollout knob; OOM 회피용 축소; 근거: docs/RUNTIME_NOTES.md#rollout-logprob
+      log_prob_micro_batch_size_per_gpu: 2
+
+  critic:
+    # GRPO (adv_estimator=grpo) does not train a critic; verl skips the critic
+    # worker. These are placeholders only so the config validates.
+    ppo_mini_batch_size: 32
+    ppo_micro_batch_size: null
+    ppo_micro_batch_size_per_gpu: 4
+
+  reward_model:
+    enable: false
+    reward_manager: naive
+
+  reward:
+    # verl_adapter._patch_reward_config() overrides path/name from
+    # rq_evolve config (verl.reward_function), so this is just the default.
+    custom_reward_function:
+      path: ./src/rq_evolve/reward.py
+      name: compute_score
+    reward_manager:
+      source: register
+      name: naive
+    reward_model:
+      enable: false
+
+  algorithm:
+    adv_estimator: grpo
+    # EasyR1 used actor-side KL loss (use_kl_loss above), not reward-side KL.
+    use_kl_in_reward: false
+    kl_penalty: low_var_kl
+    norm_adv_by_std_in_grpo: true
+
+  trainer:
+    # EasyR1 trainer.total_outer_iterations: 100
+    # Each verl epoch == one RQ outer iteration (EvolvingSampler evolves at the
+    # start of every epoch).
+    total_epochs: 10000
+    # EasyR1 trainer.max_steps: 256 (hard cap on optimizer steps)
+    total_training_steps: 128
+    project_name: rq_evolve
+    # Overridable per ablation via RQ_EXP_NAME (default = base run name).
+    experiment_name: qwen3_8b_ablate_nounc
+    logger:
+      - console
+      - wandb
+    nnodes: 1
+    n_gpus_per_node: 8
+    # Skip the pre-step-0 validation pass — the full benchmark set is ~1.5k
+    # prompts and takes ~10-15 minutes; periodic eval at test_freq still runs.
+    val_before_train: false
+    # 4 evals across total_training_steps=256. The full benchmark set is
+    # thousands of prompts per eval (AMC/AIME ×32 inflation is off), so each
+    # one costs more than the training steps between them -- halving test_freq
+    # to 32 doubles that bill. save_freq stays 32: checkpoints are cheap and
+    # 8 of them give finer resume granularity than 4.
+    test_freq: 32
+    save_freq: 32
+    # Overridable per ablation via RQ_LOCAL_DIR (also separates the rq_archive/
+    # checkpoint dir so ablations never share an archive).
+    default_local_dir: ./rq_output/rq_evolve_8b_ablate_nounc
+    device: cuda
+    # Resume: weights resume from the latest global_step_* via verl's `auto`
+    # (reads latest_checkpointed_iteration.txt). The RQ MAP-Elites archive lives
+    # outside the verl checkpoint but is ALWAYS restored independently at startup
+    # via evolver.load_state(archive_dir) from rq_archive/archive.json (+
+    # rq_used_seeds.json), so weights and archive resume consistently. Set to
+    # `disable` for a fresh run from the base model.
+    resume_mode: auto
+
+  ray_init:
+    num_cpus: null

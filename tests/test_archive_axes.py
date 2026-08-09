@@ -226,6 +226,49 @@ def test_flat_binning_fills_every_slot_before_any_competition():
         assert len(archive.champions()) == expected, binning
 
 
+def test_flat_binning_survives_a_snapshot_round_trip():
+    """A resume must not quietly turn the flat arm back into a grid arm.
+
+    ``load_payload`` used to place restored champions with ``program_to_cell``,
+    which ignores ``binning`` -- so every champion sharing a (GROUP, SKILL) pair
+    landed on one cell and all but the strongest were dropped. The run kept
+    going and reported the pre-collapse count, so the only symptom was an
+    ablation arm that had stopped ablating.
+    """
+    from rq_evolve.archive import MAPElitesArchive
+
+    # Distinct wording, not distinct numbers: the archive dedupes on the
+    # numeric-free skeleton, so "t1".."t5" would collapse into one program.
+    tags = ("alpha", "beta", "gamma", "delta", "epsilon")
+
+    archive = MAPElitesArchive(binning="flat")
+    for value, tag in enumerate(tags, start=1):
+        archive.try_insert(
+            program=_program("algebra", "counting", value=value, tag=tag),
+            h_value=1.0,
+            problem_text=f"p{value}",
+            rq_score=float(value),
+        )
+    assert len(archive.champions()) == 5
+
+    restored = MAPElitesArchive(binning="flat")
+    placed = restored.load_payload(archive.to_payload())
+    assert placed == 5
+    assert len(restored.champions()) == 5
+    # ...and the grid arm is unchanged by the same round trip.
+    grid = MAPElitesArchive(binning="grid")
+    for value, tag in enumerate(tags, start=1):
+        grid.try_insert(
+            program=_program("algebra", "counting", value=value, tag=tag),
+            h_value=1.0,
+            problem_text=f"p{value}",
+            rq_score=float(value),
+        )
+    regrid = MAPElitesArchive(binning="grid")
+    regrid.load_payload(grid.to_payload())
+    assert len(regrid.champions()) == len(grid.champions()) == 1
+
+
 def test_flat_binning_still_refuses_an_unlabelled_program():
     """Dropping the grid must not also relax the label contract -- the arm has
     to isolate one change, not two."""

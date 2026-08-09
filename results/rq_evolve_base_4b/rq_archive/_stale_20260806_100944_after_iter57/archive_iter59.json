@@ -1,0 +1,737 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 21,
+      "total_niches": 48,
+      "coverage": 0.4375,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 0.75,
+      "mean_rq": 27.12161742977658,
+      "max_rq": 57.730215985752096,
+      "total_insertions": 1014,
+      "total_replacements": 79,
+      "total_selections": 1888
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"induction\"\n\n\ndef find_max_prime_factors(target, min_prime_factors, max_prime_factors):\n    if target == 0:\n        return 0\n    \n    if target < min_prime_factors:\n        return -1\n    \n    max_count = 0\n    \n    for prime_factors in range(min_prime_factors, max_prime_factors + 1):\n        if prime_factors <= target:\n            remaining_target = target - prime_factors\n            count = find_max_prime_factors(remaining_target, min_prime_factors, prime_factors - 1)\n            \n            if count != -1:\n                max_count = max(max_count, count + 1)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_prime_factors = rng.randint(2, 10)\n    max_prime_factors = rng.randint(15, 25)\n    target_value = rng.randint(20, 50)\n    \n    answer = find_max_prime_factors(target_value, min_prime_factors, max_prime_factors)\n\n    check = -1\n    for prime_factors in range(min_prime_factors, max_prime_factors + 1):\n        if prime_factors <= target_value:\n            remaining_target = target_value - prime_factors\n            count = find_max_prime_factors(remaining_target, min_prime_factors, prime_factors - 1)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a sequence of integers where the sum of any subset of prime factors ranges from {min_prime_factors} to {max_prime_factors} (inclusive). \"\n        f\"What is the maximum number of distinct prime factors that can be selected such that no subset sum exceeds the target prime factors {target_value} and all subset sums sum to exactly {target_value}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "565b033f8382",
+      "parent_id": "d49e5a25db8f",
+      "generation": 19,
+      "p_hat": 0.42857142857142855,
+      "h_score": 103.70959581647601,
+      "rq_score": 25.398268363218612,
+      "fitness": 25.398268363218612,
+      "niche_group": 0,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 25.398268363218612
+        },
+        "_behavior_sig_5": "4769f063bed9c751d74123f457d7b12fddc6e4b274d6e75d7b49ae1d06ba9a3a",
+        "_template_sig_5": "b169e1f4e10a6040970f36925896929e28c6e0d65fc858587e289adf7834c9cb",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"number_theory\"\nSKILL = \"contradiction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Count the number of primes in the range\n    answer = sum(1 for num in numbers if sympy.isprime(num))\n\n    # Independent route: Verify the count by explicitly checking each number for primality.\n    check = 0\n    for num in numbers:\n        if sympy.isprime(num):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the integers from 1 to {n}. Prove that the number of prime numbers k \"\n        f\"in this range is exactly {answer}. Hint: Assume the opposite and show a contradiction.\\n\"\n        f\"The problem asks for the count of prime numbers in the range from 1 to {n}.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "6929c16df1cf",
+      "parent_id": "bd4929fe732d",
+      "generation": 9,
+      "p_hat": 0.7,
+      "h_score": 120.52431926727294,
+      "rq_score": 25.31010704612732,
+      "fitness": 25.31010704612732,
+      "niche_group": 0,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 25.31010704612732
+        },
+        "_behavior_sig_5": "bc2283b2a49814f593143022efc938bf4c7b8bea4a2d46b5c2873b8c9e57f057",
+        "_template_sig_5": "28af4e46b34ae78a08d4da63e21c0aa38a5230cee3028775fb24a7070f6cf882",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Define a function to check if a number is prime using the invariant property\n    def is_prime(num):\n        if num < 2:\n            return False\n        for i in range(2, int(num**0.5) + 1):\n            if num % i == 0:\n                return False\n        return True\n\n    # Count the number of primes in the range using the invariant property\n    answer = sum(1 for num in range(1, n + 1) if is_prime(num))\n\n    # Independent route: Verify the count by explicitly checking each number for primality.\n    check = 0\n    for num in range(1, n + 1):\n        if is_prime(num):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many prime numbers k with 1 <= k <= {n} are there? State only the integer.\\n\"\n        f\"The problem asks for the count of prime numbers in the range from 1 to {n}.\\n\"\n        f\"Numbers in the range are: {list(range(1, n + 1))}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "1e47aa699b1e",
+      "parent_id": "bd4929fe732d",
+      "generation": 9,
+      "p_hat": 0.2222222222222222,
+      "h_score": 281.18411593967016,
+      "rq_score": 48.59972374265904,
+      "fitness": 48.59972374265904,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 48.59972374265904
+        },
+        "_behavior_sig_5": "1e16c58cee1992e0ee06f4547a93b366aba20f2363b6e2c06fc223db2c0430b1",
+        "_template_sig_5": "ad52bbaded9ba3414f5c64d3fb488ed14e49f55e7d50cb8d149bbbbd87cb0d3e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Generate a random range of integers\n    numbers = list(range(1, n + 1))\n\n    # Count the number of primes in the range\n    answer = sum(1 for num in numbers if sympy.isprime(num))\n\n    # Independent route: Verify the count by explicitly checking each number for primality.\n    check = 0\n    for num in numbers:\n        if sympy.isprime(num):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the integers from 1 to {n}. Count how many prime numbers k are in this range. \"\n        f\"The problem asks for the number of prime numbers in the range from 1 to {n}.\\n\"\n        f\"Numbers in the range are: {numbers}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "e441d1b9d1f4",
+      "parent_id": "6929c16df1cf",
+      "generation": 10,
+      "p_hat": 0.6,
+      "h_score": 98.3936071395874,
+      "rq_score": 23.614465713500977,
+      "fitness": 23.614465713500977,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 23.614465713500977
+        },
+        "_behavior_sig_5": "cfe8282d3622885f5eeeefe2593ed022793aa7c37bb239d989d91bf8117a84ef",
+        "_template_sig_5": "57f57aece97f8958ded547baf705c339fc08572b91413245e3a3b16165f84e7e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Choose three distinct primes to define the sides\n    primes = rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23], 3)\n    p, q, r = primes\n\n    # Calculate the number of integers not divisible by p, q, or r using the principle of inclusion-exclusion\n    divisible_by_p = n // p\n    divisible_by_q = n // q\n    divisible_by_r = n // r\n    divisible_by_pq = n // (p * q)\n    divisible_by_pr = n // (p * r)\n    divisible_by_qr = n // (q * r)\n    divisible_by_pqr = n // (p * q * r)\n\n    # Number of integers not divisible by p, q, or r\n    answer = n - (divisible_by_p + divisible_by_q + divisible_by_r \n                  - divisible_by_pq - divisible_by_pr - divisible_by_qr \n                  + divisible_by_pqr)\n\n    # Independent route: Use a combinatorial transformation to verify the answer.\n    # Map each set of integers based on their divisibility to a simpler combinatorial problem.\n    # For example, calculate the number of ways to select subsets from a set of size n\n    # that exclude certain elements based on divisibility.\n    check = 0\n    for k in range(1, n + 1):\n        # Check if k is divisible by p, q, or r\n        if k % p == 0 or k % q == 0 or k % r == 0:\n            continue\n        check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are not divisible by {p}, {q}, or {r}? State only the integer.\\n\"\n        f\"The problem asks for the count of integers that are not divisible by {p}, {q}, or {r}.\\n\"\n        f\"The number of integers divisible by {p} is {divisible_by_p}.\\n\"\n        f\"The number of integers divisible by {q} is {divisible_by_q}.\\n\"\n        f\"The number of integers divisible by {r} is {divisible_by_r}.\\n\"\n        f\"The number of integers divisible by both {p} and {q} is {divisible_by_pq}.\\n\"\n        f\"The number of integers divisible by both {p} and {r} is {divisible_by_pr}.\\n\"\n        f\"The number of integers divisible by both {q} and {r} is {divisible_by_qr}.\\n\"\n        f\"The number of integers divisible by {p}, {q}, and {r} is {divisible_by_pqr}.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "217ea7ea6936",
+      "parent_id": "135c32a15ba4",
+      "generation": 7,
+      "p_hat": 0.5,
+      "h_score": 142.95578174591066,
+      "rq_score": 35.738945436477664,
+      "fitness": 35.738945436477664,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 35.738945436477664
+        },
+        "_behavior_sig_5": "1910fdbb7cb48e5685767f34473b4b7155de21121d60bdd78deaedaef68e04b1",
+        "_template_sig_5": "ef3472e6679ff0294e3cd4e829a37016d5a46c6784212758046627db3394f11e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"construction\"\n\n\ndef count_combinations(target, min_digit):\n    total_ways = 0\n\n    for combination in range(min_digit, target + 1):\n        if combination <= target:\n            ways = calculate_ways(combination, target)\n            total_ways += ways\n\n    return total_ways\n\ndef calculate_ways(combination, target):\n    if combination == 0 and target == 0:\n        return 1\n    if combination == 0 or target < 0:\n        return 0\n    return calculate_ways(combination - 1, target - combination) + calculate_ways(combination, target - (combination + 1))\n\ndef find_threshold(min_digit, max_digit):\n    for threshold_count in range(min_digit, max_digit + 1):\n        if count_combinations(threshold_count, min_digit) > 0:\n            return threshold_count\n    return max_digit\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_digit = rng.randint(1, 5)\n    max_digit = rng.randint(10, 20)\n\n    threshold_count = find_threshold(min_digit, max_digit)\n\n    check_threshold_count = min_digit\n    while check_threshold_count <= max_digit:\n        if count_combinations(check_threshold_count, min_digit) == 0:\n            check_threshold_count += 1\n        else:\n            break\n\n    assert threshold_count == check_threshold_count, f\"threshold_count={threshold_count} check_threshold_count={check_threshold_count}\"\n\n    problem = (\n        f\"Find the smallest number of digits from {min_digit} to {max_digit} (inclusive) such that there exists a subset of {threshold_count} digits from this range where each digit in the subset is between {min_digit} and {threshold_count} (inclusive), and the sum of these digits equals {threshold_count}. State only the integer.\"\n    )\n    return problem, str(threshold_count)",
+      "program_id": "fe7f26bda5de",
+      "parent_id": "13657c682d2b",
+      "generation": 14,
+      "p_hat": 0.875,
+      "h_score": 94.4509220123291,
+      "rq_score": 10.330569595098495,
+      "fitness": 10.330569595098495,
+      "niche_group": 0,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "construction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 10.330569595098495
+        },
+        "_behavior_sig_5": "8b3e08654da743168bcc706da318235720c2237bc5b0512d22182cab0a1b5368",
+        "_template_sig_5": "5991095912e02f56dc4523e7bedc1dfcab5d21c19d1da14209939fb82baf6cc8",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"induction\"\n\n\ndef find_max_selection(target, min_selection_sum, max_selection_sum):\n    if target == 0:\n        return 0\n    \n    if target < min_selection_sum:\n        return -1\n    \n    max_count = 0\n    \n    for selection_sum in range(min_selection_sum, max_selection_sum + 1):\n        if selection_sum <= target:\n            remaining_target = target - selection_sum\n            count = find_max_selection(remaining_target, min_selection_sum, selection_sum - 1)\n            \n            if count != -1:\n                max_count = max(max_count, count + 1)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_selection_sum = rng.randint(5, 15)\n    max_selection_sum = rng.randint(25, 40)\n    target_value = rng.randint(20, 50)\n    \n    answer = find_max_selection(target_value, min_selection_sum, max_selection_sum)\n\n    check = -1\n    for selection_sum in range(min_selection_sum, max_selection_sum + 1):\n        if selection_sum <= target_value:\n            remaining_target = target_value - selection_sum\n            count = find_max_selection(remaining_target, min_selection_sum, selection_sum - 1)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the subsets of a set of integers, where the sum of any subset of elements ranges from {min_selection_sum} to {max_selection_sum} (inclusive). \"\n        f\"What is the maximum number of distinct subsets that can be selected such that no subset sum exceeds the target sum {target_value} and all subset sums sum to exactly {target_value}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "102bc26b0aae",
+      "parent_id": "c4c9972dff87",
+      "generation": 17,
+      "p_hat": 0.8,
+      "h_score": 152.83738861083984,
+      "rq_score": 24.45398217773437,
+      "fitness": 24.45398217773437,
+      "niche_group": 1,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 24.45398217773437
+        },
+        "_behavior_sig_5": "8dbb3f3cc35b1401d56bdc4c9372979df38ac783a8828454e76b054aa108c8ee",
+        "_template_sig_5": "7ab1f07dc9d1179673fff9a9faa4192a78c4ca446a31e826fd22740b732ca2a2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"contradiction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    sides = rng.randint(3, 10)\n    angles = [rng.randint(1, 180) for _ in range(sides)]\n\n    # Find the number of acute angles in the polygon\n    answer = sum(1 for angle in angles if angle < 90)\n\n    # Independent route: Verify the count by explicitly checking each angle.\n    check = 0\n    for angle in angles:\n        if angle < 90:\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a polygon with {sides} sides and angles {angles}. \"\n        f\"Prove that the number of acute angles k in this polygon is exactly {answer}. \"\n        f\"Hint: Assume the opposite and show a contradiction.\\n\"\n        f\"The problem asks for the count of acute angles in the polygon.\\n\"\n        f\"The angles in the polygon are: {angles}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "6cba9fa2b2c2",
+      "parent_id": "6929c16df1cf",
+      "generation": 10,
+      "p_hat": 0.7777777777777778,
+      "h_score": 334.01053534613715,
+      "rq_score": 57.730215985752096,
+      "fitness": 57.730215985752096,
+      "niche_group": 1,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 57.730215985752096
+        },
+        "_behavior_sig_5": "e8175d9ea86c5ae942e21d8ac0fbeca52df601352c7b3128040f0028ee093517",
+        "_template_sig_5": "8ca78bca4027d3eb998d31450b4734412f65db574459cd91950a885abe6dc108",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)\n\n    # Define the number of subsets and their intersections based on the given parameters.\n    subsets = [rng.randint(1, n) for _ in range(3)]\n    intersection1 = rng.randint(0, min(subsets[0], subsets[1]))\n    intersection2 = rng.randint(0, min(subsets[0], subsets[2]))\n    intersection3 = rng.randint(0, min(subsets[1], subsets[2]))\n    intersection_all = rng.randint(0, min(intersection1, intersection2, intersection3))\n\n    # Calculate the total number of elements in the union of the subsets using the principle of inclusion-exclusion.\n    total = (subsets[0] + subsets[1] + subsets[2] \n             - intersection1 - intersection2 - intersection3 \n             + intersection_all)\n\n    # The number of elements not in any subset is the number of subsets minus the total.\n    answer = n - total\n\n    # Independent route: Use the principle of inclusion-exclusion in reverse to calculate the number of elements not in any subset.\n    check = (n - subsets[0] - subsets[1] - subsets[2] \n             + intersection1 + intersection2 + intersection3 \n             - intersection_all)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many elements are not in any of the sets A, B, and C? State only the integer.\\n\"\n        f\"Set A has {subsets[0]} elements.\\n\"\n        f\"Set B has {subsets[1]} elements.\\n\"\n        f\"Set C has {subsets[2]} elements.\\n\"\n        f\"Intersection of A and B has {intersection1} elements.\\n\"\n        f\"Intersection of A and C has {intersection2} elements.\\n\"\n        f\"Intersection of B and C has {intersection3} elements.\\n\"\n        f\"Intersection of A, B, and C has {intersection_all} elements.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "dd323db4f10a",
+      "parent_id": "0f795064f18f",
+      "generation": 5,
+      "p_hat": 0.7142857142857143,
+      "h_score": 81.97556904384068,
+      "rq_score": 16.72970796813075,
+      "fitness": 16.72970796813075,
+      "niche_group": 1,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 16.72970796813075
+        },
+        "_behavior_sig_5": "30ec330ab689c9275e69c0985ec4586f89aa179daba180ee12cc15c80db4d363",
+        "_template_sig_5": "5c580d2d94431cb1bc60005d2c49524c59d3c2d16ef5a495130f5c515879ebf9",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1, 15)\n    k = rng.randint(1, n)\n\n    # Calculate the number of ways to choose k elements from n elements without replacement\n    answer = math.comb(n, k)\n\n    # Independent route: use the complement to verify the answer\n    total_ways = 2 ** n\n    complement_ways = total_ways - answer\n    check = total_ways - complement_ways\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many ways are there to choose {k} elements from a set of {n} elements without replacement? State only the integer.\\n\"\n        f\"The problem asks for the number of ways to choose exactly {k} elements from a set of {n} distinct elements.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "fabd86e06463",
+      "parent_id": "9ac49f2925f9",
+      "generation": 10,
+      "p_hat": 0.7777777777777778,
+      "h_score": 167.0297622680664,
+      "rq_score": 28.869341626579377,
+      "fitness": 28.869341626579377,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 28.869341626579377
+        },
+        "_behavior_sig_5": "7ddedbe6ee788c14b6be13375d890578fa124afc7d2061071837dbf06fa38553",
+        "_template_sig_5": "030132fa268299c288ee27e7a1fd493563c146f70366a6be58ed2ea192fe1053",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"construction\"\n\ndef count_subsets(n, k):\n    subsets = [0] * (k + 1)\n    subsets[0] = 1\n\n    for i in range(1, n + 1):\n        for j in range(min(i, k), 0, -1):\n            subsets[j] += subsets[j - 1]\n\n    return subsets[k]\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    n = rng.randint(5, 15)\n    k = rng.randint(2, n - 1)\n\n    # Find the threshold k for which the subset can be formed\n    for i in range(2, k + 1):\n        if count_subsets(n, i) > 0:\n            threshold_k = i\n            break\n\n    # Independent route: Iterate from the minimum k to find the smallest k that can form a valid subset.\n    check_k = 2\n    while True:\n        if count_subsets(n, check_k) > 0:\n            break\n        check_k += 1\n\n    assert threshold_k == check_k, f\"threshold_k={threshold_k} check_k={check_k}\"\n\n    problem = (\n        f\"Determine the smallest size of subsets to be chosen from a set of {n} elements such that a subset of {threshold_k} elements can be formed where each element is unique and all elements sum to exactly {threshold_k}. State only the integer.\"\n    )\n    return problem, str(threshold_k)",
+      "program_id": "50dc65bc6ca3",
+      "parent_id": "3daea9cac101",
+      "generation": 15,
+      "p_hat": 0.8,
+      "h_score": 142.3528247833252,
+      "rq_score": 22.776451965332026,
+      "fitness": 22.776451965332026,
+      "niche_group": 1,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "construction",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 22.776451965332026
+        },
+        "_behavior_sig_5": "b2994968d20e49cbd0e4dfc33750cebf57b3becbaa78fe867576e1f99bb39fd0",
+        "_template_sig_5": "7dc9a4603f35f15e494814cd3c11a6e2581052ab9cdac6f0ae7f47b4f7ed92e5",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n\n\ndef find_max_divisors(target, min_divisor_sum, max_divisor_sum):\n    if target == 0:\n        return 0\n    \n    if target < min_divisor_sum:\n        return -1\n    \n    max_count = 0\n    \n    for divisor_sum in range(min_divisor_sum, max_divisor_sum + 1):\n        if divisor_sum <= target:\n            remaining_target = target - divisor_sum\n            count = find_max_divisors(remaining_target, min_divisor_sum, divisor_sum - 1)\n            \n            if count != -1:\n                max_count = max(max_count, count + 1)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_divisor_sum = rng.randint(5, 20)\n    max_divisor_sum = rng.randint(30, 50)\n    target_value = rng.randint(30, 60)\n    \n    answer = find_max_divisors(target_value, min_divisor_sum, max_divisor_sum)\n\n    check = -1\n    for divisor_sum in range(min_divisor_sum, max_divisor_sum + 1):\n        if divisor_sum <= target_value:\n            remaining_target = target_value - divisor_sum\n            count = find_max_divisors(remaining_target, min_divisor_sum, divisor_sum - 1)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a sequence of integers where the sum of any subset of divisors ranges from {min_divisor_sum} to {max_divisor_sum} (inclusive). \"\n        f\"What is the maximum number of distinct divisors that can be selected such that no subset sum exceeds the target divisor sum {target_value} and all subset sums sum to exactly {target_value}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "d49e5a25db8f",
+      "parent_id": "cfc30ee1a2e7",
+      "generation": 18,
+      "p_hat": 0.625,
+      "h_score": 159.4270782470703,
+      "rq_score": 37.365721464157104,
+      "fitness": 37.365721464157104,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 37.365721464157104
+        },
+        "_behavior_sig_5": "fa7b816d2f40fc4a52aac33e7ab4f4f248ff794366da1320f01344d2e990e8d6",
+        "_template_sig_5": "8417076d812a21a816fb7a12d2c02d211081c9a5645414b49096453c19e9b0cb",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\n\ndef count_valid_divisor_sums(target, min_sum, max_sum):\n    if target < min_sum:\n        return 0\n    \n    count = 0\n    \n    for current_sum in range(min_sum, max_sum + 1):\n        if current_sum <= target:\n            remaining_target = target - current_sum\n            valid_subsums = count_valid_divisor_sums(remaining_target, min_sum, current_sum - 1)\n            \n            if valid_subsums != -1:\n                count += 1\n    \n    return count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_sum = rng.randint(5, 20)\n    max_sum = rng.randint(30, 50)\n    target = rng.randint(30, 60)\n    \n    answer = count_valid_divisor_sums(target, min_sum, max_sum)\n\n    check = 0\n    for current_sum in range(min_sum, max_sum + 1):\n        if current_sum <= target:\n            remaining = target - current_sum\n            subsums = count_valid_divisor_sums(remaining, min_sum, current_sum - 1)\n            if subsums != -1:\n                check += 1\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Given a set of integers with possible divisor sums ranging from {min_sum} to {max_sum} (inclusive), find the number of distinct valid divisor sums that can be formed such that their total sum is exactly {target}. Each valid divisor sum must be within the range [{min_sum}, {max_sum}]. State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "9d491df4ba92",
+      "parent_id": "d49e5a25db8f",
+      "generation": 19,
+      "p_hat": 0.1,
+      "h_score": 59.38769397735596,
+      "rq_score": 5.344892457962037,
+      "fitness": 5.344892457962037,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 5.344892457962037
+        },
+        "_behavior_sig_5": "c73a24c280c6e84fd506ec8e2fcdc7e99c72ec68b4a6eb13f7b1af99d070810a",
+        "_template_sig_5": "47d2ff3bbbef5e9b2c68ee4896645c14a802e802967fe9b32e540ac7bbaa5236",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"construction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_term_sum = rng.randint(1, 5)\n    max_term_sum = rng.randint(10, 20)\n    target_sum = rng.randint(5, 15)\n    \n    # Build a set of distinct terms that satisfies the conditions\n    terms = set()\n    current_sum = 0\n    while current_sum + min_term_sum <= target_sum:\n        # Choose a new term that doesn't exceed the remaining target sum\n        term = rng.randint(1, max_term_sum - min_term_sum + 1)\n        if current_sum + term > target_sum:\n            term = target_sum - current_sum\n        terms.add(term)\n        current_sum += term\n        if current_sum == target_sum:\n            break\n\n    answer = len(terms)\n\n    # Independent route: Validate the constructed set by checking all subset sums\n    check = -1\n    for term in terms:\n        if sum(terms) == target_sum:\n            check = len(terms)\n            break\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the terms of a polynomial, where the sum of any subset of terms ranges from {min_term_sum} to {max_term_sum} (inclusive). \"\n        f\"Find the maximum number of distinct terms that can be selected such that no subset of them can sum to more than the target sum {target_sum} and all subset sums sum to exactly {target_sum}. State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "3b620e5d1a90",
+      "parent_id": "7429286e801d",
+      "generation": 16,
+      "p_hat": 0.7777777777777778,
+      "h_score": 138.61666361490884,
+      "rq_score": 23.958435686527455,
+      "fitness": 23.958435686527455,
+      "niche_group": 2,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "construction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 23.958435686527455
+        },
+        "_behavior_sig_5": "ae8e3e361d262c8eccc31720a16727f7a85bf34d7613ff72f3237cd3b1d28723",
+        "_template_sig_5": "e00feb5ace972e76b85a4205bfa294ff46e8722c1a0ba364b048730e3b94ed8b",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"induction\"\n\n\ndef find_max_solutions(target, min_term_sum, max_term_sum):\n    if target == 0:\n        return 0\n    \n    if target < min_term_sum:\n        return -1\n    \n    max_count = 0\n    \n    for term_sum in range(min_term_sum, max_term_sum + 1):\n        if term_sum <= target:\n            remaining_target = target - term_sum\n            count = find_max_solutions(remaining_target, min_term_sum, term_sum - 1)\n            \n            if count != -1:\n                max_count = max(max_count, count + 1)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_term_sum = rng.randint(3, 10)\n    max_term_sum = rng.randint(20, 30)\n    target_value = rng.randint(15, 25)\n    \n    answer = find_max_solutions(target_value, min_term_sum, max_term_sum)\n\n    check = -1\n    for term_sum in range(min_term_sum, max_term_sum + 1):\n        if term_sum <= target_value:\n            remaining_target = target_value - term_sum\n            count = find_max_solutions(remaining_target, min_term_sum, term_sum - 1)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a sequence of integers where the sum of any subset of terms ranges from {min_term_sum} to {max_term_sum} (inclusive). \"\n        f\"What is the maximum number of distinct terms that can be selected such that no subset sum exceeds the target term sum {target_value} and all subset sums sum to exactly {target_value}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "c4d98e64bc8e",
+      "parent_id": "d49e5a25db8f",
+      "generation": 19,
+      "p_hat": 0.5714285714285714,
+      "h_score": 117.42109026227679,
+      "rq_score": 28.7561853703535,
+      "fitness": 28.7561853703535,
+      "niche_group": 3,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 28.7561853703535
+        },
+        "_behavior_sig_5": "30476ff878e64cf6738afcbc28c784287a8eb0f186342f99b66473189c60eedf",
+        "_template_sig_5": "cc7cd100059829955418dfed32437214d45d1bd765c0de4658558fd11b51e385",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    degree = rng.randint(1, 4)\n    coefficients = sorted(rng.sample(range(-10, 11), degree + 1))\n\n    # Generate a polynomial with random coefficients\n    def polynomial(x):\n        return sum(coeff * (x ** i) for i, coeff in enumerate(coefficients))\n\n    # Calculate the number of values of x for which the polynomial does not evaluate to zero\n    # using a simple enumeration method\n    answer = sum(1 for x in range(-10, 11) if polynomial(x) != 0)\n\n    # Independent route: Use a complementary approach to verify the answer\n    roots = {x for x in range(-10, 11) if polynomial(x) == 0}\n    known_roots = len(roots)\n    check = 21 - known_roots\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many values of x in the range -10 to 10 inclusive make the polynomial \"\n        f\"p(x) = {coefficients[-1]}x^{degree} + {coefficients[-2]}x^{degree - 1} + ... + {coefficients[0]} not equal to zero? State only the integer.\\n\"\n        f\"The polynomial is p(x) = {coefficients[-1]}x^{degree} + {coefficients[-2]}x^{degree - 1} + ... + {coefficients[0]}.\\n\"\n        f\"The problem asks for the count of x values in the range -10 to 10 inclusive that are not roots of the polynomial.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "9ac49f2925f9",
+      "parent_id": "4759f3d214a5",
+      "generation": 9,
+      "p_hat": 0.625,
+      "h_score": 201.53931140899658,
+      "rq_score": 47.235776111483574,
+      "fitness": 47.235776111483574,
+      "niche_group": 3,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 47.235776111483574
+        },
+        "_behavior_sig_5": "cf5f91e1ad8a2c548bb7da2475d913f4781c8496408abf90870b4131ecf3f4d7",
+        "_template_sig_5": "ed838454ddf2ee09f0488575c46ed4649189f367ef4cb4ca7e6b4524ae29656f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    degree = rng.randint(1, 4)\n    coefficients = sorted(rng.sample(range(-10, 11), degree + 1))\n\n    # Generate a polynomial with random coefficients\n    def polynomial(x):\n        return sum(coeff * (x ** i) for i, coeff in enumerate(coefficients))\n\n    # Calculate the number of values of x for which the polynomial does not evaluate to zero\n    # using the principle of inclusion-exclusion\n    all_roots = {x for x in range(-10, 11) if polynomial(x) == 0}\n    n = 21  # We consider values from -10 to 10 inclusive\n\n    # The number of roots we know so far\n    known_roots = len(all_roots)\n\n    # Calculate the number of additional roots using inclusion-exclusion\n    answer = n - known_roots\n\n    # Independent route: Test every value in the range to verify the answer\n    check = sum(1 for x in range(-10, 11) if polynomial(x) != 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many values of x in the range -10 to 10 inclusive make the polynomial \"\n        f\"p(x) = {coefficients[-1]}x^{degree} + {coefficients[-2]}x^{degree - 1} + ... + {coefficients[0]} not equal to zero? State only the integer.\\n\"\n        f\"The polynomial is p(x) = {coefficients[-1]}x^{degree} + {coefficients[-2]}x^{degree - 1} + ... + {coefficients[0]}.\\n\"\n        f\"The problem asks for the count of x values in the range -10 to 10 inclusive that are not roots of the polynomial.\\n\"\n        f\"The number of roots we have identified so far is {known_roots}.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "4759f3d214a5",
+      "parent_id": "217ea7ea6936",
+      "generation": 8,
+      "p_hat": 0.8888888888888888,
+      "h_score": 128.2611813015408,
+      "rq_score": 12.667770992744774,
+      "fitness": 12.667770992744774,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 12.667770992744774
+        },
+        "_behavior_sig_5": "180e75ba1f398547c95f7be8a22994d4e2049eee90abb9b8ef0bddd7d70121a4",
+        "_template_sig_5": "0476d8824015f2c3906ba5c9c37a3a1cc4a0b8dc4c39f4a58054df42871a006a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"construction\"\n\ndef count_terms(degree, min_degree, max_degree):\n    terms = [0] * (degree + 1)\n    terms[0] = 1\n\n    for k in range(min_degree, max_degree + 1):\n        for i in range(degree, k - 1, -1):\n            terms[i] += terms[i - k]\n\n    return terms[degree]\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    min_degree = rng.randint(2, 5)\n    max_degree = rng.randint(10, 20)\n    threshold_degree = 0\n\n    # Find the threshold degree of terms\n    for i in range(min_degree, max_degree + 1):\n        if count_terms(i, min_degree, i) > 0:\n            threshold_degree = i\n            break\n\n    # Independent route: iterate from the minimum degree to find the smallest degree that can form a valid polynomial combination.\n    for i in range(min_degree, max_degree + 1):\n        if count_terms(i, min_degree, i) > 0:\n            check_threshold_degree = i\n            break\n\n    assert threshold_degree == check_threshold_degree, f\"threshold_degree={threshold_degree} check_threshold_degree={check_threshold_degree}\"\n\n    problem = (\n        f\"Determine the smallest degree of polynomial terms from {min_degree} to {max_degree} (inclusive) such that a set of {threshold_degree} terms can be formed with each term between {min_degree} and {threshold_degree} (inclusive) where all terms sum to exactly {threshold_degree}. State only the integer.\"\n    )\n    return problem, str(threshold_degree)",
+      "program_id": "3daea9cac101",
+      "parent_id": "16b891ebcc29",
+      "generation": 14,
+      "p_hat": 0.9,
+      "h_score": 73.71646881103516,
+      "rq_score": 6.634482192993163,
+      "fitness": 6.634482192993163,
+      "niche_group": 3,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "construction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 6.634482192993163
+        },
+        "_behavior_sig_5": "21b32a1b37c74e03041a0346cbbd32108d48506b3d5e00e52d2d19ac28cf3098",
+        "_template_sig_5": "5a7e708bb487a7ab0c1a685f9b33203dbccd06656df23241868c788d5711b467",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"induction\"\n\n\ndef max_square_areas(grid_size, min_area_sum, max_area_sum, target_area):\n    if target_area == 0:\n        return 0\n    \n    if target_area < min_area_sum:\n        return -1\n    \n    max_count = 0\n    \n    for area_sum in range(min_area_sum, max_area_sum + 1):\n        if area_sum <= target_area:\n            remaining_area = target_area - area_sum\n            count = max_square_areas(grid_size, min_area_sum, area_sum - 1, remaining_area)\n            \n            if count != -1:\n                max_count = max(max_count, count + 1)\n    \n    return max_count\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    grid_size = rng.randint(10, 20)\n    min_area_sum = rng.randint(10, 30)\n    max_area_sum = rng.randint(50, 80)\n    target_area = rng.randint(60, 120)\n    \n    answer = max_square_areas(grid_size, min_area_sum, max_area_sum, target_area)\n\n    check = -1\n    for area_sum in range(min_area_sum, max_area_sum + 1):\n        if area_sum <= target_area:\n            remaining_area = target_area - area_sum\n            count = max_square_areas(grid_size, min_area_sum, area_sum - 1, remaining_area)\n            if count != -1:\n                check = max(check, 1 + count)\n    \n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a square grid with side length {grid_size}. Select squares such that the sum of their areas ranges from {min_area_sum} to {max_area_sum} (inclusive). \"\n        f\"What is the maximum number of distinct squares that can be selected such that no subset sum exceeds the target sum {target_area} and all subset sums sum to exactly {target_area}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "6c40d6af9778",
+      "parent_id": "c4c9972dff87",
+      "generation": 17,
+      "p_hat": 0.5,
+      "h_score": 130.3526268005371,
+      "rq_score": 32.58815670013428,
+      "fitness": 32.58815670013428,
+      "niche_group": 4,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 32.58815670013428
+        },
+        "_behavior_sig_5": "c6ad0c721809541bcb172b88100144dbc5147c623e775880c7ded0f15b5f5b1a",
+        "_template_sig_5": "6871c703a274c5c35466b02b6327fa671895c1d72a3169545dada50ba74b6e02",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"contradiction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    shapes = sorted(rng.sample([\"circle\", \"square\", \"triangle\", \"rectangle\"], 3))\n    area = rng.randint(100, 200)\n\n    # Find the number of shapes with an area greater than 100 square units\n    answer = sum(1 for shape in shapes if area > 100)\n\n    # Independent route: Verify the count by explicitly checking each shape.\n    check = 0\n    for shape in shapes:\n        if area > 100:\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a set of geometric shapes consisting of {shapes} \"\n        f\"with areas in a range where at least one area is greater than 100 square units. \"\n        f\"Prove that the number of shapes k with an area greater than 100 square units is exactly {answer}. \"\n        f\"Hint: Assume the opposite and show a contradiction.\\n\"\n        f\"The problem asks for the count of shapes with an area greater than 100 square units.\\n\"\n        f\"The areas of the shapes are within the given range.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "58de9d2456bb",
+      "parent_id": "6cba9fa2b2c2",
+      "generation": 11,
+      "p_hat": 0.7777777777777778,
+      "h_score": 280.7750947740343,
+      "rq_score": 48.529028726376296,
+      "fitness": 48.529028726376296,
+      "niche_group": 4,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 3,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 48.529028726376296
+        },
+        "_behavior_sig_5": "deb554e9a70741229e6342185f6b0213e63261226ff5d290dcc32012dc8f6882",
+        "_template_sig_5": "b71b86c639b1ab4148b6e727f2a8707143d98fdc8f798b60efbbbd0e767f5aa7",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"construction\"\n\ndef count_rectangles(m, n, min_area, max_area):\n    rectangles = [0] * (max_area + 1)\n    rectangles[0] = 1\n\n    for k in range(min_area, max_area + 1):\n        for i in range(m, k // min(m, n) + 1):\n            for j in range(n, k // min(m, n) + 1):\n                if i * j <= k:\n                    rectangles[k] += rectangles[k - (i * j)]\n\n    return rectangles[max_area]\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    m = rng.randint(2, 5)\n    n = rng.randint(2, 5)\n    min_area = rng.randint(m * n, 10 * m * n)\n    max_area = rng.randint(min_area, 20 * m * n)\n    threshold_count = 0\n\n    # Find the threshold number of rectangles\n    for i in range(min_area, max_area + 1):\n        if count_rectangles(m, n, min_area, i) > 0:\n            threshold_count = i\n            break\n\n    # Independent route: iterate from the minimum area count to find the smallest area that can form a valid combination.\n    for i in range(min_area, max_area + 1):\n        if count_rectangles(m, n, min_area, i) > 0:\n            check_threshold_count = i\n            break\n\n    assert threshold_count == check_threshold_count, f\"threshold_count={threshold_count} check_threshold_count={check_threshold_count}\"\n\n    problem = (\n        f\"Determine the smallest area of rectangles with dimensions up to {m}x{n} (inclusive) such that a set of {threshold_count} rectangles can be formed with each rectangle having an area between {min_area} and {threshold_count} (inclusive) where all areas sum to exactly {threshold_count}. State only the integer.\"\n    )\n    return problem, str(threshold_count)",
+      "program_id": "4b7793c3a32c",
+      "parent_id": "16b891ebcc29",
+      "generation": 14,
+      "p_hat": 0.9,
+      "h_score": 76.90818557739257,
+      "rq_score": 6.92173670196533,
+      "fitness": 6.92173670196533,
+      "niche_group": 4,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "construction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 6.92173670196533
+        },
+        "_behavior_sig_5": "0635ccd08278ed3293de7d6c120cce3b5e2f44caa3a132cd81943d721e43f9f3",
+        "_template_sig_5": "cff62d4c0d637ee9db6b1cbe8f55de180dc74463e359eaa3310e792f33c608d3",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

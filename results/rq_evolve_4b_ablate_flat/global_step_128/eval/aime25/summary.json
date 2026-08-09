@@ -1,0 +1,24 @@
+{
+  "created_at": "2026-08-08T02:26:04",
+  "model": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged",
+  "tokenizer": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_flat/global_step_128/hf_merged",
+  "grader": "r-zero-exact (first-boxed regex + raw verify)",
+  "gpt_recheck": true,
+  "sampling": {
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "n": 1,
+    "vllm_sampler_backend": "pytorch",
+    "vllm_use_flashinfer_sampler": "0"
+  },
+  "benchmarks": {
+    "aime25": {
+      "num_examples": 960,
+      "pass_at_1": 0.06979166666666667,
+      "pass_at_1_pre_gpt": 0.0375,
+      "gpt_flips": 31,
+      "elapsed_sec": 364.1
+    }
+  }
+}

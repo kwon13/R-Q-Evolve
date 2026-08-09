@@ -1,0 +1,250 @@
+INFO 08-08 02:10:46 [__init__.py:216] Automatically detected platform cuda.
+The tokenizer you are loading from '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_64/hf_merged' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+2026-08-08 02:10:50,918 INFO rq_evolve.math_eval: [math_eval] loaded minerva_math: 272 examples
+INFO 08-08 02:10:50 [utils.py:233] non-default args: {'tokenizer': '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_64/hf_merged', 'dtype': 'bfloat16', 'max_model_len': 8192, 'gpu_memory_utilization': 0.85, 'disable_log_stats': True, 'enforce_eager': True, 'model': '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_64/hf_merged'}
+INFO 08-08 02:10:50 [model.py:547] Resolved architecture: Qwen3ForCausalLM
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO 08-08 02:10:50 [model.py:1510] Using max model len 8192
+INFO 08-08 02:10:51 [scheduler.py:205] Chunked prefill is enabled with max_num_batched_tokens=8192.
+INFO 08-08 02:10:51 [__init__.py:381] Cudagraph is disabled under eager mode
+The tokenizer you are loading from '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_64/hf_merged' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:51 [core.py:644] Waiting for init message from front-end.
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:51 [core.py:77] Initializing a V1 LLM engine (v0.11.0) with config: model='/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_64/hf_merged', speculative_config=None, tokenizer='/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_64/hf_merged', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=8192, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, disable_custom_all_reduce=False, quantization=None, enforce_eager=True, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser=''), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None), seed=0, served_model_name=/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_64/hf_merged, enable_prefix_caching=True, chunked_prefill_enabled=True, pooler_config=None, compilation_config={"level":0,"debug_dump_path":"","cache_dir":"","backend":"","custom_ops":[],"splitting_ops":null,"use_inductor":true,"compile_sizes":[],"inductor_compile_config":{"enable_auto_functionalized_v2":false},"inductor_passes":{},"cudagraph_mode":0,"use_cudagraph":true,"cudagraph_num_of_warmups":0,"cudagraph_capture_sizes":[],"cudagraph_copy_inputs":false,"full_cuda_graph":false,"use_inductor_graph_partition":false,"pass_config":{},"max_capture_size":0,"local_cache_dir":null}
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:54 [parallel_state.py:1208] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, TP rank 0, EP rank 0
+[1;36m(EngineCore_DP0 pid=531591)[0;0m WARNING 08-08 02:10:54 [topk_topp_sampler.py:59] FlashInfer is available, but it is not enabled. Falling back to the PyTorch-native implementation of top-p & top-k sampling. For the best performance, please set VLLM_USE_FLASHINFER_SAMPLER=1.
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:54 [gpu_model_runner.py:2602] Starting to load model /data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_64/hf_merged...
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:54 [gpu_model_runner.py:2634] Loading model from scratch...
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:55 [cuda.py:366] Using Flash Attention backend on V1 engine.
+[1;36m(EngineCore_DP0 pid=531591)[0;0m Loading safetensors checkpoint shards:   0% Completed | 0/2 [00:00<?, ?it/s]
+[1;36m(EngineCore_DP0 pid=531591)[0;0m Loading safetensors checkpoint shards:  50% Completed | 1/2 [00:00<00:00,  1.26it/s]
+[1;36m(EngineCore_DP0 pid=531591)[0;0m Loading safetensors checkpoint shards: 100% Completed | 2/2 [00:01<00:00,  1.45it/s]
+[1;36m(EngineCore_DP0 pid=531591)[0;0m Loading safetensors checkpoint shards: 100% Completed | 2/2 [00:01<00:00,  1.42it/s]
+[1;36m(EngineCore_DP0 pid=531591)[0;0m 
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:56 [default_loader.py:267] Loading weights took 1.48 seconds
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:57 [gpu_model_runner.py:2653] Model loading took 7.5532 GiB and 1.661984 seconds
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:58 [gpu_worker.py:298] Available KV cache memory: 58.26 GiB
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:58 [kv_cache_utils.py:1087] GPU KV cache size: 424,240 tokens
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:58 [kv_cache_utils.py:1091] Maximum concurrency for 8,192 tokens per request: 51.79x
+[1;36m(EngineCore_DP0 pid=531591)[0;0m WARNING 08-08 02:10:58 [cudagraph_dispatcher.py:106] cudagraph dispatching keys are not initialized. No cudagraph will be used.
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:58 [core.py:210] init engine (profile, create kv cache, warmup model) took 1.59 seconds
+[1;36m(EngineCore_DP0 pid=531591)[0;0m The tokenizer you are loading from '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_64/hf_merged' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+[1;36m(EngineCore_DP0 pid=531591)[0;0m INFO 08-08 02:10:59 [__init__.py:381] Cudagraph is disabled under eager mode
+INFO 08-08 02:10:59 [llm.py:306] Supported_tasks: ['generate']
+2026-08-08 02:10:59,358 INFO eval_vllm_math: Evaluating minerva_math (272 problems)
+Adding requests:   0%|          | 0/272 [00:00<?, ?it/s]Adding requests:  60%|█████▉    | 163/272 [00:00<00:00, 1611.89it/s]Adding requests: 100%|██████████| 272/272 [00:00<00:00, 1571.98it/s]
+Processed prompts:   0%|          | 0/272 [00:00<?, ?it/s, est. speed input: 0.00 toks/s, output: 0.00 toks/s]Processed prompts:   0%|          | 1/272 [00:04<18:11,  4.03s/it, est. speed input: 57.10 toks/s, output: 28.80 toks/s]Processed prompts:   1%|          | 2/272 [00:04<09:05,  2.02s/it, est. speed input: 64.64 toks/s, output: 55.16 toks/s]Processed prompts:   1%|▏         | 4/272 [00:05<04:01,  1.11it/s, est. speed input: 175.17 toks/s, output: 107.64 toks/s]Processed prompts:   2%|▏         | 5/272 [00:05<03:49,  1.16it/s, est. speed input: 209.90 toks/s, output: 124.17 toks/s]Processed prompts:   3%|▎         | 8/272 [00:06<01:52,  2.34it/s, est. speed input: 279.49 toks/s, output: 207.64 toks/s]Processed prompts:   3%|▎         | 9/272 [00:06<01:40,  2.61it/s, est. speed input: 300.81 toks/s, output: 231.15 toks/s]Processed prompts:   4%|▍         | 11/272 [00:06<01:13,  3.57it/s, est. speed input: 330.32 toks/s, output: 283.97 toks/s]Processed prompts:   4%|▍         | 12/272 [00:06<01:15,  3.42it/s, est. speed input: 326.24 toks/s, output: 300.95 toks/s]Processed prompts:   5%|▌         | 14/272 [00:07<01:06,  3.90it/s, est. speed input: 340.16 toks/s, output: 344.92 toks/s]Processed prompts:   6%|▌         | 15/272 [00:07<00:59,  4.32it/s, est. speed input: 374.28 toks/s, output: 369.08 toks/s]Processed prompts:   6%|▌         | 16/272 [00:07<00:55,  4.60it/s, est. speed input: 374.81 toks/s, output: 391.51 toks/s]Processed prompts:   6%|▋         | 17/272 [00:07<00:59,  4.27it/s, est. speed input: 373.64 toks/s, output: 408.23 toks/s]Processed prompts:   8%|▊         | 21/272 [00:08<00:30,  8.21it/s, est. speed input: 394.92 toks/s, output: 521.09 toks/s]Processed prompts:   8%|▊         | 23/272 [00:08<00:30,  8.08it/s, est. speed input: 435.31 toks/s, output: 566.57 toks/s]Processed prompts:   9%|▉         | 25/272 [00:08<00:25,  9.60it/s, est. speed input: 474.60 toks/s, output: 620.44 toks/s]Processed prompts:  10%|▉         | 27/272 [00:08<00:27,  8.85it/s, est. speed input: 475.19 toks/s, output: 663.25 toks/s]Processed prompts:  11%|█         | 29/272 [00:08<00:23, 10.37it/s, est. speed input: 511.38 toks/s, output: 716.83 toks/s]Processed prompts:  11%|█▏        | 31/272 [00:08<00:20, 11.83it/s, est. speed input: 543.52 toks/s, output: 769.74 toks/s]Processed prompts:  12%|█▏        | 33/272 [00:09<00:22, 10.71it/s, est. speed input: 581.15 toks/s, output: 812.83 toks/s]Processed prompts:  13%|█▎        | 35/272 [00:09<00:21, 10.99it/s, est. speed input: 636.91 toks/s, output: 860.33 toks/s]Processed prompts:  14%|█▎        | 37/272 [00:09<00:22, 10.68it/s, est. speed input: 642.74 toks/s, output: 904.78 toks/s]Processed prompts:  14%|█▍        | 39/272 [00:09<00:19, 12.10it/s, est. speed input: 666.03 toks/s, output: 956.42 toks/s]Processed prompts:  15%|█▌        | 41/272 [00:09<00:17, 13.34it/s, est. speed input: 671.53 toks/s, output: 1007.95 toks/s]Processed prompts:  16%|█▌        | 43/272 [00:09<00:15, 14.37it/s, est. speed input: 681.03 toks/s, output: 1059.20 toks/s]Processed prompts:  17%|█▋        | 45/272 [00:10<00:24,  9.22it/s, est. speed input: 718.74 toks/s, output: 1081.55 toks/s]Processed prompts:  17%|█▋        | 47/272 [00:10<00:20, 10.74it/s, est. speed input: 732.20 toks/s, output: 1132.37 toks/s]Processed prompts:  19%|█▉        | 52/272 [00:10<00:13, 16.78it/s, est. speed input: 806.48 toks/s, output: 1274.80 toks/s]Processed prompts:  20%|██        | 55/272 [00:10<00:15, 14.26it/s, est. speed input: 837.29 toks/s, output: 1335.71 toks/s]Processed prompts:  21%|██        | 57/272 [00:11<00:15, 13.60it/s, est. speed input: 848.74 toks/s, output: 1378.70 toks/s]Processed prompts:  22%|██▏       | 60/272 [00:11<00:15, 13.56it/s, est. speed input: 882.32 toks/s, output: 1446.11 toks/s]Processed prompts:  23%|██▎       | 62/272 [00:11<00:17, 12.11it/s, est. speed input: 900.82 toks/s, output: 1481.76 toks/s]Processed prompts:  24%|██▎       | 64/272 [00:11<00:16, 12.62it/s, est. speed input: 917.75 toks/s, output: 1527.98 toks/s]Processed prompts:  24%|██▍       | 66/272 [00:11<00:15, 13.71it/s, est. speed input: 927.13 toks/s, output: 1577.68 toks/s]Processed prompts:  25%|██▌       | 68/272 [00:11<00:16, 12.58it/s, est. speed input: 926.43 toks/s, output: 1616.24 toks/s]Processed prompts:  26%|██▌       | 71/272 [00:12<00:13, 14.90it/s, est. speed input: 935.53 toks/s, output: 1693.35 toks/s]Processed prompts:  27%|██▋       | 73/272 [00:12<00:14, 14.02it/s, est. speed input: 942.83 toks/s, output: 1734.81 toks/s]Processed prompts:  28%|██▊       | 75/272 [00:12<00:13, 14.11it/s, est. speed input: 947.66 toks/s, output: 1779.79 toks/s]Processed prompts:  28%|██▊       | 77/272 [00:12<00:18, 10.70it/s, est. speed input: 947.40 toks/s, output: 1801.61 toks/s]Processed prompts:  29%|██▉       | 79/272 [00:12<00:16, 11.57it/s, est. speed input: 981.31 toks/s, output: 1836.25 toks/s]Processed prompts:  31%|███       | 84/272 [00:13<00:11, 16.11it/s, est. speed input: 1037.42 toks/s, output: 1970.01 toks/s]Processed prompts:  32%|███▏      | 87/272 [00:13<00:11, 16.07it/s, est. speed input: 1066.56 toks/s, output: 2038.64 toks/s]Processed prompts:  33%|███▎      | 89/272 [00:13<00:14, 12.78it/s, est. speed input: 1056.48 toks/s, output: 2062.87 toks/s]Processed prompts:  33%|███▎      | 91/272 [00:13<00:17, 10.49it/s, est. speed input: 1078.11 toks/s, output: 2083.24 toks/s]Processed prompts:  35%|███▍      | 94/272 [00:13<00:15, 11.83it/s, est. speed input: 1116.51 toks/s, output: 2152.21 toks/s]Processed prompts:  35%|███▌      | 96/272 [00:14<00:15, 11.11it/s, est. speed input: 1144.92 toks/s, output: 2185.25 toks/s]Processed prompts:  36%|███▌      | 98/272 [00:14<00:13, 12.43it/s, est. speed input: 1161.23 toks/s, output: 2234.90 toks/s]Processed prompts:  37%|███▋      | 101/272 [00:14<00:12, 14.18it/s, est. speed input: 1166.59 toks/s, output: 2308.78 toks/s]Processed prompts:  38%|███▊      | 104/272 [00:14<00:11, 14.85it/s, est. speed input: 1191.24 toks/s, output: 2378.22 toks/s]Processed prompts:  39%|███▉      | 106/272 [00:14<00:10, 15.71it/s, est. speed input: 1210.65 toks/s, output: 2427.34 toks/s]Processed prompts:  40%|███▉      | 108/272 [00:14<00:11, 14.83it/s, est. speed input: 1223.73 toks/s, output: 2467.90 toks/s]Processed prompts:  40%|████      | 110/272 [00:14<00:10, 15.75it/s, est. speed input: 1228.26 toks/s, output: 2516.74 toks/s]Processed prompts:  42%|████▏     | 114/272 [00:15<00:10, 15.63it/s, est. speed input: 1258.63 toks/s, output: 2595.05 toks/s]Processed prompts:  43%|████▎     | 118/272 [00:15<00:08, 18.35it/s, est. speed input: 1285.11 toks/s, output: 2701.14 toks/s]Processed prompts:  44%|████▍     | 121/272 [00:15<00:07, 20.61it/s, est. speed input: 1293.69 toks/s, output: 2783.27 toks/s]Processed prompts:  46%|████▌     | 124/272 [00:15<00:06, 22.60it/s, est. speed input: 1308.90 toks/s, output: 2864.82 toks/s]Processed prompts:  47%|████▋     | 127/272 [00:15<00:09, 15.78it/s, est. speed input: 1299.17 toks/s, output: 2905.86 toks/s]Processed prompts:  47%|████▋     | 129/272 [00:16<00:09, 15.15it/s, est. speed input: 1298.19 toks/s, output: 2945.69 toks/s]Processed prompts:  48%|████▊     | 131/272 [00:16<00:10, 12.98it/s, est. speed input: 1300.92 toks/s, output: 2972.16 toks/s]Processed prompts:  49%|████▉     | 133/272 [00:16<00:10, 13.64it/s, est. speed input: 1308.82 toks/s, output: 3016.89 toks/s]Processed prompts:  50%|█████     | 137/272 [00:16<00:08, 15.80it/s, est. speed input: 1314.48 toks/s, output: 3115.22 toks/s]Processed prompts:  51%|█████     | 139/272 [00:16<00:08, 15.21it/s, est. speed input: 1318.70 toks/s, output: 3155.32 toks/s]Processed prompts:  52%|█████▏    | 141/272 [00:16<00:09, 14.14it/s, est. speed input: 1322.70 toks/s, output: 3190.79 toks/s]Processed prompts:  53%|█████▎    | 143/272 [00:17<00:09, 13.41it/s, est. speed input: 1324.50 toks/s, output: 3226.64 toks/s]Processed prompts:  54%|█████▍    | 147/272 [00:17<00:07, 16.97it/s, est. speed input: 1348.11 toks/s, output: 3326.71 toks/s]Processed prompts:  55%|█████▌    | 150/272 [00:17<00:07, 17.22it/s, est. speed input: 1364.21 toks/s, output: 3396.65 toks/s]Processed prompts:  56%|█████▋    | 153/272 [00:17<00:06, 19.64it/s, est. speed input: 1382.45 toks/s, output: 3478.97 toks/s]Processed prompts:  57%|█████▋    | 156/272 [00:17<00:07, 16.48it/s, est. speed input: 1389.02 toks/s, output: 3532.76 toks/s]Processed prompts:  59%|█████▉    | 160/272 [00:17<00:05, 20.07it/s, est. speed input: 1406.92 toks/s, output: 3645.81 toks/s]Processed prompts:  60%|█████▉    | 163/272 [00:18<00:06, 17.55it/s, est. speed input: 1406.27 toks/s, output: 3704.62 toks/s]Processed prompts:  61%|██████    | 165/272 [00:18<00:05, 17.98it/s, est. speed input: 1414.80 toks/s, output: 3753.41 toks/s]Processed prompts:  61%|██████▏   | 167/272 [00:18<00:05, 17.66it/s, est. speed input: 1431.28 toks/s, output: 3798.52 toks/s]Processed prompts:  63%|██████▎   | 171/272 [00:18<00:05, 19.25it/s, est. speed input: 1446.38 toks/s, output: 3900.86 toks/s]Processed prompts:  64%|██████▎   | 173/272 [00:18<00:05, 18.75it/s, est. speed input: 1455.42 toks/s, output: 3946.65 toks/s]Processed prompts:  65%|██████▍   | 176/272 [00:18<00:05, 17.60it/s, est. speed input: 1453.34 toks/s, output: 4011.77 toks/s]Processed prompts:  65%|██████▌   | 178/272 [00:18<00:05, 17.54it/s, est. speed input: 1457.49 toks/s, output: 4048.58 toks/s]Processed prompts:  67%|██████▋   | 182/272 [00:19<00:04, 18.17it/s, est. speed input: 1461.31 toks/s, output: 4145.58 toks/s]Processed prompts:  68%|██████▊   | 184/272 [00:19<00:05, 17.36it/s, est. speed input: 1462.83 toks/s, output: 4188.47 toks/s]Processed prompts:  69%|██████▉   | 188/272 [00:19<00:04, 18.73it/s, est. speed input: 1492.35 toks/s, output: 4291.03 toks/s]Processed prompts:  70%|██████▉   | 190/272 [00:19<00:04, 17.31it/s, est. speed input: 1495.09 toks/s, output: 4330.95 toks/s]Processed prompts:  71%|███████   | 193/272 [00:19<00:04, 17.67it/s, est. speed input: 1516.73 toks/s, output: 4403.68 toks/s]Processed prompts:  72%|███████▏  | 196/272 [00:20<00:04, 15.65it/s, est. speed input: 1516.03 toks/s, output: 4448.17 toks/s]Processed prompts:  73%|███████▎  | 198/272 [00:20<00:05, 14.32it/s, est. speed input: 1521.32 toks/s, output: 4481.39 toks/s]Processed prompts:  74%|███████▎  | 200/272 [00:20<00:06, 10.31it/s, est. speed input: 1508.49 toks/s, output: 4465.69 toks/s]Processed prompts:  74%|███████▍  | 202/272 [00:20<00:05, 11.67it/s, est. speed input: 1515.78 toks/s, output: 4516.43 toks/s]Processed prompts:  75%|███████▌  | 205/272 [00:20<00:04, 14.81it/s, est. speed input: 1526.26 toks/s, output: 4604.70 toks/s]Processed prompts:  76%|███████▌  | 207/272 [00:20<00:04, 13.41it/s, est. speed input: 1531.93 toks/s, output: 4637.41 toks/s]Processed prompts:  77%|███████▋  | 209/272 [00:21<00:05, 11.56it/s, est. speed input: 1525.08 toks/s, output: 4650.89 toks/s]Processed prompts:  78%|███████▊  | 211/272 [00:21<00:06,  9.06it/s, est. speed input: 1513.83 toks/s, output: 4651.13 toks/s]Processed prompts:  78%|███████▊  | 213/272 [00:21<00:07,  8.26it/s, est. speed input: 1518.34 toks/s, output: 4655.61 toks/s]Processed prompts:  79%|███████▉  | 216/272 [00:21<00:05, 11.06it/s, est. speed input: 1534.93 toks/s, output: 4729.50 toks/s]Processed prompts:  81%|████████  | 220/272 [00:22<00:04, 11.51it/s, est. speed input: 1538.80 toks/s, output: 4811.62 toks/s]Processed prompts:  82%|████████▏ | 222/272 [00:22<00:03, 12.68it/s, est. speed input: 1541.07 toks/s, output: 4866.30 toks/s]Processed prompts:  82%|████████▏ | 224/272 [00:22<00:04, 10.70it/s, est. speed input: 1537.44 toks/s, output: 4884.63 toks/s]Processed prompts:  83%|████████▎ | 226/272 [00:22<00:04, 10.66it/s, est. speed input: 1539.11 toks/s, output: 4922.05 toks/s]Processed prompts:  84%|████████▍ | 228/272 [00:23<00:06,  6.50it/s, est. speed input: 1507.21 toks/s, output: 4868.42 toks/s]Processed prompts:  84%|████████▍ | 229/272 [00:23<00:06,  6.26it/s, est. speed input: 1505.75 toks/s, output: 4869.12 toks/s]Processed prompts:  85%|████████▍ | 230/272 [00:23<00:07,  5.86it/s, est. speed input: 1506.44 toks/s, output: 4864.67 toks/s]Processed prompts:  85%|████████▌ | 232/272 [00:24<00:05,  7.79it/s, est. speed input: 1517.23 toks/s, output: 4914.48 toks/s]Processed prompts:  86%|████████▌ | 234/272 [00:24<00:06,  5.46it/s, est. speed input: 1491.15 toks/s, output: 4877.11 toks/s]Processed prompts:  86%|████████▋ | 235/272 [00:24<00:07,  5.29it/s, est. speed input: 1485.58 toks/s, output: 4875.60 toks/s]Processed prompts:  87%|████████▋ | 236/272 [00:24<00:06,  5.66it/s, est. speed input: 1481.15 toks/s, output: 4882.84 toks/s]Processed prompts:  88%|████████▊ | 239/272 [00:25<00:04,  7.91it/s, est. speed input: 1481.98 toks/s, output: 4962.72 toks/s]Processed prompts:  88%|████████▊ | 240/272 [00:25<00:06,  4.62it/s, est. speed input: 1450.17 toks/s, output: 4886.67 toks/s]Processed prompts:  89%|████████▊ | 241/272 [00:26<00:09,  3.39it/s, est. speed input: 1420.68 toks/s, output: 4818.76 toks/s]Processed prompts:  89%|████████▉ | 242/272 [00:26<00:08,  3.51it/s, est. speed input: 1412.07 toks/s, output: 4815.36 toks/s]Processed prompts:  89%|████████▉ | 243/272 [00:26<00:08,  3.44it/s, est. speed input: 1399.90 toks/s, output: 4802.34 toks/s]Processed prompts:  90%|████████▉ | 244/272 [00:27<00:07,  3.83it/s, est. speed input: 1393.97 toks/s, output: 4813.20 toks/s]Processed prompts:  90%|█████████ | 245/272 [00:27<00:06,  4.44it/s, est. speed input: 1394.24 toks/s, output: 4832.79 toks/s]Processed prompts:  90%|█████████ | 246/272 [00:29<00:22,  1.17it/s, est. speed input: 1286.76 toks/s, output: 4467.32 toks/s]Processed prompts:  91%|█████████ | 247/272 [00:30<00:20,  1.23it/s, est. speed input: 1262.74 toks/s, output: 4408.38 toks/s]Processed prompts:  92%|█████████▏| 249/272 [00:30<00:11,  2.03it/s, est. speed input: 1270.71 toks/s, output: 4460.75 toks/s]Processed prompts:  93%|█████████▎| 252/272 [00:31<00:07,  2.54it/s, est. speed input: 1250.09 toks/s, output: 4461.34 toks/s]Processed prompts:  93%|█████████▎| 253/272 [00:32<00:09,  2.11it/s, est. speed input: 1223.08 toks/s, output: 4394.13 toks/s]Processed prompts:  93%|█████████▎| 254/272 [00:33<00:10,  1.79it/s, est. speed input: 1194.33 toks/s, output: 4324.57 toks/s]Processed prompts:  94%|█████████▍| 255/272 [00:34<00:12,  1.31it/s, est. speed input: 1153.20 toks/s, output: 4187.08 toks/s]Processed prompts:  94%|█████████▍| 256/272 [00:35<00:11,  1.44it/s, est. speed input: 1139.98 toks/s, output: 4175.18 toks/s]Processed prompts:  94%|█████████▍| 257/272 [00:39<00:23,  1.58s/it, est. speed input: 1027.51 toks/s, output: 3789.58 toks/s]Processed prompts:  95%|█████████▍| 258/272 [00:44<00:35,  2.53s/it, est. speed input: 916.59 toks/s, output: 3406.42 toks/s] Processed prompts:  95%|█████████▌| 259/272 [01:14<02:15, 10.46s/it, est. speed input: 541.86 toks/s, output: 2063.18 toks/s]Processed prompts: 100%|██████████| 272/272 [01:15<00:00, 10.46s/it, est. speed input: 576.92 toks/s, output: 2771.15 toks/s]Processed prompts: 100%|██████████| 272/272 [01:15<00:00,  3.62it/s, est. speed input: 576.92 toks/s, output: 2771.15 toks/s]
+2026-08-08 02:12:15,962 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:16,051 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:16,142 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:16,318 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:16,327 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:16,686 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:16,689 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:16,789 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:16,807 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:16,887 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:16,917 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:17,039 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:17,311 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:17,333 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:17,560 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:17,794 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:17,937 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:17,994 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:18,101 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:18,179 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:18,229 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:18,297 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:18,455 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:18,736 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:18,741 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:18,880 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:18,957 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,023 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,037 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,043 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,245 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,398 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,455 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,507 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,548 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,561 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,579 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,780 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:19,894 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,073 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,155 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,246 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,285 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,290 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,529 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,725 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,832 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,860 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,913 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:20,927 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:21,096 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:21,281 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:21,376 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:21,414 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:21,539 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:21,592 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:21,610 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:21,657 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:21,897 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,022 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,092 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,139 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,264 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,281 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,285 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,361 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,553 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,617 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,648 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,662 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,825 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,919 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,922 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:22,974 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:23,312 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:23,411 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:23,444 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:23,452 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:23,477 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:23,558 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:23,677 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:23,699 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:23,930 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:23,941 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,059 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,062 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,076 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,232 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,246 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,547 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,583 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,685 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,700 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,767 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,770 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:24,881 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:25,091 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:25,267 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:25,426 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:25,465 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:25,495 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:25,502 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:25,513 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:25,680 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,003 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,005 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,056 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,074 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,118 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,137 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,606 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,610 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,661 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,683 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:26,774 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,053 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,117 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,266 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,284 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,365 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,562 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,628 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,641 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,768 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,822 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,896 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:27,944 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,083 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,146 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,165 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,197 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,414 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,497 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,513 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,558 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,649 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,708 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,765 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,865 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:28,997 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,162 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,230 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,232 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,355 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,425 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,505 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,547 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,867 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,870 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,897 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:29,954 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,051 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,068 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,131 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,196 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,512 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,526 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,539 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,559 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,710 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,718 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,720 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:30,975 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,140 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,142 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,172 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,295 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,313 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,337 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,368 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,673 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,779 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,780 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,829 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,945 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:31,970 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,132 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,303 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,329 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,394 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,501 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,611 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,676 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,711 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,824 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,920 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:32,999 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,010 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,203 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,341 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,347 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,480 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,496 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,544 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,623 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,849 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,956 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,957 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:33,999 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:34,227 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:34,228 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:34,437 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:34,490 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:34,518 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:34,640 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:34,678 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:36,031 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-08 02:12:36,059 INFO eval_vllm_math: minerva_math: pass@1=56.25% (pre-gpt 23.90%, +88 flips) n=272
+2026-08-08 02:12:36,346 INFO eval_vllm_math: AVG pass@1 = 56.25%

@@ -1,0 +1,143 @@
+{
+  "created_at": "2026-08-06T14:28:59",
+  "model": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_96/hf_merged",
+  "tokenizer": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_96/hf_merged",
+  "grader": "r-zero-bbeh",
+  "sampling": {
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "max_tokens": 8192,
+    "n": 1
+  },
+  "max_samples": 1000,
+  "sample_seed": 42,
+  "fallback_seed": 0,
+  "benchmarks": {
+    "bbeh": {
+      "pass_at_1": 0.10452261306532663,
+      "macro_avg": 0.1083662714097497,
+      "num_examples": 995,
+      "unparsed": 214,
+      "unparsed_rate": 0.2150753768844221,
+      "truncated": 188,
+      "truncated_rate": 0.18894472361809045,
+      "per_category": {
+        "boardgame_qa": {
+          "correct": 18,
+          "total": 44,
+          "accuracy": 0.4090909090909091
+        },
+        "boolean_expressions": {
+          "correct": 4,
+          "total": 44,
+          "accuracy": 0.09090909090909091
+        },
+        "buggy_tables": {
+          "correct": 2,
+          "total": 44,
+          "accuracy": 0.045454545454545456
+        },
+        "causal_understanding": {
+          "correct": 17,
+          "total": 44,
+          "accuracy": 0.38636363636363635
+        },
+        "disambiguation_qa": {
+          "correct": 9,
+          "total": 27,
+          "accuracy": 0.3333333333333333
+        },
+        "dyck_languages": {
+          "correct": 2,
+          "total": 44,
+          "accuracy": 0.045454545454545456
+        },
+        "geometric_shapes": {
+          "correct": 3,
+          "total": 44,
+          "accuracy": 0.06818181818181818
+        },
+        "hyperbaton": {
+          "correct": 0,
+          "total": 44,
+          "accuracy": 0.0
+        },
+        "linguini": {
+          "correct": 1,
+          "total": 44,
+          "accuracy": 0.022727272727272728
+        },
+        "movie_recommendation": {
+          "correct": 12,
+          "total": 44,
+          "accuracy": 0.2727272727272727
+        },
+        "multistep_arithmetic": {
+          "correct": 0,
+          "total": 44,
+          "accuracy": 0.0
+        },
+        "nycc": {
+          "correct": 3,
+          "total": 44,
+          "accuracy": 0.06818181818181818
+        },
+        "object_counting": {
+          "correct": 0,
+          "total": 44,
+          "accuracy": 0.0
+        },
+        "object_properties": {
+          "correct": 0,
+          "total": 44,
+          "accuracy": 0.0
+        },
+        "sarc_triples": {
+          "correct": 11,
+          "total": 44,
+          "accuracy": 0.25
+        },
+        "shuffled_objects": {
+          "correct": 1,
+          "total": 44,
+          "accuracy": 0.022727272727272728
+        },
+        "spatial_reasoning": {
+          "correct": 0,
+          "total": 44,
+          "accuracy": 0.0
+        },
+        "sportqa": {
+          "correct": 7,
+          "total": 44,
+          "accuracy": 0.1590909090909091
+        },
+        "temporal_sequence": {
+          "correct": 1,
+          "total": 44,
+          "accuracy": 0.022727272727272728
+        },
+        "time_arithmetic": {
+          "correct": 7,
+          "total": 44,
+          "accuracy": 0.1590909090909091
+        },
+        "web_of_lies": {
+          "correct": 1,
+          "total": 44,
+          "accuracy": 0.022727272727272728
+        },
+        "word_sorting": {
+          "correct": 1,
+          "total": 44,
+          "accuracy": 0.022727272727272728
+        },
+        "zebra_puzzles": {
+          "correct": 4,
+          "total": 44,
+          "accuracy": 0.09090909090909091
+        }
+      }
+    }
+  }
+}

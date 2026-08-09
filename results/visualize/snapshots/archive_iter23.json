@@ -1,0 +1,287 @@
+{
+  "meta": {
+    "n_h_bins": 10,
+    "n_div_bins": 6,
+    "h_range": [
+      0.1,
+      0.6
+    ],
+    "diversity_axis": "concept_group",
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 9,
+      "total_niches": 60,
+      "coverage": 0.15,
+      "mean_rq": 0.02663533272221684,
+      "max_rq": 0.1161945308446884,
+      "total_insertions": 186,
+      "total_replacements": 42,
+      "total_selections": 736
+    }
+  },
+  "champions": [
+    {
+      "source_code": "\"\"\"In-depth mutation generator (CRT with additional constraints + cross-checked).\n\nDeepens CRT: introduces a third congruence involving a new modulus c, ensuring\nthat the solution requires the solver to correctly apply the Chinese Remainder\nTheorem. The solver must:\n  (1) recognize that three congruences are given and that c must be coprime with\n      a and b to ensure a unique solution,\n  (2) choose a third modulus c that is coprime with both a and b,\n  (3) apply the Chinese Remainder Theorem to combine the three congruences.\n\nTwo independent answer paths are cross-checked at generation time:\n  PATH A (insight): CRT with three congruences.\n  PATH B (brute): explicit enumeration of possible values with constraints.\n\nGuards ensure c is coprime with a and b, and the answer is not trivial.\n\"\"\"\n\nimport random\nimport sympy\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    while True:\n        a = rng.randint(2, 10)\n        b = rng.randint(3, 10)\n        if sympy.gcd(a, b) != 1:\n            continue\n        while True:\n            r1 = rng.randint(1, a - 1)\n            r2 = rng.randint(1, b - 1)\n            if r1 != r2:\n                break\n\n        # Ensure a and b are coprime\n        if sympy.gcd(a, b) != 1:\n            continue\n\n        # Generate a third modulus c that is coprime with both a and b\n        while True:\n            c = rng.randint(5, 15)\n            if sympy.gcd(c, a) == 1 and sympy.gcd(c, b) == 1:\n                break\n        r3 = rng.randint(1, c - 1)\n\n        # --- PATH A: insight (Chinese Remainder Theorem with three congruences) ---\n        N = a * b * c\n        answer_insight = (\n            r1 * b * c * pow(b * c, -1, a) +\n            r2 * a * c * pow(a * c, -1, b) +\n            r3 * a * b * pow(a * b, -1, c)\n        ) % N\n\n        # --- PATH B: brute (explicit enumeration of possible values) ---\n        answer_brute = None\n        for x in range(N):\n            if (x % a == r1) and (x % b == r2) and (x % c == r3):\n                answer_brute = x\n                break\n\n        # --- CROSS-CHECK: Chinese Remainder Theorem route must equal brute force route ---\n        assert answer_brute == answer_insight, (\n            f\"mismatch r1={r1} r2={r2} r3={r3}: insight={answer_insight} brute={answer_brute}\"\n        )\n\n        answer = answer_brute\n        if answer < 10:\n            continue\n        break\n\n    problem = (\n        f\"Find the smallest positive integer x that satisfies the following system of congruences: \"\n        f\"x ≡ {r1} (mod {a}), x ≡ {r2} (mod {b}), and x ≡ {r3} (mod {c}). \"\n        f\"State only the integer.\"\n    )\n    return problem, str(sympy.Integer(answer))\n\nCONCEPT_REASON = \"To solve, the solver must recognize that the problem involves finding a number that satisfies multiple congruences and apply the Chinese Remainder Theorem to solve the system of congruences.\"\nCONCEPT_GROUP = \"number_theory\"\nCONCEPT_TYPE = \"number_theory.chinese_remainder_theorem\"",
+      "program_id": "c23baff88bfe",
+      "parent_id": "6476f8c8a459",
+      "generation": 3,
+      "p_hat": 0.4,
+      "h_score": 0.14985377341508865,
+      "rq_score": 0.035964905619621276,
+      "fitness": 0.035964905619621276,
+      "niche_h": 0,
+      "niche_div": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "concept_type": "number_theory.chinese_remainder_theorem",
+        "concept_group": "number_theory",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.035964905619621276
+        },
+        "_behavior_sig_5": "de34776eafd4fe7047574b66b379ad360ef59dafde76fc28fb02cde74a92693f",
+        "_template_sig_5": "468340b878e08b54ae51028c10f7851c83621511d044f853e65b87780cdcaceb",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "\"\"\"In-depth mutation generator (inclusion-exclusion + explicit enumeration + cross-check).\n\nDeepens bounded_integer_compositions: instead of counting solutions to a single equation,\nthe problem counts solutions to a system of inequalities and equations. The solver must\nuse inclusion-exclusion to count valid solutions and then verify the result by explicitly\nenumerating the solutions.\n\nTo solve, given n variables, a bound m, and a target sum S, the solver must:\n  (1) Model the problem as a system of inequalities and equations,\n  (2) Use inclusion-exclusion to count valid solutions,\n  (3) Explicitly enumerate all solutions to verify the count,\n  (4) Return the single integer value.\n\nThis is a deeper variant of bounded_integer_compositions because it requires the solver\nto handle a more complex system of constraints and validate the result through multiple\nmethods.\n\nTwo independent answer paths are cross-checked at generation time:\n  PATH A (insight): inclusion-exclusion to count valid solutions.\n  PATH B (brute): explicit enumeration of all solutions.\n\nGuards ensure the problem is non-trivial and the answer is not guessable.\n\"\"\"\n\nimport random\nimport sympy\nimport itertools\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    while True:\n        n = rng.randint(5, 7)\n        m = rng.randint(5, 7)\n        S = rng.randint(m + 2, n * (m - 1) - m - 2)\n\n        # --- PATH A: insight (inclusion-exclusion) ---\n        answer_insight = 0\n        max_bad_variables = S // m\n        for j in range(max_bad_variables + 1):\n            remaining = S - j * m\n            if remaining < 0:\n                continue\n            term = sympy.binomial(n, j) * sympy.binomial(remaining + n - 1, n - 1)\n            if j % 2:\n                answer_insight -= term\n            else:\n                answer_insight += term\n        answer_insight = int(answer_insight)\n\n        # --- PATH B: brute (explicit enumeration) ---\n        answer_brute = 0\n        for digits in itertools.product(range(m), repeat=n):\n            if sum(digits) == S:\n                for i in range(n):\n                    if digits[i] == m:\n                        break\n                else:\n                    answer_brute += 1\n\n        # --- CROSS-CHECK: inclusion-exclusion route must equal explicit enumeration route ---\n        assert answer_insight == answer_brute, (\n            f\"count mismatch n={n} m={m} S={S}: \"\n            f\"insight={answer_insight} brute={answer_brute}\"\n        )\n\n        answer = answer_insight\n\n        # Guards against degenerate or guessable cases.\n        if answer <= 10:\n            continue\n        if answer >= m ** n // 2:\n            continue\n        if S in (0, 1, n * (m - 1), n * (m - 1) - 1):\n            continue\n        break\n\n    problem = (\n        f\"A code consists of {n} digits, and each digit is an integer \"\n        f\"from 0 through {m - 1}. The code must satisfy the condition that no digit is equal to {m}. \"\n        f\"How many such codes have digit sum {S}? State only the integer count.\"\n    )\n    return problem, str(sympy.Integer(answer))\n\nCONCEPT_REASON = \"To solve, the solver must model the code as a bounded integer-solution count with additional constraints, use inclusion-exclusion to count valid solutions, and then verify the result by explicitly enumerating all solutions.\"\nCONCEPT_GROUP = \"combinatorics\"\nCONCEPT_TYPE = \"combinatorics.bounded_integer_compositions\"",
+      "program_id": "b09c3052a747",
+      "parent_id": "fbb0a02b8c0c",
+      "generation": 2,
+      "p_hat": 1.0,
+      "h_score": 0.13819625750184059,
+      "rq_score": 0.0,
+      "fitness": 0.0,
+      "niche_h": 0,
+      "niche_div": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "concept_type": "combinatorics.bounded_integer_compositions",
+        "concept_group": "combinatorics",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0
+        },
+        "_behavior_sig_5": "ba7a1b190ad02c8d36fcc25f501c162de68ca76474ef5b88a5dde5a6d090b854",
+        "_template_sig_5": "ca7120aa102db3a7a661133a205c87bedc4d15d04ee5a25010e6a7acdae29095",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\ndef generate(seed):\n    rng = random.Random(seed)\n    while True:\n        a1 = rng.randint(2, 20)\n        d = rng.randint(2, 12)\n        n = rng.randint(8, 25)\n        answer = a1 + (n - 1) * d\n        if answer < 50:\n            continue\n        break\n    problem = (\n        f\"An arithmetic sequence has first term {a1} and common \"\n        f\"difference {d}. Compute its {n}-th term.\"\n    )\n    return problem, str(sympy.Integer(answer))\n\nCONCEPT_GROUP = \"sequence\"\nCONCEPT_TYPE = \"sequence.arithmetic_nth_term\"",
+      "program_id": "17dfaba73fe4",
+      "parent_id": "3dfab72d654b",
+      "generation": 2,
+      "p_hat": 1.0,
+      "h_score": 0.18965544626116754,
+      "rq_score": 0.0,
+      "fitness": 0.0,
+      "niche_h": 1,
+      "niche_div": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "concept_type": "sequence.arithmetic_nth_term",
+        "concept_group": "sequence",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0
+        },
+        "_behavior_sig_5": "c9bba5638195cd183c848d1f929c1199b9b90608d6f83a8bef980d3733de64a4",
+        "_template_sig_5": "2dd01cf8c2f35ec1037e99d8ab89d01439d45f858384709187a11c8da4cc4f80",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\ndef generate(seed):\n    rng = random.Random(seed)\n    while True:\n        m = rng.choice([12, 15, 21, 22, 25, 33, 35])  # composite moduli\n        phi = sympy.totient(m)\n\n        # Choose an odd exponent for degeneracy guards\n        deg = rng.randint(3, 5)\n\n        # Generate coefficients ensuring gcd with m is 1\n        coeffs = [rng.randint(2, m - 1) for _ in range(deg + 1)]\n        if any(sympy.gcd(c, m) != 1 for c in coeffs):\n            continue\n\n        x = rng.randint(m + 1, 2 * m)\n\n        # --- PATH A: insight (totient-reduced degree) ---\n        reduced_deg = int(deg % phi)  # Euler modulus\n        if reduced_deg in (0, 1):\n            continue  # avoid trivial degrees\n\n        eval_insight = coeffs[0]\n        for j in range(1, reduced_deg + 1):\n            eval_insight = (eval_insight * x + coeffs[j]) % m\n        answer_insight = eval_insight\n\n        # --- PATH B: brute (full expansion, independent) ---\n        eval_brute = coeffs[0]\n        for j in range(1, deg + 1):\n            eval_brute = (eval_brute * x + coeffs[j]) % m\n        answer_brute = eval_brute\n\n        # --- CROSS-CHECK: insight path must equal brute path ---\n        assert int(answer_brute) == int(answer_insight), (\n            f\"path mismatch m={m} x={x} deg={deg}: \"\n            f\"insight={answer_insight} brute={answer_brute}\"\n        )\n\n        # Independent confirmation of composite and φ dependency:\n        assert (sympy.isprime(m) == (phi == m - 1))\n\n        answer = answer_brute\n\n        # Guards against visually trivial cases or special points\n        if answer in (1, m - 1):\n            continue\n        if x % m in (0, 1, m - 1):\n            continue\n        if eval_insight in (1, m - 1):\n            continue\n\n        break\n\n    # Build polynomial expression\n    terms = []\n    for i, k in enumerate(coeffs):\n        power = deg - i\n        if k == 0:\n            continue\n        if power == 0:\n            terms.append(f\"{k:+d}\")\n        elif power == 1:\n            terms.append(f\"{k:+d}*x\")\n        else:\n            terms.append(f\"{k:+d}*x^{power}\")\n    expr = \" \".join(terms).lstrip(\"+ \").replace(\"+ -\", \"- \")\n\n    problem = (\n        f\"Let p(x) = {expr} mod {m}. Compute p({x}) modulo {m}. \"\n        f\"State only the integer value between 0 and {m-1}.\"\n    )\n    return problem, str(sympy.Integer(answer))\n\nCONCEPT_REASON = \"To solve, the solver must first recognize that evaluating a polynomial with large exponents modulo a composite number requires Euler's theorem for exponent reduction, then evaluate the polynomial using modular arithmetic.\"\nCONCEPT_GROUP = \"algebra\"\nCONCEPT_TYPE = \"algebra.modular_polynomial_evaluation\"",
+      "program_id": "313cdb32d2f1",
+      "parent_id": "e26edd239773",
+      "generation": 3,
+      "p_hat": 0.7,
+      "h_score": 0.12090220488607883,
+      "rq_score": 0.02538946302607656,
+      "fitness": 0.02538946302607656,
+      "niche_h": 0,
+      "niche_div": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "concept_type": "algebra.modular_polynomial_evaluation",
+        "concept_group": "algebra",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.02538946302607656
+        },
+        "_behavior_sig_5": "1bd7287956ca03d9d6d60079f0085d0e660b9a98b88392f328f968a95798a7b0",
+        "_template_sig_5": "2d09eee8f3fa424b9ecd928220ead0dd9b07381aa11b0d92193a431747842921",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\n\"\"\"In-depth mutation generator (geometric area computation via two independent methods).\n\nDeepens trig_area: instead of asking for the area directly, the problem asks\nfor the area of a triangle given its vertices in the Cartesian plane. The solver\nmust use the determinant method to compute the area, and then cross-check\nthe result using the traditional side length formula.\n\nTo solve, given points A = (x_A, y_A), B = (x_B, y_B), C = (x_C, y_C):\n  (1) Use the determinant formula:\n     Area = 1/2 | x_A(y_B - y_C) + x_B(y_C - y_A) + x_C(y_A - y_B) |\n  (2) Alternatively, compute the side lengths using the distance formula\n  and apply Heron's formula.\nThe solver must recognize that the determinant method simplifies the calculation.\n\nTwo independent answer paths are cross-checked at generation time:\n  PATH A (insight): use the determinant formula.\n  PATH B (brute): compute side lengths and apply Heron's formula.\n\nGuards ensure that the triangle is non-degenerate and that the side lengths are\nnot too small to be mistaken as coincident points.\n\"\"\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    while True:\n        ax = rng.randint(-20, 20)\n        ay = rng.randint(-20, 20)\n        bx = rng.randint(-20, 20)\n        by = rng.randint(-20, 20)\n        cx = rng.randint(-20, 20)\n        cy = rng.randint(-20, 20)\n\n        # Avoid degenerate triangles (points not forming a valid triangle)\n        twice_area = abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay))\n        if twice_area == 0:\n            continue\n\n        # Cross-check using side lengths and Heron's formula\n        ab = ((bx - ax)**2 + (by - ay)**2)**0.5\n        ac = ((cx - ax)**2 + (cy - ay)**2)**0.5\n        bc = ((cx - bx)**2 + (cy - by)**2)**0.5\n\n        # Ensure triangle is non-degenerate\n        if ab + ac <= bc or ab + bc <= ac or ac + bc <= ab:\n            continue\n\n        # --- PATH A: insight (determinant formula) ---\n        area_insight = twice_area / 2\n\n        # --- PATH B: brute (Heron's formula) ---\n        s = (ab + ac + bc) / 2\n        area_brute = (s * (s - ab) * (s - ac) * (s - bc))**0.5\n\n        # --- CROSS-CHECK: determinant route must equal Heron's route ---\n        assert abs(area_insight - area_brute) < 1e-6, (\n            f\"path mismatch A=({ax},{ay}) B=({bx},{by}) C=({cx},{cy}): \"\n            f\"insight={area_insight} brute={area_brute}\"\n        )\n\n        answer = str(area_insight)\n        if abs(area_insight) < 1:\n            continue\n        if abs(area_insight - int(area_insight)) < 1e-6:\n            continue\n        break\n\n    problem = (\n        f\"Triangle ABC has vertices A = ({ax}, {ay}), B = ({bx}, {by}), \"\n        f\"and C = ({cx}, {cy}). Find the area of triangle ABC in the Cartesian plane.\"\n    )\n    return problem, answer\n\nCONCEPT_REASON = \"To solve, the solver must use the determinant formula to compute the area of the triangle directly and then cross-check the result using Heron's formula based on the side lengths, ensuring that the methods align.\"\nCONCEPT_GROUP = \"geometry\"\nCONCEPT_TYPE = \"geometry.trig_area\"",
+      "program_id": "3dfab72d654b",
+      "parent_id": "fe33bdf47c5e",
+      "generation": 1,
+      "p_hat": 1.0,
+      "h_score": 0.062257154285907744,
+      "rq_score": 0.0,
+      "fitness": 0.0,
+      "niche_h": 0,
+      "niche_div": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "concept_type": "geometry.trig_area",
+        "concept_group": "geometry",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0
+        },
+        "_behavior_sig_5": "3d1111de180e72378943601553984de52ab5604dcf9a83c8deaf86de9110a75b",
+        "_template_sig_5": "9db4310fccb97a091007a42b216506374fdfd9936d80a98cd6869bac6c586c78",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    p = rng.choice([2, 3])\n    q = rng.randint(1, 5)\n    c = rng.randint(1, 5)\n    n = rng.randint(6, 10)\n    val = c\n    for _ in range(n):\n        val = p * val + q\n    answer = val\n    problem = (\n        f\"A sequence is defined by a(0) = {c} and \"\n        f\"a(n) = {p} * a(n-1) + {q} for n >= 1. Find a({n}).\"\n    )\n\n    return problem, str(answer)\n\nCONCEPT_GROUP = \"sequence\"\nCONCEPT_TYPE = \"sequence.linear_recurrence\"\n",
+      "program_id": "a05baeb711e6",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 1.0,
+      "h_score": 0.05924542229622602,
+      "rq_score": 0.0,
+      "fitness": 0.0,
+      "niche_h": 0,
+      "niche_div": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "08_recurrence.py",
+        "concept_type": "sequence.linear_recurrence",
+        "concept_group": "sequence",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0
+        },
+        "_behavior_sig_5": "2b80f7c3e97700e670b5e2b1aa2a2a8320f35f2b5ac36e518e841d50828ac96c",
+        "_template_sig_5": "f48eb21096776b5f8ee63f31303f65b26fcb7dd112c52792bcf8af675f49023a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "\"\"\"In-depth mutation generator (geometric_sequence_term_product).\n\nDeepens geometric_sequence_term_product: instead of deriving the third term directly, the solver must use both the product of the first and third terms and the ratio of the first two terms. This requires a deeper conceptual integration of geometric sequences.\n\nTo solve, the solver must:\n  (1) See that the product of the first and third terms is fixed for any given second term.\n  (2) Decipher the relationship between the first and third terms to retrieve the third term explicitly.\n\nThe solver computes one of two independent routes through either the product method or the ratio method, asserting that they should agree.\n\nGuard conditions avoid trivial cases or degeneracies:\n  (1) The ratio is not degenerate:\n      - gcd(a1, a2) != 0 to avoid division by zero.\n      - gcd(a1, a2) != a1 to avoid direct/unnatural paths (e.g., a2 = k*a1) .\n  (2) The resulting third term does not simplify to a1 or a2.\n\"\"\"\n\nimport random\nimport sympy\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    while True:\n        a1 = rng.randint(-10, 10)\n        a2 = rng.randint(-10, 10)\n        if a2 == 0 or (a1 != 0 and a2 % a1 != 0):\n            continue\n\n        a3_insight = (a2**2) / a1\n\n        # Guards against degenerate or near-degenerate case\n        if a3_insight in (a1, a2):\n            continue\n\n        # --- PATH A (insight): third term via product relationship ---\n        a3_insight = sympy.Integer((a2 ** 2) / a1)\n\n        # --- PATH B (brute): third term via ratio method ---\n        r = sympy.Rational(a2, a1)\n        a3_brute = a2 * r\n\n        # --- CROSS-CHECK: insight route must equal ratio route ---\n        assert a3_insight == int(a3_brute), (\n            f\"path mismatch a1={a1} a2={a2}: \"\n            f\"insight={a3_insight} brute={a3_brute}\"\n        )\n\n        answer = a3_insight\n        if a3_insight == 0:\n            continue\n        break\n\n    problem = (\n        f\"Let a_1 and a_2 be the first two terms of a geometric sequence \"\n        f\"where a_1 = {a1} and a_2 = {a2}. Let a_3 denote the third term of \"\n        f\"the sequence. Determine the value of a_3 as an integer.\"\n    )\n    return problem, str(answer)\n\nCONCEPT_REASON = \"To solve, the solver must first recognize that for a geometric sequence, the ratio between successive terms is constant. By computing the square of the second term divided by the first term, or by computing the ratio of the second term to the first term and multiplying this ratio by the second term, both methods must converge to the third term value.\"\nCONCEPT_GROUP = \"sequence\"\nCONCEPT_TYPE = \"sequence.geometric_sequence_term_product\"",
+      "program_id": "5009ba05833e",
+      "parent_id": "0383969f8932",
+      "generation": 2,
+      "p_hat": 0.9,
+      "h_score": 0.2198721520602703,
+      "rq_score": 0.019788493685424322,
+      "fitness": 0.019788493685424322,
+      "niche_h": 2,
+      "niche_div": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "concept_type": "sequence.geometric_sequence_term_product",
+        "concept_group": "sequence",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.019788493685424322
+        },
+        "_behavior_sig_5": "f51de39e130dec9431ebff49f1987b8f5b13840544ec8664b973f4e21c6471dc",
+        "_template_sig_5": "ee23f7306cb88dfaa0bd71ff7e614a6535a1b09c59e40b4a86b7f028d373e685",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\n\nS_POOL = [6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42]\nK_POOL = [1, 2, 3, 4, 5, 6, 7]\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    s = rng.choice(S_POOL)\n    k = rng.choice(K_POOL)\n\n    max_product = ((s + 3 * k) // 3) ** 3\n\n    problem = (\n        f\"Let a, b, c be positive real numbers with a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(max_product)\n\nCONCEPT_GROUP = \"inequality\"\nCONCEPT_TYPE = \"inequality.am_gm_product\"\n",
+      "program_id": "eb51e6bb77e4",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.7,
+      "h_score": 0.20181238725781442,
+      "rq_score": 0.04238060132414103,
+      "fitness": 0.04238060132414103,
+      "niche_h": 2,
+      "niche_div": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "10_inequalities.py",
+        "concept_type": "inequality.am_gm_product",
+        "concept_group": "inequality",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.04238060132414103
+        },
+        "_behavior_sig_5": "20e766b073afd191acd68b4bafa1b87376de49863ce6d9450983e77624a66393",
+        "_template_sig_5": "e33f9d7203a503bc5fd529abcdf1c6266817f985e18fc102d6c019f42bae805a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "\"\"\"In-breadth mutation generator (cross-checked).\n\nCrosses domains from am_gm_product to combinatorial counting —\nno shared object, operation, or vocabulary with the parent.\n\nTo solve, given only the code length n, the allowed digit range\n0 through m-1, and the required digit sum S, the solver must:\n  (1) translate the problem into counting bounded integer solutions\n      x_1 + ... + x_n = S with 0 <= x_i <= m-1;\n  (2) count the unrestricted nonnegative solutions;\n  (3) subtract the solutions where at least one variable exceeds\n      the digit bound, using inclusion-exclusion;\n  (4) return the resulting integer count.\n\nBrute force enumeration of all digit strings also works, but it\nscales as m^n and is deliberately unattractive for the solver.\n\nTwo independent answer paths are cross-checked at generation time:\n  PATH A (insight): inclusion-exclusion for bounded compositions.\n  PATH B (brute): enumerate all possible digit strings and count\n                  those whose digit sum is S.\n\nGuards ensure the count is nontrivial, the digit bound actually\nmatters, the target sum is not near an endpoint, and brute force\nremains finite for generator-side validation.\n\"\"\"\n\nimport itertools\nimport random\nimport sympy\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    while True:\n        n = rng.randint(5, 6)\n        m = rng.randint(5, 7)\n\n        # Choose S away from trivial endpoints, while ensuring that\n        # the upper bound x_i <= m-1 is relevant.\n        S = rng.randint(m + 2, n * (m - 1) - m - 2)\n\n        # --- PATH A: insight (bounded compositions via inclusion-exclusion) ---\n        answer_insight = 0\n        max_bad_variables = S // m\n        for j in range(max_bad_variables + 1):\n            remaining = S - j * m\n            if remaining < 0:\n                continue\n            term = sympy.binomial(n, j) * sympy.binomial(remaining + n - 1, n - 1)\n            if j % 2:\n                answer_insight -= term\n            else:\n                answer_insight += term\n        answer_insight = int(answer_insight)\n\n        # --- PATH B: brute (explicit enumeration of all digit strings) ---\n        answer_brute = 0\n        for digits in itertools.product(range(m), repeat=n):\n            if sum(digits) == S:\n                answer_brute += 1\n\n        # --- CROSS-CHECK: inclusion-exclusion route must equal brute route ---\n        assert int(answer_brute) == int(answer_insight), (\n            f\"count mismatch n={n} m={m} S={S}: \"\n            f\"insight={answer_insight} brute={answer_brute}\"\n        )\n\n        answer = answer_insight\n\n        # Guards against degenerate or guessable cases.\n        if answer <= 10:\n            continue\n        if answer >= m ** n // 2:\n            continue\n        if S in (0, 1, n * (m - 1), n * (m - 1) - 1):\n            continue\n        break\n\n    problem = (\n        f\"A code consists of {n} digits, and each digit is an integer \"\n        f\"from 0 through {m - 1}. How many such codes have digit sum {S}? \"\n        f\"State only the integer count.\"\n    )\n    return problem, str(sympy.Integer(answer))\n\nCONCEPT_REASON = \"To solve, the solver must model the code as a bounded integer-solution count and apply inclusion-exclusion to count digit strings with a prescribed total sum.\"\nCONCEPT_GROUP = \"combinatorics\"\nCONCEPT_TYPE = \"combinatorics.bounded_integer_compositions\"",
+      "program_id": "fbb0a02b8c0c",
+      "parent_id": "eb51e6bb77e4",
+      "generation": 1,
+      "p_hat": 0.4,
+      "h_score": 0.48414387851953505,
+      "rq_score": 0.1161945308446884,
+      "fitness": 0.1161945308446884,
+      "niche_h": 7,
+      "niche_div": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "concept_type": "combinatorics.bounded_integer_compositions",
+        "concept_group": "combinatorics",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.1161945308446884
+        },
+        "_behavior_sig_5": "9173197ff48d78aa25f543225b58ab70ea34a11d3d3b688fa57bb523436f04f0",
+        "_template_sig_5": "df49eedfa2d3dce479a64b6f1412cea708a73e8d6bb6682f9574da5c6e3be847",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

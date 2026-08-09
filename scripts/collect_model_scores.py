@@ -36,6 +36,7 @@ def table(models: list[Path], sub: str, names: list[str], label: dict | None,
     lines = ["| model | " + " | ".join(head) + " | AVG |",
              "|---" * (len(names) + 2) + "|"]
     rows = []
+    flagged: set[str] = set()
     for m in models:
         cells, got = [], {}
         for n in names:
@@ -44,7 +45,14 @@ def table(models: list[Path], sub: str, names: list[str], label: dict | None,
                 cells.append("—")
                 continue
             got[n] = entry[key] * 100
-            cells.append(f"{got[n]:.2f}")
+            # A benchmark whose judge could not be reached is scored pre-GPT no
+            # matter which column it lands in; marking it keeps it out of a
+            # post-GPT reading. Three sets of numbers have already been
+            # misread as model differences without this.
+            degraded = key == "pass_at_1" and entry.get("gpt_recheck_degraded")
+            cells.append(f"{got[n]:.2f}{'*' if degraded else ''}")
+            if degraded:
+                flagged.add(m.name)
         if got:
             rows.append((m.name, cells, got))
     if not rows:
@@ -61,6 +69,11 @@ def table(models: list[Path], sub: str, names: list[str], label: dict | None,
         avg = (f"{sum(got[n] for n in common_list) / len(common_list):.2f}"
                if common_list else "—")
         lines.append(f"| `{name}` | " + " | ".join(cells) + f" | {avg} |")
+    if flagged:
+        lines.append("")
+        lines.append("`*` = the GPT judge failed on more than 10% of its calls "
+                     "for that benchmark, so the value is effectively pre-GPT. "
+                     "Repair with scripts/rerun_gpt_recheck.py before comparing.")
     if common_list and len(common_list) < len(names):
         missing = [n for n in names if n not in common]
         lines.append("")

@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-08T03:31:53+00:00",
+  "benchmark": "evolved_performance_480_v1",
+  "benchmark_sha256": "b3c7c3f93a3d8d777ac7a70563b851defbe1ad4c5508fb58d3e4f9ea99a24ba7",
+  "model": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_96/hf_merged",
+  "tokenizer": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_96/hf_merged",
+  "global_step": 96,
+  "grader": "last-boxed + rq_evolve.reward.answers_match",
+  "sampling": {
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "n": 1,
+    "seed": 0,
+    "max_tokens": 4096,
+    "vllm_sampler_backend": "pytorch",
+    "vllm_use_flashinfer_sampler": "0"
+  },
+  "elapsed_sec": 146.17,
+  "correct": 247,
+  "num_examples": 480,
+  "micro_accuracy": 0.5145833333333333,
+  "macro_accuracy": 0.5145833333333334,
+  "score_percent": 51.45833333333334,
+  "per_program": {
+    "id__08_recurrence": {
+      "correct": 40,
+      "num_examples": 40,
+      "accuracy": 1.0,
+      "group": "sequence",
+      "skill": "induction"
+    },
+    "id__09_linear_algebra": {
+      "correct": 39,
+      "num_examples": 40,
+      "accuracy": 0.975,
+      "group": "algebra",
+      "skill": "transformation"
+    },
+    "id__10_inequalities": {
+      "correct": 40,
+      "num_examples": 40,
+      "accuracy": 1.0,
+      "group": "inequality",
+      "skill": "transformation"
+    },
+    "id__11_kth_root_count": {
+      "correct": 19,
+      "num_examples": 40,
+      "accuracy": 0.475,
+      "group": "number_theory",
+      "skill": "transformation"
+    },
+    "id__12_derangement_fixed_points": {
+      "correct": 17,
+      "num_examples": 40,
+      "accuracy": 0.425,
+      "group": "combinatorics",
+      "skill": "counting"
+    },
+    "id__18_absolute_quadratic_cases": {
+      "correct": 40,
+      "num_examples": 40,
+      "accuracy": 1.0,
+      "group": "algebra",
+      "skill": "casework"
+    },
+    "ood_v2__01_weighted_binary_recurrence": {
+      "correct": 1,
+      "num_examples": 40,
+      "accuracy": 0.025,
+      "group": "sequence",
+      "skill": "induction"
+    },
+    "ood_v2__02_symmetric_power_sum_three": {
+      "correct": 7,
+      "num_examples": 40,
+      "accuracy": 0.175,
+      "group": "algebra",
+      "skill": "transformation"
+    },
+    "ood_v2__03_shifted_quadratic_minimum": {
+      "correct": 6,
+      "num_examples": 40,
+      "accuracy": 0.15,
+      "group": "inequality",
+      "skill": "transformation"
+    },
+    "ood_v2__04_three_level_power_tower": {
+      "correct": 18,
+      "num_examples": 40,
+      "accuracy": 0.45,
+      "group": "number_theory",
+      "skill": "transformation"
+    },
+    "ood_v2__05_banded_lattice_paths": {
+      "correct": 0,
+      "num_examples": 40,
+      "accuracy": 0.0,
+      "group": "combinatorics",
+      "skill": "counting"
+    },
+    "ood_v2__06_weighted_absolute_centers": {
+      "correct": 20,
+      "num_examples": 40,
+      "accuracy": 0.5,
+      "group": "algebra",
+      "skill": "casework"
+    }
+  },
+  "per_concept": {
+    "algebra/casework": {
+      "correct": 60,
+      "num_examples": 80,
+      "accuracy": 0.75,
+      "group": "algebra",
+      "skill": "casework"
+    },
+    "algebra/transformation": {
+      "correct": 46,
+      "num_examples": 80,
+      "accuracy": 0.575,
+      "group": "algebra",
+      "skill": "transformation"
+    },
+    "combinatorics/counting": {
+      "correct": 17,
+      "num_examples": 80,
+      "accuracy": 0.2125,
+      "group": "combinatorics",
+      "skill": "counting"
+    },
+    "inequality/transformation": {
+      "correct": 46,
+      "num_examples": 80,
+      "accuracy": 0.575,
+      "group": "inequality",
+      "skill": "transformation"
+    },
+    "number_theory/transformation": {
+      "correct": 37,
+      "num_examples": 80,
+      "accuracy": 0.4625,
+      "group": "number_theory",
+      "skill": "transformation"
+    },
+    "sequence/induction": {
+      "correct": 41,
+      "num_examples": 80,
+      "accuracy": 0.5125,
+      "group": "sequence",
+      "skill": "induction"
+    }
+  }
+}

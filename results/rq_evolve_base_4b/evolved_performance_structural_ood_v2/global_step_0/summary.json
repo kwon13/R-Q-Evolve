@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-08T03:10:38+00:00",
+  "benchmark": "evolved_performance_structural_ood_v2",
+  "benchmark_sha256": "e2076da43023e4a4b139ffa1a7374e4248e2e558f270c44d03212e8bb36767c4",
+  "model": "/data1/yhoon113/qwen3-4b-base",
+  "tokenizer": "/data1/yhoon113/qwen3-4b-base",
+  "global_step": 0,
+  "grader": "last-boxed + rq_evolve.reward.answers_match",
+  "sampling": {
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "n": 1,
+    "seed": 0,
+    "max_tokens": 4096,
+    "vllm_sampler_backend": "pytorch",
+    "vllm_use_flashinfer_sampler": "0"
+  },
+  "elapsed_sec": 82.68,
+  "correct": 38,
+  "num_examples": 240,
+  "micro_accuracy": 0.15833333333333333,
+  "macro_accuracy": 0.15833333333333333,
+  "score_percent": 15.833333333333332,
+  "per_program": {
+    "01_weighted_binary_recurrence": {
+      "correct": 3,
+      "num_examples": 40,
+      "accuracy": 0.075,
+      "group": "sequence",
+      "skill": "induction"
+    },
+    "02_symmetric_power_sum_three": {
+      "correct": 3,
+      "num_examples": 40,
+      "accuracy": 0.075,
+      "group": "algebra",
+      "skill": "transformation"
+    },
+    "03_shifted_quadratic_minimum": {
+      "correct": 4,
+      "num_examples": 40,
+      "accuracy": 0.1,
+      "group": "inequality",
+      "skill": "transformation"
+    },
+    "04_three_level_power_tower": {
+      "correct": 8,
+      "num_examples": 40,
+      "accuracy": 0.2,
+      "group": "number_theory",
+      "skill": "transformation"
+    },
+    "05_banded_lattice_paths": {
+      "correct": 0,
+      "num_examples": 40,
+      "accuracy": 0.0,
+      "group": "combinatorics",
+      "skill": "counting"
+    },
+    "06_weighted_absolute_centers": {
+      "correct": 20,
+      "num_examples": 40,
+      "accuracy": 0.5,
+      "group": "algebra",
+      "skill": "casework"
+    }
+  }
+}

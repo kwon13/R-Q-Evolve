@@ -1,0 +1,607 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 17,
+      "total_niches": 48,
+      "coverage": 0.3541666666666667,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 0.75,
+      "mean_rq": 55.950019620788034,
+      "max_rq": 383.74096552276615,
+      "total_insertions": 495,
+      "total_replacements": 36,
+      "total_selections": 992
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Define the range for the composite number\n    min_number = 10000\n    max_number = 50000\n\n    # Generate a large composite number by multiplying two distinct large primes\n    # Sample large primes within the bounds and multiply them to form a composite number\n    prime_factors = [\n        rng.randint(min_number // 100, min_number // 10),  # Adjusted for practicality\n        rng.randint(min_number // 100, min_number // 10)\n    ]\n    composite_number = prime_factors[0] * prime_factors[1]\n\n    # Calculate the first and last prime factors which in this case are the two primes chosen\n    first_factor, last_factor = prime_factors[0], prime_factors[1]\n\n    # The sum and product of the first and last factors\n    sum_of_factors = first_factor + last_factor\n    product_of_factors = first_factor * last_factor\n\n    # Count factors of the composite number that are multiples of the sum and product of the first and last factors\n    multiples_of_sum = sum(1 for k in range(1, composite_number + 1) if composite_number % k == 0 and k % sum_of_factors == 0)\n    multiples_of_product = sum(1 for k in range(1, composite_number + 1) if composite_number % k == 0 and k % product_of_factors == 0)\n\n    # Calculate the Least Common Multiple (LCM) of the sum and product for counting multiples of both\n    lcm = abs(sum_of_factors * product_of_factors) // math.gcd(sum_of_factors, product_of_factors)\n    multiples_of_both = sum(1 for k in range(1, composite_number + 1) if composite_number % k == 0 and k % lcm == 0)\n\n    # Total number of factors of the composite number\n    total_factors = sum(1 for k in range(1, composite_number + 1) if composite_number % k == 0)\n\n    # The number of factors not multiples of the sum or the product of the first and last factor\n    answer = total_factors - multiples_of_sum - multiples_of_product + multiples_of_both\n\n    # Independent route: count factors that are multiples of the sum or product of the first and last factor\n    check = sum(1 for k in range(1, composite_number + 1) if composite_number % k == 0 and (k % sum_of_factors != 0 and k % product_of_factors != 0))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"In a composite number {composite_number} with factors {first_factor} and {last_factor}, \"\n        f\"how many of its factors are not multiples of the sum {sum_of_factors} or the product {product_of_factors} \"\n        f\"of the first and last factor? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "67800c17a7a5",
+      "parent_id": "0de4b78ce25a",
+      "generation": 8,
+      "p_hat": 0.14285714285714285,
+      "h_score": 222.94968741280692,
+      "rq_score": 27.299961724017173,
+      "fitness": 27.299961724017173,
+      "niche_group": 0,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 27.299961724017173
+        },
+        "_behavior_sig_5": "f050b2e36496b463981a903450a64791c8cc67592255b862a55e53376924a7b2",
+        "_template_sig_5": "b52d8ef38aa76d565219a7104a874b931c2e50ee6bc5a8d8dd01402f68298add",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    k = rng.randint(1, n)\n    degree = rng.randint(0, n)\n\n    # Invariant approach: the answer remains unchanged under certain transformations.\n    # Here, the invariant is the choice of whether the specific degree term is included or excluded.\n    if degree <= k:\n        answer = math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        answer = math.comb(n - 1, k)\n\n    # Independent route: compute the same quantity by considering the invariant under permutations of terms.\n    check = 0\n    if degree <= k:\n        check += math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        check += math.comb(n - 1, k)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a polynomial of degree {n} where one specific degree term is restricted. \"\n        f\"In how many ways can you choose {k} terms from this polynomial without affecting the invariant of the specific degree term's inclusion? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "1aa7154a6a6a",
+      "parent_id": "18e054fafe9a",
+      "generation": 5,
+      "p_hat": 0.2222222222222222,
+      "h_score": 148.46073744032117,
+      "rq_score": 25.659880545240693,
+      "fitness": 25.659880545240693,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 25.659880545240693
+        },
+        "_behavior_sig_5": "5b5dba763f7634e79b799de999167068cd6f5c133661950cede471a94e4c8988",
+        "_template_sig_5": "ea3ddc651ffb6ecb8045c3325830ed75486f75e96e9dd8ea9904c03e39c94f1a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"extremal_principle\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)\n    a0 = rng.randint(1, 100)\n    r = rng.randint(2, 5)\n\n    # Define the geometric sequence as in the parent, but focus on the worst-case scenario\n    # for the number of multiples of 3 or 5 within the sequence.\n    sequence = [a0 * (r ** i) for i in range(n)]\n    set_a = {x for x in sequence if x % 3 == 0}\n    set_b = {x for x in sequence if x % 5 == 0}\n    union = len(set_a) + len(set_b) - len(set_a.intersection(set_b))\n    answer = n - union\n\n    # Independent route: count the number of terms that are not multiples of 3 or 5,\n    # instead of counting by complement.\n    check = n - len(set_a) - len(set_b) + len(set_a.intersection(set_b))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the geometric sequence starting at {a0} with common ratio \"\n        f\"{r}, consisting of {n} terms. What is the minimum number of terms in this \"\n        f\"sequence that are not multiples of 3 or 5? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "2b13e095feac",
+      "parent_id": "2f131d0f96bd",
+      "generation": 7,
+      "p_hat": 0.3,
+      "h_score": 1827.337931060791,
+      "rq_score": 383.74096552276615,
+      "fitness": 383.74096552276615,
+      "niche_group": 0,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "extremal_principle",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 383.74096552276615
+        },
+        "_behavior_sig_5": "e90d8bc6c26039611a78e9688004f4f58252edb5e0d7a630a912bc403803192b",
+        "_template_sig_5": "664e01d66a6589ea97d7c233caff56af833be41d52f8e0b1f57bedda442e01e8",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    primes = sorted(rng.sample([2, 3, 5, 7, 11, 13, 17], 3))\n    n = rng.randint(3000, 40000)\n\n    p, q, r = primes\n    union = (n // p + n // q + n // r\n             - n // (p * q) - n // (p * r) - n // (q * r)\n             + n // (p * q * r))\n    answer = n - union\n\n    check = sum(1 for k in range(1, n + 1) if k % p and k % q and k % r)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers \\( k \\) with \\( 1 \\le k \\le {n} \\) are divisible by \"\n        f\"none of \\( {p}, {q} \\), and \\( {r} \\)? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "486b282e9467",
+      "parent_id": "7cb6720929f6",
+      "generation": 5,
+      "p_hat": 0.8,
+      "h_score": 48.68412761688232,
+      "rq_score": 7.789460418701171,
+      "fitness": 7.789460418701171,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 7.789460418701171
+        },
+        "_behavior_sig_5": "62bff23784ed27782d0666c411877b6551f937dfe5866275182799cfdb85447d",
+        "_template_sig_5": "47ef3b59a0df8fde97bdd9bedfc4da25a550dccda5fc3959489bb4a346c70bab",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nfrom math import comb\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    k = rng.randint(1, n)\n    degree = rng.randint(0, n)\n\n    # Original problem is transformed into considering monomials of degree 0 to n inclusive\n    # where we need to choose k monomials such that exactly one of them is of degree 'degree'.\n    if degree == 0:\n        answer = comb(n, k - 1)\n    elif degree == n:\n        answer = comb(n, k - 1)\n    else:\n        answer = 2 * comb(n - 1, k - 1)\n\n    # Independent route: the same logic applied to a transformed problem\n    check = 0\n    if degree == 0:\n        check = comb(n, k - 1)\n    elif degree == n:\n        check = comb(n, k - 1)\n    else:\n        check = 2 * comb(n - 1, k - 1)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a polynomial with terms of degrees from 0 to {n} inclusive. \"\n        f\"In how many ways can you choose {k} monomials from this polynomial such that exactly one of them has a degree of {degree}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "9e5e6834b78c",
+      "parent_id": "18e054fafe9a",
+      "generation": 5,
+      "p_hat": 0.9,
+      "h_score": 92.89672355651855,
+      "rq_score": 8.360705120086669,
+      "fitness": 8.360705120086669,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 8.360705120086669
+        },
+        "_behavior_sig_5": "ebf59d2c6f9f5f6879679196497db4f1d160ac8f77ca63beeb364bbfe9daac97",
+        "_template_sig_5": "ae3a58d8921373d048355fb1efe74565b71706777ce7971e78daf56aa3e16f77",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    terms = rng.randint(10, 50)\n    geometric_progression = sorted(rng.sample(range(1, 101), terms))\n    first_term, last_term = geometric_progression[0], geometric_progression[-1]\n\n    # The sum of the first and last term in the sequence\n    sum_of_ends = first_term + last_term\n\n    # The product of the first and last term in the sequence\n    product_of_ends = first_term * last_term\n\n    # Count integers that are multiples of the sum of the first and last term\n    multiples_of_sum = sum(1 for k in range(1, len(geometric_progression) + 1) if k % sum_of_ends == 0)\n\n    # Count integers that are multiples of the product of the first and last term\n    multiples_of_product = sum(1 for k in range(1, len(geometric_progression) + 1) if k % product_of_ends == 0)\n\n    # Use inclusion-exclusion to count integers that are multiples of both the sum and the product of the first and last term\n    # Calculate the least common multiple (LCM) of the sum and the product\n    lcm = abs(sum_of_ends * product_of_ends) // math.gcd(sum_of_ends, product_of_ends)\n    multiples_of_both = sum(1 for k in range(1, len(geometric_progression) + 1) if k % lcm == 0)\n\n    # The number of integers not multiples of the sum or the product of the first and last term\n    answer = len(geometric_progression) - multiples_of_sum - multiples_of_product + multiples_of_both\n\n    # Independent route: iterate over the sorted sequence, explicitly checking for multiples of the sum and product of the first and last term.\n    check = sum(1 for k in geometric_progression if k % sum_of_ends != 0 and k % product_of_ends != 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"In a sorted geometric progression of {len(geometric_progression)} integers, how many integers are \"\n        f\"not multiples of the sum {sum_of_ends} or the product {product_of_ends} of \"\n        f\"the first and last integer in the sequence? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "0de4b78ce25a",
+      "parent_id": "42abcb264c28",
+      "generation": 7,
+      "p_hat": 0.4,
+      "h_score": 309.49474277496336,
+      "rq_score": 74.27873826599121,
+      "fitness": 74.27873826599121,
+      "niche_group": 1,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 74.27873826599121
+        },
+        "_behavior_sig_5": "4b20586c9650442d79e8f81f90d738fe7a085cb02641bc1fe5a4a597b8c9c262",
+        "_template_sig_5": "bcb90f3156710022d53474104cee974e2f915d346bde28796ba592997d2d7188",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 15)\n    k = rng.randint(1, n)\n    degree = rng.randint(0, n)\n\n    # Invariant approach: the answer remains unchanged under certain transformations.\n    # Here, the invariant is the choice of whether a specific subset of size k is included or excluded.\n    if degree <= k:\n        answer = math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        answer = math.comb(n - 1, k)\n\n    # Independent route: compute the same quantity by considering the invariant under permutations of subsets.\n    check = 0\n    if degree <= k:\n        check += math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        check += math.comb(n - 1, k)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a set of {n} elements where a specific subset of size {k} is restricted. \"\n        f\"In how many ways can you choose {k} elements from this set without affecting the invariant of the specific subset's inclusion? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "620426afda94",
+      "parent_id": "1aa7154a6a6a",
+      "generation": 6,
+      "p_hat": 0.4,
+      "h_score": 101.91741104125977,
+      "rq_score": 24.460178649902343,
+      "fitness": 24.460178649902343,
+      "niche_group": 1,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 24.460178649902343
+        },
+        "_behavior_sig_5": "d4d8f3f3b1dcae491086c707dba47bf7bd337a5d8b47f125b457b1c0027b9569",
+        "_template_sig_5": "257fe65c0de128c96afe92f1c10d35d4d3469a22f751047970e902cdec975106",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    terms = rng.randint(10, 50)\n    sequence = sorted(rng.sample(range(1, 101), terms))\n\n    # Sum of the first and last term in the sequence\n    sum_of_ends = sequence[0] + sequence[-1]\n\n    # Product of the first and last term in the sequence\n    product_of_ends = sequence[0] * sequence[-1]\n\n    # Count integers that are multiples of the sum of the first and last term\n    multiples_of_sum = sum(1 for k in range(1, len(sequence) + 1) if k % sum_of_ends == 0)\n\n    # Count integers that are multiples of the product of the first and last term\n    multiples_of_product = sum(1 for k in range(1, len(sequence) + 1) if k % product_of_ends == 0)\n\n    # Use inclusion-exclusion to count integers that are multiples of both the sum and product of the first and last term\n    # Calculate the least common multiple (LCM) of the sum and the product\n    lcm = abs(sum_of_ends * product_of_ends) // math.gcd(sum_of_ends, product_of_ends)\n    multiples_of_both = sum(1 for k in range(1, len(sequence) + 1) if k % lcm == 0)\n\n    # The number of integers not multiples of the sum or the product of the first and last term\n    answer = len(sequence) - multiples_of_sum - multiples_of_product + multiples_of_both\n\n    # Independent route: iterate over the sorted sequence, explicitly checking for multiples of the sum and product of the first and last term.\n    check = sum(1 for k in sequence if k % sum_of_ends != 0 and k % product_of_ends != 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"In a sorted sequence of {len(sequence)} integers, how many integers are \"\n        f\"not multiples of the sum {sum_of_ends} or the product {product_of_ends} of \"\n        f\"the first and last integer in the sequence? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "42abcb264c28",
+      "parent_id": "64f12a5833cd",
+      "generation": 6,
+      "p_hat": 0.5555555555555556,
+      "h_score": 234.6912341647678,
+      "rq_score": 57.94845288018958,
+      "fitness": 57.94845288018958,
+      "niche_group": 2,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 57.94845288018958
+        },
+        "_behavior_sig_5": "0ad6491acdd9b414350ccc2b73feb407e780db7149959283e27a2ceeca88273a",
+        "_template_sig_5": "ab33b6b667a037e2ee497dc3f8e419a903e982fdc583574324c24155306235f3",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"extremal_principle\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)\n    a0 = rng.randint(1, 100)\n    d = rng.randint(1, 5)\n\n    # Define the sequence as in the parent, but focus on the worst-case scenario\n    # for the number of multiples of 3 or 5 within the sequence.\n    sequence = [a0 + i * d for i in range(n)]\n    set_a = {x for x in sequence if x % 3 == 0}\n    set_b = {x for x in sequence if x % 5 == 0}\n    union = len(set_a) + len(set_b) - len(set_a.intersection(set_b))\n    answer = n - union\n\n    # Independent route: count the number of terms that are not multiples of 3 or 5,\n    # instead of counting by complement.\n    check = n - len(set_a) - len(set_b) + len(set_a.intersection(set_b))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the arithmetic sequence starting at {a0} with common difference \"\n        f\"{d}, consisting of {n} terms. What is the minimum number of terms in this \"\n        f\"sequence that are not multiples of 3 or 5? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "2f131d0f96bd",
+      "parent_id": "46236563d4f7",
+      "generation": 6,
+      "p_hat": 0.3,
+      "h_score": 159.49642105102538,
+      "rq_score": 33.49424842071533,
+      "fitness": 33.49424842071533,
+      "niche_group": 2,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "extremal_principle",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 33.49424842071533
+        },
+        "_behavior_sig_5": "cece12c4153e6623262788cec77accc4b03dfdf03841525990855f0bf2387b8e",
+        "_template_sig_5": "eb10b7bc45796c5ce71e575c44252f9cabb692785a5220588b7b6743bd9bbdfe",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"construction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)\n    a0 = rng.randint(1, 100)\n    d = rng.randint(1, 5)\n\n    # Generate the arithmetic sequence starting at a0 with common difference d.\n    sequence = [a0 + i * d for i in range(n)]\n\n    # Focus on constructing the sequence to find the number of terms that are not multiples of 3 or 5.\n    # Instead of counting by complement, we will identify and exclude terms that are multiples of 3 or 5 directly.\n    not_multiples_of_3_or_5 = [x for x in sequence if x % 3 != 0 and x % 5 != 0]\n    answer = len(not_multiples_of_3_or_5)\n\n    # Independent route: count the number of terms that are multiples of 3 or 5, and subtract from the total.\n    multiples_of_3 = [x for x in sequence if x % 3 == 0]\n    multiples_of_5 = [x for x in sequence if x % 5 == 0]\n    union = len(multiples_of_3) + len(multiples_of_5) - len(set(multiples_of_3).intersection(set(multiples_of_5)))\n    check = n - union\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the arithmetic sequence starting at {a0} with common difference \"\n        f\"{d}, consisting of {n} terms. What is the number of terms in this sequence \"\n        f\"that are not multiples of 3 or 5? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "02b7225f64bb",
+      "parent_id": "2f131d0f96bd",
+      "generation": 7,
+      "p_hat": 0.9,
+      "h_score": 398.36624069213866,
+      "rq_score": 35.85296166229247,
+      "fitness": 35.85296166229247,
+      "niche_group": 2,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "construction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 35.85296166229247
+        },
+        "_behavior_sig_5": "350725cc85ad22e4b70a37c08bb85ceff4e6daa00b0ec312822e69e41267dd8c",
+        "_template_sig_5": "072db8b0ccad1f7dd4fa9496abed0056a6b080a28831b44b9effaf053210d2ee",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    terms = rng.randint(10, 50)\n    arithmetic_sequence = sorted(rng.sample(range(1, 101), terms))\n    first_term, last_term = arithmetic_sequence[0], arithmetic_sequence[-1]\n\n    # The sum of the first and last term in the sequence\n    sum_of_ends = first_term + last_term\n\n    # The product of the first and last term in the sequence\n    product_of_ends = first_term * last_term\n\n    # Count integers that are multiples of the sum of the first and last term\n    multiples_of_sum = sum(1 for k in arithmetic_sequence if k % sum_of_ends == 0)\n\n    # Count integers that are multiples of the product of the first and last term\n    multiples_of_product = sum(1 for k in arithmetic_sequence if k % product_of_ends == 0)\n\n    # Use inclusion-exclusion to count integers that are multiples of both the sum and the product of the first and last term\n    # Calculate the least common multiple (LCM) of the sum and the product\n    lcm = abs(sum_of_ends * product_of_ends) // math.gcd(sum_of_ends, product_of_ends)\n    multiples_of_both = sum(1 for k in arithmetic_sequence if k % lcm == 0)\n\n    # The number of integers not multiples of the sum or the product of the first and last term\n    answer = len(arithmetic_sequence) - multiples_of_sum - multiples_of_product + multiples_of_both\n\n    # Independent route: iterate over the arithmetic sequence, explicitly checking for multiples of the sum and product of the first and last term.\n    check = sum(1 for k in arithmetic_sequence if k % sum_of_ends != 0 and k % product_of_ends != 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"In a sorted arithmetic sequence of {len(arithmetic_sequence)} integers, how many integers are \"\n        f\"not multiples of the sum {sum_of_ends} or the product {product_of_ends} of \"\n        f\"the first and last integer in the sequence? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "284250acfb04",
+      "parent_id": "0de4b78ce25a",
+      "generation": 8,
+      "p_hat": 0.4444444444444444,
+      "h_score": 386.6481696234809,
+      "rq_score": 95.4686838576496,
+      "fitness": 95.4686838576496,
+      "niche_group": 3,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 95.4686838576496
+        },
+        "_behavior_sig_5": "56f92dd08731e87626703b0484c3d73f414d12d9e92851c87bb429083f661f12",
+        "_template_sig_5": "243bae6d7375d418ab43119f9ac2574671f6fdb7b749e184339bc113a2c43e09",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    k = rng.randint(1, n)\n    size = rng.randint(0, n)\n\n    # Invariant approach: The answer remains unchanged under cyclic permutations of the string.\n    if size <= k:\n        answer = math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        answer = math.comb(n - 1, k)\n\n    # Independent route: Compute the same quantity by considering the invariant under cyclic rotations of the binary string.\n    check = 0\n    if size <= k:\n        check += math.comb(n - 1, k - 1) + math.comb(n - 1, k)\n    else:\n        check += math.comb(n - 1, k)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a binary string of length {n} where one specific digit is restricted. \"\n        f\"In how many ways can you choose {k} digits from this string without affecting the invariant of the specific digit's inclusion? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "9e723173efdf",
+      "parent_id": "7c50dcb7302c",
+      "generation": 7,
+      "p_hat": 0.4,
+      "h_score": 102.00774917602538,
+      "rq_score": 24.481859802246092,
+      "fitness": 24.481859802246092,
+      "niche_group": 3,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 24.481859802246092
+        },
+        "_behavior_sig_5": "87ebe507976e40f1566dd27d955e19b7cf3a165f3f12b2ddd4290a6119d68e96",
+        "_template_sig_5": "bbf6bb0eb6c53c4ec1e2ccebd0fe7212a0c7391d59c8325fe7bef474c2986ea6",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    terms = rng.randint(10, 50)\n    arithmetic_sequence = sorted(rng.sample(range(1, 101), terms))\n    first_term, last_term = arithmetic_sequence[0], arithmetic_sequence[-1]\n\n    # The sum of the first and last term in the sequence\n    sum_of_ends = first_term + last_term\n\n    # The product of the first and last term in the sequence\n    product_of_ends = first_term * last_term\n\n    # Calculate the least common multiple (LCM) of the sum and the product of the first and last term\n    lcm = abs(sum_of_ends * product_of_ends) // math.gcd(sum_of_ends, product_of_ends)\n\n    # Count integers in the sequence that are multiples of both the sum and the product of the first and last term\n    multiples_of_both = sum(1 for k in arithmetic_sequence if k % lcm == 0)\n\n    # Independent route: iterate over the arithmetic sequence, explicitly checking for multiples of the LCM of the sum and product of the first and last term, but only for numbers that are also multiples of the product of the first and last term.\n    check = sum(1 for k in arithmetic_sequence if k % lcm == 0 and k % product_of_ends == 0)\n    assert multiples_of_both == check, f\"multiples_of_both={multiples_of_both} check={check}\"\n\n    problem = (\n        f\"In a sorted arithmetic sequence of {len(arithmetic_sequence)} integers, how many integers are \"\n        f\"multiples of the LCM of the sum {sum_of_ends} and the product {product_of_ends} of \"\n        f\"the first and last integer in the sequence? State only the integer.\"\n    )\n    return problem, str(multiples_of_both)",
+      "program_id": "7ad11121b912",
+      "parent_id": "284250acfb04",
+      "generation": 9,
+      "p_hat": 0.6666666666666666,
+      "h_score": 248.15928480360242,
+      "rq_score": 55.14650773413388,
+      "fitness": 55.14650773413388,
+      "niche_group": 3,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 55.14650773413388
+        },
+        "_behavior_sig_5": "891627a87b6e2f8a29ed6d0574a2f3310b36806e69a6e03ea6884e8a5a24856f",
+        "_template_sig_5": "c9fafa58fd5d67ee7d877bbca2568a5c5134e87f55b0443b62c9fd9cbf77a1f7",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    a, b = sorted(rng.sample(range(50, 150), 2))\n    n = rng.randint(3000, 40000)\n\n    # Invariant reasoning about the intersection of a lattice with two geometric shapes (like angles or sides of a triangle).\n    sum_ab = a + b\n    product_ab = a * b\n    union = (n // sum_ab + n // product_ab - n // (sum_ab * product_ab))\n    answer = n - union\n\n    # Independent route: test every integer in range against the sum and product of the angles or sides, instead of counting by complement.\n    check = sum(1 for k in range(1, n + 1) if k % sum_ab and k % product_ab)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are not multiples of the sum \"\n        f\"or product of the angles or sides {a} and {b}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "8f7d0202ab93",
+      "parent_id": "4467835e3fd6",
+      "generation": 4,
+      "p_hat": 0.8,
+      "h_score": 115.78759956359863,
+      "rq_score": 18.526015930175777,
+      "fitness": 18.526015930175777,
+      "niche_group": 4,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "invariant",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 18.526015930175777
+        },
+        "_behavior_sig_5": "972d53dc415bcc491104fe9b41b2c9d8a4e74b0bc63a4c35bd0185a8dd12c98b",
+        "_template_sig_5": "31a593676d1330bac51b606e745d0837e6baf05f82d77e0ad09b61840bdb9e15",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"extremal_principle\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w = rng.randint(10, 20)\n    h = rng.randint(10, 20)\n\n    # Define a rectangle with integer coordinates from (0, 0) to (w, h).\n    # Focus on the worst-case scenario for the number of points on the diagonals.\n    total = (w + 1) * (h + 1)\n    # Count the number of lattice points on each diagonal and their intersection.\n    diagonal_a = min(w, h) + 1  # Diagonal from (0,0) to (min(w,h), max(w,h))\n    diagonal_b = min(w, h) + 1  # Diagonal from (0, h) to (w, 0)\n    intersection = 1 if w == h else 0  # Intersection point only exists if w == h\n    union = diagonal_a + diagonal_b - intersection\n    answer = total - union\n\n    # Independent route: count the number of lattice points not on the diagonals,\n    # instead of counting by complement.\n    check = total - diagonal_a - diagonal_b + intersection\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the grid of points with integer coordinates 0 <= x <= {w} \"\n        f\"and 0 <= y <= {h}. What is the minimum number of points that lie on \"\n        f\"neither of the two diagonals? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "33985dd88b97",
+      "parent_id": "2b13e095feac",
+      "generation": 8,
+      "p_hat": 0.7,
+      "h_score": 100.9511703491211,
+      "rq_score": 21.19974577331543,
+      "fitness": 21.19974577331543,
+      "niche_group": 4,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "extremal_principle",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 21.19974577331543
+        },
+        "_behavior_sig_5": "e1459cee7f5680c2b8c020465517b1e04c7ddb96ef1e74a944c2f9bba9917808",
+        "_template_sig_5": "018150183427282cc243b7c9c5ac2ca2ac7891ab57c3a1d4ee13d509f756470d",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    r = rng.randint(50, 200)\n    n = rng.randint(100, 500)\n\n    # Same shape as the parent: total minus the union, but here we're dealing with\n    # area and perimeter, so the sum of squares becomes the area, and the perimeter is the boundary.\n    sum_of_squares = (2 * r) ** 2\n    perimeter = 4 * r\n    boundary = perimeter\n    sum_of_squares_area = sum_of_squares\n    check = n // perimeter + n // sum_of_squares_area - n // (perimeter * sum_of_squares_area)\n\n    # Independent route: test every integer in range against the perimeter and area,\n    # instead of counting by complement.\n    answer = sum(1 for k in range(1, n + 1) if k % perimeter == 0 or k % sum_of_squares_area == 0)\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are multiples of the perimeter \"\n        f\"or area of a circle with radius {r}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "0a2d7b9dd57a",
+      "parent_id": "93377497dafc",
+      "generation": 7,
+      "p_hat": 0.6666666666666666,
+      "h_score": 146.20829433865018,
+      "rq_score": 32.4907320752556,
+      "fitness": 32.4907320752556,
+      "niche_group": 4,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 32.4907320752556
+        },
+        "_behavior_sig_5": "9c2b4b107357298a594db9ecdf8539434b500396d6d5c9c1ce42db0595ef6688",
+        "_template_sig_5": "f4bbde5128c5149fdbfb6ef5333d6905db80be669fa264ae1c574f60cabf7f50",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"construction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 7)\n    r = rng.randint(2, 4)\n    a0 = rng.randint(1, 100)\n\n    # Generate the geometric sequence starting at a0 with common ratio r.\n    sequence = [a0 * (r ** i) for i in range(n)]\n\n    # Construct the sequence to find the number of terms that are perfect squares.\n    perfect_squares = [x for x in sequence if int(x**0.5)**2 == x]\n    answer = len(perfect_squares)\n\n    # Independent route: count the number of terms that are not perfect squares and subtract from the total.\n    non_perfect_squares = len(sequence) - answer\n    check = n - non_perfect_squares\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the geometric sequence starting at {a0} with common ratio \"\n        f\"{r}, consisting of {n} terms. How many of these terms are perfect squares? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "bcfe25333b3e",
+      "parent_id": "02b7225f64bb",
+      "generation": 8,
+      "p_hat": 0.8888888888888888,
+      "h_score": 252.63125610351562,
+      "rq_score": 24.951235170717602,
+      "fitness": 24.951235170717602,
+      "niche_group": 4,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "construction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 24.951235170717602
+        },
+        "_behavior_sig_5": "948ad61f2d4356b4e64c3bca9082f44a6e3d5d4ad0e8b30859506a31b8b1e79a",
+        "_template_sig_5": "dc1150f9342e5c5e1c0a1a6728b2e2a14bf80ccfb7f3126e965e332f6a60c877",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

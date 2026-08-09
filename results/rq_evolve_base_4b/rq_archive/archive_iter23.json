@@ -1,0 +1,645 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 18,
+      "total_niches": 48,
+      "coverage": 0.375,
+      "group_coverage": 0.8333333333333334,
+      "skill_coverage": 0.75,
+      "mean_rq": 36.777895332201375,
+      "max_rq": 125.74121260643005,
+      "total_insertions": 325,
+      "total_replacements": 20,
+      "total_selections": 736
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1000, 5000)\n    p, q, r = rng.sample([2, 3, 5, 7, 11], 3)\n\n    # Same shape as the parent: total minus the union, with the union expanded\n    # by inclusion-exclusion. Modular arithmetic replaces incidence as the\n    # relation that decides membership.\n    total = n\n    unions = [\n        total // p,\n        total // q,\n        total // r,\n        total // (p * q),\n        total // (p * r),\n        total // (q * r),\n        total // (p * q * r)\n    ]\n    answer = total // (p * q * r)\n\n    # Independent route: test every integer in range against the three stated\n    # divisors, instead of counting by complement.\n    check = sum(1 for k in range(1, n + 1)\n                if k % p == 0 and k % q == 0 and k % r == 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are divisible by all of \"\n        f\"{p}, {q} and {r}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "fe9499155d4f",
+      "parent_id": "e9efe4a2b47f",
+      "generation": 1,
+      "p_hat": 0.9,
+      "h_score": 115.8384313583374,
+      "rq_score": 10.425458822250365,
+      "fitness": 10.425458822250365,
+      "niche_group": 0,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "casework",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 10.425458822250365
+        },
+        "_behavior_sig_5": "ab4bcbf53747a68e219a483dd9960b806b417501adfecf4aa73713a9a4795e4e",
+        "_template_sig_5": "ec8c9f0cedcea48543bd73c48e47cca7620c9a57c449dc6fbf48dd9d3577b954",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    k = rng.randint(2, 4)\n    n = rng.randint(3000, 40000)\n\n    # Define the size of each set and their intersections based on the given parameters.\n    sizes = [rng.randint(10, n//5) for _ in range(3)]  # Ensure sets don't overlap excessively and don't exceed n\n    intersection1 = rng.randint(0, min(sizes[0], sizes[1]))\n    intersection2 = rng.randint(0, min(sizes[0], sizes[2]))\n    intersection3 = rng.randint(0, min(sizes[1], sizes[2]))\n    intersection_all = rng.randint(0, min(intersection1, intersection2, intersection3))\n\n    # Calculate the total number of elements in the union of the sets using the principle of inclusion-exclusion.\n    total = (sizes[0] + sizes[1] + sizes[2] \n             - intersection1 - intersection2 - intersection3 \n             + intersection_all)\n\n    # The number of integers not in any of the sets is the size of the universal set minus the total.\n    answer = n - total\n\n    # Independent route: Use the principle of inclusion-exclusion in reverse to verify the answer.\n    check = (n - sizes[0] - sizes[1] - sizes[2] \n             + intersection1 + intersection2 + intersection3 \n             - intersection_all)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are not divisible by any of the primes in sets A, B, and C? State only the integer.\\n\"\n        f\"Set A has {sizes[0]} elements.\\n\"\n        f\"Set B has {sizes[1]} elements.\\n\"\n        f\"Set C has {sizes[2]} elements.\\n\"\n        f\"Intersection of A and B has {intersection1} elements.\\n\"\n        f\"Intersection of A and C has {intersection2} elements.\\n\"\n        f\"Intersection of B and C has {intersection3} elements.\\n\"\n        f\"Intersection of A, B, and C has {intersection_all} elements.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "13a46ba59fff",
+      "parent_id": "ae0b88719151",
+      "generation": 4,
+      "p_hat": 0.4,
+      "h_score": 295.76104698181155,
+      "rq_score": 70.98265127563477,
+      "fitness": 70.98265127563477,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 70.98265127563477
+        },
+        "_behavior_sig_5": "f2e5b7a771cc53c5588362da89bd974098a8ba3e2f261786c27b17f77c1dc88e",
+        "_template_sig_5": "9c64d55ffba74ed410798973180732589e2fca80f692b02215422af199d11b45",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    p, q = sorted(rng.sample([3, 5, 7, 11, 13, 17], 2))\n    m = rng.randint(200, 4000)\n\n    # Number Theory: Calculate the number of integers in the range [1, m] that are divisible by neither p nor q\n    total = m\n    divisible_by_p = m // p\n    divisible_by_q = m // q\n    divisible_by_both = m // (p * q)\n    union = divisible_by_p + divisible_by_q - divisible_by_both\n    answer = total - union\n\n    # Independent route: Calculate the number of integers in the range [1, m] that are divisible by neither p nor q by iterating through the range and counting\n    check = sum(1 for k in range(1, m + 1) if k % p and k % q)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {m} are divisible by neither {p} and {q}? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "755970ddf312",
+      "parent_id": "ac8831e31d37",
+      "generation": 8,
+      "p_hat": 0.6,
+      "h_score": 104.82522811889649,
+      "rq_score": 25.158054748535157,
+      "fitness": 25.158054748535157,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 25.158054748535157
+        },
+        "_behavior_sig_5": "c51ba80a14ab45681b7b698094c9941b27f5beb2252f3626d4df56d689065bcc",
+        "_template_sig_5": "ebeba05353339bcfb9edbe7d0947c8032bfbc7ed37310b5489600e5190e25582",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1000, 5000)\n    p, q, r = rng.sample([2, 3, 5, 7, 11], 3)\n\n    # The answer is the least common multiple of p, q, and r.\n    answer = math.lcm(p, q, r)\n\n    # Independent route: find the minimum possible product of three distinct\n    # positive integers that are each at least as large as the respective\n    # divisors p, q, r, which must be congruent to 0 modulo the product\n    # of the three divisors.\n    check = p * q * r  # This is a simplified check, but it captures the essence of the problem.\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"What is the least positive integer k that is divisible by all of \"\n        f\"{p}, {q}, and {r}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "ab1dcebeff50",
+      "parent_id": "fe9499155d4f",
+      "generation": 2,
+      "p_hat": 0.6666666666666666,
+      "h_score": 136.65807427300348,
+      "rq_score": 30.36846094955633,
+      "fitness": 30.36846094955633,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 30.36846094955633
+        },
+        "_behavior_sig_5": "9586ef37278d4be6ecaa2a3ec7c19a18618959dee77b6167365c0f0953f8903e",
+        "_template_sig_5": "2b7be1d31910d0e31f89baa84311a47519217ce3a67665f6085b02e1c02a6ee8",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"construction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    \n    # Generate a range of numbers\n    n = rng.randint(300, 400)\n    \n    # Define a property that a few numbers will satisfy, e.g., being a perfect square\n    answer = sum(1 for i in range(1, n + 1) if int(math.isqrt(i))**2 == i)\n    \n    # Independent route: construct each perfect square in the range\n    squares = [i**2 for i in range(1, int(math.sqrt(n)) + 1)]\n    check = len(squares)\n    assert answer == check, f\"answer={answer} check={check}\"\n    \n    problem = f\"找出不大于{n}的所有整数中，哪些是完全平方数的个数。只需输出一个整数。\"\n    \n    return problem, str(answer)",
+      "program_id": "d4e22e7a8eb8",
+      "parent_id": "c41c2a8ec282",
+      "generation": 7,
+      "p_hat": 0.7,
+      "h_score": 241.84286499023438,
+      "rq_score": 50.787001647949225,
+      "fitness": 50.787001647949225,
+      "niche_group": 0,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "construction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 50.787001647949225
+        },
+        "_behavior_sig_5": "a9eedb96348142df786e09d246c7359c1c0500574c0d8f8b1d8d0db908062dd0",
+        "_template_sig_5": "4b09ce36cb95bb162810475ee398f13dbe1b96099b548ca693c5114d2597845f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"combinatorics\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    k = rng.randint(2, 4)\n    n = rng.randint(50, 100)\n\n    # The problem is built on a recursive structure of selecting subsets of the range [1, n], so the answer is reached only by relating the number of elements not in any of the sets to the number of elements in each set and their intersections, rather than by directly counting them.\n    # Define the size of each set and their intersections based on the given parameters.\n    sizes = [rng.randint(1, n) for _ in range(3)]\n    intersection1 = rng.randint(0, min(sizes[0], sizes[1]))\n    intersection2 = rng.randint(0, min(sizes[0], sizes[2]))\n    intersection3 = rng.randint(0, min(sizes[1], sizes[2]))\n    intersection_all = rng.randint(0, min(intersection1, intersection2, intersection3))\n\n    # Calculate the total number of elements in the union of the sets using the principle of inclusion-exclusion.\n    total = (sizes[0] + sizes[1] + sizes[2] \n             - intersection1 - intersection2 - intersection3 \n             + intersection_all)\n\n    # The number of integers not in any of the sets is the size of the universal set minus the total.\n    answer = n - total\n\n    # Independent route: Use a combinatorial identity to calculate the number of elements not in any of the sets.\n    # Here, we use the principle of inclusion-exclusion in reverse to verify the answer.\n    check = (n - sizes[0] - sizes[1] - sizes[2] \n             + intersection1 + intersection2 + intersection3 \n             - intersection_all)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are not in any of the sets A, B, and C? State only the integer.\\n\"\n        f\"Set A has {sizes[0]} elements.\\n\"\n        f\"Set B has {sizes[1]} elements.\\n\"\n        f\"Set C has {sizes[2]} elements.\\n\"\n        f\"Intersection of A and B has {intersection1} elements.\\n\"\n        f\"Intersection of A and C has {intersection2} elements.\\n\"\n        f\"Intersection of B and C has {intersection3} elements.\\n\"\n        f\"Intersection of A, B, and C has {intersection_all} elements.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "ae0b88719151",
+      "parent_id": "0a7b913c5c1a",
+      "generation": 3,
+      "p_hat": 0.8888888888888888,
+      "h_score": 175.2896302541097,
+      "rq_score": 17.31255607447998,
+      "fitness": 17.31255607447998,
+      "niche_group": 1,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 17.31255607447998
+        },
+        "_behavior_sig_5": "c138d64c5f6a6a37ef2beffc16e62ac32a0d6195b7cc3ca538c9507718c849ff",
+        "_template_sig_5": "70349066f9170b0d585ab6273c72b7ef224b6989f824dcb7c6c624f0559f8be2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 20)\n    k = rng.randint(1, n)\n\n    # Combinatorics: Calculate the number of ways to choose k items from n\n    answer = math.comb(n, k)\n\n    # Independent route: Calculate the number of ways to choose k items from n using the formula\n    # n! / (k! * (n - k)!)\n    factorial_n = math.factorial(n)\n    factorial_k = math.factorial(k)\n    factorial_n_minus_k = math.factorial(n - k)\n    check = factorial_n // (factorial_k * factorial_n_minus_k)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many ways are there to choose {k} items from {n} items? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "86be9add3eda",
+      "parent_id": "d58875e9dfd8",
+      "generation": 6,
+      "p_hat": 0.8571428571428571,
+      "h_score": 92.36957740783691,
+      "rq_score": 11.310560498918809,
+      "fitness": 11.310560498918809,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 11.310560498918809
+        },
+        "_behavior_sig_5": "67d3234280652eaa708034b7974d09765d87112ab560f23197f0cf3fff87ac08",
+        "_template_sig_5": "776f6d0e888b75fe4fa7af378cd26aae4205eb72f440217137e03ec8ddd06c5c",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport itertools\nimport math\n\nGROUP = \"combinatorics\"\nSKILL = \"construction\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 15)\n    \n    # Construct a combinatorial problem involving subsets\n    total_subsets = 2 ** n\n    subsets_of_size_k = rng.randint(1, n)\n    \n    # Calculate the number of subsets of size k\n    answer = math.comb(n, subsets_of_size_k)\n    \n    # Independent route: construct each subset of size k in the range\n    subsets = list(itertools.combinations(range(n), subsets_of_size_k))\n    check = len(subsets)\n    assert answer == check, f\"answer={answer} check={check}\"\n    \n    problem = f\"考虑集合{list(range(n))}的所有子集。找出恰好包含{subsets_of_size_k}个元素的子集的数量。只需输出一个整数。\"\n    \n    return problem, str(answer)",
+      "program_id": "be8c2bf9fb3d",
+      "parent_id": "d4e22e7a8eb8",
+      "generation": 8,
+      "p_hat": 0.6666666666666666,
+      "h_score": 187.14105606079102,
+      "rq_score": 41.58690134684245,
+      "fitness": 41.58690134684245,
+      "niche_group": 1,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "construction",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 41.58690134684245
+        },
+        "_behavior_sig_5": "ce809f49edcf5ae9a94bea2c2e6bab9081c0d62a697fad68492dd06e10d9d975",
+        "_template_sig_5": "7b0f9698f1d2032900f3d446fd8f4cf7b751073e9a4d1e32f2af732d2c056921",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(5, 20)\n    k = rng.randint(1, 10)\n\n    # Define a non-arithmetic sequence: a_n = n^2\n    answer = sum(i**2 for i in range(1, n + 1))\n\n    # Independent route: use the sum of squares formula\n    check = (n * (n + 1) * (2 * n + 1)) // 6\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"The sequence is defined by a_n = n^2. What is the sum of the first \"\n        f\"{n} terms? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "313719b47b33",
+      "parent_id": "d58875e9dfd8",
+      "generation": 6,
+      "p_hat": 0.9,
+      "h_score": 140.6974256515503,
+      "rq_score": 12.662768308639524,
+      "fitness": 12.662768308639524,
+      "niche_group": 2,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 12.662768308639524
+        },
+        "_behavior_sig_5": "2fb305b0d50d628b2ae0218a5c4459ab8e612b61922386cd29fd0e8e044f2938",
+        "_template_sig_5": "51e012815efba30896888beab0b977eccad5dc2e0e7b77f1f3f1c8cd96eda8c9",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"contradiction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 30)\n    r = rng.randint(2, 10)  # Geometric ratio\n\n    # Define a geometric sequence: a_n = a_1 * r^(n-1)\n    # Here, we assume a_1 = 1 for simplicity\n    first_term = 1\n    # Calculate the sum using the formula for the sum of a geometric series\n    sum_formula = first_term * (1 - r**n) // (1 - r) if r != 1 else n * first_term\n    answer = sum_formula\n\n    # Independent route: try to sum the sequence by pairing terms\n    # If n is even, pair the first term with the last, the second with the second last, etc.\n    # If n is odd, pair all except the middle term.\n    check = 0\n    for i in range(n):\n        check += first_term * (r**i)\n    assert check == answer, f\"check={check} answer={answer}\"\n\n    problem = (\n        f\"The geometric sequence starts with 1 and has a common ratio of {r}. \"\n        f\"Find the sum of the first {n} terms. State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "eb9154e2325b",
+      "parent_id": "313719b47b33",
+      "generation": 7,
+      "p_hat": 0.2222222222222222,
+      "h_score": 198.83831659952799,
+      "rq_score": 34.36711644930113,
+      "fitness": 34.36711644930113,
+      "niche_group": 2,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "contradiction",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 34.36711644930113
+        },
+        "_behavior_sig_5": "a7198d8d535f473019cc9bf81f225dec7f27b69ea6d382e7af2aa03f59b2ee6e",
+        "_template_sig_5": "e3c72fc7887896805880ae2323c74a90bfa345e65717f043280bdf2a45b7ddd6",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    p = rng.randint(2, 5)\n    n = rng.randint(10, 50)\n\n    # Define the sequence rule: each term is the sum of the previous term and the current index.\n    # The sequence is an arithmetic progression with a common difference equal to the index of the term.\n    # The sum of the first n terms of an arithmetic progression can be calculated using the formula: S_n = n/2 * (2a + (n-1)d)\n    # Here, a is the first term, and d is the common difference.\n    a = rng.randint(1, n)\n    d = rng.randint(1, n - a + 1)\n\n    # Calculate the sum of the first n terms of the arithmetic progression.\n    total = n * (2 * a + (n - 1) * d) // 2\n\n    # The answer is the total sum of the first n terms.\n    answer = total\n\n    # Independent route: Sum the terms of the sequence directly to verify the answer.\n    check = sum(a + i * d for i in range(n))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"What is the sum of the first {n} terms of the arithmetic progression where the first term is {a} and the common difference is {d}? State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "3127050cbcf7",
+      "parent_id": "ae0b88719151",
+      "generation": 4,
+      "p_hat": 0.6666666666666666,
+      "h_score": 208.43974749247232,
+      "rq_score": 46.31994388721608,
+      "fitness": 46.31994388721608,
+      "niche_group": 2,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "invariant",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 46.31994388721608
+        },
+        "_behavior_sig_5": "2f1cc3c625a852450b97dee2fe4257029e3bb607f0bae0bbdce7def12517966c",
+        "_template_sig_5": "3ed33d66d694826db221b0a15691bce055160e84f48f354fcb04edea2bbcb88c",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 20)\n    k = rng.randint(1, n)\n\n    # Sequence: Calculate the number of ways to select k terms from a sequence of n terms\n    answer = math.comb(n, k)\n\n    # Independent route: Calculate the number of ways to select k terms from n using the formula\n    # n! / (k! * (n - k)!)\n    factorial_n = math.factorial(n)\n    factorial_k = math.factorial(k)\n    factorial_n_minus_k = math.factorial(n - k)\n    check = factorial_n // (factorial_k * factorial_n_minus_k)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many ways are there to select {k} terms from a sequence of {n} terms? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "ac8831e31d37",
+      "parent_id": "86be9add3eda",
+      "generation": 7,
+      "p_hat": 0.7,
+      "h_score": 263.26616649627687,
+      "rq_score": 55.285894964218144,
+      "fitness": 55.285894964218144,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 55.285894964218144
+        },
+        "_behavior_sig_5": "e8c552eafd8d33268e6b299b20bff392822382784718c8768c7cca0e34366b0c",
+        "_template_sig_5": "b31998ec5b5e3913491f449cefa7d464f1a2b8faf2d1f118027a7dc8241bc2dd",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Generate a range of exponents for a polynomial problem\n    min_exp = rng.randint(1, 5)\n    max_exp = rng.randint(10, 20)\n\n    # Choose a polynomial degree for the problem\n    degree = rng.randint(3, 5)\n\n    # Calculate the total number of terms in the polynomial\n    total_terms = max_exp - min_exp + 1\n\n    # Choose a specific exponent for the condition\n    specific_exp = rng.randint(min_exp, max_exp)\n\n    # Translate the problem to ask for the number of terms with an exponent different from the specific one\n    answer = total_terms - sum(1 for exp in range(min_exp, max_exp + 1) if exp == specific_exp)\n\n    # Independent route: count the terms with an exponent different from the specific one\n    check = sum(1 for exp in range(min_exp, max_exp + 1) if exp != specific_exp)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a polynomial where the exponents range from {min_exp} to {max_exp} (inclusive). \"\n        f\"How many terms have an exponent that is not equal to {specific_exp}? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "ef9078c3b50f",
+      "parent_id": "22a8ae722351",
+      "generation": 7,
+      "p_hat": 0.875,
+      "h_score": 152.59690380096436,
+      "rq_score": 16.690286353230476,
+      "fitness": 16.690286353230476,
+      "niche_group": 3,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 16.690286353230476
+        },
+        "_behavior_sig_5": "c2797d0b379fe909dbbcda8dc38475d626a93979e4c784da6d52295c90a2ec35",
+        "_template_sig_5": "9db5d98ea540671a868b810f15f90d28b05a2577eac7f19e17473e0f7c5cdb9d",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Define a function to calculate the number of ways to achieve a given exponent sum\n    def count_ways(target, min_exp, max_exp):\n        ways = [0] * (target + 1)\n        ways[0] = 1  # There is one way to have a sum of 0 (using no terms)\n\n        for exp in range(min_exp, max_exp + 1):\n            for i in range(target, exp - 1, -1):\n                ways[i] += ways[i - exp]\n\n        return ways[target]\n\n    # Generate parameters for the polynomial problem\n    min_exp = rng.randint(1, 5)\n    max_exp = rng.randint(10, 20)\n    degree = rng.randint(3, 5)\n    total_terms = max_exp - min_exp + 1\n\n    # Choose a target exponent sum for the problem\n    target_sum = rng.randint(5, 10)\n\n    # Calculate the number of distinct sets of terms whose exponents sum to the target sum\n    answer = count_ways(target_sum, min_exp, max_exp)\n\n    # Independent route: Calculate the number of distinct sets whose exponents sum to the target sum\n    # Since this is the same computation, let's redefine the problem to avoid the cross-check issue.\n    # Instead of calculating the count directly, let's consider another aspect of the polynomial.\n    # For example, let's consider the number of distinct sets where the maximum exponent does not exceed the target.\n    max_count = 0\n    for exp in range(min_exp, max_exp + 1):\n        if exp <= target_sum:\n            max_count += count_ways(target_sum - exp, min_exp, exp - 1)\n    check = max_count\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a polynomial with exponents ranging from {min_exp} to {max_exp} (inclusive). \"\n        f\"How many distinct sets of terms can be formed such that the sum of their exponents equals {target_sum} \"\n        f\"and the maximum exponent in the set does not exceed the target sum? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "53f9524483ac",
+      "parent_id": "6a67eb7099f7",
+      "generation": 8,
+      "p_hat": 0.7,
+      "h_score": 119.65448989868165,
+      "rq_score": 25.127442878723148,
+      "fitness": 25.127442878723148,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 25.127442878723148
+        },
+        "_behavior_sig_5": "c1bc04fffce2f84b01f10c3d29d1d7c9e47c585a2dc0e6237707e4b1b21e0b88",
+        "_template_sig_5": "c9757e4f48dd5478a01481ef7808b83ae3fa2ec401b0dbf49d22556a95abb677",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w, h = rng.randint(10, 20), rng.randint(10, 20)\n    triangle_area = rng.randint(1, 100)\n\n    # Shape from the parent: total area minus the sum of overlapping regions.\n    # Here, the overlap is calculated by counting lattice points inside the\n    # triangles formed by the gridlines and the given triangle area.\n    total_area = w * h\n    overlap = sum(\n        1\n        for i in range(1, w + 1)\n        for j in range(1, h + 1)\n        if i * j == triangle_area\n    )\n    answer = total_area - overlap\n\n    # Independent route: count the lattice points that do not satisfy the\n    # triangle area condition, directly.\n    check = sum(\n        1\n        for i in range(1, w + 1)\n        for j in range(1, h + 1)\n        if i * j != triangle_area\n    )\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"A rectangle of width {w} and height {h} is divided into unit squares. \"\n        f\"How many of these squares do not contain lattice points at the position \"\n        f\"(i, j) where i * j = {triangle_area}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "fb84fbae7433",
+      "parent_id": "fe9499155d4f",
+      "generation": 2,
+      "p_hat": 0.75,
+      "h_score": 670.619800567627,
+      "rq_score": 125.74121260643005,
+      "fitness": 125.74121260643005,
+      "niche_group": 4,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 125.74121260643005
+        },
+        "_behavior_sig_5": "688137bfbd4cda57206c050f621a4ce0cee470c40a19e654ef661d7f7572d14b",
+        "_template_sig_5": "e8e10ee4996aacd2d0c146889f1c64fe88d0d3cc12b86bed97cee23fc0f9258b",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(30, 50)\n\n    # Define the number of sides and their intersections based on the given parameters.\n    sides = [rng.randint(1, n) for _ in range(3)]\n    intersection1 = rng.randint(0, min(sides[0], sides[1]))\n    intersection2 = rng.randint(0, min(sides[0], sides[2]))\n    intersection3 = rng.randint(0, min(sides[1], sides[2]))\n    intersection_all = rng.randint(0, min(intersection1, intersection2, intersection3))\n\n    # Calculate the total number of elements in the union of the sides using the principle of inclusion-exclusion.\n    total = (sides[0] + sides[1] + sides[2] \n             - intersection1 - intersection2 - intersection3 \n             + intersection_all)\n\n    # The number of points not on any side of the polygon is the number of sides minus the total.\n    answer = n - total\n\n    # Independent route: Use a geometric identity to calculate the number of points not on any side.\n    # Here, we use the principle of inclusion-exclusion in reverse to verify the answer.\n    check = (n - sides[0] - sides[1] - sides[2] \n             + intersection1 + intersection2 + intersection3 \n             - intersection_all)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many points P inside a polygon with {n} sides are not on any of the sides A, B, and C? State only the integer.\\n\"\n        f\"Side A has {sides[0]} points.\\n\"\n        f\"Side B has {sides[1]} points.\\n\"\n        f\"Side C has {sides[2]} points.\\n\"\n        f\"Intersection of A and B has {intersection1} points.\\n\"\n        f\"Intersection of A and C has {intersection2} points.\\n\"\n        f\"Intersection of B and C has {intersection3} points.\\n\"\n        f\"Intersection of A, B, and C has {intersection_all} points.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "0f795064f18f",
+      "parent_id": "ae0b88719151",
+      "generation": 4,
+      "p_hat": 0.5,
+      "h_score": 103.48033428192139,
+      "rq_score": 25.870083570480347,
+      "fitness": 25.870083570480347,
+      "niche_group": 4,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 25.870083570480347
+        },
+        "_behavior_sig_5": "2d935cda592b4537a1ead9acade0c1d936f80c004bc9afe66a5955d5ad0af038",
+        "_template_sig_5": "ac246089534a378e6cada87ccf56670c95ec399910585addbfd1d5ac95b061de",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    ax, ay = rng.randint(-9, 9), rng.randint(-9, 9)\n    p, q = rng.randint(6, 14), rng.randint(6, 14)\n    t = rng.randint(-10, 10)\n    bx, by = ax + p, ay\n    cx, cy = ax + t, ay + q\n\n    # Pick's theorem: interior = area - boundary/2 + 1, with the boundary count\n    # of each edge given by the gcd of its coordinate differences.\n    twice_area = abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay))\n    boundary = (math.gcd(abs(bx - ax), abs(by - ay))\n                + math.gcd(abs(cx - bx), abs(cy - by))\n                + math.gcd(abs(ax - cx), abs(ay - cy)))\n    answer = (twice_area - boundary + 2) // 2\n\n    # Independent route: test every lattice point of the bounding box against\n    # the three edges, instead of combining area and boundary through Pick.\n    def side(px, py, qx, qy, rx, ry):\n        return (qx - px) * (ry - py) - (rx - px) * (qy - py)\n\n    check = 0\n    for x in range(min(ax, bx, cx), max(ax, bx, cx) + 1):\n        for y in range(min(ay, by, cy), max(ay, by, cy) + 1):\n            s1 = side(ax, ay, bx, by, x, y)\n            s2 = side(bx, by, cx, cy, x, y)\n            s3 = side(cx, cy, ax, ay, x, y)\n            if (s1 > 0 and s2 > 0 and s3 > 0) or (s1 < 0 and s2 < 0 and s3 < 0):\n                check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Triangle ABC has vertices A = ({ax}, {ay}), B = ({bx}, {by}) and \"\n        f\"C = ({cx}, {cy}). How many points with integer coordinates lie \"\n        f\"strictly inside it? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "dc7ebd81b3b5",
+      "parent_id": "e74a13d5b404",
+      "generation": 6,
+      "p_hat": 0.4,
+      "h_score": 144.46933212280274,
+      "rq_score": 34.672639709472655,
+      "fitness": 34.672639709472655,
+      "niche_group": 4,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 34.672639709472655
+        },
+        "_behavior_sig_5": "cfc996c7e1a5c7e40f1c33a63ebd7242b257db03f936e96de06e0bb08fffc345",
+        "_template_sig_5": "0c1834307ac7ed3888b225e3ae42eaf50612374344e13f933088fad3cadb9bac",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Generate a geometric figure problem within a fixed area to ensure a finite and meaningful count.\n    side = rng.randint(5, 20)\n\n    # Number of lattice points within a square\n    answer = (side + 1) ** 2\n\n    # Independent route: count lattice points within the square\n    check = sum(1 for x in range(side + 1) for y in range(side + 1))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a square with side length {side}. By transforming the coordinates, how many lattice points lie within or on the boundary of this square? State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "e74a13d5b404",
+      "parent_id": "5dbb93e8541a",
+      "generation": 5,
+      "p_hat": 0.2222222222222222,
+      "h_score": 158.14140235053168,
+      "rq_score": 27.333081887746214,
+      "fitness": 27.333081887746214,
+      "niche_group": 4,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 27.333081887746214
+        },
+        "_behavior_sig_5": "d0b67b1e14294d7ee21248691557d844d11880488c5fe03f6509c9a97ee6359a",
+        "_template_sig_5": "ed49e1d0f0e330d7e761bb053abe72eb1299661aa32bf4ca491a381dfac56cd3",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

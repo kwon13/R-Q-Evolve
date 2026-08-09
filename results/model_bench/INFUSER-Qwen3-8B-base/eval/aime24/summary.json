@@ -1,0 +1,24 @@
+{
+  "created_at": "2026-08-08T09:39:38",
+  "model": "/data1/yhoon113/INFUSER-Qwen3-8B-base",
+  "tokenizer": "/data1/yhoon113/INFUSER-Qwen3-8B-base",
+  "grader": "r-zero-exact (first-boxed regex + raw verify)",
+  "gpt_recheck": true,
+  "sampling": {
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "n": 1,
+    "vllm_sampler_backend": "pytorch",
+    "vllm_use_flashinfer_sampler": "0"
+  },
+  "benchmarks": {
+    "aime24": {
+      "num_examples": 960,
+      "pass_at_1": 0.22604166666666667,
+      "pass_at_1_pre_gpt": 0.17604166666666668,
+      "gpt_flips": 48,
+      "elapsed_sec": 2577.8
+    }
+  }
+}

@@ -1,0 +1,21 @@
+`torch_dtype` is deprecated! Use `dtype` instead!
+The tokenizer you are loading from '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_128/actor/huggingface' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+[merge] world_size = 4
+[merge] loading shards...
+  - rank 0: /data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_128/actor/model_world_size_4_rank_0.pt
+  - rank 1: /data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_128/actor/model_world_size_4_rank_1.pt
+  - rank 2: /data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_128/actor/model_world_size_4_rank_2.pt
+  - rank 3: /data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_128/actor/model_world_size_4_rank_3.pt
+[merge] merging 399 parameters...
+  merged 50/399
+  merged 100/399
+  merged 150/399
+  merged 200/399
+  merged 250/399
+  merged 300/399
+  merged 350/399
+  merged 399/399
+[merge] building HF model skeleton...
+[merge] saving model to /data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_128/hf_merged
+[merge] saving tokenizer / generation config / chat template
+[merge] done -> /data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_128/hf_merged

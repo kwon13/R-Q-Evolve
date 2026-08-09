@@ -89,7 +89,7 @@ def _write_tables(
 ) -> None:
     labels = {
         "full": "R-Q-Evolve (Full 4B)",
-        "flat": "Flat sampling",
+        "flat": "Flat archive (no MAP bins)",
         "noreeval": "Without reevaluation",
         "nounc": "Without uncertainty",
         "novar": "Without variance",
@@ -205,13 +205,13 @@ def plot(args: argparse.Namespace) -> None:
     }
     labels = {
         "full": "R-Q-Evolve (Full 4B)",
-        "flat": "Flat sampling",
+        "flat": "Flat archive (no MAP bins)",
         "noreeval": "Without reevaluation",
         "nounc": "Without uncertainty",
         "novar": "Without variance",
     }
     panels = [
-        ("Ablation: Sampling & Reevaluation", ["noreeval", "flat", "full"]),
+        ("Ablation: Archive Structure & Reevaluation", ["noreeval", "flat", "full"]),
         ("Ablation: R_Q Score Components", ["nounc", "novar", "full"]),
     ]
     bar_panels = [
@@ -272,7 +272,7 @@ def plot(args: argparse.Namespace) -> None:
     axes[1].tick_params(axis="y", labelleft=False)
 
     bar_labels = [
-        ["Full 4B", "Flat", "w/o reeval."],
+        ["Full 4B", "Flat\narchive", "w/o reeval."],
         [
             "Full $R_Q$\n($L \\times U$)",
             "$L$ only\n($U = 1$)",

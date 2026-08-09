@@ -1,0 +1,997 @@
+INFO 08-08 02:24:12 [__init__.py:216] Automatically detected platform cuda.
+The tokenizer you are loading from '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_128/hf_merged' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+2026-08-08 02:24:14,700 INFO rq_evolve.math_eval: [math_eval] loaded math500: 500 examples
+INFO 08-08 02:24:14 [utils.py:233] non-default args: {'tokenizer': '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_128/hf_merged', 'dtype': 'bfloat16', 'max_model_len': 8192, 'gpu_memory_utilization': 0.85, 'disable_log_stats': True, 'enforce_eager': True, 'model': '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_128/hf_merged'}
+INFO 08-08 02:24:14 [model.py:547] Resolved architecture: Qwen3ForCausalLM
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO 08-08 02:24:14 [model.py:1510] Using max model len 8192
+INFO 08-08 02:24:14 [scheduler.py:205] Chunked prefill is enabled with max_num_batched_tokens=8192.
+INFO 08-08 02:24:14 [__init__.py:381] Cudagraph is disabled under eager mode
+The tokenizer you are loading from '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_128/hf_merged' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:15 [core.py:644] Waiting for init message from front-end.
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:15 [core.py:77] Initializing a V1 LLM engine (v0.11.0) with config: model='/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_128/hf_merged', speculative_config=None, tokenizer='/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_128/hf_merged', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=8192, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, disable_custom_all_reduce=False, quantization=None, enforce_eager=True, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser=''), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None), seed=0, served_model_name=/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_128/hf_merged, enable_prefix_caching=True, chunked_prefill_enabled=True, pooler_config=None, compilation_config={"level":0,"debug_dump_path":"","cache_dir":"","backend":"","custom_ops":[],"splitting_ops":null,"use_inductor":true,"compile_sizes":[],"inductor_compile_config":{"enable_auto_functionalized_v2":false},"inductor_passes":{},"cudagraph_mode":0,"use_cudagraph":true,"cudagraph_num_of_warmups":0,"cudagraph_capture_sizes":[],"cudagraph_copy_inputs":false,"full_cuda_graph":false,"use_inductor_graph_partition":false,"pass_config":{},"max_capture_size":0,"local_cache_dir":null}
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:18 [parallel_state.py:1208] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, TP rank 0, EP rank 0
+[1;36m(EngineCore_DP0 pid=544883)[0;0m WARNING 08-08 02:24:18 [topk_topp_sampler.py:59] FlashInfer is available, but it is not enabled. Falling back to the PyTorch-native implementation of top-p & top-k sampling. For the best performance, please set VLLM_USE_FLASHINFER_SAMPLER=1.
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:18 [gpu_model_runner.py:2602] Starting to load model /data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_128/hf_merged...
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:18 [gpu_model_runner.py:2634] Loading model from scratch...
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:18 [cuda.py:366] Using Flash Attention backend on V1 engine.
+[1;36m(EngineCore_DP0 pid=544883)[0;0m Loading safetensors checkpoint shards:   0% Completed | 0/2 [00:00<?, ?it/s]
+[1;36m(EngineCore_DP0 pid=544883)[0;0m Loading safetensors checkpoint shards:  50% Completed | 1/2 [00:00<00:00,  1.14it/s]
+[1;36m(EngineCore_DP0 pid=544883)[0;0m Loading safetensors checkpoint shards: 100% Completed | 2/2 [00:01<00:00,  1.29it/s]
+[1;36m(EngineCore_DP0 pid=544883)[0;0m Loading safetensors checkpoint shards: 100% Completed | 2/2 [00:01<00:00,  1.26it/s]
+[1;36m(EngineCore_DP0 pid=544883)[0;0m 
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:20 [default_loader.py:267] Loading weights took 1.69 seconds
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:21 [gpu_model_runner.py:2653] Model loading took 7.5532 GiB and 1.847009 seconds
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:22 [gpu_worker.py:298] Available KV cache memory: 58.26 GiB
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:22 [kv_cache_utils.py:1087] GPU KV cache size: 424,240 tokens
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:22 [kv_cache_utils.py:1091] Maximum concurrency for 8,192 tokens per request: 51.79x
+[1;36m(EngineCore_DP0 pid=544883)[0;0m WARNING 08-08 02:24:22 [cudagraph_dispatcher.py:106] cudagraph dispatching keys are not initialized. No cudagraph will be used.
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:22 [core.py:210] init engine (profile, create kv cache, warmup model) took 1.70 seconds
+[1;36m(EngineCore_DP0 pid=544883)[0;0m The tokenizer you are loading from '/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_ablate_noreeval/global_step_128/hf_merged' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+[1;36m(EngineCore_DP0 pid=544883)[0;0m INFO 08-08 02:24:23 [__init__.py:381] Cudagraph is disabled under eager mode
+INFO 08-08 02:24:23 [llm.py:306] Supported_tasks: ['generate']
+2026-08-08 02:24:23,493 INFO eval_vllm_math: Evaluating math500 (500 problems)
+Adding requests:   0%|          | 0/500 [00:00<?, ?it/s]Adding requests:  57%|█████▋    | 283/500 [00:00<00:00, 2828.01it/s]Adding requests: 100%|██████████| 500/500 [00:00<00:00, 2952.17it/s]
+Processed prompts:   0%|          | 0/500 [00:00<?, ?it/s, est. speed input: 0.00 toks/s, output: 0.00 toks/s]Processed prompts:   0%|          | 1/500 [00:04<38:23,  4.62s/it, est. speed input: 11.05 toks/s, output: 34.22 toks/s]Processed prompts:   0%|          | 2/500 [00:04<16:53,  2.04s/it, est. speed input: 18.78 toks/s, output: 66.87 toks/s]Processed prompts:   1%|          | 3/500 [00:05<10:44,  1.30s/it, est. speed input: 24.13 toks/s, output: 95.77 toks/s]Processed prompts:   1%|          | 4/500 [00:05<07:31,  1.10it/s, est. speed input: 34.06 toks/s, output: 124.76 toks/s]Processed prompts:   1%|          | 5/500 [00:05<05:44,  1.44it/s, est. speed input: 41.37 toks/s, output: 152.42 toks/s]Processed prompts:   1%|▏         | 7/500 [00:06<03:22,  2.44it/s, est. speed input: 62.80 toks/s, output: 213.08 toks/s]Processed prompts:   2%|▏         | 9/500 [00:06<02:18,  3.54it/s, est. speed input: 99.95 toks/s, output: 273.49 toks/s]Processed prompts:   2%|▏         | 11/500 [00:06<01:43,  4.72it/s, est. speed input: 124.94 toks/s, output: 332.62 toks/s]Processed prompts:   2%|▏         | 12/500 [00:06<01:49,  4.45it/s, est. speed input: 126.70 toks/s, output: 353.19 toks/s]Processed prompts:   3%|▎         | 16/500 [00:06<01:00,  8.06it/s, est. speed input: 166.34 toks/s, output: 477.72 toks/s]Processed prompts:   4%|▎         | 18/500 [00:07<01:14,  6.47it/s, est. speed input: 210.25 toks/s, output: 514.03 toks/s]Processed prompts:   4%|▍         | 19/500 [00:07<01:15,  6.40it/s, est. speed input: 213.70 toks/s, output: 536.20 toks/s]Processed prompts:   4%|▍         | 21/500 [00:07<01:00,  7.87it/s, est. speed input: 236.86 toks/s, output: 593.43 toks/s]Processed prompts:   5%|▍         | 23/500 [00:07<00:49,  9.62it/s, est. speed input: 247.21 toks/s, output: 651.13 toks/s]Processed prompts:   5%|▌         | 26/500 [00:08<00:38, 12.41it/s, est. speed input: 265.07 toks/s, output: 737.86 toks/s]Processed prompts:   6%|▌         | 29/500 [00:08<00:30, 15.21it/s, est. speed input: 282.19 toks/s, output: 824.54 toks/s]Processed prompts:   7%|▋         | 33/500 [00:08<00:32, 14.23it/s, est. speed input: 304.04 toks/s, output: 921.73 toks/s]Processed prompts:   7%|▋         | 35/500 [00:08<00:32, 14.31it/s, est. speed input: 313.54 toks/s, output: 971.77 toks/s]Processed prompts:   7%|▋         | 37/500 [00:08<00:32, 14.35it/s, est. speed input: 325.56 toks/s, output: 1020.21 toks/s]Processed prompts:   8%|▊         | 39/500 [00:08<00:30, 15.25it/s, est. speed input: 331.91 toks/s, output: 1071.96 toks/s]Processed prompts:   8%|▊         | 41/500 [00:08<00:32, 14.25it/s, est. speed input: 337.94 toks/s, output: 1115.93 toks/s]Processed prompts:   9%|▊         | 43/500 [00:09<00:31, 14.34it/s, est. speed input: 342.83 toks/s, output: 1162.73 toks/s]Processed prompts:   9%|▉         | 45/500 [00:09<00:37, 12.19it/s, est. speed input: 346.53 toks/s, output: 1197.98 toks/s]Processed prompts:  10%|▉         | 49/500 [00:09<00:29, 15.50it/s, est. speed input: 372.85 toks/s, output: 1301.20 toks/s]Processed prompts:  10%|█         | 51/500 [00:09<00:29, 15.10it/s, est. speed input: 382.64 toks/s, output: 1344.32 toks/s]Processed prompts:  11%|█         | 53/500 [00:09<00:31, 14.06it/s, est. speed input: 388.43 toks/s, output: 1383.19 toks/s]Processed prompts:  11%|█▏        | 57/500 [00:09<00:24, 17.87it/s, est. speed input: 405.18 toks/s, output: 1487.74 toks/s]Processed prompts:  12%|█▏        | 59/500 [00:10<00:28, 15.24it/s, est. speed input: 430.76 toks/s, output: 1521.27 toks/s]Processed prompts:  12%|█▏        | 61/500 [00:10<00:30, 14.26it/s, est. speed input: 439.93 toks/s, output: 1558.15 toks/s]Processed prompts:  13%|█▎        | 64/500 [00:10<00:25, 17.06it/s, est. speed input: 457.27 toks/s, output: 1633.67 toks/s]Processed prompts:  13%|█▎        | 66/500 [00:10<00:33, 13.15it/s, est. speed input: 460.01 toks/s, output: 1655.68 toks/s]Processed prompts:  14%|█▎        | 68/500 [00:10<00:33, 12.76it/s, est. speed input: 466.08 toks/s, output: 1691.20 toks/s]Processed prompts:  15%|█▍        | 73/500 [00:10<00:22, 18.97it/s, est. speed input: 493.17 toks/s, output: 1823.65 toks/s]Processed prompts:  15%|█▌        | 76/500 [00:11<00:25, 16.82it/s, est. speed input: 503.76 toks/s, output: 1877.69 toks/s]Processed prompts:  16%|█▌        | 78/500 [00:11<00:24, 17.00it/s, est. speed input: 519.91 toks/s, output: 1919.48 toks/s]Processed prompts:  16%|█▌        | 80/500 [00:11<00:24, 17.10it/s, est. speed input: 525.27 toks/s, output: 1960.49 toks/s]Processed prompts:  16%|█▋        | 82/500 [00:11<00:25, 16.32it/s, est. speed input: 535.69 toks/s, output: 1997.08 toks/s]Processed prompts:  17%|█▋        | 84/500 [00:11<00:27, 14.87it/s, est. speed input: 542.35 toks/s, output: 2028.68 toks/s]Processed prompts:  17%|█▋        | 86/500 [00:12<00:36, 11.36it/s, est. speed input: 542.63 toks/s, output: 2040.32 toks/s]Processed prompts:  18%|█▊        | 88/500 [00:12<00:32, 12.70it/s, est. speed input: 552.84 toks/s, output: 2081.37 toks/s]Processed prompts:  18%|█▊        | 90/500 [00:12<00:48,  8.47it/s, est. speed input: 545.72 toks/s, output: 2069.60 toks/s]Processed prompts:  18%|█▊        | 92/500 [00:12<00:41,  9.94it/s, est. speed input: 549.86 toks/s, output: 2110.33 toks/s]Processed prompts:  19%|█▉        | 94/500 [00:12<00:35, 11.42it/s, est. speed input: 555.88 toks/s, output: 2151.28 toks/s]Processed prompts:  19%|█▉        | 96/500 [00:13<00:40, 10.02it/s, est. speed input: 555.56 toks/s, output: 2167.86 toks/s]Processed prompts:  20%|█▉        | 99/500 [00:13<00:30, 13.00it/s, est. speed input: 562.61 toks/s, output: 2236.18 toks/s]Processed prompts:  20%|██        | 101/500 [00:13<00:33, 12.05it/s, est. speed input: 568.81 toks/s, output: 2261.56 toks/s]Processed prompts:  21%|██        | 104/500 [00:13<00:26, 15.00it/s, est. speed input: 588.31 toks/s, output: 2330.44 toks/s]Processed prompts:  21%|██▏       | 107/500 [00:13<00:24, 16.11it/s, est. speed input: 594.60 toks/s, output: 2390.61 toks/s]Processed prompts:  22%|██▏       | 109/500 [00:13<00:25, 15.57it/s, est. speed input: 600.88 toks/s, output: 2424.66 toks/s]Processed prompts:  22%|██▏       | 111/500 [00:14<00:30, 12.90it/s, est. speed input: 599.06 toks/s, output: 2443.18 toks/s]Processed prompts:  23%|██▎       | 114/500 [00:14<00:27, 14.21it/s, est. speed input: 611.07 toks/s, output: 2500.69 toks/s]Processed prompts:  23%|██▎       | 116/500 [00:14<00:28, 13.39it/s, est. speed input: 610.19 toks/s, output: 2528.38 toks/s]Processed prompts:  24%|██▎       | 118/500 [00:14<00:30, 12.66it/s, est. speed input: 611.83 toks/s, output: 2554.60 toks/s]Processed prompts:  24%|██▍       | 120/500 [00:14<00:35, 10.73it/s, est. speed input: 612.12 toks/s, output: 2567.15 toks/s]Processed prompts:  24%|██▍       | 122/500 [00:15<00:34, 10.91it/s, est. speed input: 614.90 toks/s, output: 2595.08 toks/s]Processed prompts:  25%|██▍       | 124/500 [00:15<00:30, 12.15it/s, est. speed input: 642.68 toks/s, output: 2632.33 toks/s]Processed prompts:  25%|██▌       | 126/500 [00:15<00:30, 12.36it/s, est. speed input: 688.25 toks/s, output: 2663.01 toks/s]Processed prompts:  26%|██▌       | 128/500 [00:15<00:40,  9.19it/s, est. speed input: 691.63 toks/s, output: 2644.25 toks/s]Processed prompts:  26%|██▌       | 131/500 [00:15<00:30, 12.23it/s, est. speed input: 697.51 toks/s, output: 2697.44 toks/s]Processed prompts:  27%|██▋       | 133/500 [00:15<00:33, 10.99it/s, est. speed input: 697.02 toks/s, output: 2715.48 toks/s]Processed prompts:  27%|██▋       | 136/500 [00:16<00:27, 13.20it/s, est. speed input: 699.73 toks/s, output: 2764.50 toks/s]Processed prompts:  28%|██▊       | 138/500 [00:16<00:30, 11.88it/s, est. speed input: 700.62 toks/s, output: 2784.78 toks/s]Processed prompts:  28%|██▊       | 140/500 [00:16<00:39,  9.13it/s, est. speed input: 696.80 toks/s, output: 2772.30 toks/s]Processed prompts:  28%|██▊       | 142/500 [00:16<00:34, 10.49it/s, est. speed input: 703.79 toks/s, output: 2810.09 toks/s]Processed prompts:  29%|██▉       | 144/500 [00:17<00:36,  9.70it/s, est. speed input: 721.73 toks/s, output: 2826.45 toks/s]Processed prompts:  30%|██▉       | 148/500 [00:17<00:31, 11.12it/s, est. speed input: 728.42 toks/s, output: 2877.96 toks/s]Processed prompts:  30%|███       | 150/500 [00:17<00:30, 11.52it/s, est. speed input: 730.88 toks/s, output: 2909.58 toks/s]Processed prompts:  30%|███       | 152/500 [00:17<00:29, 11.99it/s, est. speed input: 734.13 toks/s, output: 2941.94 toks/s]Processed prompts:  31%|███       | 155/500 [00:18<00:34, 10.06it/s, est. speed input: 733.81 toks/s, output: 2950.19 toks/s]Processed prompts:  31%|███▏      | 157/500 [00:18<00:38,  8.94it/s, est. speed input: 728.73 toks/s, output: 2958.70 toks/s]Processed prompts:  32%|███▏      | 159/500 [00:18<00:36,  9.44it/s, est. speed input: 730.76 toks/s, output: 2986.60 toks/s]Processed prompts:  32%|███▏      | 161/500 [00:18<00:31, 10.73it/s, est. speed input: 748.39 toks/s, output: 3024.04 toks/s]Processed prompts:  33%|███▎      | 164/500 [00:18<00:25, 12.94it/s, est. speed input: 755.76 toks/s, output: 3084.17 toks/s]Processed prompts:  33%|███▎      | 166/500 [00:18<00:25, 13.06it/s, est. speed input: 761.00 toks/s, output: 3103.02 toks/s]Processed prompts:  34%|███▎      | 168/500 [00:19<00:30, 10.83it/s, est. speed input: 755.58 toks/s, output: 3077.14 toks/s]Processed prompts:  34%|███▍      | 170/500 [00:19<00:27, 11.98it/s, est. speed input: 760.11 toks/s, output: 3103.14 toks/s]Processed prompts:  34%|███▍      | 172/500 [00:19<00:28, 11.65it/s, est. speed input: 759.98 toks/s, output: 3114.81 toks/s]Processed prompts:  35%|███▍      | 174/500 [00:19<00:38,  8.50it/s, est. speed input: 754.29 toks/s, output: 3109.52 toks/s]Processed prompts:  35%|███▌      | 176/500 [00:20<00:35,  9.11it/s, est. speed input: 756.14 toks/s, output: 3125.83 toks/s]Processed prompts:  36%|███▌      | 178/500 [00:20<00:30, 10.47it/s, est. speed input: 757.92 toks/s, output: 3162.73 toks/s]Processed prompts:  36%|███▌      | 180/500 [00:20<00:34,  9.31it/s, est. speed input: 753.84 toks/s, output: 3167.16 toks/s]Processed prompts:  36%|███▋      | 182/500 [00:20<00:35,  8.96it/s, est. speed input: 751.43 toks/s, output: 3185.93 toks/s]Processed prompts:  37%|███▋      | 184/500 [00:20<00:30, 10.37it/s, est. speed input: 754.37 toks/s, output: 3223.32 toks/s]Processed prompts:  37%|███▋      | 187/500 [00:21<00:27, 11.54it/s, est. speed input: 757.78 toks/s, output: 3250.21 toks/s]Processed prompts:  38%|███▊      | 189/500 [00:21<00:32,  9.60it/s, est. speed input: 755.66 toks/s, output: 3245.93 toks/s]Processed prompts:  38%|███▊      | 191/500 [00:21<00:30, 10.28it/s, est. speed input: 759.13 toks/s, output: 3277.62 toks/s]Processed prompts:  39%|███▊      | 193/500 [00:21<00:28, 10.92it/s, est. speed input: 758.06 toks/s, output: 3277.09 toks/s]Processed prompts:  39%|███▉      | 195/500 [00:21<00:27, 10.91it/s, est. speed input: 759.51 toks/s, output: 3293.40 toks/s]Processed prompts:  39%|███▉      | 197/500 [00:22<00:26, 11.46it/s, est. speed input: 765.95 toks/s, output: 3325.87 toks/s]Processed prompts:  40%|████      | 200/500 [00:22<00:22, 13.57it/s, est. speed input: 773.04 toks/s, output: 3373.49 toks/s]Processed prompts:  40%|████      | 202/500 [00:22<00:23, 12.78it/s, est. speed input: 773.31 toks/s, output: 3387.14 toks/s]Processed prompts:  41%|████      | 204/500 [00:22<00:21, 13.61it/s, est. speed input: 776.13 toks/s, output: 3411.38 toks/s]Processed prompts:  41%|████      | 206/500 [00:22<00:24, 11.97it/s, est. speed input: 773.62 toks/s, output: 3412.56 toks/s]Processed prompts:  42%|████▏     | 208/500 [00:22<00:25, 11.61it/s, est. speed input: 781.26 toks/s, output: 3427.34 toks/s]Processed prompts:  42%|████▏     | 210/500 [00:23<00:25, 11.37it/s, est. speed input: 781.24 toks/s, output: 3424.08 toks/s]Processed prompts:  42%|████▏     | 212/500 [00:23<00:23, 12.40it/s, est. speed input: 789.24 toks/s, output: 3460.37 toks/s]Processed prompts:  43%|████▎     | 214/500 [00:23<00:25, 11.18it/s, est. speed input: 788.25 toks/s, output: 3467.50 toks/s]Processed prompts:  43%|████▎     | 216/500 [00:23<00:28, 10.03it/s, est. speed input: 789.71 toks/s, output: 3468.46 toks/s]Processed prompts:  44%|████▎     | 218/500 [00:23<00:27, 10.22it/s, est. speed input: 790.02 toks/s, output: 3479.76 toks/s]Processed prompts:  44%|████▍     | 221/500 [00:24<00:22, 12.36it/s, est. speed input: 793.57 toks/s, output: 3493.56 toks/s]Processed prompts:  45%|████▍     | 223/500 [00:24<00:25, 10.81it/s, est. speed input: 793.92 toks/s, output: 3501.25 toks/s]Processed prompts:  45%|████▌     | 225/500 [00:24<00:23, 11.86it/s, est. speed input: 798.95 toks/s, output: 3512.96 toks/s]Processed prompts:  45%|████▌     | 227/500 [00:24<00:23, 11.49it/s, est. speed input: 800.50 toks/s, output: 3524.13 toks/s]Processed prompts:  46%|████▌     | 229/500 [00:24<00:27,  9.72it/s, est. speed input: 797.91 toks/s, output: 3529.10 toks/s]Processed prompts:  46%|████▌     | 231/500 [00:25<00:25, 10.40it/s, est. speed input: 798.81 toks/s, output: 3547.86 toks/s]Processed prompts:  47%|████▋     | 233/500 [00:25<00:24, 11.03it/s, est. speed input: 812.58 toks/s, output: 3557.32 toks/s]Processed prompts:  47%|████▋     | 235/500 [00:25<00:24, 10.93it/s, est. speed input: 814.32 toks/s, output: 3568.64 toks/s]Processed prompts:  47%|████▋     | 237/500 [00:25<00:24, 10.79it/s, est. speed input: 814.06 toks/s, output: 3585.38 toks/s]Processed prompts:  48%|████▊     | 240/500 [00:25<00:20, 12.98it/s, est. speed input: 846.04 toks/s, output: 3620.35 toks/s]Processed prompts:  49%|████▊     | 243/500 [00:25<00:20, 12.68it/s, est. speed input: 846.59 toks/s, output: 3650.47 toks/s]Processed prompts:  49%|████▉     | 246/500 [00:26<00:16, 15.09it/s, est. speed input: 856.78 toks/s, output: 3703.53 toks/s]Processed prompts:  50%|████▉     | 248/500 [00:26<00:17, 14.58it/s, est. speed input: 858.95 toks/s, output: 3714.57 toks/s]Processed prompts:  50%|█████     | 251/500 [00:26<00:14, 16.95it/s, est. speed input: 862.76 toks/s, output: 3763.79 toks/s]Processed prompts:  51%|█████     | 253/500 [00:26<00:15, 15.88it/s, est. speed input: 862.40 toks/s, output: 3760.36 toks/s]Processed prompts:  51%|█████     | 255/500 [00:26<00:18, 13.51it/s, est. speed input: 863.94 toks/s, output: 3772.42 toks/s]Processed prompts:  52%|█████▏    | 258/500 [00:26<00:14, 16.21it/s, est. speed input: 873.99 toks/s, output: 3802.85 toks/s]Processed prompts:  52%|█████▏    | 262/500 [00:27<00:18, 12.66it/s, est. speed input: 901.08 toks/s, output: 3839.69 toks/s]Processed prompts:  53%|█████▎    | 264/500 [00:27<00:23,  9.86it/s, est. speed input: 895.59 toks/s, output: 3817.40 toks/s]Processed prompts:  53%|█████▎    | 266/500 [00:27<00:23, 10.16it/s, est. speed input: 894.17 toks/s, output: 3827.39 toks/s]Processed prompts:  54%|█████▍    | 271/500 [00:28<00:17, 13.42it/s, est. speed input: 903.52 toks/s, output: 3876.90 toks/s]Processed prompts:  55%|█████▍    | 273/500 [00:28<00:16, 14.04it/s, est. speed input: 905.61 toks/s, output: 3893.47 toks/s]Processed prompts:  56%|█████▌    | 278/500 [00:28<00:11, 19.71it/s, est. speed input: 914.53 toks/s, output: 3974.41 toks/s]Processed prompts:  57%|█████▋    | 283/500 [00:28<00:09, 22.43it/s, est. speed input: 931.22 toks/s, output: 4075.45 toks/s]Processed prompts:  57%|█████▋    | 286/500 [00:28<00:09, 21.82it/s, est. speed input: 934.34 toks/s, output: 4102.55 toks/s]Processed prompts:  58%|█████▊    | 290/500 [00:28<00:08, 24.83it/s, est. speed input: 955.29 toks/s, output: 4168.86 toks/s]Processed prompts:  59%|█████▊    | 293/500 [00:28<00:09, 21.44it/s, est. speed input: 962.42 toks/s, output: 4196.96 toks/s]Processed prompts:  59%|█████▉    | 296/500 [00:28<00:08, 22.70it/s, est. speed input: 965.06 toks/s, output: 4228.79 toks/s]Processed prompts:  60%|█████▉    | 299/500 [00:29<00:08, 23.75it/s, est. speed input: 968.49 toks/s, output: 4272.83 toks/s]Processed prompts:  60%|██████    | 302/500 [00:29<00:12, 15.68it/s, est. speed input: 964.28 toks/s, output: 4269.08 toks/s]Processed prompts:  62%|██████▏   | 309/500 [00:29<00:08, 23.59it/s, est. speed input: 983.81 toks/s, output: 4360.80 toks/s]Processed prompts:  62%|██████▏   | 312/500 [00:29<00:08, 23.30it/s, est. speed input: 985.86 toks/s, output: 4405.02 toks/s]Processed prompts:  63%|██████▎   | 315/500 [00:29<00:09, 18.54it/s, est. speed input: 984.29 toks/s, output: 4419.39 toks/s]Processed prompts:  64%|██████▍   | 319/500 [00:30<00:08, 21.20it/s, est. speed input: 994.15 toks/s, output: 4451.17 toks/s]Processed prompts:  64%|██████▍   | 322/500 [00:30<00:09, 18.14it/s, est. speed input: 994.16 toks/s, output: 4480.61 toks/s]Processed prompts:  65%|██████▌   | 325/500 [00:30<00:11, 15.10it/s, est. speed input: 994.34 toks/s, output: 4474.76 toks/s]Processed prompts:  65%|██████▌   | 327/500 [00:30<00:11, 14.44it/s, est. speed input: 1006.08 toks/s, output: 4484.88 toks/s]Processed prompts:  66%|██████▌   | 329/500 [00:30<00:12, 14.05it/s, est. speed input: 1007.06 toks/s, output: 4503.18 toks/s]Processed prompts:  66%|██████▌   | 331/500 [00:31<00:13, 12.17it/s, est. speed input: 1008.36 toks/s, output: 4510.46 toks/s]Processed prompts:  67%|██████▋   | 334/500 [00:31<00:13, 11.99it/s, est. speed input: 1009.39 toks/s, output: 4545.71 toks/s]Processed prompts:  67%|██████▋   | 337/500 [00:31<00:10, 14.84it/s, est. speed input: 1014.50 toks/s, output: 4573.89 toks/s]Processed prompts:  68%|██████▊   | 340/500 [00:31<00:11, 14.14it/s, est. speed input: 1012.33 toks/s, output: 4565.71 toks/s]Processed prompts:  68%|██████▊   | 342/500 [00:31<00:10, 15.12it/s, est. speed input: 1013.97 toks/s, output: 4588.40 toks/s]Processed prompts:  69%|██████▉   | 344/500 [00:32<00:12, 12.79it/s, est. speed input: 1010.86 toks/s, output: 4599.40 toks/s]Processed prompts:  69%|██████▉   | 346/500 [00:32<00:10, 14.09it/s, est. speed input: 1015.23 toks/s, output: 4609.02 toks/s]Processed prompts:  70%|██████▉   | 348/500 [00:32<00:11, 13.21it/s, est. speed input: 1022.78 toks/s, output: 4621.98 toks/s]Processed prompts:  70%|███████   | 351/500 [00:32<00:13, 11.37it/s, est. speed input: 1022.37 toks/s, output: 4630.12 toks/s]Processed prompts:  71%|███████   | 353/500 [00:32<00:12, 11.34it/s, est. speed input: 1022.18 toks/s, output: 4645.06 toks/s]Processed prompts:  72%|███████▏  | 358/500 [00:33<00:08, 16.66it/s, est. speed input: 1027.29 toks/s, output: 4696.69 toks/s]Processed prompts:  72%|███████▏  | 360/500 [00:33<00:09, 14.60it/s, est. speed input: 1026.12 toks/s, output: 4697.89 toks/s]Processed prompts:  73%|███████▎  | 363/500 [00:33<00:08, 16.63it/s, est. speed input: 1027.93 toks/s, output: 4717.62 toks/s]Processed prompts:  74%|███████▎  | 368/500 [00:33<00:08, 15.25it/s, est. speed input: 1030.77 toks/s, output: 4735.69 toks/s]Processed prompts:  74%|███████▍  | 370/500 [00:34<00:11, 11.82it/s, est. speed input: 1032.37 toks/s, output: 4732.96 toks/s]Processed prompts:  75%|███████▍  | 373/500 [00:34<00:09, 12.95it/s, est. speed input: 1035.51 toks/s, output: 4744.22 toks/s]Processed prompts:  75%|███████▌  | 375/500 [00:34<00:10, 11.63it/s, est. speed input: 1033.31 toks/s, output: 4740.69 toks/s]Processed prompts:  75%|███████▌  | 377/500 [00:34<00:09, 12.81it/s, est. speed input: 1033.86 toks/s, output: 4761.47 toks/s]Processed prompts:  76%|███████▌  | 379/500 [00:34<00:08, 13.45it/s, est. speed input: 1034.51 toks/s, output: 4793.49 toks/s]Processed prompts:  76%|███████▌  | 381/500 [00:35<00:12,  9.75it/s, est. speed input: 1028.46 toks/s, output: 4778.72 toks/s]Processed prompts:  77%|███████▋  | 383/500 [00:35<00:11, 10.29it/s, est. speed input: 1029.11 toks/s, output: 4787.42 toks/s]Processed prompts:  77%|███████▋  | 385/500 [00:35<00:11,  9.79it/s, est. speed input: 1030.11 toks/s, output: 4788.05 toks/s]Processed prompts:  77%|███████▋  | 387/500 [00:35<00:12,  8.72it/s, est. speed input: 1027.77 toks/s, output: 4773.53 toks/s]Processed prompts:  78%|███████▊  | 390/500 [00:35<00:10, 10.87it/s, est. speed input: 1032.06 toks/s, output: 4817.41 toks/s]Processed prompts:  78%|███████▊  | 392/500 [00:36<00:09, 11.76it/s, est. speed input: 1032.24 toks/s, output: 4852.59 toks/s]Processed prompts:  79%|███████▉  | 394/500 [00:36<00:08, 13.20it/s, est. speed input: 1033.30 toks/s, output: 4877.60 toks/s]Processed prompts:  80%|███████▉  | 398/500 [00:36<00:07, 14.54it/s, est. speed input: 1042.87 toks/s, output: 4906.04 toks/s]Processed prompts:  80%|████████  | 400/500 [00:36<00:07, 13.14it/s, est. speed input: 1041.42 toks/s, output: 4913.10 toks/s]Processed prompts:  81%|████████  | 403/500 [00:36<00:06, 15.16it/s, est. speed input: 1045.73 toks/s, output: 4959.09 toks/s]Processed prompts:  81%|████████  | 405/500 [00:36<00:06, 15.00it/s, est. speed input: 1051.71 toks/s, output: 4974.71 toks/s]Processed prompts:  82%|████████▏ | 409/500 [00:36<00:04, 19.52it/s, est. speed input: 1062.13 toks/s, output: 5043.58 toks/s]Processed prompts:  82%|████████▏ | 412/500 [00:37<00:04, 19.54it/s, est. speed input: 1067.68 toks/s, output: 5070.91 toks/s]Processed prompts:  83%|████████▎ | 415/500 [00:37<00:05, 14.66it/s, est. speed input: 1071.03 toks/s, output: 5083.12 toks/s]Processed prompts:  84%|████████▎ | 418/500 [00:37<00:04, 16.42it/s, est. speed input: 1073.44 toks/s, output: 5140.96 toks/s]Processed prompts:  84%|████████▍ | 420/500 [00:37<00:05, 14.68it/s, est. speed input: 1072.48 toks/s, output: 5156.57 toks/s]Processed prompts:  84%|████████▍ | 422/500 [00:37<00:05, 14.88it/s, est. speed input: 1074.06 toks/s, output: 5182.29 toks/s]Processed prompts:  85%|████████▌ | 425/500 [00:38<00:04, 16.44it/s, est. speed input: 1078.15 toks/s, output: 5225.04 toks/s]Processed prompts:  85%|████████▌ | 427/500 [00:38<00:04, 16.93it/s, est. speed input: 1082.56 toks/s, output: 5248.07 toks/s]Processed prompts:  86%|████████▌ | 429/500 [00:38<00:05, 12.75it/s, est. speed input: 1083.23 toks/s, output: 5274.88 toks/s]Processed prompts:  86%|████████▋ | 432/500 [00:38<00:04, 15.88it/s, est. speed input: 1086.80 toks/s, output: 5303.01 toks/s]Processed prompts:  87%|████████▋ | 434/500 [00:38<00:03, 16.60it/s, est. speed input: 1088.96 toks/s, output: 5322.60 toks/s]Processed prompts:  88%|████████▊ | 438/500 [00:38<00:03, 18.99it/s, est. speed input: 1094.63 toks/s, output: 5399.88 toks/s]Processed prompts:  88%|████████▊ | 441/500 [00:39<00:03, 14.87it/s, est. speed input: 1097.57 toks/s, output: 5414.50 toks/s]Processed prompts:  89%|████████▊ | 443/500 [00:39<00:04, 12.24it/s, est. speed input: 1094.28 toks/s, output: 5419.85 toks/s]Processed prompts:  89%|████████▉ | 445/500 [00:39<00:04, 12.57it/s, est. speed input: 1096.01 toks/s, output: 5431.63 toks/s]Processed prompts:  89%|████████▉ | 447/500 [00:39<00:05,  9.93it/s, est. speed input: 1092.49 toks/s, output: 5425.12 toks/s]Processed prompts:  90%|████████▉ | 449/500 [00:39<00:04, 10.70it/s, est. speed input: 1092.44 toks/s, output: 5440.85 toks/s]Processed prompts:  90%|█████████ | 451/500 [00:40<00:05,  8.90it/s, est. speed input: 1087.93 toks/s, output: 5432.21 toks/s]Processed prompts:  91%|█████████ | 453/500 [00:40<00:04, 10.38it/s, est. speed input: 1090.28 toks/s, output: 5462.48 toks/s]Processed prompts:  91%|█████████ | 455/500 [00:40<00:04, 10.38it/s, est. speed input: 1090.83 toks/s, output: 5482.96 toks/s]Processed prompts:  91%|█████████▏| 457/500 [00:40<00:04, 10.40it/s, est. speed input: 1090.61 toks/s, output: 5499.55 toks/s]Processed prompts:  92%|█████████▏| 459/500 [00:41<00:04,  9.09it/s, est. speed input: 1088.16 toks/s, output: 5516.23 toks/s]Processed prompts:  92%|█████████▏| 461/500 [00:41<00:04,  8.38it/s, est. speed input: 1085.55 toks/s, output: 5519.60 toks/s]Processed prompts:  93%|█████████▎| 466/500 [00:41<00:02, 12.40it/s, est. speed input: 1090.49 toks/s, output: 5606.33 toks/s]Processed prompts:  94%|█████████▎| 468/500 [00:42<00:03,  8.28it/s, est. speed input: 1083.42 toks/s, output: 5577.23 toks/s]Processed prompts:  94%|█████████▍| 470/500 [00:42<00:03,  8.76it/s, est. speed input: 1082.45 toks/s, output: 5595.53 toks/s]Processed prompts:  95%|█████████▍| 473/500 [00:43<00:04,  6.01it/s, est. speed input: 1069.66 toks/s, output: 5557.78 toks/s]Processed prompts:  95%|█████████▍| 474/500 [00:43<00:05,  4.81it/s, est. speed input: 1061.45 toks/s, output: 5521.62 toks/s]Processed prompts:  95%|█████████▌| 475/500 [00:43<00:04,  5.21it/s, est. speed input: 1061.37 toks/s, output: 5532.40 toks/s]Processed prompts:  95%|█████████▌| 476/500 [00:43<00:04,  5.17it/s, est. speed input: 1059.12 toks/s, output: 5530.56 toks/s]Processed prompts:  95%|█████████▌| 477/500 [00:44<00:06,  3.39it/s, est. speed input: 1044.96 toks/s, output: 5470.31 toks/s]Processed prompts:  96%|█████████▌| 478/500 [00:44<00:06,  3.53it/s, est. speed input: 1040.71 toks/s, output: 5461.72 toks/s]Processed prompts:  96%|█████████▌| 479/500 [00:45<00:08,  2.61it/s, est. speed input: 1027.97 toks/s, output: 5409.01 toks/s]Processed prompts:  96%|█████████▌| 480/500 [00:47<00:14,  1.39it/s, est. speed input: 994.78 toks/s, output: 5251.61 toks/s] Processed prompts:  96%|█████████▋| 482/500 [00:47<00:08,  2.10it/s, est. speed input: 991.98 toks/s, output: 5266.56 toks/s]Processed prompts:  97%|█████████▋| 483/500 [00:48<00:09,  1.83it/s, est. speed input: 978.99 toks/s, output: 5206.43 toks/s]Processed prompts:  97%|█████████▋| 484/500 [00:48<00:07,  2.17it/s, est. speed input: 976.50 toks/s, output: 5208.98 toks/s]Processed prompts:  97%|█████████▋| 485/500 [00:49<00:09,  1.64it/s, est. speed input: 960.94 toks/s, output: 5126.31 toks/s]Processed prompts:  97%|█████████▋| 486/500 [00:51<00:15,  1.14s/it, est. speed input: 917.78 toks/s, output: 4904.27 toks/s]Processed prompts:  97%|█████████▋| 487/500 [01:02<00:49,  3.82s/it, est. speed input: 763.59 toks/s, output: 4112.87 toks/s]Processed prompts:  98%|█████████▊| 488/500 [01:24<01:46,  8.88s/it, est. speed input: 569.59 toks/s, output: 3111.05 toks/s]Processed prompts:  99%|█████████▉| 495/500 [01:28<00:13,  2.77s/it, est. speed input: 549.02 toks/s, output: 3276.93 toks/s]Processed prompts:  99%|█████████▉| 496/500 [01:29<00:09,  2.47s/it, est. speed input: 547.23 toks/s, output: 3304.39 toks/s]Processed prompts:  99%|█████████▉| 497/500 [01:31<00:07,  2.51s/it, est. speed input: 534.41 toks/s, output: 3251.46 toks/s]Processed prompts: 100%|█████████▉| 498/500 [01:33<00:04,  2.38s/it, est. speed input: 524.88 toks/s, output: 3232.71 toks/s]Processed prompts: 100%|█████████▉| 499/500 [01:33<00:01,  1.96s/it, est. speed input: 525.74 toks/s, output: 3264.48 toks/s]Processed prompts: 100%|██████████| 500/500 [01:34<00:00,  1.66s/it, est. speed input: 522.84 toks/s, output: 3284.60 toks/s]Processed prompts: 100%|██████████| 500/500 [01:34<00:00,  1.66s/it, est. speed input: 522.84 toks/s, output: 3284.60 toks/s]Processed prompts: 100%|██████████| 500/500 [01:34<00:00,  5.28it/s, est. speed input: 522.84 toks/s, output: 3284.60 toks/s]
+2026-08-08 02:25:59,261 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,263 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,263 INFO openai._base_client: Retrying request to /chat/completions in 0.401339 seconds
+2026-08-08 02:25:59,264 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,265 INFO openai._base_client: Retrying request to /chat/completions in 0.481805 seconds
+2026-08-08 02:25:59,265 INFO openai._base_client: Retrying request to /chat/completions in 0.466099 seconds
+2026-08-08 02:25:59,265 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,266 INFO openai._base_client: Retrying request to /chat/completions in 0.437544 seconds
+2026-08-08 02:25:59,276 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,277 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,278 INFO openai._base_client: Retrying request to /chat/completions in 0.445692 seconds
+2026-08-08 02:25:59,278 INFO openai._base_client: Retrying request to /chat/completions in 0.486473 seconds
+2026-08-08 02:25:59,285 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,286 INFO openai._base_client: Retrying request to /chat/completions in 0.397879 seconds
+2026-08-08 02:25:59,287 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,288 INFO openai._base_client: Retrying request to /chat/completions in 0.435920 seconds
+2026-08-08 02:25:59,842 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,842 INFO openai._base_client: Retrying request to /chat/completions in 0.753497 seconds
+2026-08-08 02:25:59,844 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,844 INFO openai._base_client: Retrying request to /chat/completions in 0.867185 seconds
+2026-08-08 02:25:59,883 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,883 INFO openai._base_client: Retrying request to /chat/completions in 0.961698 seconds
+2026-08-08 02:25:59,887 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,887 INFO openai._base_client: Retrying request to /chat/completions in 0.801984 seconds
+2026-08-08 02:25:59,902 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,902 INFO openai._base_client: Retrying request to /chat/completions in 0.869025 seconds
+2026-08-08 02:25:59,909 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,909 INFO openai._base_client: Retrying request to /chat/completions in 0.968655 seconds
+2026-08-08 02:25:59,910 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,910 INFO openai._base_client: Retrying request to /chat/completions in 0.962362 seconds
+2026-08-08 02:25:59,936 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:25:59,936 INFO openai._base_client: Retrying request to /chat/completions in 0.961745 seconds
+2026-08-08 02:26:00,763 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:00,765 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:00,859 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:00,860 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:00,875 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:00,876 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:00,949 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:00,950 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:00,954 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:00,955 INFO openai._base_client: Retrying request to /chat/completions in 0.399580 seconds
+2026-08-08 02:26:01,020 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,021 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:01,033 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,034 INFO openai._base_client: Retrying request to /chat/completions in 0.485687 seconds
+2026-08-08 02:26:01,040 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,041 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:01,047 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,048 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:01,053 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,054 INFO openai._base_client: Retrying request to /chat/completions in 0.437735 seconds
+2026-08-08 02:26:01,062 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,063 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:01,113 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,114 INFO openai._base_client: Retrying request to /chat/completions in 0.492130 seconds
+2026-08-08 02:26:01,185 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,185 INFO openai._base_client: Retrying request to /chat/completions in 0.413730 seconds
+2026-08-08 02:26:01,205 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,205 INFO openai._base_client: Retrying request to /chat/completions in 0.411870 seconds
+2026-08-08 02:26:01,225 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,226 INFO openai._base_client: Retrying request to /chat/completions in 0.492525 seconds
+2026-08-08 02:26:01,236 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,237 INFO openai._base_client: Retrying request to /chat/completions in 0.422252 seconds
+2026-08-08 02:26:01,539 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,540 INFO openai._base_client: Retrying request to /chat/completions in 0.882779 seconds
+2026-08-08 02:26:01,659 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,659 INFO openai._base_client: Retrying request to /chat/completions in 0.935097 seconds
+2026-08-08 02:26:01,696 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,697 INFO openai._base_client: Retrying request to /chat/completions in 0.810395 seconds
+2026-08-08 02:26:01,771 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,772 INFO openai._base_client: Retrying request to /chat/completions in 0.908465 seconds
+2026-08-08 02:26:01,780 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,780 INFO openai._base_client: Retrying request to /chat/completions in 0.935643 seconds
+2026-08-08 02:26:01,785 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,785 INFO openai._base_client: Retrying request to /chat/completions in 0.859113 seconds
+2026-08-08 02:26:01,819 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,820 INFO openai._base_client: Retrying request to /chat/completions in 0.777691 seconds
+2026-08-08 02:26:01,896 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:01,896 INFO openai._base_client: Retrying request to /chat/completions in 0.897454 seconds
+2026-08-08 02:26:02,592 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,593 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:02,667 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,668 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:02,757 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,758 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:02,772 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,773 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:02,778 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,778 INFO openai._base_client: Retrying request to /chat/completions in 0.428205 seconds
+2026-08-08 02:26:02,819 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,820 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:02,837 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,837 INFO openai._base_client: Retrying request to /chat/completions in 0.468347 seconds
+2026-08-08 02:26:02,853 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,853 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:02,893 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,893 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:02,928 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,928 INFO openai._base_client: Retrying request to /chat/completions in 0.481387 seconds
+2026-08-08 02:26:02,953 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,953 INFO openai._base_client: Retrying request to /chat/completions in 0.394711 seconds
+2026-08-08 02:26:02,959 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,960 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:02,991 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:02,991 INFO openai._base_client: Retrying request to /chat/completions in 0.498459 seconds
+2026-08-08 02:26:03,019 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,019 INFO openai._base_client: Retrying request to /chat/completions in 0.487144 seconds
+2026-08-08 02:26:03,055 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,056 INFO openai._base_client: Retrying request to /chat/completions in 0.397493 seconds
+2026-08-08 02:26:03,332 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,332 INFO openai._base_client: Retrying request to /chat/completions in 0.431061 seconds
+2026-08-08 02:26:03,385 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,386 INFO openai._base_client: Retrying request to /chat/completions in 0.883889 seconds
+2026-08-08 02:26:03,476 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,477 INFO openai._base_client: Retrying request to /chat/completions in 0.794841 seconds
+2026-08-08 02:26:03,515 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,515 INFO openai._base_client: Retrying request to /chat/completions in 0.870021 seconds
+2026-08-08 02:26:03,579 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,579 INFO openai._base_client: Retrying request to /chat/completions in 0.822195 seconds
+2026-08-08 02:26:03,628 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,629 INFO openai._base_client: Retrying request to /chat/completions in 0.951805 seconds
+2026-08-08 02:26:03,668 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,669 INFO openai._base_client: Retrying request to /chat/completions in 0.821028 seconds
+2026-08-08 02:26:03,677 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,677 INFO openai._base_client: Retrying request to /chat/completions in 0.760205 seconds
+2026-08-08 02:26:03,948 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:03,948 INFO openai._base_client: Retrying request to /chat/completions in 0.840342 seconds
+2026-08-08 02:26:04,436 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,436 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:04,453 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,454 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:04,564 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,565 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:04,569 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,570 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:04,594 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,594 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:04,602 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,603 INFO openai._base_client: Retrying request to /chat/completions in 0.497727 seconds
+2026-08-08 02:26:04,626 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,626 INFO openai._base_client: Retrying request to /chat/completions in 0.421433 seconds
+2026-08-08 02:26:04,648 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,648 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:04,747 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,747 INFO openai._base_client: Retrying request to /chat/completions in 0.454961 seconds
+2026-08-08 02:26:04,748 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,749 INFO openai._base_client: Retrying request to /chat/completions in 0.452707 seconds
+2026-08-08 02:26:04,753 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,754 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:04,768 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,769 INFO openai._base_client: Retrying request to /chat/completions in 0.405672 seconds
+2026-08-08 02:26:04,827 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,828 INFO openai._base_client: Retrying request to /chat/completions in 0.499205 seconds
+2026-08-08 02:26:04,922 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,922 INFO openai._base_client: Retrying request to /chat/completions in 0.432890 seconds
+2026-08-08 02:26:04,967 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:04,968 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:05,141 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:05,141 INFO openai._base_client: Retrying request to /chat/completions in 0.452360 seconds
+2026-08-08 02:26:05,229 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:05,229 INFO openai._base_client: Retrying request to /chat/completions in 0.927086 seconds
+2026-08-08 02:26:05,266 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:05,266 INFO openai._base_client: Retrying request to /chat/completions in 0.901378 seconds
+2026-08-08 02:26:05,343 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:05,344 INFO openai._base_client: Retrying request to /chat/completions in 0.901401 seconds
+2026-08-08 02:26:05,365 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:05,365 INFO openai._base_client: Retrying request to /chat/completions in 0.972009 seconds
+2026-08-08 02:26:05,374 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:05,375 INFO openai._base_client: Retrying request to /chat/completions in 0.847942 seconds
+2026-08-08 02:26:05,505 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:05,505 INFO openai._base_client: Retrying request to /chat/completions in 0.862035 seconds
+2026-08-08 02:26:05,537 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:05,537 INFO openai._base_client: Retrying request to /chat/completions in 0.846167 seconds
+2026-08-08 02:26:05,761 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:05,761 INFO openai._base_client: Retrying request to /chat/completions in 0.933459 seconds
+2026-08-08 02:26:06,329 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,330 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:06,336 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,338 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:06,404 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,405 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:06,408 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,409 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:06,508 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,509 INFO openai._base_client: Retrying request to /chat/completions in 0.487362 seconds
+2026-08-08 02:26:06,510 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,511 INFO openai._base_client: Retrying request to /chat/completions in 0.440990 seconds
+2026-08-08 02:26:06,525 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,526 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:06,533 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,534 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:06,545 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,546 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:06,578 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,579 INFO openai._base_client: Retrying request to /chat/completions in 0.418819 seconds
+2026-08-08 02:26:06,594 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,594 INFO openai._base_client: Retrying request to /chat/completions in 0.376751 seconds
+2026-08-08 02:26:06,697 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,698 INFO openai._base_client: Retrying request to /chat/completions in 0.383122 seconds
+2026-08-08 02:26:06,706 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,707 INFO openai._base_client: Retrying request to /chat/completions in 0.412697 seconds
+2026-08-08 02:26:06,725 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,726 INFO openai._base_client: Retrying request to /chat/completions in 0.497711 seconds
+2026-08-08 02:26:06,874 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:06,874 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:07,034 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:07,035 INFO openai._base_client: Retrying request to /chat/completions in 0.463366 seconds
+2026-08-08 02:26:07,120 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:07,120 INFO openai._base_client: Retrying request to /chat/completions in 0.956872 seconds
+2026-08-08 02:26:07,150 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:07,150 INFO openai._base_client: Retrying request to /chat/completions in 0.903655 seconds
+2026-08-08 02:26:07,156 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:07,156 INFO openai._base_client: Retrying request to /chat/completions in 0.878988 seconds
+2026-08-08 02:26:07,162 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:07,162 INFO openai._base_client: Retrying request to /chat/completions in 0.954166 seconds
+2026-08-08 02:26:07,263 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:07,263 INFO openai._base_client: Retrying request to /chat/completions in 0.968375 seconds
+2026-08-08 02:26:07,284 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:07,285 INFO openai._base_client: Retrying request to /chat/completions in 0.977414 seconds
+2026-08-08 02:26:07,405 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:07,406 INFO openai._base_client: Retrying request to /chat/completions in 0.779210 seconds
+2026-08-08 02:26:07,661 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:07,661 INFO openai._base_client: Retrying request to /chat/completions in 0.874684 seconds
+2026-08-08 02:26:08,212 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,213 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:08,216 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,217 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:08,257 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,258 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:08,297 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,297 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:08,350 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,351 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:08,385 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,385 INFO openai._base_client: Retrying request to /chat/completions in 0.416719 seconds
+2026-08-08 02:26:08,389 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,389 INFO openai._base_client: Retrying request to /chat/completions in 0.408742 seconds
+2026-08-08 02:26:08,402 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,403 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:08,421 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,421 INFO openai._base_client: Retrying request to /chat/completions in 0.406632 seconds
+2026-08-08 02:26:08,425 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,426 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:08,466 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,466 INFO openai._base_client: Retrying request to /chat/completions in 0.493516 seconds
+2026-08-08 02:26:08,575 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,575 INFO openai._base_client: Retrying request to /chat/completions in 0.476716 seconds
+2026-08-08 02:26:08,587 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,587 INFO openai._base_client: Retrying request to /chat/completions in 0.473072 seconds
+2026-08-08 02:26:08,596 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,597 INFO openai._base_client: Retrying request to /chat/completions in 0.446447 seconds
+2026-08-08 02:26:08,713 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,714 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:08,900 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,900 INFO openai._base_client: Retrying request to /chat/completions in 0.378718 seconds
+2026-08-08 02:26:08,963 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,964 INFO openai._base_client: Retrying request to /chat/completions in 0.867927 seconds
+2026-08-08 02:26:08,981 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:08,981 INFO openai._base_client: Retrying request to /chat/completions in 0.766518 seconds
+2026-08-08 02:26:09,002 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:09,002 INFO openai._base_client: Retrying request to /chat/completions in 0.846360 seconds
+2026-08-08 02:26:09,135 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:09,135 INFO openai._base_client: Retrying request to /chat/completions in 0.759293 seconds
+2026-08-08 02:26:09,217 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:09,217 INFO openai._base_client: Retrying request to /chat/completions in 0.991260 seconds
+2026-08-08 02:26:09,218 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:09,219 INFO openai._base_client: Retrying request to /chat/completions in 0.770844 seconds
+2026-08-08 02:26:09,221 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:09,222 INFO openai._base_client: Retrying request to /chat/completions in 0.775211 seconds
+2026-08-08 02:26:09,460 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:09,460 INFO openai._base_client: Retrying request to /chat/completions in 0.800453 seconds
+2026-08-08 02:26:09,909 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:09,910 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:10,000 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,001 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:10,012 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,013 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:10,066 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,066 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:10,089 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,089 INFO openai._base_client: Retrying request to /chat/completions in 0.497139 seconds
+2026-08-08 02:26:10,153 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,153 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:10,157 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,158 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:10,161 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,162 INFO openai._base_client: Retrying request to /chat/completions in 0.432378 seconds
+2026-08-08 02:26:10,179 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,179 INFO openai._base_client: Retrying request to /chat/completions in 0.392889 seconds
+2026-08-08 02:26:10,243 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,244 INFO openai._base_client: Retrying request to /chat/completions in 0.424059 seconds
+2026-08-08 02:26:10,326 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,327 INFO openai._base_client: Retrying request to /chat/completions in 0.440631 seconds
+2026-08-08 02:26:10,329 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,329 INFO openai._base_client: Retrying request to /chat/completions in 0.468710 seconds
+2026-08-08 02:26:10,378 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,379 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:10,436 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,437 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:10,548 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,548 INFO openai._base_client: Retrying request to /chat/completions in 0.490658 seconds
+2026-08-08 02:26:10,619 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,619 INFO openai._base_client: Retrying request to /chat/completions in 0.444214 seconds
+2026-08-08 02:26:10,742 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,742 INFO openai._base_client: Retrying request to /chat/completions in 0.783922 seconds
+2026-08-08 02:26:10,761 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,762 INFO openai._base_client: Retrying request to /chat/completions in 0.973335 seconds
+2026-08-08 02:26:10,765 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,766 INFO openai._base_client: Retrying request to /chat/completions in 0.990286 seconds
+2026-08-08 02:26:10,835 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,836 INFO openai._base_client: Retrying request to /chat/completions in 0.953197 seconds
+2026-08-08 02:26:10,930 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,930 INFO openai._base_client: Retrying request to /chat/completions in 0.959394 seconds
+2026-08-08 02:26:10,966 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:10,966 INFO openai._base_client: Retrying request to /chat/completions in 0.885309 seconds
+2026-08-08 02:26:11,207 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:11,208 INFO openai._base_client: Retrying request to /chat/completions in 0.794761 seconds
+2026-08-08 02:26:11,234 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:11,235 INFO openai._base_client: Retrying request to /chat/completions in 0.957597 seconds
+2026-08-08 02:26:11,697 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:11,698 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:11,868 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:11,869 INFO openai._base_client: Retrying request to /chat/completions in 0.493645 seconds
+2026-08-08 02:26:11,912 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:11,913 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:11,937 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:11,938 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:11,962 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:11,963 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:12,014 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,015 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:12,064 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,065 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:12,087 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,087 INFO openai._base_client: Retrying request to /chat/completions in 0.398217 seconds
+2026-08-08 02:26:12,116 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,116 INFO openai._base_client: Retrying request to /chat/completions in 0.493562 seconds
+2026-08-08 02:26:12,138 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,139 INFO openai._base_client: Retrying request to /chat/completions in 0.435813 seconds
+2026-08-08 02:26:12,174 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,175 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:12,179 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,180 INFO openai._base_client: Retrying request to /chat/completions in 0.412208 seconds
+2026-08-08 02:26:12,237 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,237 INFO openai._base_client: Retrying request to /chat/completions in 0.495674 seconds
+2026-08-08 02:26:12,345 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,345 INFO openai._base_client: Retrying request to /chat/completions in 0.458229 seconds
+2026-08-08 02:26:12,362 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,363 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:12,534 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,534 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,535 INFO openai._base_client: Retrying request to /chat/completions in 0.449851 seconds
+2026-08-08 02:26:12,535 INFO openai._base_client: Retrying request to /chat/completions in 0.930458 seconds
+2026-08-08 02:26:12,658 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,658 INFO openai._base_client: Retrying request to /chat/completions in 0.878352 seconds
+2026-08-08 02:26:12,761 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,761 INFO openai._base_client: Retrying request to /chat/completions in 0.980796 seconds
+2026-08-08 02:26:12,776 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,776 INFO openai._base_client: Retrying request to /chat/completions in 0.791612 seconds
+2026-08-08 02:26:12,784 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,784 INFO openai._base_client: Retrying request to /chat/completions in 0.772451 seconds
+2026-08-08 02:26:12,894 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,895 INFO openai._base_client: Retrying request to /chat/completions in 0.942250 seconds
+2026-08-08 02:26:12,963 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:12,964 INFO openai._base_client: Retrying request to /chat/completions in 0.942417 seconds
+2026-08-08 02:26:13,168 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:13,169 INFO openai._base_client: Retrying request to /chat/completions in 0.893831 seconds
+2026-08-08 02:26:13,644 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:13,646 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:13,721 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:13,722 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:13,729 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:13,730 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:13,734 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:13,735 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:13,833 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:13,833 INFO openai._base_client: Retrying request to /chat/completions in 0.457525 seconds
+2026-08-08 02:26:13,883 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:13,884 INFO openai._base_client: Retrying request to /chat/completions in 0.494363 seconds
+2026-08-08 02:26:13,895 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:13,896 INFO openai._base_client: Retrying request to /chat/completions in 0.405907 seconds
+2026-08-08 02:26:13,911 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:13,912 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:13,917 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:13,917 INFO openai._base_client: Retrying request to /chat/completions in 0.433380 seconds
+2026-08-08 02:26:14,017 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,018 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:14,077 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,078 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:14,087 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,088 INFO openai._base_client: Retrying request to /chat/completions in 0.431331 seconds
+2026-08-08 02:26:14,209 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,210 INFO openai._base_client: Retrying request to /chat/completions in 0.419861 seconds
+2026-08-08 02:26:14,240 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,240 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:14,261 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,261 INFO openai._base_client: Retrying request to /chat/completions in 0.407106 seconds
+2026-08-08 02:26:14,411 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,411 INFO openai._base_client: Retrying request to /chat/completions in 0.431576 seconds
+2026-08-08 02:26:14,469 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,469 INFO openai._base_client: Retrying request to /chat/completions in 0.781939 seconds
+2026-08-08 02:26:14,479 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,479 INFO openai._base_client: Retrying request to /chat/completions in 0.781543 seconds
+2026-08-08 02:26:14,508 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,508 INFO openai._base_client: Retrying request to /chat/completions in 0.943650 seconds
+2026-08-08 02:26:14,538 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,538 INFO openai._base_client: Retrying request to /chat/completions in 0.813180 seconds
+2026-08-08 02:26:14,714 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,715 INFO openai._base_client: Retrying request to /chat/completions in 0.850235 seconds
+2026-08-08 02:26:14,799 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,800 INFO openai._base_client: Retrying request to /chat/completions in 0.902585 seconds
+2026-08-08 02:26:14,828 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:14,828 INFO openai._base_client: Retrying request to /chat/completions in 0.939363 seconds
+2026-08-08 02:26:15,009 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,011 INFO openai._base_client: Retrying request to /chat/completions in 0.797720 seconds
+2026-08-08 02:26:15,429 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,430 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:15,438 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,439 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:15,525 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,525 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:15,608 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,608 INFO openai._base_client: Retrying request to /chat/completions in 0.387615 seconds
+2026-08-08 02:26:15,622 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,623 INFO openai._base_client: Retrying request to /chat/completions in 0.492972 seconds
+2026-08-08 02:26:15,627 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,628 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:15,700 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,701 INFO openai._base_client: Retrying request to /chat/completions in 0.468807 seconds
+2026-08-08 02:26:15,726 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,727 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:15,801 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,802 INFO openai._base_client: Retrying request to /chat/completions in 0.482394 seconds
+2026-08-08 02:26:15,876 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,876 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:15,908 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,909 INFO openai._base_client: Retrying request to /chat/completions in 0.408112 seconds
+2026-08-08 02:26:15,941 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,942 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:15,971 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:15,972 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:16,056 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,057 INFO openai._base_client: Retrying request to /chat/completions in 0.437770 seconds
+2026-08-08 02:26:16,122 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,123 INFO openai._base_client: Retrying request to /chat/completions in 0.425883 seconds
+2026-08-08 02:26:16,144 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,144 INFO openai._base_client: Retrying request to /chat/completions in 0.393780 seconds
+2026-08-08 02:26:16,165 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,166 INFO openai._base_client: Retrying request to /chat/completions in 0.875824 seconds
+2026-08-08 02:26:16,300 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,301 INFO openai._base_client: Retrying request to /chat/completions in 0.825534 seconds
+2026-08-08 02:26:16,334 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,335 INFO openai._base_client: Retrying request to /chat/completions in 0.771493 seconds
+2026-08-08 02:26:16,442 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,442 INFO openai._base_client: Retrying request to /chat/completions in 0.941127 seconds
+2026-08-08 02:26:16,484 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,485 INFO openai._base_client: Retrying request to /chat/completions in 0.802441 seconds
+2026-08-08 02:26:16,650 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,650 INFO openai._base_client: Retrying request to /chat/completions in 0.803229 seconds
+2026-08-08 02:26:16,701 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,702 INFO openai._base_client: Retrying request to /chat/completions in 0.980483 seconds
+2026-08-08 02:26:16,712 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:16,712 INFO openai._base_client: Retrying request to /chat/completions in 0.945841 seconds
+2026-08-08 02:26:17,213 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,214 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:17,268 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,269 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:17,290 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,291 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:17,380 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,380 INFO openai._base_client: Retrying request to /chat/completions in 0.454836 seconds
+2026-08-08 02:26:17,437 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,437 INFO openai._base_client: Retrying request to /chat/completions in 0.447156 seconds
+2026-08-08 02:26:17,452 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,453 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:17,484 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,485 INFO openai._base_client: Retrying request to /chat/completions in 0.463103 seconds
+2026-08-08 02:26:17,555 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,556 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:17,619 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,619 INFO openai._base_client: Retrying request to /chat/completions in 0.451285 seconds
+2026-08-08 02:26:17,631 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,632 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:17,727 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,727 INFO openai._base_client: Retrying request to /chat/completions in 0.422974 seconds
+2026-08-08 02:26:17,803 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,804 INFO openai._base_client: Retrying request to /chat/completions in 0.488261 seconds
+2026-08-08 02:26:17,835 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,838 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:17,857 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:17,857 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:18,001 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:18,002 INFO openai._base_client: Retrying request to /chat/completions in 0.467499 seconds
+2026-08-08 02:26:18,003 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:18,003 INFO openai._base_client: Retrying request to /chat/completions in 0.817288 seconds
+2026-08-08 02:26:18,037 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:18,037 INFO openai._base_client: Retrying request to /chat/completions in 0.470384 seconds
+2026-08-08 02:26:18,047 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:18,047 INFO openai._base_client: Retrying request to /chat/completions in 0.855812 seconds
+2026-08-08 02:26:18,111 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:18,112 INFO openai._base_client: Retrying request to /chat/completions in 0.949183 seconds
+2026-08-08 02:26:18,257 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:18,258 INFO openai._base_client: Retrying request to /chat/completions in 0.908332 seconds
+2026-08-08 02:26:18,315 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:18,315 INFO openai._base_client: Retrying request to /chat/completions in 0.790035 seconds
+2026-08-08 02:26:18,472 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:18,473 INFO openai._base_client: Retrying request to /chat/completions in 0.972762 seconds
+2026-08-08 02:26:18,682 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:18,683 INFO openai._base_client: Retrying request to /chat/completions in 0.895332 seconds
+2026-08-08 02:26:18,705 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:18,706 INFO openai._base_client: Retrying request to /chat/completions in 0.894373 seconds
+2026-08-08 02:26:19,006 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,007 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:19,077 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,078 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:19,189 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,189 INFO openai._base_client: Retrying request to /chat/completions in 0.409968 seconds
+2026-08-08 02:26:19,227 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,228 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:19,254 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,255 INFO openai._base_client: Retrying request to /chat/completions in 0.403388 seconds
+2026-08-08 02:26:19,267 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,267 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:19,344 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,345 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:19,404 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,405 INFO openai._base_client: Retrying request to /chat/completions in 0.418627 seconds
+2026-08-08 02:26:19,436 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,437 INFO openai._base_client: Retrying request to /chat/completions in 0.393890 seconds
+2026-08-08 02:26:19,511 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,511 INFO openai._base_client: Retrying request to /chat/completions in 0.482714 seconds
+2026-08-08 02:26:19,624 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,625 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:19,746 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,746 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:19,769 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,770 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:19,778 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,779 INFO openai._base_client: Retrying request to /chat/completions in 0.865604 seconds
+2026-08-08 02:26:19,797 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,798 INFO openai._base_client: Retrying request to /chat/completions in 0.384531 seconds
+2026-08-08 02:26:19,828 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,828 INFO openai._base_client: Retrying request to /chat/completions in 0.754046 seconds
+2026-08-08 02:26:19,921 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,922 INFO openai._base_client: Retrying request to /chat/completions in 0.433529 seconds
+2026-08-08 02:26:19,945 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:19,946 INFO openai._base_client: Retrying request to /chat/completions in 0.393446 seconds
+2026-08-08 02:26:20,009 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,010 INFO openai._base_client: Retrying request to /chat/completions in 0.982683 seconds
+2026-08-08 02:26:20,014 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,014 INFO openai._base_client: Retrying request to /chat/completions in 0.783335 seconds
+2026-08-08 02:26:20,159 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,160 INFO openai._base_client: Retrying request to /chat/completions in 0.822285 seconds
+2026-08-08 02:26:20,373 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,373 INFO openai._base_client: Retrying request to /chat/completions in 0.963380 seconds
+2026-08-08 02:26:20,505 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,505 INFO openai._base_client: Retrying request to /chat/completions in 0.838298 seconds
+2026-08-08 02:26:20,519 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,520 INFO openai._base_client: Retrying request to /chat/completions in 0.803561 seconds
+2026-08-08 02:26:20,770 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,771 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:20,818 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,819 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:20,947 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,947 INFO openai._base_client: Retrying request to /chat/completions in 0.395129 seconds
+2026-08-08 02:26:20,957 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,958 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:20,985 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:20,985 INFO openai._base_client: Retrying request to /chat/completions in 0.486343 seconds
+2026-08-08 02:26:21,141 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,141 INFO openai._base_client: Retrying request to /chat/completions in 0.469034 seconds
+2026-08-08 02:26:21,160 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,161 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:21,166 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,167 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:21,333 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,333 INFO openai._base_client: Retrying request to /chat/completions in 0.383232 seconds
+2026-08-08 02:26:21,352 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,352 INFO openai._base_client: Retrying request to /chat/completions in 0.383354 seconds
+2026-08-08 02:26:21,487 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,488 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:21,507 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,508 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:21,513 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,514 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:21,636 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,636 INFO openai._base_client: Retrying request to /chat/completions in 0.972910 seconds
+2026-08-08 02:26:21,638 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,638 INFO openai._base_client: Retrying request to /chat/completions in 0.773988 seconds
+2026-08-08 02:26:21,661 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,661 INFO openai._base_client: Retrying request to /chat/completions in 0.405258 seconds
+2026-08-08 02:26:21,666 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,667 INFO openai._base_client: Retrying request to /chat/completions in 0.382741 seconds
+2026-08-08 02:26:21,697 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,698 INFO openai._base_client: Retrying request to /chat/completions in 0.394347 seconds
+2026-08-08 02:26:21,801 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,802 INFO openai._base_client: Retrying request to /chat/completions in 0.791208 seconds
+2026-08-08 02:26:21,899 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,899 INFO openai._base_client: Retrying request to /chat/completions in 0.839448 seconds
+2026-08-08 02:26:21,911 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:21,911 INFO openai._base_client: Retrying request to /chat/completions in 0.869425 seconds
+2026-08-08 02:26:22,218 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,218 INFO openai._base_client: Retrying request to /chat/completions in 0.888382 seconds
+2026-08-08 02:26:22,226 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,227 INFO openai._base_client: Retrying request to /chat/completions in 0.868945 seconds
+2026-08-08 02:26:22,260 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,260 INFO openai._base_client: Retrying request to /chat/completions in 0.872523 seconds
+2026-08-08 02:26:22,586 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,587 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:22,761 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,762 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:22,784 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,785 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:22,884 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,884 INFO openai._base_client: Retrying request to /chat/completions in 0.482800 seconds
+2026-08-08 02:26:22,894 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,894 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:22,926 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,927 INFO openai._base_client: Retrying request to /chat/completions in 0.474936 seconds
+2026-08-08 02:26:22,948 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,949 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:22,953 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:22,954 INFO openai._base_client: Retrying request to /chat/completions in 0.414792 seconds
+2026-08-08 02:26:23,066 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,066 INFO openai._base_client: Retrying request to /chat/completions in 0.464480 seconds
+2026-08-08 02:26:23,110 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,110 INFO openai._base_client: Retrying request to /chat/completions in 0.475199 seconds
+2026-08-08 02:26:23,256 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,257 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:23,282 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,283 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:23,312 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,312 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:23,436 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,437 INFO openai._base_client: Retrying request to /chat/completions in 0.455738 seconds
+2026-08-08 02:26:23,447 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,447 INFO openai._base_client: Retrying request to /chat/completions in 0.465030 seconds
+2026-08-08 02:26:23,484 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,485 INFO openai._base_client: Retrying request to /chat/completions in 0.401527 seconds
+2026-08-08 02:26:23,523 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,523 INFO openai._base_client: Retrying request to /chat/completions in 0.883659 seconds
+2026-08-08 02:26:23,528 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,529 INFO openai._base_client: Retrying request to /chat/completions in 0.844396 seconds
+2026-08-08 02:26:23,571 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,572 INFO openai._base_client: Retrying request to /chat/completions in 0.911316 seconds
+2026-08-08 02:26:23,715 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,715 INFO openai._base_client: Retrying request to /chat/completions in 0.945817 seconds
+2026-08-08 02:26:23,763 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:23,764 INFO openai._base_client: Retrying request to /chat/completions in 0.854123 seconds
+2026-08-08 02:26:24,055 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,057 INFO openai._base_client: Retrying request to /chat/completions in 0.986894 seconds
+2026-08-08 02:26:24,066 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,067 INFO openai._base_client: Retrying request to /chat/completions in 0.752939 seconds
+2026-08-08 02:26:24,069 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,070 INFO openai._base_client: Retrying request to /chat/completions in 0.806844 seconds
+2026-08-08 02:26:24,548 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,549 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:24,588 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,589 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:24,649 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,650 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:24,720 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,721 INFO openai._base_client: Retrying request to /chat/completions in 0.394514 seconds
+2026-08-08 02:26:24,767 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,768 INFO openai._base_client: Retrying request to /chat/completions in 0.401480 seconds
+2026-08-08 02:26:24,773 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,774 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:24,817 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,818 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:24,824 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,825 INFO openai._base_client: Retrying request to /chat/completions in 0.385173 seconds
+2026-08-08 02:26:24,945 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,945 INFO openai._base_client: Retrying request to /chat/completions in 0.422258 seconds
+2026-08-08 02:26:24,984 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,984 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:24,992 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:24,992 INFO openai._base_client: Retrying request to /chat/completions in 0.402759 seconds
+2026-08-08 02:26:25,040 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,041 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:25,170 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,172 INFO openai._base_client: Retrying request to /chat/completions in 0.387901 seconds
+2026-08-08 02:26:25,211 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,213 INFO openai._base_client: Retrying request to /chat/completions in 0.492425 seconds
+2026-08-08 02:26:25,225 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,226 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:25,286 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,286 INFO openai._base_client: Retrying request to /chat/completions in 0.848385 seconds
+2026-08-08 02:26:25,343 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,344 INFO openai._base_client: Retrying request to /chat/completions in 0.922682 seconds
+2026-08-08 02:26:25,385 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,386 INFO openai._base_client: Retrying request to /chat/completions in 0.931338 seconds
+2026-08-08 02:26:25,402 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,402 INFO openai._base_client: Retrying request to /chat/completions in 0.394349 seconds
+2026-08-08 02:26:25,529 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,529 INFO openai._base_client: Retrying request to /chat/completions in 0.783891 seconds
+2026-08-08 02:26:25,570 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,571 INFO openai._base_client: Retrying request to /chat/completions in 0.789397 seconds
+2026-08-08 02:26:25,738 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,738 INFO openai._base_client: Retrying request to /chat/completions in 0.763311 seconds
+2026-08-08 02:26:25,892 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,893 INFO openai._base_client: Retrying request to /chat/completions in 0.918954 seconds
+2026-08-08 02:26:25,956 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:25,956 INFO openai._base_client: Retrying request to /chat/completions in 0.916959 seconds
+2026-08-08 02:26:26,304 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,305 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:26,447 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,448 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:26,468 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,468 INFO openai._base_client: Retrying request to /chat/completions in 0.393167 seconds
+2026-08-08 02:26:26,473 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,473 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:26,481 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,482 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:26,525 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,526 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:26,613 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,614 INFO openai._base_client: Retrying request to /chat/completions in 0.438036 seconds
+2026-08-08 02:26:26,646 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,647 INFO openai._base_client: Retrying request to /chat/completions in 0.406995 seconds
+2026-08-08 02:26:26,663 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,663 INFO openai._base_client: Retrying request to /chat/completions in 0.449841 seconds
+2026-08-08 02:26:26,674 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,674 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:26,706 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,707 INFO openai._base_client: Retrying request to /chat/completions in 0.463110 seconds
+2026-08-08 02:26:26,847 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,847 INFO openai._base_client: Retrying request to /chat/completions in 0.483844 seconds
+2026-08-08 02:26:26,972 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:26,973 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:27,022 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,023 INFO openai._base_client: Retrying request to /chat/completions in 0.866895 seconds
+2026-08-08 02:26:27,049 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,050 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:27,144 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,145 INFO openai._base_client: Retrying request to /chat/completions in 0.489856 seconds
+2026-08-08 02:26:27,229 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,230 INFO openai._base_client: Retrying request to /chat/completions in 0.435191 seconds
+2026-08-08 02:26:27,231 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,232 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,232 INFO openai._base_client: Retrying request to /chat/completions in 0.845755 seconds
+2026-08-08 02:26:27,233 INFO openai._base_client: Retrying request to /chat/completions in 0.838989 seconds
+2026-08-08 02:26:27,275 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,276 INFO openai._base_client: Retrying request to /chat/completions in 0.841354 seconds
+2026-08-08 02:26:27,339 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,339 INFO openai._base_client: Retrying request to /chat/completions in 0.940277 seconds
+2026-08-08 02:26:27,502 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,502 INFO openai._base_client: Retrying request to /chat/completions in 0.860836 seconds
+2026-08-08 02:26:27,805 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,806 INFO openai._base_client: Retrying request to /chat/completions in 0.787654 seconds
+2026-08-08 02:26:27,831 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:27,832 INFO openai._base_client: Retrying request to /chat/completions in 0.891482 seconds
+2026-08-08 02:26:28,053 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,054 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:28,239 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,239 INFO openai._base_client: Retrying request to /chat/completions in 0.412366 seconds
+2026-08-08 02:26:28,245 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,246 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:28,251 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,252 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:28,273 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,273 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:28,426 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,426 INFO openai._base_client: Retrying request to /chat/completions in 0.408729 seconds
+2026-08-08 02:26:28,442 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,442 INFO openai._base_client: Retrying request to /chat/completions in 0.462760 seconds
+2026-08-08 02:26:28,446 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,447 INFO openai._base_client: Retrying request to /chat/completions in 0.433143 seconds
+2026-08-08 02:26:28,450 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,451 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:28,522 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,522 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:28,623 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,623 INFO openai._base_client: Retrying request to /chat/completions in 0.456974 seconds
+2026-08-08 02:26:28,688 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,689 INFO openai._base_client: Retrying request to /chat/completions in 0.458299 seconds
+2026-08-08 02:26:28,760 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,761 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:28,826 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,827 INFO openai._base_client: Retrying request to /chat/completions in 0.823689 seconds
+2026-08-08 02:26:28,904 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,905 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:28,926 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,926 INFO openai._base_client: Retrying request to /chat/completions in 0.481198 seconds
+2026-08-08 02:26:28,996 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:28,996 INFO openai._base_client: Retrying request to /chat/completions in 0.826303 seconds
+2026-08-08 02:26:29,052 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:29,053 INFO openai._base_client: Retrying request to /chat/completions in 0.771696 seconds
+2026-08-08 02:26:29,083 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:29,084 INFO openai._base_client: Retrying request to /chat/completions in 0.774511 seconds
+2026-08-08 02:26:29,086 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:29,086 INFO openai._base_client: Retrying request to /chat/completions in 0.490875 seconds
+2026-08-08 02:26:29,249 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:29,249 INFO openai._base_client: Retrying request to /chat/completions in 0.809721 seconds
+2026-08-08 02:26:29,326 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:29,327 INFO openai._base_client: Retrying request to /chat/completions in 0.942052 seconds
+2026-08-08 02:26:29,585 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:29,586 INFO openai._base_client: Retrying request to /chat/completions in 0.906311 seconds
+2026-08-08 02:26:29,751 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:29,751 INFO openai._base_client: Retrying request to /chat/completions in 0.780552 seconds
+2026-08-08 02:26:29,823 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:29,826 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:29,999 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:29,999 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:30,010 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,011 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:30,019 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,020 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:30,030 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,031 INFO openai._base_client: Retrying request to /chat/completions in 0.425994 seconds
+2026-08-08 02:26:30,181 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,182 INFO openai._base_client: Retrying request to /chat/completions in 0.375226 seconds
+2026-08-08 02:26:30,183 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,183 INFO openai._base_client: Retrying request to /chat/completions in 0.383737 seconds
+2026-08-08 02:26:30,192 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,192 INFO openai._base_client: Retrying request to /chat/completions in 0.387141 seconds
+2026-08-08 02:26:30,239 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,240 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:30,407 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,408 INFO openai._base_client: Retrying request to /chat/completions in 0.382843 seconds
+2026-08-08 02:26:30,447 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,448 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:30,622 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,623 INFO openai._base_client: Retrying request to /chat/completions in 0.969665 seconds
+2026-08-08 02:26:30,631 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,631 INFO openai._base_client: Retrying request to /chat/completions in 0.405652 seconds
+2026-08-08 02:26:30,678 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,679 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:30,698 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,698 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:30,713 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,713 INFO openai._base_client: Retrying request to /chat/completions in 0.955743 seconds
+2026-08-08 02:26:30,763 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,763 INFO openai._base_client: Retrying request to /chat/completions in 0.777448 seconds
+2026-08-08 02:26:30,770 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,770 INFO openai._base_client: Retrying request to /chat/completions in 0.980086 seconds
+2026-08-08 02:26:30,842 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,843 INFO openai._base_client: Retrying request to /chat/completions in 0.379211 seconds
+2026-08-08 02:26:30,880 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,881 INFO openai._base_client: Retrying request to /chat/completions in 0.464650 seconds
+2026-08-08 02:26:30,971 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:30,971 INFO openai._base_client: Retrying request to /chat/completions in 0.828643 seconds
+2026-08-08 02:26:31,213 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:31,214 INFO openai._base_client: Retrying request to /chat/completions in 0.852748 seconds
+2026-08-08 02:26:31,385 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:31,386 INFO openai._base_client: Retrying request to /chat/completions in 0.931646 seconds
+2026-08-08 02:26:31,521 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:31,522 INFO openai._base_client: Retrying request to /chat/completions in 0.913192 seconds
+2026-08-08 02:26:31,725 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:31,726 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:31,757 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:31,757 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:31,852 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:31,853 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:31,904 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:31,904 INFO openai._base_client: Retrying request to /chat/completions in 0.407372 seconds
+2026-08-08 02:26:31,920 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:31,921 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:31,932 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:31,933 INFO openai._base_client: Retrying request to /chat/completions in 0.479514 seconds
+2026-08-08 02:26:31,958 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:31,959 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:32,014 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,014 INFO openai._base_client: Retrying request to /chat/completions in 0.393881 seconds
+2026-08-08 02:26:32,098 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,099 INFO openai._base_client: Retrying request to /chat/completions in 0.387697 seconds
+2026-08-08 02:26:32,123 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,123 INFO openai._base_client: Retrying request to /chat/completions in 0.497046 seconds
+2026-08-08 02:26:32,238 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,239 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:32,420 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,420 INFO openai._base_client: Retrying request to /chat/completions in 0.392442 seconds
+2026-08-08 02:26:32,475 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,476 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:32,477 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,481 INFO openai._base_client: Retrying request to /chat/completions in 0.813233 seconds
+2026-08-08 02:26:32,576 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,577 INFO openai._base_client: Retrying request to /chat/completions in 0.787983 seconds
+2026-08-08 02:26:32,580 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,581 INFO openai._base_client: Retrying request to /chat/completions in 0.890576 seconds
+2026-08-08 02:26:32,612 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,612 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:32,643 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,644 INFO openai._base_client: Retrying request to /chat/completions in 0.399770 seconds
+2026-08-08 02:26:32,662 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,662 INFO openai._base_client: Retrying request to /chat/completions in 0.755399 seconds
+2026-08-08 02:26:32,780 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,781 INFO openai._base_client: Retrying request to /chat/completions in 0.758182 seconds
+2026-08-08 02:26:32,782 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,782 INFO openai._base_client: Retrying request to /chat/completions in 0.476482 seconds
+2026-08-08 02:26:32,972 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:32,972 INFO openai._base_client: Retrying request to /chat/completions in 0.918700 seconds
+2026-08-08 02:26:33,210 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,211 INFO openai._base_client: Retrying request to /chat/completions in 0.893459 seconds
+2026-08-08 02:26:33,432 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,433 INFO openai._base_client: Retrying request to /chat/completions in 0.802591 seconds
+2026-08-08 02:26:33,459 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,460 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:33,546 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,547 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:33,587 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,588 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:33,638 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,639 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:33,690 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,691 INFO openai._base_client: Retrying request to /chat/completions in 0.382532 seconds
+2026-08-08 02:26:33,713 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,714 INFO openai._base_client: Retrying request to /chat/completions in 0.452324 seconds
+2026-08-08 02:26:33,722 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,723 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:33,745 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,746 INFO openai._base_client: Retrying request to /chat/completions in 0.386374 seconds
+2026-08-08 02:26:33,815 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,816 INFO openai._base_client: Retrying request to /chat/completions in 0.397561 seconds
+2026-08-08 02:26:33,902 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:33,903 INFO openai._base_client: Retrying request to /chat/completions in 0.393084 seconds
+2026-08-08 02:26:34,047 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,048 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:34,211 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,211 INFO openai._base_client: Retrying request to /chat/completions in 0.488681 seconds
+2026-08-08 02:26:34,246 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,247 INFO openai._base_client: Retrying request to /chat/completions in 0.927560 seconds
+2026-08-08 02:26:34,281 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,282 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:34,305 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,306 INFO openai._base_client: Retrying request to /chat/completions in 0.842792 seconds
+2026-08-08 02:26:34,332 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,332 INFO openai._base_client: Retrying request to /chat/completions in 0.873763 seconds
+2026-08-08 02:26:34,393 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,393 INFO openai._base_client: Retrying request to /chat/completions in 0.975317 seconds
+2026-08-08 02:26:34,408 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,409 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:34,450 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,451 INFO openai._base_client: Retrying request to /chat/completions in 0.435498 seconds
+2026-08-08 02:26:34,465 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,466 INFO openai._base_client: Retrying request to /chat/completions in 0.938989 seconds
+2026-08-08 02:26:34,887 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:34,890 INFO openai._base_client: Retrying request to /chat/completions in 0.764162 seconds
+2026-08-08 02:26:35,068 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:35,069 INFO openai._base_client: Retrying request to /chat/completions in 0.779460 seconds
+2026-08-08 02:26:35,313 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:35,314 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:35,340 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:35,341 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:35,383 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:35,384 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:35,553 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:35,554 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:35,565 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:35,566 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:35,822 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:35,823 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:36,016 INFO httpx: HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-08 02:26:36,016 WARNING eval_vllm_math: [gpt-recheck] call failed: RateLimitError("Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota', 'param': None, 'code': 'credit_balance_exhausted'}}")
+2026-08-08 02:26:36,035 INFO eval_vllm_math: math500: pass@1=68.20% (pre-gpt 68.20%, +0 flips) n=500
+2026-08-08 02:26:36,352 INFO eval_vllm_math: AVG pass@1 = 68.20%

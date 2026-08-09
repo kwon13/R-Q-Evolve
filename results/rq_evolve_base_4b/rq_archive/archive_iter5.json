@@ -1,0 +1,493 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 14,
+      "total_niches": 48,
+      "coverage": 0.2916666666666667,
+      "group_coverage": 1.0,
+      "skill_coverage": 0.625,
+      "mean_rq": 46.465926779613504,
+      "max_rq": 85.47773560282091,
+      "total_insertions": 57,
+      "total_replacements": 1,
+      "total_selections": 160
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    p = rng.choice([2, 3, 5])\n    q = rng.choice([2, 3, 5])  # q must be different from p\n    r = rng.choice([2, 3, 5])  # r must be different from p and q\n    n = rng.randint(30, 40)\n\n    # Construct equations where adding all three gives a multiple of p, q, and r.\n    rows = [\n        [rng.randint(1, 4), rng.randint(-3, 3), rng.randint(-3, 3)],\n        [rng.randint(-3, 3), rng.randint(1, 4), rng.randint(-3, 3)],\n        [0, 0, 0],\n    ]\n\n    # Make row sums by column equal to k, so E1+E2+E3 = k(p*q*r).\n    k = rng.choice([2, 3, 4, 5])\n    rows[2] = [\n        k - rows[0][0] - rows[1][0],\n        k - rows[0][1] - rows[1][1],\n        k - rows[0][2] - rows[1][2],\n    ]\n\n    sol = [p, q, r]\n    rhs = [sum(row[j] * sol[j] for j in range(3)) for row in rows]\n    answer = (sum(rhs)) // k\n\n    # Independent route: the solution the system was built around, instead of\n    # summing the three equations and dividing by the common column total.\n    check = p + q + r\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def fmt(row, rhs_val):\n        parts = []\n        for coef, var in zip(row, [\"x\", \"y\", \"z\"]):\n            if coef == 0:\n                continue\n            sign = \"+\" if coef > 0 else \"-\"\n            abscoef = abs(coef)\n            term = var if abscoef == 1 else f\"{abscoef}{var}\"\n            if not parts:\n                parts.append(term if coef > 0 else f\"-{term}\")\n            else:\n                parts.append(f\" {sign} {term}\")\n        return \"\".join(parts) + f\" = {rhs_val}\"\n\n    problem = (\n        f\"Suppose x, y, and z satisfy the following system:\\n\"\n        f\"{fmt(rows[0], rhs[0])}\\n\"\n        f\"{fmt(rows[1], rhs[1])}\\n\"\n        f\"{fmt(rows[2], rhs[2])}\\n\"\n        f\"Find the minimum possible value of x + y + z.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "d9fb051ad4ae",
+      "parent_id": "f2ff1bdbc7fb",
+      "generation": 2,
+      "p_hat": 0.5555555555555556,
+      "h_score": 195.41636530558267,
+      "rq_score": 48.250954396440164,
+      "fitness": 48.250954396440164,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 48.250954396440164
+        },
+        "_behavior_sig_5": "6e009866b3f2c29192d1313e9a691dea01b0bd6fe4bd6d89f473fd4869636c62",
+        "_template_sig_5": "aef59db24a0529ce149ccef9e0e63ed3eae3a280bc88b2f6ba18c4b09e744d0b",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    p = rng.randint(2, 10)\n    q = rng.randint(2, 10)\n    r = rng.randint(2, 10)\n    n = rng.randint(30, 40)\n\n    # Construct equations where adding all three gives a multiple of p, q, and r.\n    rows = [\n        [rng.randint(1, 4), rng.randint(-3, 3), rng.randint(-3, 3)],\n        [rng.randint(-3, 3), rng.randint(1, 4), rng.randint(-3, 3)],\n        [0, 0, 0],\n    ]\n\n    # Make row sums by column equal to k, so E1+E2+E3 = k(p*q*r).\n    k = rng.choice([2, 3, 4, 5])\n    rows[2] = [\n        k - rows[0][0] - rows[1][0],\n        k - rows[0][1] - rows[1][1],\n        k - rows[0][2] - rows[1][2],\n    ]\n\n    sol = [p, q, r]\n    rhs = [sum(row[j] * sol[j] for j in range(3)) for row in rows]\n    answer = (sum(rhs)) // k\n\n    # Independent route: the solution the system was built around, instead of\n    # summing the three equations and dividing by the common column total.\n    check = p + q + r\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def fmt(row, rhs_val):\n        parts = []\n        for coef, var in zip(row, [\"x\", \"y\", \"z\"]):\n            if coef == 0:\n                continue\n            sign = \"+\" if coef > 0 else \"-\"\n            abscoef = abs(coef)\n            term = var if abscoef == 1 else f\"{abscoef}{var}\"\n            if not parts:\n                parts.append(term if coef > 0 else f\"-{term}\")\n            else:\n                parts.append(f\" {sign} {term}\")\n        return \"\".join(parts) + f\" = {rhs_val}\"\n\n    problem = (\n        f\"Suppose x, y, and z satisfy the following system:\\n\"\n        f\"{fmt(rows[0], rhs[0])}\\n\"\n        f\"{fmt(rows[1], rhs[1])}\\n\"\n        f\"{fmt(rows[2], rhs[2])}\\n\"\n        f\"Find x + y + z.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "f2ff1bdbc7fb",
+      "parent_id": "4bb63a52cd14",
+      "generation": 1,
+      "p_hat": 0.3333333333333333,
+      "h_score": 222.88360595703125,
+      "rq_score": 49.529690212673614,
+      "fitness": 49.529690212673614,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 49.529690212673614
+        },
+        "_behavior_sig_5": "57d55539636d10802f26a0ec240a447154bad675a9e35fc4db6fd3e10a2edc22",
+        "_template_sig_5": "f869a88ca28be63ff203ef51ce7516ac6f748f426ce2f693756ff36d8703c2f2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    \n    # 生成两个不同的整数\n    a, b = rng.sample(range(1, 50), 2)\n    \n    # 计算从a到b的整数数量\n    answer = b - a + 1\n    \n    # 独立路径：计算从a到b的整数数量\n    check = sum(1 for k in range(a, b + 1))\n    assert answer == check, f\"answer={answer} check={check}\"\n    \n    problem = f\"计算从{a}到{b}的整数数量。输出仅需为整数。\"\n    \n    return problem, str(answer)",
+      "program_id": "c076a93fe4c4",
+      "parent_id": "8a8a9355e439",
+      "generation": 3,
+      "p_hat": 0.42857142857142855,
+      "h_score": 349.03408704485213,
+      "rq_score": 85.47773560282091,
+      "fitness": 85.47773560282091,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 85.47773560282091
+        },
+        "_behavior_sig_5": "99daa1cff4c95b04922021b9697493f291528909bc41b62a13262d4a4e8db835",
+        "_template_sig_5": "86fa52a4b939f8f3cc26027059948a04294ba4cce1cfacc4f0c5b7f1c5c9623d",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    k = rng.randint(2, 4)\n    n = rng.randint(50, 100)\n\n    # Same reasoning shape: total minus the union, with the union expanded by inclusion-exclusion.\n    # Here, the objects are sets, and the load-bearing structure is selecting, ordering, distributing, or matching their elements.\n    rows = [rng.sample(range(n), k) for _ in range(3)]\n    intersection1 = set(rows[0]).intersection(rows[1])\n    intersection2 = set(rows[0]).intersection(rows[2])\n    intersection3 = set(rows[1]).intersection(rows[2])\n    intersection_all = set(rows[0]).intersection(rows[1]).intersection(rows[2])\n    total = sum(len(row) for row in rows) - len(intersection1) - len(intersection2) - len(intersection3) + len(intersection_all)\n    answer = n - total\n\n    # Independent route: count the number of integers in the range 1 to n that do not appear in any of the rows.\n    check = sum(1 for i in range(1, n + 1) if i not in rows[0] and i not in rows[1] and i not in rows[2])\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are not in any of the sets A, B, and C? State only the integer.\\n\"\n        f\"Set A: {rows[0]}\\n\"\n        f\"Set B: {rows[1]}\\n\"\n        f\"Set C: {rows[2]}\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "0a7b913c5c1a",
+      "parent_id": "f2ff1bdbc7fb",
+      "generation": 2,
+      "p_hat": 0.5,
+      "h_score": 214.5255308151245,
+      "rq_score": 53.63138270378113,
+      "fitness": 53.63138270378113,
+      "niche_group": 1,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 53.63138270378113
+        },
+        "_behavior_sig_5": "cf5ac7241b05e8041b4071135f3393ce2191eeadcd748f54bfa3dd7de9bddd28",
+        "_template_sig_5": "a8a8c90664349f62ed38a8f94da40003850587d73cf32b73ac9e33ca1ca88685",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    p = rng.choice([2, 3])\n    q = rng.randint(1, 5)\n    c = rng.randint(1, 5)\n    n = rng.randint(6, 10)\n    val = c\n    for _ in range(n):\n        val = p * val + q\n    answer = val\n\n    # Independent route: the closed form of a(n) = p*a(n-1) + q, instead of\n    # iterating the recurrence n times.\n    check = p ** n * c + q * (p ** n - 1) // (p - 1)\n    assert answer == check, f\"answer={answer} check={check}\"\n    problem = (\n        f\"A sequence is defined by a(0) = {c} and \"\n        f\"a(n) = {p} * a(n-1) + {q} for n >= 1. Find a({n}).\"\n    )\n\n    return problem, str(answer)\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n",
+      "program_id": "d9a33e8b1a9c",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.6,
+      "h_score": 104.07784061431884,
+      "rq_score": 24.97868174743652,
+      "fitness": 24.97868174743652,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "08_recurrence.py",
+        "group": "sequence",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 24.97868174743652
+        },
+        "_behavior_sig_5": "2b80f7c3e97700e670b5e2b1aa2a2a8320f35f2b5ac36e518e841d50828ac96c",
+        "_template_sig_5": "f48eb21096776b5f8ee63f31303f65b26fcb7dd112c52792bcf8af675f49023a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    a = rng.randint(1, 50)\n    b = rng.randint(1, 50)\n    c = rng.randint(1, 50)\n\n    # Construct a sequence where each term is a linear combination of previous terms.\n    sequence = [a, b, c]\n    for _ in range(10):\n        next_term = sequence[-1] + sequence[-2] - sequence[-3]\n        sequence.append(next_term)\n\n    # The transformation: find the sum of the first 5 terms.\n    answer = sum(sequence[:5])\n\n    # Independent route: calculate the sum of the first 5 terms directly from the formula.\n    check = sequence[0] + sequence[1] + sequence[2] + sequence[3] + sequence[4]\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider the sequence where each term is defined as the sum of the two previous terms minus the term before that.\\n\"\n        f\"The first three terms are {sequence[0]}, {sequence[1]}, and {sequence[2]}. Find the sum of the first five terms.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "d9d728d816ed",
+      "parent_id": "1fec92a4ea26",
+      "generation": 2,
+      "p_hat": 0.5,
+      "h_score": 296.9638206958771,
+      "rq_score": 74.24095517396927,
+      "fitness": 74.24095517396927,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 74.24095517396927
+        },
+        "_behavior_sig_5": "17dbb971a7ce7dc75c7fb6771ecff054cde77723ac5f8c67e99421ecd6935336",
+        "_template_sig_5": "f1320d43fb39a546ae169ba496a05546edb0b74d322393fb2804d2c9bfb487a2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # b is even so that every case yields an integer: the solutions come in\n    # pairs -beta +/- sqrt(t), whose squares add to 2*beta**2 + 2*t.\n    # |beta| >= 2 keeps the single-solution case away from the guessable\n    # answers 0 and 1.\n    beta = rng.choice([-9, -8, -7, -6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9])\n    k = rng.randint(1, 12)\n    b = 2 * beta\n\n    # |f(x)| = k splits into f(x) = k and f(x) = -k. Writing f(x) as\n    # (x + beta)**2 + (c - beta**2), the two branches have shifted radicands\n    #     upper = beta**2 - c + k     (from f(x) = k)\n    #     lower = beta**2 - c - k     (from f(x) = -k)\n    # which differ by 2k, so how many solutions exist is decided by where\n    # beta**2 - c sits relative to +/- k. c is chosen from the interval that\n    # realises the wanted case, rotating with the seed so every branch occurs.\n    case = seed % 4\n    if case == 0:\n        c = beta * beta - k - rng.randint(1, 25)   # lower > 0  -> four solutions\n    elif case == 1:\n        c = beta * beta - k                        # lower == 0 -> three solutions\n    elif case == 2:\n        c = beta * beta + rng.randint(-k + 1, k - 1)   # lower < 0 < upper -> two\n    else:\n        c = beta * beta + k                        # upper == 0 -> one solution\n\n    upper = beta * beta - c + k\n    lower = beta * beta - c - k\n\n    # Each branch contributes a different expression, and no single one of them\n    # is valid across the four cases -- which is the whole solve.\n    answer = 0\n    for radicand in (upper, lower):\n        if radicand > 0:\n            answer += 2 * beta * beta + 2 * radicand   # two solutions\n        elif radicand == 0:\n            answer += beta * beta                      # one repeated solution\n\n    # Independent route: solve both quadratics with the ordinary formula in\n    # floating point and add up the squares of the distinct real solutions,\n    # instead of deciding the case from upper and lower.\n    solutions = []\n    for constant in (c - k, c + k):\n        disc = b * b - 4 * constant\n        if disc < 0:\n            continue\n        root = math.sqrt(disc)\n        solutions.append((-b + root) / 2)\n        if root > 0:\n            solutions.append((-b - root) / 2)\n    check = sum(x * x for x in solutions)\n    assert abs(check - answer) < 1e-6, f\"answer={answer} check={check}\"\n\n    linear = f\"+ {b}x\" if b > 0 else f\"- {abs(b)}x\"\n    constant = f\"+ {c}\" if c > 0 else f\"- {abs(c)}\"\n    problem = (\n        f\"Let f(x) = x^2 {linear} {constant}. Find the sum of the squares of \"\n        f\"all real solutions of |f(x)| = {k}. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"casework\"\n",
+      "program_id": "e9efe4a2b47f",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.5555555555555556,
+      "h_score": 130.27216254340277,
+      "rq_score": 32.16596606009945,
+      "fitness": 32.16596606009945,
+      "niche_group": 3,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "18_absolute_quadratic_cases.py",
+        "group": "algebra",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 32.16596606009945
+        },
+        "_behavior_sig_5": "1cabe17f34aca765f6d1003000ab3094fc73927c21be90ea47dbff33333f6b12",
+        "_template_sig_5": "e2d3ed99a55dd21f408d28264fce340e2143ccf0817ef0f8f7d23479a9d5d145",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    x = rng.randint(-6, 6)\n    y = rng.randint(-6, 6)\n    z = rng.randint(-6, 6)\n\n    # Construct equations where adding all three gives a multiple of x+y+z.\n    rows = [\n        [rng.randint(1, 4), rng.randint(-3, 3), rng.randint(-3, 3)],\n        [rng.randint(-3, 3), rng.randint(1, 4), rng.randint(-3, 3)],\n        [0, 0, 0],\n    ]\n\n    # Make row sums by column equal to k, so E1+E2+E3 = k(x+y+z).\n    k = rng.choice([2, 3, 4, 5])\n    rows[2] = [\n        k - rows[0][0] - rows[1][0],\n        k - rows[0][1] - rows[1][1],\n        k - rows[0][2] - rows[1][2],\n    ]\n\n    sol = [x, y, z]\n    rhs = [sum(row[j] * sol[j] for j in range(3)) for row in rows]\n    answer = (sum(rhs)) // k\n\n    # Independent route: instead of adding the equations, substitute \\( x + y + z \\) as a variable and solve for it.\n    eqs = [\n        rows[0][0] * sol[0] + rows[0][1] * sol[1] + rows[0][2] * sol[2],\n        rows[1][0] * sol[0] + rows[1][1] * sol[1] + rows[1][2] * sol[2],\n        rows[2][0] * sol[0] + rows[2][1] * sol[1] + rows[2][2] * sol[2],\n    ]\n    var = 's'\n    eqs_as_vars = [\n        f\"{rows[0][0] * sol[0] + rows[0][1] * sol[1] + rows[0][2] * sol[2]} = {rhs[0]}\",\n        f\"{rows[1][0] * sol[0] + rows[1][1] * sol[1] + rows[1][2] * sol[2]} = {rhs[1]}\",\n        f\"{rows[2][0] * sol[0] + rows[2][1] * sol[1] + rows[2][2] * sol[2]} = {rhs[2]}\",\n    ]\n    check = (eqs[0] + eqs[1] + eqs[2]) // k\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def fmt(row, rhs_val):\n        parts = []\n        for coef, var in zip(row, [\"x\", \"y\", \"z\"]):\n            if coef == 0:\n                continue\n            sign = \"+\" if coef > 0 else \"-\"\n            abscoef = abs(coef)\n            term = var if abscoef == 1 else f\"{abscoef}{var}\"\n            if not parts:\n                parts.append(term if coef > 0 else f\"-{term}\")\n            else:\n                parts.append(f\" {sign} {term}\")\n        return \"\".join(parts) + f\" = {rhs_val}\"\n\n    problem = (\n        f\"Suppose x, y, and z satisfy the following system:\\n\"\n        f\"{fmt(rows[0], rhs[0])}\\n\"\n        f\"{fmt(rows[1], rhs[1])}\\n\"\n        f\"{fmt(rows[2], rhs[2])}\\n\"\n        f\"Find \\( x + y + z \\).\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "1206db49e388",
+      "parent_id": "4bb63a52cd14",
+      "generation": 1,
+      "p_hat": 0.8,
+      "h_score": 132.2376594543457,
+      "rq_score": 21.15802551269531,
+      "fitness": 21.15802551269531,
+      "niche_group": 3,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 21.15802551269531
+        },
+        "_behavior_sig_5": "97873cb805e1bf882675be68901cdf19420603446b8be926626eac1d5ee89f52",
+        "_template_sig_5": "1753086ce71fdc286a6993183d1c530a04fea9baa98c19e553d20ee2facadb60",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    x = rng.randint(-6, 6)\n    y = rng.randint(-6, 6)\n    z = rng.randint(-6, 6)\n\n    # Construct equations where adding all three gives a multiple of x+y+z.\n    rows = [\n        [rng.randint(1, 4), rng.randint(-3, 3), rng.randint(-3, 3)],\n        [rng.randint(-3, 3), rng.randint(1, 4), rng.randint(-3, 3)],\n        [0, 0, 0],\n    ]\n\n    # Make row sums by column equal to k, so E1+E2+E3 = k(x+y+z).\n    k = rng.choice([2, 3, 4, 5])\n    rows[2] = [\n        k - rows[0][0] - rows[1][0],\n        k - rows[0][1] - rows[1][1],\n        k - rows[0][2] - rows[1][2],\n    ]\n\n    sol = [x, y, z]\n    rhs = [sum(row[j] * sol[j] for j in range(3)) for row in rows]\n    answer = (sum(rhs)) // k\n\n    # Independent route: the solution the system was built around, instead of\n    # summing the three equations and dividing by the common column total.\n    check = x + y + z\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def fmt(row, rhs_val):\n        parts = []\n        for coef, var in zip(row, [\"x\", \"y\", \"z\"]):\n            if coef == 0:\n                continue\n            sign = \"+\" if coef > 0 else \"-\"\n            abscoef = abs(coef)\n            term = var if abscoef == 1 else f\"{abscoef}{var}\"\n            if not parts:\n                parts.append(term if coef > 0 else f\"-{term}\")\n            else:\n                parts.append(f\" {sign} {term}\")\n        return \"\".join(parts) + f\" = {rhs_val}\"\n\n    problem = (\n        f\"Suppose x, y, and z satisfy the following system:\\n\"\n        f\"{fmt(rows[0], rhs[0])}\\n\"\n        f\"{fmt(rows[1], rhs[1])}\\n\"\n        f\"{fmt(rows[2], rhs[2])}\\n\"\n        f\"Find x + y + z.\"\n    )\n\n    return problem, str(answer)\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n",
+      "program_id": "4bb63a52cd14",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.7,
+      "h_score": 134.68361434936523,
+      "rq_score": 28.283559013366702,
+      "fitness": 28.283559013366702,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "09_linear_algebra.py",
+        "group": "algebra",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 28.283559013366702
+        },
+        "_behavior_sig_5": "f7578d9190c1667d82296794af589d043b3f0dc28776106f5588d70624c2796b",
+        "_template_sig_5": "2fe55020c2bb8eb04fbed0761b27de640c8167fb935f5d598dcd2da94ea57e8b",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"geometry\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Generate a right triangle with vertices on a grid\n    x0, y0 = rng.randint(-10, 10), rng.randint(-10, 10)\n    x1, y1 = x0 + rng.randint(5, 15), y0\n    x2, y2 = x1, y0 + rng.randint(5, 15)\n\n    # The number of lattice points on the hypotenuse (inclusive endpoints)\n    answer = math.gcd(abs(x2 - x0), abs(y2 - y0)) + 1\n\n    # Independent route: count lattice points on the hypotenuse using the greatest common divisor\n    dx = abs(x2 - x0)\n    dy = abs(y2 - y0)\n    nx = math.gcd(dx, dy)\n    dx = dx // nx\n    dy = dy // nx\n    hypotenuse_points = []\n    for i in range(nx + 1):\n        hypotenuse_points.append((x0 + i * dx, y0 + i * dy))\n    check = len(hypotenuse_points)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"A right triangle with vertices at ({x0}, {y0}), ({x1}, {y1}), and ({x2}, {y2}) is drawn on a grid. How many lattice points lie on the hypotenuse (including the endpoints)? State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "032ec59a2777",
+      "parent_id": "8a8a9355e439",
+      "generation": 3,
+      "p_hat": 0.2222222222222222,
+      "h_score": 180.7907214694553,
+      "rq_score": 31.247779019412025,
+      "fitness": 31.247779019412025,
+      "niche_group": 4,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "invariant",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 31.247779019412025
+        },
+        "_behavior_sig_5": "cb47342fb8d3775fc22567286e8c9f4d7f180d2d39a18c83d89d6c04ff4dd15c",
+        "_template_sig_5": "6fde95927c7f46ce84163384e685d2dbd5f842a092795321cd2db79a1c0a7b65",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Generate a square lattice point problem within a fixed area to ensure a finite and meaningful count.\n    side_length = rng.randint(5, 15)\n    x0, y0 = rng.randint(-10, 10), rng.randint(-10, 10)\n    x1, y1 = x0 + side_length, y0 + side_length\n\n    # Number of lattice points strictly inside the square\n    answer = (x1 - x0 - 1) * (y1 - y0 - 1)\n\n    # Independent route: count lattice points within the square\n    check = 0\n    for x in range(x0 + 1, x1):\n        for y in range(y0 + 1, y1):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"A square with vertices at ({x0}, {y0}), ({x1}, {y0}), ({x0}, {y1}), and ({x1}, {y1}) is drawn on a grid. How many lattice points lie strictly inside this square? State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "8a8a9355e439",
+      "parent_id": "1fec92a4ea26",
+      "generation": 2,
+      "p_hat": 0.2222222222222222,
+      "h_score": 184.85394435458713,
+      "rq_score": 31.95006445634839,
+      "fitness": 31.95006445634839,
+      "niche_group": 4,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 31.95006445634839
+        },
+        "_behavior_sig_5": "9a3f24c3e603c769973c3ea28bd4bb13f9e431dcedf5ea92c144f3bed52fab94",
+        "_template_sig_5": "f41375381a0e0903ee2acc01cf6df39e66125b33b2cbf43ce30c5f79b6afa6e1",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Generate a square lattice point problem within a fixed area to ensure a finite and meaningful count.\n    side_length = rng.randint(5, 15)\n    x0, y0 = rng.randint(-10, 10), rng.randint(-10, 10)\n    x1, y1 = x0 + side_length, y0 + side_length\n\n    # Translate the square to the origin to simplify the counting\n    translated_x0, translated_y0 = x0 - x0, y0 - y0\n    translated_x1, translated_y1 = x1 - x0, y1 - y0\n\n    # Number of lattice points strictly inside the square\n    answer = (translated_x1 - 1) * (translated_y1 - 1)\n\n    # Independent route: count lattice points within the translated square\n    check = 0\n    for x in range(1, translated_x1):\n        for y in range(1, translated_y1):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"A square with vertices at ({x0}, {y0}), ({x1}, {y0}), ({x0}, {y1}), and ({x1}, {y1}) is drawn on a grid. By translating the square to the origin, how many lattice points lie strictly inside this translated square? State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "1ba4e341cc48",
+      "parent_id": "8a8a9355e439",
+      "generation": 3,
+      "p_hat": 0.42857142857142855,
+      "h_score": 307.71134403773715,
+      "rq_score": 75.35788017250705,
+      "fitness": 75.35788017250705,
+      "niche_group": 4,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 75.35788017250705
+        },
+        "_behavior_sig_5": "5e20ffb39a6c4d5301f287abc9c0bb418888e973f18e9a9d1a72c1a06a4d5ab3",
+        "_template_sig_5": "9c4c2880b7987e5ab3b364eed2f62e9be3717b84ba187a53d975477256c09ed7",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"inequality\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT: s must stay a multiple of 3. The real optimum is a = b = c\n    # = s/3, so the answer ((s + 3k)/3)^3 is an integer exactly when 3 | s.\n    # Keep the invariant in the construction (3 * m), never in a value list.\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every positive integer triple summing to s.\n    # Since 3 | s, the real optimum a = b = c = s/3 is a lattice point, so\n    # the searched maximum must equal the formula.\n    check = max(\n        (a + k) * (b + k) * (s - a - b + k)\n        for a in range(1, s - 1)\n        for b in range(1, s - a)\n    )\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let a, b, c be positive integers with a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(max_product)",
+      "program_id": "f791b189deff",
+      "parent_id": "9515b0477fcf",
+      "generation": 1,
+      "p_hat": 0.3333333333333333,
+      "h_score": 216.57669236924914,
+      "rq_score": 48.12815385983315,
+      "fitness": 48.12815385983315,
+      "niche_group": 5,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "inequality",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 48.12815385983315
+        },
+        "_behavior_sig_5": "62ef19956e9e304a46f8693f96b8f5d0ee73a1687a05c258cdb65b5b1ed17664",
+        "_template_sig_5": "516c5eee1cd3f0a46f05027bfacef2a16eda27de7d79cc5231380f97acc40df2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT: s must stay a multiple of 3. The real optimum is a = b = c\n    # = s/3, so the answer ((s + 3k)/3)^3 is an integer exactly when 3 | s.\n    # Keep the invariant in the construction (3 * m), never in a value list.\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every positive integer triple summing to s.\n    # Since 3 | s, the real optimum a = b = c = s/3 is a lattice point, so\n    # the searched maximum must equal the formula.\n    check = max(\n        (a + k) * (b + k) * (s - a - b + k)\n        for a in range(1, s - 1)\n        for b in range(1, s - a)\n    )\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let a, b, c be positive real numbers with a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(max_product)\n\nGROUP = \"inequality\"\nSKILL = \"transformation\"",
+      "program_id": "9515b0477fcf",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.6666666666666666,
+      "h_score": 207.54966142442493,
+      "rq_score": 46.12214698320554,
+      "fitness": 46.12214698320554,
+      "niche_group": 5,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "10_inequalities.py",
+        "group": "inequality",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 46.12214698320554
+        },
+        "_behavior_sig_5": "20e766b073afd191acd68b4bafa1b87376de49863ce6d9450983e77624a66393",
+        "_template_sig_5": "e33f9d7203a503bc5fd529abcdf1c6266817f985e18fc102d6c019f42bae805a",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

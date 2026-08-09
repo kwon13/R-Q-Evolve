@@ -1,0 +1,704 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 20,
+      "total_niches": 48,
+      "coverage": 0.4166666666666667,
+      "group_coverage": 1.0,
+      "skill_coverage": 0.75,
+      "mean_rq": 29.237159065435883,
+      "max_rq": 59.12954444885254,
+      "total_insertions": 176,
+      "total_replacements": 11,
+      "total_selections": 352
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # a is chosen to ensure integer solutions: it's a square.\n    a = rng.choice([4, 9, 16, 25, 36, 49, 64, 81, 100])\n    b = rng.randint(1, 10)\n    c = rng.randint(1, 10)\n\n    # |a**2 + b + c| = a splits into two cases: a**2 + b + c = a or\n    # a**2 + b + c = -a.\n    case = seed % 2\n    if case == 0:\n        equation = a ** 2 + b + c - a\n    else:\n        equation = a ** 2 + b + c + a\n\n    # Solve for integer solutions by checking each integer from -(b+c) to b+c.\n    # This ensures we cover all possible solutions while ensuring the solution\n    # is an integer.\n    solutions = [x for x in range(-(b + c), b + c + 1) if x**2 + b + c == equation]\n\n    # Calculate the number of solutions and their squares for the independent route.\n    answer = len(solutions)\n    check = sum(x**2 for x in solutions)\n    assert answer == len(solutions) and abs(check - sum(x**2 for x in solutions)) < 1e-6, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Find all integer solutions to |x^2 + {b} + {c}| = {a} and state the number of solutions.\"\n    )\n    return problem, str(answer)",
+      "program_id": "8d4260364bc2",
+      "parent_id": "f195bb6d0339",
+      "generation": 2,
+      "p_hat": 0.8888888888888888,
+      "h_score": 97.81347401936848,
+      "rq_score": 9.660590026604298,
+      "fitness": 9.660590026604298,
+      "niche_group": 0,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 9.660590026604298
+        },
+        "_behavior_sig_5": "d42fc7d1fcea0f4e41575bd6d65084708f92c70c3eaab033b209da134a624f78",
+        "_template_sig_5": "423e9d8293e63cbd91631b1a90274557cba837f5a880261a94caeb81fdb72cb6",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"induction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the number theory domain.\n    # Choosing prime numbers to set as the basis of the problem.\n    primes = rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23, 29], 3)\n    p, q, r = sorted(primes)\n    n = rng.randint(100, 500)\n\n    # Calculating the number of integers in the range [1, n] that are divisible by none of p, q, and r.\n    # Total numbers minus the numbers divisible by p, q, r, then add back the numbers divisible by pq, pr, qr, and subtract the numbers divisible by pqr.\n    total = n\n    divisible_by_p = n // p\n    divisible_by_q = n // q\n    divisible_by_r = n // r\n    divisible_by_pq = n // (p * q)\n    divisible_by_pr = n // (p * r)\n    divisible_by_qr = n // (q * r)\n    divisible_by_pqr = n // (p * q * r)\n    union = divisible_by_p + divisible_by_q + divisible_by_r - divisible_by_pq - divisible_by_pr - divisible_by_qr + divisible_by_pqr\n    answer = total - union\n\n    # Independent route: counting the numbers that are divisible by none of p, q, and r directly.\n    check = sum(1 for k in range(1, n + 1) if k % p and k % q and k % r)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the count of numbers that are not divisible by any of the chosen primes.\n    problem = f\"How many integers k with 1 <= k <= {n} are divisible by none of {p}, {q} and {r}? Use the inclusion-exclusion principle to find the answer.\"\n\n    return problem, str(answer)",
+      "program_id": "a76d573863ae",
+      "parent_id": "88cfa58ce0fa",
+      "generation": 4,
+      "p_hat": 0.5555555555555556,
+      "h_score": 122.8328145345052,
+      "rq_score": 30.329090008519803,
+      "fitness": 30.329090008519803,
+      "niche_group": 0,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 30.329090008519803
+        },
+        "_behavior_sig_5": "138a8ff7870a4c9ad79f41f934de1cc5fd251016fb4dd9fbf1f401bb192d1b3b",
+        "_template_sig_5": "e63a0bcdb5a85477fe63ab3097d2807d71bc5b44887605dcc29d625ed65d630e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nfrom math import gcd\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Ensuring parameters are chosen such that brute-force enumeration and simple guessing do not work.\n    a = rng.randint(300, 400)  # First number\n    b = rng.randint(50, 70)   # Second number\n\n    # The product of the two numbers is a number-theoretic invariant, unaffected by the individual values of the numbers.\n    # Product = a * b\n    answer = a * b\n\n    # Independent route: using the greatest common divisor (GCD) of the two numbers to find a way to express the product\n    # that does not rely on simple enumeration but rather on a number-theoretic property.\n    # Using the fact that the product of two numbers can be expressed in terms of their GCD and the product of the other factors.\n    gcd_ab = gcd(a, b)\n    check = a // gcd_ab * b // gcd_ab * gcd_ab ** 2\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a problem that asks about the product of the two numbers using a different perspective.\n    problem = (\n        f\"Two numbers are {a} and {b}. Find the product of these two numbers using a number-theoretic invariant involving the greatest common divisor of the two numbers.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "a647f771eee2",
+      "parent_id": "72452db39ec9",
+      "generation": 5,
+      "p_hat": 0.6,
+      "h_score": 235.5767967224121,
+      "rq_score": 56.5384312133789,
+      "fitness": 56.5384312133789,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 56.5384312133789
+        },
+        "_behavior_sig_5": "0e5194fcbde61efd0099e6e1a4430e6ae29ae9ba6cef2ab1531bbc54186d2151",
+        "_template_sig_5": "b12532932372097baada71f36addcd519ace8859ab07404e3bcd0b809776093f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    p = rng.randint(3, 100)  # Prime number\n    n = rng.randint(3000, 40000)  # Integer\n\n    # Same shape as the parent: total minus the union, with the union expanded\n    # by inclusion-exclusion. Divisibility replaces incidence as the relation\n    # that decides membership.\n    answer = n - (n // p)\n\n    # Independent route: test every integer in range against the prime p.\n    check = sum(1 for k in range(1, n + 1) if k % p != 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the number of integers less than or equal to n that are not divisible by p.\n    problem = f\"How many integers k with 1 <= k <= {n} are not divisible by {p}? State only the integer.\"\n\n    return problem, str(answer)",
+      "program_id": "fa7b5c99d03d",
+      "parent_id": "5ae9f2a8e2a5",
+      "generation": 5,
+      "p_hat": 0.5,
+      "h_score": 221.60330963134766,
+      "rq_score": 55.400827407836914,
+      "fitness": 55.400827407836914,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 55.400827407836914
+        },
+        "_behavior_sig_5": "d82597b318f1fa5fa48f194e25003d740ee8674e3383973f0c71fa0591e1c0cb",
+        "_template_sig_5": "30284e12d54a488a2c31c1f1d4e5c710b7121251cbc3be84255bc101271c2c09",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # The problem involves integers and their properties.\n    n = rng.randint(10, 100)\n\n    # Define the property: terms that are not perfect squares.\n    def is_perfect_square(x):\n        return x == int(math.isqrt(x)) ** 2\n\n    # Count the number of perfect squares in the range from 1 to n\n    perfect_squares = len([x for x in range(1, n + 1) if is_perfect_square(x)])\n\n    # Independent route: count the number of terms that are not perfect squares\n    check = n - perfect_squares\n    assert check == n - perfect_squares, f\"check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are not perfect squares? State only the integer.\"\n    )\n    return problem, str(check)",
+      "program_id": "f69d0341f248",
+      "parent_id": "256b68a1aacd",
+      "generation": 2,
+      "p_hat": 0.8,
+      "h_score": 200.83040351867675,
+      "rq_score": 32.132864562988274,
+      "fitness": 32.132864562988274,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 32.132864562988274
+        },
+        "_behavior_sig_5": "fba6d85e98d1c9ae4d45aef958adeefa580e304bc0a7333143c531a0bd09140e",
+        "_template_sig_5": "da926734400a22ec2febf4dd5ca04357edfdcbf971719d6163a984ff6938193f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a combinatorial domain.\n    # Choosing dimensions for the rectangle that do not allow simple enumeration or guessing.\n    a = rng.randint(300, 500)  # First number\n    b = rng.randint(300, 500)  # Second number\n\n    # Calculating the total number of pairs (a, b) where a and b are natural numbers.\n    # Total pairs = a * b\n    answer = a * b\n\n    # Independent route: counting pairs (a, b).\n    # We count the pairs (i, j) such that 1 <= i <= a and 1 <= j <= b.\n    check = sum(1 for _ in range(1, a + 1) for _ in range(1, b + 1))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the number of pairs of natural numbers.\n    problem = f\"How many pairs of natural numbers (a, b) with 1 <= a <= {a} and 1 <= b <= {b} exist?\"\n\n    return problem, str(answer)",
+      "program_id": "5ae9f2a8e2a5",
+      "parent_id": "1d38e5925769",
+      "generation": 4,
+      "p_hat": 0.7777777777777778,
+      "h_score": 85.04206424289279,
+      "rq_score": 14.698628387660483,
+      "fitness": 14.698628387660483,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 14.698628387660483
+        },
+        "_behavior_sig_5": "66af5064e2063a58f4ebeb5bc6ab017a470af8ba5092634fda3c495a08b31d2c",
+        "_template_sig_5": "ff9800932b815d05cb37829c7279c27ce6df86096ce4134f1473ac958f0ca343",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\nimport sympy\n\nGROUP = \"combinatorics\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # The problem involves a grid of points with integer coordinates 0 <= x <= w and 0 <= y <= h.\n    w = rng.randint(30, 60)\n    h = rng.randint(30, 60)\n\n    # The load-bearing structure is counting the number of points on the grid that do not lie on any line segment.\n    total_points = (w + 1) * (h + 1)\n\n    # Define the lines y = x and y = -x + (w + h)\n    def point_on_line(x, y):\n        return y == x or y == -x + (w + h)\n\n    # Count the number of points not on any of the lines\n    points_not_on_lines = sum(1 for x in range(w + 1) for y in range(h + 1) if not point_on_line(x, y))\n\n    # Independent route: count the number of points not on any of the lines by direct enumeration\n    check = total_points - sum(1 for x in range(w + 1) for y in range(h + 1) if point_on_line(x, y))\n    assert points_not_on_lines == check, f\"points_not_on_lines={points_not_on_lines} check={check}\"\n\n    problem = (\n        f\"Consider the grid of points with integer coordinates 0 <= x <= {w} \"\n        f\"and 0 <= y <= {h}. How many of them do not lie on the line segments \"\n        f\"defined by y = x and y = -x + ({w} + {h})? State only the integer.\"\n    )\n    return problem, str(points_not_on_lines)",
+      "program_id": "256b68a1aacd",
+      "parent_id": "945b22e16e37",
+      "generation": 1,
+      "p_hat": 0.2,
+      "h_score": 167.27178955078125,
+      "rq_score": 26.763486328125005,
+      "fitness": 26.763486328125005,
+      "niche_group": 1,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 26.763486328125005
+        },
+        "_behavior_sig_5": "854b7f5118c3259b524504f87bdd42c957de6b499b952a9302a0900eff535445",
+        "_template_sig_5": "f846cf25fa3d7cdc3a1833618408c88a4f159edecf826dc4a11bfd5557f3119a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"casework\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the sequence domain.\n    # Choosing sequence parameters that won't allow simple enumeration or guessing.\n    n_terms = rng.randint(50, 100)  # Number of terms in the sequence\n    a = rng.randint(1, 50)  # First term of the sequence\n    d = rng.randint(1, 20)  # Common difference of the sequence\n\n    # Calculating the sum of the sequence using the formula for the sum of an arithmetic sequence.\n    # S(n) = n/2 * (2a + (n-1)d)\n    answer = int((n_terms / 2) * (2 * a + (n_terms - 1) * d))\n\n    # Independent route: calculating the sum by summing each term directly and then pairing terms.\n    term_list = [a + (i - 1) * d for i in range(1, n_terms + 1)]\n    check_sum = sum(term_list[i] + term_list[-(i + 1)] for i in range(n_terms // 2))\n    if n_terms % 2 != 0:\n        check_sum += term_list[n_terms // 2]\n\n    assert answer == check_sum, f\"answer={answer} check={check_sum}\"\n\n    # Constructing a question about the sum of this arithmetic sequence.\n    problem = f\"What is the sum of the first {n_terms} terms of an arithmetic sequence where the first term is {a} and the common difference is {d}? Pair terms to find the answer.\"\n\n    return problem, str(answer)",
+      "program_id": "7d767e93698a",
+      "parent_id": "7e2dbfa2bda0",
+      "generation": 2,
+      "p_hat": 0.9,
+      "h_score": 353.8764402389526,
+      "rq_score": 31.84887962150573,
+      "fitness": 31.84887962150573,
+      "niche_group": 2,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 31.84887962150573
+        },
+        "_behavior_sig_5": "d9063dc8e819d37e99bba05275f6ad9ed2e972c1ef4a61066f75ba2ed345c82a",
+        "_template_sig_5": "9e1d7bb2550b3c5107238e2593f2a55f0da2fb7698acdc0e345b22eb908ebdb4",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the sequence domain.\n    # Choosing sequence parameters that won't allow simple enumeration or guessing.\n    n_terms = rng.randint(50, 100)  # Number of terms in the sequence\n    a = rng.randint(1, 50)  # First term of the sequence\n    d = rng.randint(1, 20)  # Common difference of the sequence\n\n    # Calculating the sum of the sequence using the formula for the sum of an arithmetic sequence.\n    # S(n) = n/2 * (2a + (n-1)d)\n    answer = int((n_terms / 2) * (2 * a + (n_terms - 1) * d))\n\n    # Independent route: calculating the sum by summing each term directly and then pairing terms.\n    term_list = [a + (i - 1) * d for i in range(1, n_terms + 1)]\n    check_sum = sum(term_list[i] + term_list[-(i + 1)] for i in range(n_terms // 2))\n    if n_terms % 2 != 0:\n        check_sum += term_list[n_terms // 2]\n\n    assert answer == check_sum, f\"answer={answer} check={check_sum}\"\n\n    # Constructing a question about the sum of this arithmetic sequence.\n    problem = f\"What is the sum of the first {n_terms} terms of an arithmetic sequence where the first term is {a} and the common difference is {d}? Use the formula for the sum of an arithmetic sequence to find the answer.\"\n\n    return problem, str(answer)",
+      "program_id": "88cfa58ce0fa",
+      "parent_id": "7d767e93698a",
+      "generation": 3,
+      "p_hat": 0.5,
+      "h_score": 131.2716588973999,
+      "rq_score": 32.817914724349976,
+      "fitness": 32.817914724349976,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "induction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 32.817914724349976
+        },
+        "_behavior_sig_5": "aa28dcb0191f0e8482b7e35acc8b2545903a1dadfab1ef75624598e066bc53ea",
+        "_template_sig_5": "c1b8fc865d4f2ff4a92cb0bd8af35fc07089258d7e0b7f16822ecfc33046b7fa",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"sequence\"\nSKILL = \"invariant\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the sequence domain.\n    # Choosing sequence parameters that won't allow simple enumeration or guessing.\n    n_terms = rng.randint(50, 100)  # Number of terms in the sequence\n    a = rng.randint(1, 50)  # First term of the sequence\n    d = rng.randint(1, 20)  # Common difference of the sequence\n\n    # Using the formula for the sum of an arithmetic sequence.\n    answer = int((n_terms / 2) * (2 * a + (n_terms - 1) * d))\n\n    # Independent route: pairing terms to verify the sum, ensuring no term is left unpaired.\n    term_list = [a + (i - 1) * d for i in range(1, n_terms + 1)]\n    check_pairs = [(term_list[i] + term_list[-(i + 1)]) for i in range(n_terms // 2)]\n    if n_terms % 2 != 0:\n        check_pairs.append(term_list[n_terms // 2])\n    check_sum = sum(check_pairs)\n\n    assert answer == check_sum, f\"answer={answer} check={check_sum}\"\n\n    # Constructing a question about the sum of this arithmetic sequence using the invariant property of paired terms.\n    problem = f\"An arithmetic sequence has {n_terms} terms with the first term being {a} and the common difference being {d}. Find the sum of all terms. Use the property that pairing each term with its complement to the end of the sequence maintains the invariant sum.\"\n\n    return problem, str(answer)",
+      "program_id": "26b24b9ce6e8",
+      "parent_id": "7d767e93698a",
+      "generation": 3,
+      "p_hat": 0.7777777777777778,
+      "h_score": 150.3021123674181,
+      "rq_score": 25.978142878319176,
+      "fitness": 25.978142878319176,
+      "niche_group": 2,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 25.978142878319176
+        },
+        "_behavior_sig_5": "2a0f1acdf49123bfa28832730f7d41bd599d538785e15e34529255389683c9f9",
+        "_template_sig_5": "f8a0951c937426b2e7adb13643bdda2d981f13430e7c468de0830a877bdc3a6c",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n_terms = rng.randint(50, 100)  # Number of terms in the sequence\n    a = rng.randint(1, 50)  # First term of the sequence\n    d = rng.randint(1, 20)  # Common difference of the sequence\n\n    # Calculate the sum of the sequence using the standard arithmetic sequence sum formula.\n    answer = int((n_terms / 2) * (2 * a + (n_terms - 1) * d))\n\n    # Independent route: Calculate the sum by using the property that the sum can be paired symmetrically.\n    # For an arithmetic sequence, pairs of terms from the start and end have the same sum.\n    sum_pairs = int(((a + (a + (n_terms - 1) * d)) * n_terms) / 2)\n    assert answer == sum_pairs, f\"answer={answer} check={sum_pairs}\"\n\n    problem = f\"Given an arithmetic sequence with the first term {a} and common difference {d}, find the sum of the first {n_terms} terms. State only the integer.\"\n    return problem, str(answer)",
+      "program_id": "7c6634c5b6c3",
+      "parent_id": "7e2dbfa2bda0",
+      "generation": 2,
+      "p_hat": 0.6666666666666666,
+      "h_score": 217.92744657728406,
+      "rq_score": 48.42832146161868,
+      "fitness": 48.42832146161868,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 48.42832146161868
+        },
+        "_behavior_sig_5": "0b4928238e35520051cab8a15d153fc41b32cfd0aa754056c82da53e8c9a9884",
+        "_template_sig_5": "e0f19a445af4a94eeea3cb0dad9ad575f04307d0a90ec054753d17084f12f340",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"sequence\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters in the sequence domain.\n    # Choosing sequence parameters that won't allow simple enumeration or guessing.\n    n_terms = rng.randint(50, 100)  # Number of terms in the sequence\n    a = rng.randint(1, 50)  # First term of the sequence\n    d = rng.randint(1, 20)  # Common difference of the sequence\n\n    # Calculating the sum of the sequence using the formula for the sum of an arithmetic sequence.\n    # S(n) = n/2 * (2a + (n-1)d)\n    answer = int((n_terms / 2) * (2 * a + (n_terms - 1) * d))\n\n    # Independent route: calculating the sum by summing each term directly.\n    check_sum = sum(a + (i - 1) * d for i in range(1, n_terms + 1))\n    assert answer == check_sum, f\"answer={answer} check={check_sum}\"\n\n    # Constructing a question about the sum of this arithmetic sequence.\n    problem = f\"What is the sum of the first {n_terms} terms of an arithmetic sequence where the first term is {a} and the common difference is {d}?\"\n\n    return problem, str(answer)",
+      "program_id": "7e2dbfa2bda0",
+      "parent_id": "945b22e16e37",
+      "generation": 1,
+      "p_hat": 0.9,
+      "h_score": 59.29869747161865,
+      "rq_score": 5.336882772445677,
+      "fitness": 5.336882772445677,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 5.336882772445677
+        },
+        "_behavior_sig_5": "1f244a9169e226a0cb27fabb74fde9c3ac629e560eeff09ea190a8a0d1058130",
+        "_template_sig_5": "eee90cf46dc764e1428794c434c5dd91b48f1f6131256d36c3a8ecd2a9342d54",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # b is even so that every case yields an integer: the solutions come in\n    # pairs -beta +/- sqrt(t), whose squares add to 2*beta**2 + 2*t.\n    # |beta| >= 2 keeps the single-solution case away from the guessable\n    # answers 0 and 1.\n    beta = rng.choice([-9, -8, -7, -6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9])\n    k = rng.randint(1, 12)\n    b = 2 * beta\n\n    # |f(x)| = k splits into f(x) = k and f(x) = -k. Writing f(x) as\n    # (x + beta)**2 + (c - beta**2), the two branches have shifted radicands\n    #     upper = beta**2 - c + k     (from f(x) = k)\n    #     lower = beta**2 - c - k     (from f(x) = -k)\n    # which differ by 2k, so how many solutions exist is decided by where\n    # beta**2 - c sits relative to +/- k. c is chosen from the interval that\n    # realises the wanted case, rotating with the seed so every branch occurs.\n    case = seed % 4\n    if case == 0:\n        c = beta * beta - k - rng.randint(1, 25)   # lower > 0  -> four solutions\n    elif case == 1:\n        c = beta * beta - k                        # lower == 0 -> three solutions\n    elif case == 2:\n        c = beta * beta + rng.randint(-k + 1, k - 1)   # lower < 0 < upper -> two\n    else:\n        c = beta * beta + k                        # upper == 0 -> one solution\n\n    upper = beta * beta - c + k\n    lower = beta * beta - c - k\n\n    # Each branch contributes a different expression, and no single one of them\n    # is valid across the four cases -- which is the whole solve.\n    answer = 0\n    for radicand in (upper, lower):\n        if radicand > 0:\n            answer += 2 * beta * beta + 2 * radicand   # two solutions\n        elif radicand == 0:\n            answer += beta * beta                      # one repeated solution\n\n    # Independent route: solve both quadratics with the ordinary formula in\n    # floating point and add up the squares of the distinct real solutions,\n    # instead of deciding the case from upper and lower.\n    solutions = []\n    for constant in (c - k, c + k):\n        disc = b * b - 4 * constant\n        if disc < 0:\n            continue\n        root = math.sqrt(disc)\n        solutions.append((-b + root) / 2)\n        if root > 0:\n            solutions.append((-b - root) / 2)\n    check = sum(x * x for x in solutions)\n    assert abs(check - answer) < 1e-6, f\"answer={answer} check={check}\"\n\n    linear = f\"+ {b}x\" if b > 0 else f\"- {abs(b)}x\"\n    constant = f\"+ {c}\" if c > 0 else f\"- {abs(c)}\"\n    problem = (\n        f\"Let f(x) = x^2 {linear} {constant}. Find the sum of the squares of \"\n        f\"all real solutions of |f(x)| = {k}. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"casework\"\n",
+      "program_id": "e9efe4a2b47f",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.7,
+      "h_score": 71.67842025756836,
+      "rq_score": 15.052468254089357,
+      "fitness": 15.052468254089357,
+      "niche_group": 3,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "18_absolute_quadratic_cases.py",
+        "group": "algebra",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 15.052468254089357
+        },
+        "_behavior_sig_5": "1cabe17f34aca765f6d1003000ab3094fc73927c21be90ea47dbff33333f6b12",
+        "_template_sig_5": "e2d3ed99a55dd21f408d28264fce340e2143ccf0817ef0f8f7d23479a9d5d145",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for an algebraic domain.\n    # Choosing coefficients for a quadratic polynomial that do not allow simple enumeration or guessing.\n    a = rng.randint(1, 20)  # Coefficient of x^2\n    b = rng.randint(1, 20)  # Coefficient of x\n    c = rng.randint(1, 20)  # Constant term\n\n    # Calculating the sum of the sequence a, a^2, a^3, ..., a^n.\n    # For simplicity, we will calculate up to n=10, but in practice, we might need a larger n.\n    n = 10\n    answer = sum(a**i for i in range(1, n + 1))\n\n    # Independent route: calculating the sum of the sequence by recognizing it as a geometric series.\n    # The sum of a geometric series a + ar + ar^2 + ... + ar^(n-1) is given by a*(r^n - 1)/(r - 1).\n    r = a\n    check = a * (r**n - 1) // (r - 1)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the sum of the sequence.\n    problem = f\"What is the sum of the first {n} terms of the sequence where each term is the previous term multiplied by {a}? The sequence starts with {a}.\"\n\n    return problem, str(answer)",
+      "program_id": "e77a7b9599ee",
+      "parent_id": "2e5728b2e400",
+      "generation": 3,
+      "p_hat": 0.3333333333333333,
+      "h_score": 116.95810911390517,
+      "rq_score": 25.99069091420115,
+      "fitness": 25.99069091420115,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 25.99069091420115
+        },
+        "_behavior_sig_5": "02897fdd478d1c5e305238cf36c4283466fedd071e19e476703fba772e6798b1",
+        "_template_sig_5": "8d8684bcd4e3ed46473fd18e74a5920104d7b793982dffb0d9ea01e84ff6b2b5",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"casework\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # a is even so that every case yields an integer: the solutions come in\n    # pairs +/- sqrt(d), whose squares add to 2*a**2 + 2*d.\n    # |a| >= 2 keeps the single-solution case away from the guessable\n    # answers 0 and 1.\n    a = rng.choice([-10, -8, -6, -4, -2, 2, 4, 6, 8, 10])\n    k = rng.randint(1, 12)\n    m = 2 * a\n\n    # |f(x)| = k splits into f(x) = k and f(x) = -k. Writing f(x) as\n    # (x + a)**2 + (b - a**2), the two branches have shifted radicands\n    #     upper = a**2 - b + k     (from f(x) = k)\n    #     lower = a**2 - b - k     (from f(x) = -k)\n    # which differ by 2k, so how many solutions exist is decided by where\n    # a**2 - b sits relative to +/- k. b is chosen from the interval that\n    # realises the wanted case, rotating with the seed so every branch occurs.\n    case = seed % 4\n    if case == 0:\n        b = a * a - k - rng.randint(1, 25)   # lower > 0  -> four solutions\n    elif case == 1:\n        b = a * a - k                        # lower == 0 -> three solutions\n    elif case == 2:\n        b = a * a + rng.randint(-k + 1, k - 1)   # lower < 0 < upper -> two\n    else:\n        b = a * a + k                        # upper == 0 -> one solution\n\n    upper = a * a - b + k\n    lower = a * a - b - k\n\n    # Each branch contributes a different expression, and no single one of them\n    # is valid across the four cases -- which is the whole solve.\n    answer = 0\n    for radicand in (upper, lower):\n        if radicand > 0:\n            answer += 2 * a * a + 2 * radicand   # two solutions\n        elif radicand == 0:\n            answer += a * a                      # one repeated solution\n\n    # Independent route: solve both equations with the ordinary formula in\n    # floating point and add up the squares of the distinct real solutions,\n    # instead of deciding the case from upper and lower.\n    solutions = []\n    for constant in (b - k, b + k):\n        disc = m * m - 4 * constant\n        if disc < 0:\n            continue\n        root = math.sqrt(disc)\n        solutions.append((-m + root) / 2)\n        if root > 0:\n            solutions.append((-m - root) / 2)\n    check = sum(x * x for x in solutions)\n    assert abs(check - answer) < 1e-6, f\"answer={answer} check={check}\"\n\n    linear = f\"+ {m}x\" if m > 0 else f\"- {abs(m)}x\"\n    constant = f\"+ {b}\" if b > 0 else f\"- {abs(b)}\"\n    problem = (\n        f\"Let f(x) = x^2 {linear} {constant}. Find the sum of the squares of \"\n        f\"all real solutions of |f(x)| = {k}. State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "f195bb6d0339",
+      "parent_id": "e9efe4a2b47f",
+      "generation": 1,
+      "p_hat": 0.8888888888888888,
+      "h_score": 140.38844129774304,
+      "rq_score": 13.865525066443762,
+      "fitness": 13.865525066443762,
+      "niche_group": 4,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "casework",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 13.865525066443762
+        },
+        "_behavior_sig_5": "03bbe8034571b7dab1c4c5d531e2f97e570482ac3088a28cb6e959d947af078e",
+        "_template_sig_5": "6c04205660a659c827da1f8d83f702ad154086a24c720844139ff14643a553ae",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nfrom math import gcd\n\nGROUP = \"geometry\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Ensuring parameters are chosen such that brute-force enumeration and simple guessing do not work.\n    w = rng.randint(100, 120)  # Width of the rectangle\n    h = rng.randint(50, 60)  # Height of the rectangle\n\n    # The area of the rectangle is a geometric invariant, unaffected by the position or rotation of the rectangle.\n    # Area = width * height\n    answer = w * h\n\n    # Independent route: using the greatest common divisor (GCD) of width and height to find a way to express the area\n    # that does not rely on simple enumeration but rather on a geometric property.\n    # Using the fact that the area of a rectangle can be expressed as the product of its sides.\n    gcd_wh = gcd(w, h)\n    check = w // gcd_wh * h // gcd_wh * gcd_wh ** 2\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a problem that asks about the area of the rectangle using a different perspective.\n    problem = (\n        f\"A rectangle has a width of {w} units and a height of {h} units. \"\n        f\"Find the area of the rectangle using a geometric invariant involving the greatest common divisor of its width and height.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "72452db39ec9",
+      "parent_id": "1d38e5925769",
+      "generation": 4,
+      "p_hat": 0.7142857142857143,
+      "h_score": 284.6785103934152,
+      "rq_score": 58.09765518232963,
+      "fitness": 58.09765518232963,
+      "niche_group": 4,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 58.09765518232963
+        },
+        "_behavior_sig_5": "e5523aea73de392acaac40d0ccf9f5a224c008560e5a9150e34f43bfd89d79bf",
+        "_template_sig_5": "e2f7c0e982883d2075810352dcf8abea86fe36e7fe1c669961f2d5bd57279ea8",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"extremal_principle\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a geometric domain.\n    w = rng.randint(100, 200)  # Width of the rectangle\n    h = rng.randint(100, 200)  # Height of the rectangle\n\n    # Calculating the number of unit squares inscribed within the rectangle.\n    # This is done by finding the count of all possible (x, y) pairs where x ranges from 1 to w and y ranges from 1 to h.\n    answer = w * h\n\n    # Independent route: calculating the number of unit squares by considering the overlapping grid lines within the rectangle.\n    # For every x from 1 to w, there are h possible y values, and since we have w options for x, we sum h w times.\n    check = sum(h for _ in range(w))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the number of unit squares inscribed within the rectangle.\n    problem = (\n        f\"There is a rectangle on a grid paper with a width of {w} units and a height of {h} units. How many unit squares are \"\n        f\"inscribed within this rectangle, touching at least one of its sides? State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "03f80c0e1708",
+      "parent_id": "5ea485f03685",
+      "generation": 4,
+      "p_hat": 0.6666666666666666,
+      "h_score": 90.25278684828017,
+      "rq_score": 20.05617485517337,
+      "fitness": 20.05617485517337,
+      "niche_group": 4,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "extremal_principle",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 20.05617485517337
+        },
+        "_behavior_sig_5": "990e9e6bf3b28673d40644da0fdebfe8e70e742f299d691b1ac1a78fc9a0b30c",
+        "_template_sig_5": "1870d534ac8aba17b75fd86c0e29ae5af1b87a53f71d456a103a308217e8ebdd",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    rows = rng.randint(5, 20)  # Number of rows in the grid\n    cols = rng.randint(5, 20)  # Number of columns in the grid\n\n    # Calculate the total number of points in the grid using the grid point count formula.\n    answer = rows * cols\n\n    # Independent route: Calculate the total number of points by explicitly counting them in a nested loop.\n    check = sum(1 for x in range(rows) for y in range(cols))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = f\"How many lattice points lie on the grid formed by {rows} horizontal lines and {cols} vertical lines? State only the integer.\"\n    return problem, str(answer)",
+      "program_id": "ef6c26fd707a",
+      "parent_id": "7c6634c5b6c3",
+      "generation": 3,
+      "p_hat": 0.5,
+      "h_score": 236.51817779541017,
+      "rq_score": 59.12954444885254,
+      "fitness": 59.12954444885254,
+      "niche_group": 4,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 59.12954444885254
+        },
+        "_behavior_sig_5": "63cfe467c044c3515c813fb62312dd7b427fc102fbec5469c3637afdcade0691",
+        "_template_sig_5": "bd7274d581fd029d0d1764c37849c443cb107621b274f1cd0057eb989c25e7b4",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    # Setting up parameters for a geometric domain.\n    # Choosing dimensions for the rectangle that do not allow simple enumeration or guessing.\n    w = rng.randint(10, 20)  # Width of the rectangle\n    h = rng.randint(10, 20)  # Height of the rectangle\n\n    # Calculating the number of grid cells that fit within the rectangle.\n    # This is done by finding the count of all possible (x, y) pairs where x ranges from 1 to w and y ranges from 1 to h.\n    answer = w * h\n\n    # Independent route: calculating the number of grid cells after rotating the rectangle by 90 degrees.\n    # After rotation, the width becomes the height and the height becomes the width.\n    # Therefore, the number of unit squares remains the same.\n    check = h * w\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    # Constructing a question about the number of grid cells inside the rectangle after rotation.\n    problem = (\n        f\"There is a rectangle on a grid paper with a width of {w} units and a height of {h} units. How many unit squares are \"\n        f\"contained within the rectangle if it is rotated by 90 degrees around its center? State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "5f68e8b11864",
+      "parent_id": "5ea485f03685",
+      "generation": 4,
+      "p_hat": 0.9,
+      "h_score": 75.15451278686524,
+      "rq_score": 6.763906150817871,
+      "fitness": 6.763906150817871,
+      "niche_group": 4,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 6.763906150817871
+        },
+        "_behavior_sig_5": "387e9f2af1badac7d1f49e23f05b8e1566ccc96b2fd34f8414728a5fb99d0037",
+        "_template_sig_5": "89ceec0dad10c39a2a41e00411e1abd49e24a0bf4bc9b01d5eec54a7de875727",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"inequality\"\nSKILL = \"extremal_principle\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Ensure s is a multiple of 3 to maintain the invariant s % 3 == 0\n    m = rng.randint(2, 14)          # free parameter; widen freely\n    s = 3 * m                       # s in {6, 9, ..., 42}\n    k = rng.randint(1, 7)           # k >= 1 keeps every factor positive\n\n    assert s % 3 == 0 and k >= 1, (\n        \"invariant violated: s must stay a multiple of 3 and k >= 1\"\n    )\n\n    max_product = (m + k) ** 3      # = ((s + 3k)/3)^3, exact since s = 3m\n\n    # Independent route: search every positive integer triple summing to s.\n    # Since 3 | s, the real optimum a = b = c = s/3 is a lattice point, so\n    # the searched maximum must equal the formula.\n    check = max(\n        (a + k) * (b + k) * (s - a - b + k)\n        for a in range(1, s - 1)\n        for b in range(1, s - a)\n    )\n    assert max_product == check, f\"max_product={max_product} check={check}\"\n\n    problem = (\n        f\"Let a, b, c be positive integers with a + b + c = {s}. \"\n        f\"What is the maximum value of (a + {k})(b + {k})(c + {k})?\"\n    )\n\n    return problem, str(max_product)",
+      "program_id": "c5e321972afd",
+      "parent_id": "93375f470e22",
+      "generation": 2,
+      "p_hat": 0.8,
+      "h_score": 99.08223152160645,
+      "rq_score": 15.85315704345703,
+      "fitness": 15.85315704345703,
+      "niche_group": 5,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "inequality",
+        "skill": "extremal_principle",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 15.85315704345703
+        },
+        "_behavior_sig_5": "62ef19956e9e304a46f8693f96b8f5d0ee73a1687a05c258cdb65b5b1ed17664",
+        "_template_sig_5": "516c5eee1cd3f0a46f05027bfacef2a16eda27de7d79cc5231380f97acc40df2",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

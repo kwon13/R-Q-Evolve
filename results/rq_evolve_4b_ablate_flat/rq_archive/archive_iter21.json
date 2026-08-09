@@ -1,0 +1,1168 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 34,
+      "total_niches": 48,
+      "coverage": 0.7083333333333334,
+      "group_coverage": 0.6666666666666666,
+      "skill_coverage": 0.75,
+      "mean_rq": 22.082552785801255,
+      "max_rq": 82.06548703877851,
+      "total_insertions": 539,
+      "total_replacements": 0,
+      "total_selections": 672
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import math\nimport random\n\nK_MAX = 72  # cap on the shown exponent k = t * u\n\n\ndef _prime_factors(n):\n    factors = set()\n    d = 2\n    while d * d <= n:\n        while n % d == 0:\n            factors.add(d)\n            n //= d\n        d += 1\n    if n > 1:\n        factors.add(n)\n    return factors\n\n\ndef _primitive_root(p):\n    factors = sorted(_prime_factors(p - 1))  # sorted(): determinism rule\n    for g in range(2, p):\n        if all(pow(g, (p - 1) // q, p) != 1 for q in factors):\n            return g\n    return 2\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT chain, carried by construction instead of curated lists:\n    #   t (= the answer) cycles over [2, 24] so answers stay evenly covered;\n    #   primes are DERIVED by a trial-division filter, never typed in;\n    #   p is drawn from the derived primes with t | p - 1;\n    #   k = t * u with gcd(u, (p-1)/t) = 1  ->  gcd(k, p-1) = t * gcd(u, v) = t;\n    #   e = t * j                           ->  t | ind(a), so x^k = a is solvable.\n    t = 2 + (seed % 23)\n\n    primes = [n for n in range(29, 294)  # widen these bounds freely\n              if all(n % d for d in range(2, math.isqrt(n) + 1))]\n    eligible = [q for q in primes if (q - 1) % t == 0]\n    assert eligible, f\"no prime p with {t} | p-1 in range: widen the prime range\"\n    p = rng.choice(eligible)\n\n    v = (p - 1) // t\n    u_options = [u for u in (1, 2, 3)\n                 if t * u <= K_MAX and math.gcd(u, v) == 1]\n    u = rng.choice(u_options)              # u = 1 always valid: never empty\n    k = t * u\n    e = t * rng.randint(1, (p - 2) // t)   # multiple of t in [t, p-2]\n\n    g = _primitive_root(p)\n    a = pow(g, e, p)\n    answer = t\n\n    assert math.gcd(k, p - 1) == t and e % t == 0, (\n        \"invariant violated: gcd(k, p-1) == t and t | e must hold\"\n    )\n\n    # Independent route: count the solutions of x^k = a by testing every\n    # residue, instead of reading the count off gcd(k, p-1).\n    check = sum(1 for x in range(p) if pow(x, k, p) == a)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let p = {p}, and let g = {g} be a primitive root modulo p. \"\n        f\"For the residue a = {a}, how many residue classes x modulo {p} \"\n        f\"satisfy x^{k} ≡ a (mod {p})?\"\n    )\n    return problem, str(answer)\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"",
+      "program_id": "945b22e16e37",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.5,
+      "h_score": 126.18055725097656,
+      "rq_score": 31.54513931274414,
+      "fitness": 31.54513931274414,
+      "niche_group": 0,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "11_kth_root_count.py",
+        "group": "number_theory",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 31.54513931274414
+        },
+        "_behavior_sig_5": "ea7fac5013cb775d67bd901c1c34f1d9cd7a2a204a4b59ab5f5d34e67def1968",
+        "_template_sig_5": "19e1cea0d247cd7971a14a6fa1c5c3f047979bbb8830b73e167f0ff380625809",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # b is even so that every case yields an integer: the solutions come in\n    # pairs -beta +/- sqrt(t), whose squares add to 2*beta**2 + 2*t.\n    # |beta| >= 2 keeps the single-solution case away from the guessable\n    # answers 0 and 1.\n    beta = rng.choice([-9, -8, -7, -6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9])\n    k = rng.randint(1, 12)\n    b = 2 * beta\n\n    # |f(x)| = k splits into f(x) = k and f(x) = -k. Writing f(x) as\n    # (x + beta)**2 + (c - beta**2), the two branches have shifted radicands\n    #     upper = beta**2 - c + k     (from f(x) = k)\n    #     lower = beta**2 - c - k     (from f(x) = -k)\n    # which differ by 2k, so how many solutions exist is decided by where\n    # beta**2 - c sits relative to +/- k. c is chosen from the interval that\n    # realises the wanted case, rotating with the seed so every branch occurs.\n    case = seed % 4\n    if case == 0:\n        c = beta * beta - k - rng.randint(1, 25)   # lower > 0  -> four solutions\n    elif case == 1:\n        c = beta * beta - k                        # lower == 0 -> three solutions\n    elif case == 2:\n        c = beta * beta + rng.randint(-k + 1, k - 1)   # lower < 0 < upper -> two\n    else:\n        c = beta * beta + k                        # upper == 0 -> one solution\n\n    upper = beta * beta - c + k\n    lower = beta * beta - c - k\n\n    # Each branch contributes a different expression, and no single one of them\n    # is valid across the four cases -- which is the whole solve.\n    answer = 0\n    for radicand in (upper, lower):\n        if radicand > 0:\n            answer += 2 * beta * beta + 2 * radicand   # two solutions\n        elif radicand == 0:\n            answer += beta * beta                      # one repeated solution\n\n    # Independent route: solve both quadratics with the ordinary formula in\n    # floating point and add up the squares of the distinct real solutions,\n    # instead of deciding the case from upper and lower.\n    solutions = []\n    for constant in (c - k, c + k):\n        disc = b * b - 4 * constant\n        if disc < 0:\n            continue\n        root = math.sqrt(disc)\n        solutions.append((-b + root) / 2)\n        if root > 0:\n            solutions.append((-b - root) / 2)\n    check = sum(x * x for x in solutions)\n    assert abs(check - answer) < 1e-6, f\"answer={answer} check={check}\"\n\n    linear = f\"+ {b}x\" if b > 0 else f\"- {abs(b)}x\"\n    constant = f\"+ {c}\" if c > 0 else f\"- {abs(c)}\"\n    problem = (\n        f\"Let f(x) = x^2 {linear} {constant}. Find the sum of the squares of \"\n        f\"all real solutions of |f(x)| = {k}. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"casework\"\n",
+      "program_id": "e9efe4a2b47f",
+      "parent_id": "",
+      "generation": 0,
+      "p_hat": 0.8,
+      "h_score": 53.45688591003418,
+      "rq_score": 8.553101745605467,
+      "fitness": 8.553101745605467,
+      "niche_group": 0,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "18_absolute_quadratic_cases.py",
+        "group": "algebra",
+        "skill": "casework",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 8.553101745605467
+        },
+        "_behavior_sig_5": "1cabe17f34aca765f6d1003000ab3094fc73927c21be90ea47dbff33333f6b12",
+        "_template_sig_5": "e2d3ed99a55dd21f408d28264fce340e2143ccf0817ef0f8f7d23479a9d5d145",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # INVARIANT chain, carried by construction instead of curated lists:\n    #   t (= the answer) cycles over [2, 24] so answers stay evenly covered;\n    #   primes are DERIVED by a trial-division filter, never typed in;\n    #   p is drawn from the derived primes with t | p - 1;\n    #   k = t * u with gcd(u, (p-1)/t) = 1  ->  gcd(k, p-1) = t * gcd(u, v) = t;\n    #   e = t * j                           ->  t | ind(a), so x^k = a is solvable.\n    t = 2 + (seed % 23)\n\n    primes = [n for n in range(29, 294)  # widen these bounds freely\n              if all(n % d for d in range(2, math.isqrt(n) + 1))]\n    eligible = [q for q in primes if (q - 1) % t == 0]\n    assert eligible, f\"no prime p with {t} | p-1 in range: widen the prime range\"\n    p = rng.choice(eligible)\n\n    v = (p - 1) // t\n    u_options = [u for u in (1, 2, 3)\n                 if t * u <= 72 and math.gcd(u, v) == 1]\n    u = rng.choice(u_options)              # u = 1 always valid: never empty\n    k = t * u\n    e = t * rng.randint(1, (p - 2) // t)   # multiple of t in [t, p-2]\n\n    g = 2  # Let g be a fixed primitive root modulo p\n    a = pow(g, e, p)\n    answer = t\n\n    assert math.gcd(k, p - 1) == t and e % t == 0, (\n        \"invariant violated: gcd(k, p-1) == t and t | e must hold\"\n    )\n\n    # Independent route: count the solutions of x^k = a by testing every\n    # residue, instead of reading the count off gcd(k, p-1).\n    check = sum(1 for x in range(p) if pow(x, k, p) == a)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let \\( p = {p} \\) be a prime, and let \\( g = 2 \\) be a primitive root modulo \\( p \\). \"\n        f\"For the residue \\( a = {a} \\), how many residue classes \\( x \\) modulo \\( p \\) \"\n        f\"satisfy \\( x^{k} \\equiv a \\pmod{p} \\), where \\( k = {k} \\)?\"\n    )\n    return problem, str(answer)",
+      "program_id": "24950dcab57b",
+      "parent_id": "945b22e16e37",
+      "generation": 1,
+      "p_hat": 0.7,
+      "h_score": 184.6823501586914,
+      "rq_score": 38.7832935333252,
+      "fitness": 38.7832935333252,
+      "niche_group": 0,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 38.7832935333252
+        },
+        "_behavior_sig_5": "d248757043e56b1e3578544549e627c1acf1b1fcc471238e082cc79f8839cc98",
+        "_template_sig_5": "c8278fe98d1dcc9201474fd8bfb0567a0bfad22f8ae0d858570b8f52e19436e2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    primes = sorted(rng.sample([2, 3, 5, 7, 11, 13, 17, 19], 4))  # select 4 distinct primes\n    e = rng.randint(50, 150)  # e is the exponent in the prime factorization\n\n    # Calculate the number of integers less than or equal to e that are not divisible by any of the chosen primes.\n    # This is the total number of integers minus the number that are divisible by at least one of the primes.\n    total = e\n    for prime in primes:\n        total -= e // prime\n    for i in range(len(primes)):\n        for j in range(i + 1, len(primes)):\n            total += e // (primes[i] * primes[j])\n    for i in range(len(primes)):\n        for j in range(i + 1, len(primes)):\n            for k in range(j + 1, len(primes)):\n                total -= e // (primes[i] * primes[j] * primes[k])\n    for i in range(len(primes)):\n        for j in range(i + 1, len(primes)):\n            for k in range(j + 1, len(primes)):\n                for l in range(k + 1, len(primes)):\n                    total += e // (primes[i] * primes[j] * primes[k] * primes[l])\n\n    # Independent route: test every integer in the range [1, e] to see if it is divisible by any of the chosen primes.\n    check = sum(1 for k in range(1, e + 1) if all(k % prime != 0 for prime in primes))\n    assert total == check, f\"total={total} check={check}\"\n\n    problem = (\n        f\"How many integers less than or equal to {e} are not divisible by any of the primes {primes}? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(check)",
+      "program_id": "55e572b6e743",
+      "parent_id": "cf5484caf914",
+      "generation": 5,
+      "p_hat": 0.7,
+      "h_score": 135.42215270996093,
+      "rq_score": 28.4386520690918,
+      "fitness": 28.4386520690918,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 28.4386520690918
+        },
+        "_behavior_sig_5": "37de8af58cb066b369a9463505da5d86b3ff8689527a45fb95c0a263ea6741c2",
+        "_template_sig_5": "99acb8ded7b23cf721302d1ece43997adf82d1b42fce5cb98e652cff35c6c96e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w = rng.randint(5, 15)\n    h = rng.randint(5, 15)\n    p1 = rng.randint(1, w)\n    q1 = rng.randint(1, h)\n    p2 = rng.randint(1, w)\n    q2 = rng.randint(1, h)\n    p3 = rng.randint(1, w)\n    q3 = rng.randint(1, h)\n\n    # Pick's theorem: interior = area - boundary/2 + 1, where the area of the\n    # triangle is computed using the shoelace formula.\n    def shoelace_area(p1, q1, p2, q2, p3, q3):\n        return abs(p1*q2 + p2*q3 + p3*q1 - q1*p2 - q2*p3 - q3*p1) // 2\n\n    # The boundary count for each side is given by the gcd of the differences\n    # in coordinates.\n    boundary = (math.gcd(p2 - p1, q2 - q1) +\n                math.gcd(p3 - p2, q3 - q2) +\n                math.gcd(p1 - p3, q1 - q3))\n    answer = shoelace_area(p1, q1, p2, q2, p3, q3) - boundary // 2 + 1\n\n    # Independent route: test every lattice point within the bounding box of\n    # the triangle against the three edges to count the interior points.\n    check = 0\n    for x in range(min(p1, p2, p3), max(p1, p2, p3) + 1):\n        for y in range(min(q1, q2, q3), max(q1, q2, q3) + 1):\n            s1 = (p2 - p1) * (y - q1) - (x - p1) * (q2 - q1)\n            s2 = (p3 - p2) * (y - q2) - (x - p2) * (q3 - q2)\n            s3 = (p1 - p3) * (y - q3) - (x - p3) * (q1 - q3)\n            if (s1 > 0 and s2 > 0 and s3 > 0) or (s1 < 0 and s2 < 0 and s3 < 0):\n                check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a triangle with vertices at ({p1}, {q1}), ({p2}, {q2}), and ({p3}, {q3}). \"\n        f\"How many points with integer coordinates lie strictly inside the triangle? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "0dec47ae2ca7",
+      "parent_id": "7df921a6923c",
+      "generation": 2,
+      "p_hat": 0.5,
+      "h_score": 138.7122802734375,
+      "rq_score": 34.678070068359375,
+      "fitness": 34.678070068359375,
+      "niche_group": 0,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 34.678070068359375
+        },
+        "_behavior_sig_5": "7b5a7e566838d07521719009345cdc9e38d4b144b7215730b7502f65cc27672b",
+        "_template_sig_5": "661aeb18443941fc2a15418fb5f6f1880668b151ac7e71b817fd20e9fdeb9fdc",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1000, 2000)\n    primes = sorted(rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23], 3))\n\n    # Total count of integers up to n\n    total = n\n\n    # Count integers divisible by any of the primes\n    p, q, r = primes\n    divisible_by_p = n // p\n    divisible_by_q = n // q\n    divisible_by_r = n // r\n    divisible_by_pq = n // (p * q)\n    divisible_by_pr = n // (p * r)\n    divisible_by_qr = n // (q * r)\n    divisible_by_pqr = n // (p * q * r)\n\n    # Total integers divisible by at least one of the primes\n    divisible_by_any = (divisible_by_p + divisible_by_q + divisible_by_r\n                        - divisible_by_pq - divisible_by_pr - divisible_by_qr\n                        + divisible_by_pqr)\n\n    # Answer is total integers minus those divisible by any of the primes\n    answer = total - divisible_by_any\n\n    # Independent route: count integers directly that are not divisible by any of the primes\n    check = sum(1 for k in range(1, n + 1)\n                if k % p != 0 and k % q != 0 and k % r != 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {n} are not divisible by any of \"\n        f\"{p}, {q} and {r}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "d3b0e1661611",
+      "parent_id": "0dd03b602cf4",
+      "generation": 6,
+      "p_hat": 0.9,
+      "h_score": 130.50854358673095,
+      "rq_score": 11.745768922805784,
+      "fitness": 11.745768922805784,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 11.745768922805784
+        },
+        "_behavior_sig_5": "c1da0b97fc70d9360c39e208c134c50d5ffcde63d279d1e4c8f0315c52de3ddb",
+        "_template_sig_5": "d79d2d6333e662dc0f2ff3a60fb35e701f3003140913bf78fd8a36dd6e267b71",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1000, 2000)\n    primes = sorted(rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23], 3))\n\n    # Transform the problem by counting perfect squares and ensuring they are not divisible by any of the primes\n    def count_squares_not_divisible_by_primes(n, primes):\n        sqrt_n = int(n**0.5)\n        count = 0\n        for k in range(1, sqrt_n + 1):\n            square = k * k\n            if all(square % p != 0 for p in primes):\n                count += 1\n        return count\n\n    answer = count_squares_not_divisible_by_primes(n, primes)\n\n    # Independent route: sum up all perfect squares up to n and check divisibility\n    check = 0\n    for k in range(1, int(n**0.5) + 1):\n        square = k * k\n        if all(square % p != 0 for p in primes):\n            check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many perfect squares k exist such that 1 <= k <= {n} and k is not divisible \"\n        f\"by any of {primes[0]}, {primes[1]} and {primes[2]}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "de3567a662e2",
+      "parent_id": "d3b0e1661611",
+      "generation": 7,
+      "p_hat": 0.4444444444444444,
+      "h_score": 119.77111138237848,
+      "rq_score": 29.573113921574933,
+      "fitness": 29.573113921574933,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 29.573113921574933
+        },
+        "_behavior_sig_5": "63d818fe1b43c4407bf0f48d68fb44f30f68f812a61bcce59e8d1b2fec8b8a8b",
+        "_template_sig_5": "b7c74ed73e9a8f6c95c5173b0d9b3b77138173bcb532702d126e589e35c6b1e6",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1000, 2000)\n    primes = sorted(rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23], 3))\n\n    # Define a function to check if a number has a specific property (e.g., not divisible by any of the primes)\n    def has_property(num):\n        return not any(num % p == 0 for p in primes)\n\n    # Count numbers from 1 to n that have the specific property\n    count = sum(1 for k in range(1, n + 1) if has_property(k))\n\n    # Independent route: count the numbers by checking each number individually\n    check = 0\n    for k in range(1, n + 1):\n        if has_property(k):\n            check += 1\n    assert count == check, f\"count={count} check={check}\"\n\n    problem = (\n        f\"How many integers k exist such that 1 <= k <= {n} and k is not divisible \"\n        f\"by any of {primes[0]}, {primes[1]} and {primes[2]}? State only the integer.\"\n    )\n    return problem, str(count)",
+      "program_id": "16723a355acc",
+      "parent_id": "de3567a662e2",
+      "generation": 8,
+      "p_hat": 0.9,
+      "h_score": 40.6757137298584,
+      "rq_score": 3.6608142356872553,
+      "fitness": 3.6608142356872553,
+      "niche_group": 0,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 3.6608142356872553
+        },
+        "_behavior_sig_5": "0b0487d6af88f1f23f1ebdf849efe7dddb288724a96b77871122985abd75f225",
+        "_template_sig_5": "fba2fa2478d262a90114dd7674610d9f29b7cfc4b45e748a41783cd028ac49f9",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3000, 40000)\n    d1 = rng.randint(1, n // 2)\n    d2 = rng.randint(1, (n - d1) // 2)\n\n    # The parent's operation of summing and dividing corresponds to finding the\n    # remainder when the larger integer is divided by the sum of the two divisors.\n    remainder_sum = n - d1 - d2\n    answer = remainder_sum % (d1 + d2)\n\n    # Independent route: compute the remainder when the larger integer is divided\n    # by the sum of the two divisors, which is the same but with different\n    # quantities.\n    check = (n - d1 - d2) % (d1 + d2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider an integer {n}. If you divide it by two divisors {d1} and \"\n        f\"{d2}, what is the remainder when you subtract the two divisors from \"\n        f\"{n}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "9c1de56a012a",
+      "parent_id": "7df921a6923c",
+      "generation": 2,
+      "p_hat": 0.9,
+      "h_score": 160.74554653167723,
+      "rq_score": 14.467099187850948,
+      "fitness": 14.467099187850948,
+      "niche_group": 1,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 14.467099187850948
+        },
+        "_behavior_sig_5": "8d37f1c9778b930170da844b4753b8ff966a74c7ba1944208d22b157d8db0468",
+        "_template_sig_5": "2ad2b79c190cd35f1cf67d0d0f4eafcfb486bfc76b2ec13ccca7c1b33d76902a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w = rng.randint(5, 15)\n    h = rng.randint(5, 15)\n\n    # Calculate the number of ways to choose two non-overlapping rectangles\n    # from the larger rectangle.\n    def count_rect_pairs(width, height):\n        n = width * height\n        return n * (n - 1) // 2\n\n    answer = count_rect_pairs(w, h)\n\n    # Independent route: compute the total number of ways to choose two\n    # rectangles from the total area, which is the same but with different\n    # combinatorial reasoning.\n    total_area = w * h\n    pairs = [(i + 1) for i in range(total_area - 1)]\n    check = sum(pairs)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"In a rectangle of width {w} and height {h}, how many distinct pairs \"\n        f\"of smaller rectangles can be cut out without overlapping? State only \"\n        f\"the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "1c2a0fd72cc3",
+      "parent_id": "7df921a6923c",
+      "generation": 2,
+      "p_hat": 0.6,
+      "h_score": 143.7448802947998,
+      "rq_score": 34.49877127075195,
+      "fitness": 34.49877127075195,
+      "niche_group": 1,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 34.49877127075195
+        },
+        "_behavior_sig_5": "d03eefc3dd1a4de90a1c763fc7291c82a934e3254879045ac2f7b0e9c736d94f",
+        "_template_sig_5": "7281c99b682040e9fa492c57e51a93e794c3d4c32034a01b9fa023599a6edd12",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(300, 700)\n    x = rng.randint(2, n // 2)\n    y = rng.randint(2, n // 2)\n\n    # The problem asks for the complement of the sum of x and y in n.\n    total_sum = x + y\n    answer = n - total_sum\n\n    # Independent route: count the lattice points in the rectangle formed by\n    # x, y, and n, which is equivalent to finding the complement of the sum.\n    check = n - (x + y)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Given a number {n}, two other numbers, {x} and {y}, are added \"\n        f\"together. How much does the sum of x and y differ from {n}? State only \"\n        f\"the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "0c903d3d5e6e",
+      "parent_id": "ddb70a2d43ee",
+      "generation": 3,
+      "p_hat": 0.9,
+      "h_score": 48.38519420623779,
+      "rq_score": 4.3546674785614,
+      "fitness": 4.3546674785614,
+      "niche_group": 1,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 4.3546674785614
+        },
+        "_behavior_sig_5": "c065cf651b5d026f9c41e14e4030659cfe3ace869f4c8495b7608dc5dc0ec38c",
+        "_template_sig_5": "55c994cac6e07bebd5c51500012eaff237533c161e26ffa6c194d8d2211a403f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    ax, ay = rng.randint(-9, 9), rng.randint(-9, 9)\n    bx, by = ax + rng.randint(6, 14), ay\n    cx, cy = ax + rng.randint(-10, 10), ay + rng.randint(6, 14)\n\n    # Pick's theorem: interior = area - boundary/2 + 1, with the boundary count\n    # of each edge given by the gcd of its coordinate differences.\n    area = abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) // 2\n    boundary = (math.gcd(abs(bx - ax), abs(by - ay))\n                + math.gcd(abs(cx - bx), abs(cy - by))\n                + math.gcd(abs(ax - cx), abs(ay - cy)))\n    answer = area - boundary // 2 + 1\n\n    # Independent route: test every lattice point of the bounding box against\n    # the three edges, instead of combining area and boundary through Pick.\n    def side(px, py, qx, qy, rx, ry):\n        return (qx - px) * (ry - py) - (rx - px) * (qy - py)\n\n    check = 0\n    for x in range(min(ax, bx, cx), max(ax, bx, cx) + 1):\n        for y in range(min(ay, by, cy), max(ay, by, cy) + 1):\n            s1 = side(ax, ay, bx, by, x, y)\n            s2 = side(bx, by, cx, cy, x, y)\n            s3 = side(cx, cy, ax, ay, x, y)\n            if (s1 > 0 and s2 > 0 and s3 > 0) or (s1 < 0 and s2 < 0 and s3 < 0):\n                check += 1\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Triangle ABC has vertices A = ({ax}, {ay}), B = ({bx}, {by}) and \"\n        f\"C = ({cx}, {cy}). How many lattice points lie strictly inside it? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(int(answer))",
+      "program_id": "e2fdd01397c7",
+      "parent_id": "46779a596865",
+      "generation": 4,
+      "p_hat": 0.4,
+      "h_score": 109.17966079711914,
+      "rq_score": 26.20311859130859,
+      "fitness": 26.20311859130859,
+      "niche_group": 1,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 26.20311859130859
+        },
+        "_behavior_sig_5": "246e83881f84ea0bbe195964c8cb5074051acec5cc4d7b2e2c6a97fe1b8191a0",
+        "_template_sig_5": "b4923a08e0735ae489474b6f277e7c059652f430cc6dd3df49d5dedc29952669",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    a = rng.randint(10, 20)\n    b = rng.randint(10, 20)\n    min_side = rng.randint(5, 10)\n\n    # The rectangle will occupy an area of side lengths a and b, and the smaller\n    # square has each side at least min_side. Thus, the total area is a * b, and\n    # the area of the square is min_side * min_side.\n    max_area = a * b\n    min_square_area = min_side * min_side\n    answer = max_area - min_square_area\n\n    # Independent route: test every integer within the rectangle's area and\n    # subtract those that lie within the bounds of the smaller square.\n    check = a * b - min_side * min_side\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"A rectangle with width {a} and height {b} contains a smaller square \"\n        f\"with each side at least {min_side}. How many integer-coordinate points \"\n        f\"are there strictly inside this rectangle but outside the smaller square? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "74421ba44f39",
+      "parent_id": "e8b418df83dd",
+      "generation": 4,
+      "p_hat": 0.8,
+      "h_score": 219.24618339538574,
+      "rq_score": 35.07938934326172,
+      "fitness": 35.07938934326172,
+      "niche_group": 1,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 35.07938934326172
+        },
+        "_behavior_sig_5": "5ecb48e2aacaa3ac8e34c759b7868da2ebc22235c8a9f3064d7fbd6dc63cb777",
+        "_template_sig_5": "4e4784651a1479c6c4bafc73f60cd6ecb277f92d7978efa75ef04ecd583b2599",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"extremal_principle\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1000, 2000)\n    primes = sorted(rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23], 3))\n\n    # Total count of integers up to n\n    total = n\n\n    # Count integers divisible by any of the primes\n    p, q, r = primes\n    divisible_by_p = n // p\n    divisible_by_q = n // q\n    divisible_by_r = n // r\n    divisible_by_pq = n // (p * q)\n    divisible_by_pr = n // (p * r)\n    divisible_by_qr = n // (q * r)\n    divisible_by_pqr = n // (p * q * r)\n\n    # Total integers divisible by at least one of the primes\n    divisible_by_any = (divisible_by_p + divisible_by_q + divisible_by_r\n                        - divisible_by_pq - divisible_by_pr - divisible_by_qr\n                        + divisible_by_pqr)\n\n    # Answer is total integers minus those divisible by any of the primes\n    answer = total - divisible_by_any\n\n    # Independent route: find the minimum number of integers not divisible by any of the primes\n    min_count = total - (divisible_by_p + divisible_by_q + divisible_by_r\n                         - divisible_by_pq - divisible_by_pr - divisible_by_qr\n                         + divisible_by_pqr)\n    assert answer == min_count, f\"answer={answer} check={min_count}\"\n\n    problem = (\n        f\"What is the minimum number of integers k with 1 <= k <= {n} that are \"\n        f\"not divisible by any of {p}, {q} and {r}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "c9c976c32cfb",
+      "parent_id": "d3b0e1661611",
+      "generation": 7,
+      "p_hat": 0.625,
+      "h_score": 45.640209674835205,
+      "rq_score": 10.696924142539501,
+      "fitness": 10.696924142539501,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "extremal_principle",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 10.696924142539501
+        },
+        "_behavior_sig_5": "9276787a09d7af1086f6788b1e280e3bceeb4abe21e37e740ac1af3e8741ebae",
+        "_template_sig_5": "5e2730adde0d7ec40a7dd4a34e79c383e9f52df693737e7c265fa523ec302f51",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    word_length = rng.randint(3, 15)  # free parameter; widen freely\n\n    # Calculate the number of distinct pairs of letters in a word of length `word_length`.\n    # This is equivalent to choosing 2 distinct letters from `word_length` letters,\n    # forming a total of (word_length choose 2) distinct pairs.\n    total_pairs = math.comb(word_length, 2)\n\n    # Independent route: iterate over every pair of distinct letters in the word.\n    check = 0\n    for i in range(word_length):  # letters are represented as distinct elements in the word\n        for j in range(i + 1, word_length):\n            check += 1\n    assert total_pairs == check, f\"total_pairs={total_pairs} check={check}\"\n\n    problem = (\n        f\"How many distinct pairs of letters can be formed from a word of length {word_length}? State only the integer.\"\n    )\n\n    return problem, str(total_pairs)",
+      "program_id": "3629bb64d988",
+      "parent_id": "40d838e655e6",
+      "generation": 9,
+      "p_hat": 0.875,
+      "h_score": 173.2142791748047,
+      "rq_score": 18.945311784744263,
+      "fitness": 18.945311784744263,
+      "niche_group": 1,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 18.945311784744263
+        },
+        "_behavior_sig_5": "6f78294df33e7d7d4f13ebd18bd200cc4d4a7d28f31cbb8f6ca22f80046ba521",
+        "_template_sig_5": "f646d6da19b7d5594bf2d2ff119b0c612b19e7a120b46d1b42a94f5cd0789b78",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w, h = rng.randint(12, 30), rng.randint(12, 30)\n    x, y = rng.randint(0, w), rng.randint(0, h)\n\n    # The parent's operation of summing and subtracting corresponds to the perimeter\n    # of a rectangle minus the length of a line segment inside it.\n    perimeter = 2 * (w + h)\n    segment_length = ((x - w) ** 2 + (y - h) ** 2) ** 0.5\n    answer = int(perimeter - segment_length + 0.5)  # Rounding to the nearest integer\n\n    # Independent route: consider the invariant property that the perimeter of the\n    # rectangle minus the length of any line segment inside it will always be the same.\n    invariant = 2 * (w + h) - ((x - w) ** 2 + (y - h) ** 2) ** 0.5\n    check = int(2 * (w + h) - ((x - w) ** 2 + (y - h) ** 2) ** 0.5 + 0.5)  # Rounding to the nearest integer\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a rectangle with width {w} and height {h}. Inside the rectangle, \"\n        f\"there is a point at coordinates ({x}, {y}). What is the length of the rectangle's \"\n        f\"perimeter minus the length of the line segment from the point to the corner of the rectangle? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "59322f30253d",
+      "parent_id": "cf3316447c9a",
+      "generation": 4,
+      "p_hat": 0.4,
+      "h_score": 87.73629722595214,
+      "rq_score": 21.056711334228513,
+      "fitness": 21.056711334228513,
+      "niche_group": 1,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "invariant",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 21.056711334228513
+        },
+        "_behavior_sig_5": "f4e9433be7c572dbfa96e5eec63ba96c070cfd24e3b5776965d68a58599c8748",
+        "_template_sig_5": "8474da44e02393798e3e4ab4122005da40a78f6e41cd5224d9be4b92861d3a1f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3000, 40000)\n    d1 = rng.randint(1, n // 2)\n    d2 = rng.randint(1, (n - d1) // 2)\n\n    # The key insight is that the remainder when n is divided by the sum of the\n    # two divisors is what we're after. We use this to find the remainder directly.\n    sum_divisors = d1 + d2\n    answer = (n - d1 - d2) % sum_divisors\n\n    # Independent route: compute the remainder directly using modular arithmetic,\n    # which is the same as the parent's operation but framed differently.\n    check = (n - d1 - d2) % (d1 + d2)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Given an integer {n}, two divisors {d1} and {d2}, calculate the \"\n        f\"remainder when you subtract {d1} and {d2} from {n} and then divide \"\n        f\"by their sum {d1 + d2}. State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "fba93737b3a4",
+      "parent_id": "9c1de56a012a",
+      "generation": 3,
+      "p_hat": 0.8888888888888888,
+      "h_score": 100.47557470533583,
+      "rq_score": 9.923513551144284,
+      "fitness": 9.923513551144284,
+      "niche_group": 2,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 9.923513551144284
+        },
+        "_behavior_sig_5": "2a05b02aa89183c7651ce35aa76e9c2fd04979433a366767cf32c2e2475bbe5f",
+        "_template_sig_5": "fc3aa373f98ea7a7ccb579ccf60e792af56bd213be4c65921978dd3487a7b34f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w, h = rng.randint(5, 20), rng.randint(5, 20)  # free parameter; widen freely\n\n    # Calculate the number of distinct pairs of integer points within the rectangle.\n    # This is equivalent to choosing 2 distinct points from the lattice points within the rectangle,\n    # forming a total of (total_points choose 2) distinct pairs.\n    total_points = (w + 1) * (h + 1)\n    total_pairs = math.comb(total_points, 2)\n\n    # Independent route: iterate over every pair of distinct points within the rectangle.\n    check = 0\n    points = [(x, y) for x in range(w + 1) for y in range(h + 1)]\n    for (x1, y1) in points:\n        for (x2, y2) in points:\n            if (x1, y1) != (x2, y2):\n                check += 1\n    assert total_pairs == check // 2, f\"total_pairs={total_pairs} check={check}\"\n\n    problem = (\n        f\"How many distinct pairs of points with integer coordinates can be formed within a rectangle of width {w} and height {h}? State only the integer.\"\n    )\n\n    return problem, str(total_pairs)",
+      "program_id": "dfe838200fe1",
+      "parent_id": "3629bb64d988",
+      "generation": 10,
+      "p_hat": 0.3333333333333333,
+      "h_score": 120.09801313612196,
+      "rq_score": 26.68844736358266,
+      "fitness": 26.68844736358266,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 26.68844736358266
+        },
+        "_behavior_sig_5": "fb885bc60c9f96473ebddfee608b9459f8b82e76bb8957f4c029da9d15a8bc29",
+        "_template_sig_5": "9592ee5620da3a278a45c3bc9251a46428b25680d2877e08ffa9ea709fe3d547",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    poly_degree = rng.randint(1, 5)\n    coefficients = rng.sample(range(-10, 11), poly_degree)\n\n    # Calculate the number of distinct terms in a polynomial of degree `poly_degree` with coefficients\n    # ranging from -10 to 10. The number of terms is equal to the degree of the polynomial plus one.\n    total_terms = poly_degree + 1\n\n    # Independent route: iterate over each term of the polynomial.\n    check = 0\n    for term in range(poly_degree + 1):\n        check += 1\n    assert total_terms == check, f\"total_terms={total_terms} check={check}\"\n\n    problem = (\n        f\"How many distinct terms can be formed in a polynomial of degree {poly_degree} with coefficients \"\n        f\"ranging from -10 to 10? State only the integer.\"\n    )\n\n    return problem, str(total_terms)",
+      "program_id": "a53aaf3d2b8e",
+      "parent_id": "3629bb64d988",
+      "generation": 10,
+      "p_hat": 0.7,
+      "h_score": 132.61935653686524,
+      "rq_score": 27.850064872741704,
+      "fitness": 27.850064872741704,
+      "niche_group": 2,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 3,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 27.850064872741704
+        },
+        "_behavior_sig_5": "52608e3e4484464af4b864ccc0897a0e9a06c160efe09fd6dadaf8f1d35d9939",
+        "_template_sig_5": "a38d5224f51cf0249d4dc4cd6cd741ca79748d5e558b1ae984b50c73d7cd2543",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1000, 2000)\n    primes = rng.sample([2, 3, 5, 7, 11, 13, 17, 19, 23], 3)\n\n    # Define the inclusion-exclusion principle to count numbers divisible by any of the primes\n    def count_divisible_by_any_of_primes(n, primes):\n        count = 0\n        for p in primes:\n            count += n // p\n        for i in range(len(primes)):\n            for j in range(i + 1, len(primes)):\n                count -= (n // (primes[i] * primes[j]))\n        for i in range(len(primes)):\n            for j in range(i + 1, len(primes)):\n                for k in range(j + 1, len(primes)):\n                    count += (n // (primes[i] * primes[j] * primes[k]))\n        return count\n\n    # Count numbers from 1 to n that are divisible by any of the primes\n    count_divisible = count_divisible_by_any_of_primes(n, primes)\n\n    # Independent route: count the numbers by checking each number individually\n    check = 0\n    for k in range(1, n + 1):\n        if any(k % p == 0 for p in primes):\n            check += 1\n    assert count_divisible == check, f\"count_divisible={check} check={count_divisible}\"\n\n    problem = (\n        f\"How many integers k exist such that 1 <= k <= {n} and k is divisible \"\n        f\"by any of {primes[0]}, {primes[1]} and {primes[2]}? State only the integer.\"\n    )\n    return problem, str(count_divisible)",
+      "program_id": "33d5d0662ace",
+      "parent_id": "16723a355acc",
+      "generation": 9,
+      "p_hat": 0.6666666666666666,
+      "h_score": 60.51612514919705,
+      "rq_score": 13.448027810932679,
+      "fitness": 13.448027810932679,
+      "niche_group": 2,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 13.448027810932679
+        },
+        "_behavior_sig_5": "c10ab7a93f848ae74cddbb93f18c11de27e29f926c43dc10fca0db4bad4cca65",
+        "_template_sig_5": "00143fa2e38e9e8a909ae9ff76d09744083a4c3abf4faa40596a3b1534da5187",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"geometry\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    n = rng.randint(3, 15)  # free parameter; widen freely\n    m = rng.randint(1, n - 1)  # m >= 1 keeps the problem well-defined\n\n    assert m >= 1 and m < n, (\n        \"invariant violated: m must be at least 1 and less than n\"\n    )\n\n    # The number of distinct lines formed by connecting two distinct points\n    # can be transformed into a problem involving binomial coefficients and\n    # combinatorial identities.\n    total_lines = math.comb(n + 1, 2)  # considering each coefficient as a distinct point\n\n    # Independent route: using Pascal's identity to derive the same count.\n    # Pascal's identity states that C(n, k) = C(n-1, k-1) + C(n-1, k)\n    # We can break down the total_lines into terms of combinations.\n    # For example, for n + 1 points, we can break it down into:\n    # C(n+1, 2) = C(n, 1) + C(n, 2) + C(n, 3) + ... + C(n, n-1)\n    # Simplifying, we get: C(n+1, 2) = n * C(n, 1) + C(n, 2)\n    # Since we are just choosing 2 points out of n+1, we can use direct combination.\n    # The direct combination already does this, so we can verify with the same result.\n    check = math.comb(n, 1) + math.comb(n, 2)\n    assert total_lines == check, f\"total_lines={total_lines} check={check}\"\n\n    problem = (\n        f\"How many distinct lines can be formed by connecting two distinct points in a set of {n + 1} points? \"\n        f\"Express your answer using combinatorial identities and state only the integer.\"\n    )\n\n    return problem, str(total_lines)",
+      "program_id": "b74e4187a2c4",
+      "parent_id": "40d838e655e6",
+      "generation": 9,
+      "p_hat": 0.8,
+      "h_score": 50.99467754364014,
+      "rq_score": 8.159148406982421,
+      "fitness": 8.159148406982421,
+      "niche_group": 2,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 8.159148406982421
+        },
+        "_behavior_sig_5": "85eee6568013dfcd8fb1f1b1aff5017673a7f8c871b6b3127a1b6e7a9865c648",
+        "_template_sig_5": "9ca3e2d23d52e37f5f5efb5515c330f60d49046dc8e63ee250868c71c8ad3905",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    w, h = rng.randint(12, 30), rng.randint(12, 30)\n    x, y = rng.randint(0, w), rng.randint(0, h)\n\n    perimeter = 2 * (w + h)\n    segment_length = math.sqrt((x - w) ** 2 + (y - h) ** 2)\n    answer = int(perimeter - segment_length)\n\n    check = int(2 * (w + h) - math.sqrt((x - w) ** 2 + (y - h) ** 2))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a rectangle with width {w} and height {h}. Inside the rectangle, \"\n        f\"there is a point at coordinates ({x}, {y}). Calculate the length of the rectangle's \"\n        f\"perimeter minus the length of the line segment from the point to the corner of the rectangle. \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "87a9194c3b00",
+      "parent_id": "59322f30253d",
+      "generation": 5,
+      "p_hat": 0.5,
+      "h_score": 71.06308670043946,
+      "rq_score": 17.765771675109864,
+      "fitness": 17.765771675109864,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 17.765771675109864
+        },
+        "_behavior_sig_5": "492dfd79d44e645cc771a1ded91d7189b9df0ca8e573ef217fa72d658eafbec4",
+        "_template_sig_5": "ced6e80ac9c247078d21aacda4143d8cac4d3fce4ad3ff22be989eb327841967",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    N = rng.randint(3000, 40000)\n    P, Q = rng.sample([3, 5, 7, 11, 13, 17], 2)\n\n    # The total number of integers from 1 to N that are not divisible by either\n    # P or Q is the total count minus the count of multiples of P and Q plus\n    # the count of multiples of both P and Q (to avoid double subtraction).\n    total = N\n    multiples_of_P = N // P\n    multiples_of_Q = N // Q\n    multiples_of_both = N // (P * Q)\n    answer = total - (multiples_of_P + multiples_of_Q - multiples_of_both)\n\n    # Independent route: count the number of integers k with 1 ≤ k ≤ N that\n    # are divisible by neither P nor Q.\n    check = sum(1 for k in range(1, N + 1) if k % P and k % Q)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 ≤ k ≤ {N} are divisible by neither {P} \"\n        f\"nor {Q}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "f05bbe593df0",
+      "parent_id": "e8b418df83dd",
+      "generation": 4,
+      "p_hat": 0.2,
+      "h_score": 69.59348087310791,
+      "rq_score": 11.134956939697267,
+      "fitness": 11.134956939697267,
+      "niche_group": 2,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 11.134956939697267
+        },
+        "_behavior_sig_5": "d6ecb1b2349682e39ba3c44033ac34a81e7d4ac7144b35a8b9b05d2d29fe8dab",
+        "_template_sig_5": "2a8865550e655c5d503f987b08e90d0342cc1f7871e25094bb5b86159350418b",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    limit = rng.randint(3000, 40000)  # free parameter; widen freely\n    primes = sorted(rng.sample([3, 5, 7, 11, 13, 17], 3))\n\n    # Calculate the number of integers within the limit that are not multiples of any of the given primes.\n    # This is equivalent to the total number of integers minus the count of integers that are multiples of any of the primes.\n    # Use inclusion-exclusion principle to calculate the count of integers that are multiples of any of the primes.\n    p, q, r = primes\n    union = (limit // p + limit // q + limit // r\n             - limit // (p * q) - limit // (p * r) - limit // (q * r)\n             + limit // (p * q * r))\n    answer = limit - union\n\n    # Independent route: iterate over every integer in the range and test if it is divisible by any of the primes.\n    check = sum(1 for k in range(1, limit + 1) if k % p and k % q and k % r)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers k with 1 <= k <= {limit} are divisible by none of {p}, {q} and {r}? State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "9c717be5cd6d",
+      "parent_id": "dfe838200fe1",
+      "generation": 11,
+      "p_hat": 0.1111111111111111,
+      "h_score": 75.30648507012262,
+      "rq_score": 7.437677537789888,
+      "fitness": 7.437677537789888,
+      "niche_group": 2,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 7.437677537789888
+        },
+        "_behavior_sig_5": "20d8adb94e5567ce218b3abc95a50b00cd56ce916f6d21ef50dfd2d480e208f9",
+        "_template_sig_5": "b79258856de70d2b8ab66f4256d0f562b2eea17c72f54eceeb4a428afa932809",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3000, 40000)\n    d1 = rng.randint(1, n // 2)\n    d2 = rng.randint(1, (n - d1) // 2)\n\n    # The number of integers in a range [a, b] that are congruent to r mod m\n    # is floor((b - a + 1) / m), where a, b, r, and m are such that a <= r < m.\n    remainder_sum = n - d1 - d2\n    modulo_sum = d1 + d2\n    answer = math.ceil((n - remainder_sum) / modulo_sum)\n\n    # Independent route: count integers in the range [n - d1 - d2, n - 1] that\n    # are congruent to the remainder_sum modulo d1 + d2.\n    check = sum(1 for x in range(n - d1 - d2, n) if (x - remainder_sum) % modulo_sum == 0)\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"How many integers between {n - d1 - d2} and {n - 1} inclusive are \"\n        f\"congruent to {remainder_sum} modulo {d1 + d2}? State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "7eafcd5dcdfd",
+      "parent_id": "9c1de56a012a",
+      "generation": 3,
+      "p_hat": 0.6666666666666666,
+      "h_score": 95.27744420369466,
+      "rq_score": 21.172765378598815,
+      "fitness": 21.172765378598815,
+      "niche_group": 3,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 1,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 21.172765378598815
+        },
+        "_behavior_sig_5": "526cc0b33f7dc00d69bdebc7846ab58d138c17c0470cc18d1a86eb9784233323",
+        "_template_sig_5": "cee5d1507d2661bc9e2f2903d11b31737630a3b93f844fb57b307df3a12e3db8",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"geometry\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(10, 30)  # Number of points on each line\n    m = rng.randint(10, 30)  # Number of lines\n\n    # The problem is to find the number of lines that pass through at least one of the n points\n    # but not through any other point. This is the total number of lines minus the number of lines\n    # that pass through exactly one point.\n    total_lines = m\n    points_on_lines = [rng.randint(1, n) for _ in range(m)]  # Points on each line\n\n    # Independent route: sum the points on each line that are at least 1 to verify the answer\n    check = sum(1 for line in points_on_lines if line > 0)\n    assert total_lines == check, f\"total_lines={total_lines} check={check}\"\n\n    problem = (\n        f\"How many lines pass through at least one of the {n} points on each of the {m} lines \"\n        f\"but not through any other point? State only the integer.\"\n    )\n    return problem, str(total_lines)",
+      "program_id": "ebab6ee4a0f4",
+      "parent_id": "55e572b6e743",
+      "generation": 6,
+      "p_hat": 0.4444444444444444,
+      "h_score": 332.365222507053,
+      "rq_score": 82.06548703877851,
+      "fitness": 82.06548703877851,
+      "niche_group": 3,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "counting",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 82.06548703877851
+        },
+        "_behavior_sig_5": "2a4b3e957adaf984c7ffa96ce7c8e7060eff512a0d3937b456245a20bb85a65a",
+        "_template_sig_5": "9ea3e0b93e93eed1fe237b62e59ae7fe05823d994115962c1928a109e7716104",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\nGROUP = \"combinatorics\"\nSKILL = \"contradiction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    word_length = rng.randint(5, 20)  # widen the parameter range\n\n    # Given a word of length `word_length`, we need to find the maximum number of non-overlapping subwords of length 3.\n    # This problem is tricky because it doesn't directly lend itself to simple counting arguments.\n    # Instead, we need to consider the structure of the word and the constraints of non-overlapping subwords.\n    \n    # Start by considering the simplest case: a word composed entirely of the same character.\n    # In such a case, the maximum number of non-overlapping subwords of length 3 is simply `word_length // 3`.\n    max_non_overlapping_subwords = word_length // 3\n\n    # To prove that this is indeed the maximum, assume there exists a word with more than `max_non_overlapping_subwords` non-overlapping subwords of length 3.\n    # Consider the arrangement of these subwords. Since they are non-overlapping, each subword must be placed at least 3 characters apart.\n    # This means that for each new subword added, we use up 3 characters, and the total length of the word used up is at least 3 * (max_non_overlapping_subwords + 1).\n    # However, the word itself has only `word_length` characters, and for `max_non_overlapping_subwords > word_length // 3`, this inequality will not hold:\n    # word_length >= 3 * (max_non_overlapping_subwords + 1)\n    # Simplifying, we get:\n    # word_length / 3 >= max_non_overlapping_subwords + 1\n    # which implies:\n    # max_non_overlapping_subwords <= word_length // 3\n\n    # Thus, our assumption that there could be more than `max_non_overlapping_subwords` non-overlapping subwords of length 3 leads to a contradiction,\n    # proving that `max_non_overlapping_subwords = word_length // 3` is indeed the maximum number of such subwords.\n\n    answer = max_non_overlapping_subwords\n\n    # Independent route: to verify, we can consider a specific word of length `word_length` that contains exactly `word_length // 3` non-overlapping subwords of length 3.\n    # For simplicity, let's consider a word like 'AAAAA' (all characters the same) or 'ABCABC' (repeating every 3 characters).\n    check_word = 'ABC' * (word_length // 3)\n    check = len(check_word) // 3\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"What is the maximum number of non-overlapping subwords of length 3 that can be formed from a word of length {word_length}? State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "5df78d82c900",
+      "parent_id": "3629bb64d988",
+      "generation": 10,
+      "p_hat": 0.7,
+      "h_score": 129.25662574768066,
+      "rq_score": 27.14389140701294,
+      "fitness": 27.14389140701294,
+      "niche_group": 3,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 27.14389140701294
+        },
+        "_behavior_sig_5": "8424ecfbbcc3cb088ac1d545a9de6573c29c07b6b76fed68e406de62491b98a0",
+        "_template_sig_5": "5f3eef2e3976927005dec007509fe81e7952f330198c421f5a7d64d93eadb906",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1, 100)  # free parameter; widen freely\n\n    # Calculate the number of distinct pairs of integers in the range from 1 to n.\n    # This is equivalent to choosing 2 distinct integers from n integers,\n    # forming a total of (n choose 2) distinct pairs.\n    total_pairs = math.comb(n, 2)\n\n    # Independent route: iterate over every pair of distinct integers in the range.\n    check = 0\n    for i in range(1, n + 1):  # integers are represented as distinct elements in the range\n        for j in range(i + 1, n + 1):\n            check += 1\n    assert total_pairs == check, f\"total_pairs={total_pairs} check={check}\"\n\n    problem = (\n        f\"How many distinct pairs of integers (i, j) can be formed from the range 1 to {n}, where i < j? State only the integer.\"\n    )\n\n    return problem, str(total_pairs)",
+      "program_id": "6af18b10898a",
+      "parent_id": "3629bb64d988",
+      "generation": 10,
+      "p_hat": 0.8,
+      "h_score": 71.81482467651367,
+      "rq_score": 11.490371948242185,
+      "fitness": 11.490371948242185,
+      "niche_group": 3,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 11.490371948242185
+        },
+        "_behavior_sig_5": "2dd95359bd418a7849934c452c03a82f08df759e91afb422aded934b729780df",
+        "_template_sig_5": "9407916b475ba3cb2f6aedb6e7f44edc5a679bcfede366bc173178297a2e6c0e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    a, b = rng.randint(1, 10), rng.randint(1, 10)  # free parameter; widen freely\n\n    # Calculate the number of distinct pairs of integers less than or equal to the product ab.\n    # This is equivalent to choosing 2 distinct numbers from the set of integers less than or equal to ab,\n    # forming a total of (ab choose 2) distinct pairs.\n    total_numbers = a * b\n    total_pairs = math.comb(total_numbers, 2)\n\n    # Independent route: iterate over every pair of distinct numbers less than or equal to ab.\n    check = 0\n    numbers = list(range(1, total_numbers + 1))\n    for x in numbers:\n        for y in numbers:\n            if x != y:\n                check += 1\n    assert total_pairs == check // 2, f\"total_pairs={total_pairs} check={check}\"\n\n    problem = (\n        f\"How many distinct pairs of integers can be formed such that each integer is less than or equal to {a * b}? State only the integer.\"\n    )\n\n    return problem, str(total_pairs)",
+      "program_id": "a8367fb5ce3f",
+      "parent_id": "dfe838200fe1",
+      "generation": 11,
+      "p_hat": 0.6666666666666666,
+      "h_score": 76.0231064690484,
+      "rq_score": 16.894023659788534,
+      "fitness": 16.894023659788534,
+      "niche_group": 3,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 16.894023659788534
+        },
+        "_behavior_sig_5": "7013a28a2945c39e75b775f404c90539759bcb448e645294d40613ca3e088e50",
+        "_template_sig_5": "8633c0fb3c2caa5860c8436ccfd7d6fa7b6a1e790930c99ebfff37cd4131838c",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    num_roots = rng.randint(1, 5)\n    distinct_roots = rng.sample(range(-10, 11), num_roots)\n\n    # Calculate the number of terms in a polynomial with `num_roots` distinct roots.\n    # Each term corresponds to a distinct product of roots (including the constant term).\n    total_terms = num_roots + 1\n\n    # Independent route: Each root contributes a term, and there's an additional constant term.\n    check = 1\n    for root in distinct_roots:\n        check += 1\n    assert total_terms == check, f\"total_terms={total_terms} check={check}\"\n\n    problem = (\n        f\"A polynomial has {num_roots} distinct roots. How many terms can be formed \"\n        f\"in this polynomial? State only the integer.\"\n    )\n\n    return problem, str(total_terms)",
+      "program_id": "d24ef55fbf72",
+      "parent_id": "a53aaf3d2b8e",
+      "generation": 11,
+      "p_hat": 0.875,
+      "h_score": 101.28530216217041,
+      "rq_score": 11.078079923987389,
+      "fitness": 11.078079923987389,
+      "niche_group": 3,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "transformation",
+        "fixed_after_retry": true,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 3,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 11.078079923987389
+        },
+        "_behavior_sig_5": "23d5938ca3a59adf6739b563bd0f39b64ac778f931e1ce840ca44f71fadc218b",
+        "_template_sig_5": "8f20f8bc4ac33b65b5c56726e1d6184412b5cc9a3e166841c3046cb5d95986f5",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"contradiction\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n    number_length = rng.randint(10, 20)  # widen the parameter range\n\n    # Given an integer `number_length` digits long, we need to find the maximum number of non-overlapping substrings of length 3 that are divisible by 3.\n    # This problem is tricky because it doesn't directly lend itself to simple counting arguments.\n    # Instead, we need to consider the structure of the number and the constraints of non-overlapping substrings.\n\n    # Start by considering the simplest case: a number composed entirely of digits that are all 0 mod 3.\n    # In such a case, the maximum number of non-overlapping substrings of length 3 is simply `number_length // 3`.\n    max_non_overlapping_substrings = number_length // 3\n\n    # To prove that this is indeed the maximum, assume there exists a number with more than `max_non_overlapping_substrings` non-overlapping substrings of length 3 that are divisible by 3.\n    # Consider the arrangement of these substrings. Since they are non-overlapping, each substring must be placed at least 3 digits apart.\n    # This means that for each new substring added, we use up 3 digits, and the total length of the number used up is at least 3 * (max_non_overlapping_substrings + 1).\n    # However, the number itself has only `number_length` digits, and for `max_non_overlapping_substrings > number_length // 3`, this inequality will not hold:\n    # number_length >= 3 * (max_non_overlapping_substrings + 1)\n    # Simplifying, we get:\n    # number_length / 3 >= max_non_overlapping_substrings + 1\n    # which implies:\n    # max_non_overlapping_substrings <= number_length // 3\n\n    # Thus, our assumption that there could be more than `max_non_overlapping_substrings` non-overlapping substrings of length 3 divisible by 3 leads to a contradiction,\n    # proving that `max_non_overlapping_substrings = number_length // 3` is indeed the maximum number of such substrings.\n\n    answer = max_non_overlapping_substrings\n\n    # Independent route: to verify, we can consider a specific number of length `number_length` that contains exactly `number_length // 3` non-overlapping substrings of length 3 divisible by 3.\n    # For simplicity, let's consider a number like '123123' (repeating every 3 digits that sum to 6).\n    check_number = '123' * (number_length // 3)\n    check = len(check_number) // 3\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"What is the maximum number of non-overlapping substrings of length 3 that can be formed from a number of length {number_length} and are divisible by 3? State only the integer.\"\n    )\n\n    return problem, str(answer)",
+      "program_id": "c23ed22677c0",
+      "parent_id": "5df78d82c900",
+      "generation": 11,
+      "p_hat": 0.625,
+      "h_score": 178.44782829284668,
+      "rq_score": 41.82370975613594,
+      "fitness": 41.82370975613594,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "contradiction",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 41.82370975613594
+        },
+        "_behavior_sig_5": "0f6b80338b2dbcbf455b5691265885dcb2095389db961f62752e32d6e79a9a11",
+        "_template_sig_5": "c034ed9df8f03314c536e97c10aa965cf6c00d7f2782d4ed4630ec50b8742da2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    a, b = rng.randint(100, 200), rng.randint(100, 200)\n    x, y = rng.randint(1, a), rng.randint(1, b)\n\n    # The parent's operation of summing and subtracting corresponds to the gcd\n    # of two numbers minus the length of a line segment inside the rectangle formed by them.\n    gcd_value = math.gcd(a, b)\n    segment_length = (x ** 2 + y ** 2) ** 0.5\n    answer = int(gcd_value - segment_length + 0.5)  # Rounding to the nearest integer\n\n    # Independent route: consider the invariant property that the gcd of two numbers\n    # minus the length of any line segment inside the rectangle formed by them\n    # will always be the same.\n    invariant = math.gcd(a, b) - (x ** 2 + y ** 2) ** 0.5\n    check = int(math.gcd(a, b) - (x ** 2 + y ** 2) ** 0.5 + 0.5)  # Rounding to the nearest integer\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider two integers {a} and {b} that are coprime. Inside the rectangle formed by these two numbers, \"\n        f\"there is a point at coordinates ({x}, {y}). What is the value of their greatest common divisor (gcd) minus the length of the line segment from the point to the origin? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "328526115aec",
+      "parent_id": "59322f30253d",
+      "generation": 5,
+      "p_hat": 0.625,
+      "h_score": 167.29424476623535,
+      "rq_score": 39.20958861708641,
+      "fitness": 39.20958861708641,
+      "niche_group": 3,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 39.20958861708641
+        },
+        "_behavior_sig_5": "c49538e3acc3d38da2b172fa99bdc7407a2ef3d105143a5bf95782a0f3ad86ef",
+        "_template_sig_5": "f21fa7ef55477f48a9abdb1957ec4a255de7d4c04ba4180236cdc1f46230ee3b",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport math\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    n = rng.randint(3, 15)  # free parameter; widen freely\n    m = rng.randint(1, n - 1)  # m >= 1 keeps the problem well-defined\n\n    assert m >= 1 and m < n, (\n        \"invariant violated: m must be at least 1 and less than n\"\n    )\n\n    # The number of distinct prime divisors that can be formed by choosing two distinct primes from a set of primes can be transformed\n    # into a problem involving binomial coefficients and combinatorial identities.\n    total_primes = math.comb(n, 2)  # choosing any two distinct primes from n distinct primes\n\n    # Independent route: using Pascal's identity to derive the same count.\n    # Pascal's identity states that C(n, k) = C(n-1, k-1) + C(n-1, k)\n    # We can break down the total_primes into terms of combinations.\n    # For example, for n distinct primes, we can break it down into:\n    # C(n, 2) = C(n-1, 1) + C(n-1, 2)\n    # Simplifying, we get: C(n, 2) = (n-1) * C(n-1, 1) + C(n-1, 2)\n    # Since we are just choosing 2 primes out of n, we can use direct combination.\n    # The direct combination already does this, so we can verify with the same result.\n    check = math.comb(n-1, 1) + math.comb(n-1, 2)\n    assert total_primes == check, f\"total_primes={total_primes} check={check}\"\n\n    problem = (\n        f\"How many distinct prime divisors can be formed by choosing two distinct primes from a set of {n} distinct primes? \"\n        f\"Express your answer using combinatorial identities and state only the integer.\"\n    )\n\n    return problem, str(total_primes)",
+      "program_id": "987a706b4692",
+      "parent_id": "b74e4187a2c4",
+      "generation": 10,
+      "p_hat": 0.8,
+      "h_score": 95.59057006835937,
+      "rq_score": 15.294491210937498,
+      "fitness": 15.294491210937498,
+      "niche_group": 4,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_breadth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 15.294491210937498
+        },
+        "_behavior_sig_5": "5a26da29f30e89e42de2f2ad3453bd7a7a584107cd36e081db1a632e268522c0",
+        "_template_sig_5": "c8c920886424bb380ac83b3cdabd617bfebe8b0ada5fcd80426b379e3d9d4674",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nimport sympy\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3000, 40000)\n    d1 = rng.randint(1, n // 2)\n    d2 = rng.randint(1, (n - d1) // 2)\n\n    # The parent's operation of summing and dividing corresponds to finding the\n    # remainder when the larger integer is divided by the sum of the two divisors.\n    remainder_sum = n - d1 - d2\n    total_sum = n + remainder_sum\n    answer = len(sympy.divisors(total_sum))\n\n    # Independent route: compute the number of divisors of the sum of the integer\n    # and the remainder, which is the same but with different quantities.\n    check = len(sympy.divisors(n + remainder_sum))\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider an integer {n}. If you divide it by two divisors {d1} and \"\n        f\"{d2}, and then subtract the two divisors from {n} to get a remainder, \"\n        f\"what is the number of divisors of the sum of {n} and the remainder? \"\n        f\"State only the integer.\"\n    )\n    return problem, str(answer)",
+      "program_id": "629e12cef2b3",
+      "parent_id": "9c1de56a012a",
+      "generation": 3,
+      "p_hat": 0.1111111111111111,
+      "h_score": 100.71166059705946,
+      "rq_score": 9.946830676252786,
+      "fitness": 9.946830676252786,
+      "niche_group": 4,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "in_depth",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 9.946830676252786
+        },
+        "_behavior_sig_5": "6d88600c5c36417df724444a6dbafa5f5b5cfd03c67472c9123e88a9b7550d10",
+        "_template_sig_5": "ed0e35cec948cb702478c1e7332cb1572d2c39ab06dc16d6b74ef744028ff022",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

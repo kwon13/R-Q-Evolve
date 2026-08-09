@@ -1,0 +1,27 @@
+{
+  "created_at": "2026-08-09T04:04:22",
+  "model": "/data1/yhoon113/qwen3-4b-base",
+  "tokenizer": "/data1/yhoon113/qwen3-4b-base",
+  "grader": "r-zero-exact (first-boxed regex + raw verify)",
+  "gpt_recheck": true,
+  "sampling": {
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "n": 1,
+    "vllm_sampler_backend": "pytorch",
+    "vllm_use_flashinfer_sampler": "0"
+  },
+  "benchmarks": {
+    "math500": {
+      "num_examples": 500,
+      "pass_at_1": 0.74,
+      "pass_at_1_pre_gpt": 0.618,
+      "gpt_flips": 61,
+      "elapsed_sec": 113.4,
+      "gpt_calls": 191,
+      "gpt_calls_failed": 0,
+      "gpt_recheck_degraded": false
+    }
+  }
+}

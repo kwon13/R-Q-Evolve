@@ -1,0 +1,93 @@
+{
+  "created_at": "2026-08-06T14:55:32",
+  "model": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_256/hf_merged",
+  "tokenizer": "/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_base_4b/global_step_256/hf_merged",
+  "grader": "r-zero-supergpqa",
+  "sampling": {
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "max_tokens": 8192,
+    "n": 1
+  },
+  "max_samples": 1000,
+  "sample_seed": 42,
+  "fallback_seed": 0,
+  "benchmarks": {
+    "supergpqa": {
+      "pass_at_1": 0.2752752752752753,
+      "macro_avg": 0.27754450334123393,
+      "num_examples": 999,
+      "unparsed": 28,
+      "unparsed_rate": 0.028028028028028028,
+      "truncated": 19,
+      "truncated_rate": 0.01901901901901902,
+      "per_category": {
+        "Agronomy": {
+          "correct": 5,
+          "total": 18,
+          "accuracy": 0.2777777777777778
+        },
+        "Economics": {
+          "correct": 10,
+          "total": 33,
+          "accuracy": 0.30303030303030304
+        },
+        "Education": {
+          "correct": 3,
+          "total": 18,
+          "accuracy": 0.16666666666666666
+        },
+        "Engineering": {
+          "correct": 78,
+          "total": 297,
+          "accuracy": 0.26262626262626265
+        },
+        "History": {
+          "correct": 8,
+          "total": 25,
+          "accuracy": 0.32
+        },
+        "Law": {
+          "correct": 11,
+          "total": 25,
+          "accuracy": 0.44
+        },
+        "Literature and Arts": {
+          "correct": 13,
+          "total": 63,
+          "accuracy": 0.20634920634920634
+        },
+        "Management": {
+          "correct": 4,
+          "total": 19,
+          "accuracy": 0.21052631578947367
+        },
+        "Medicine": {
+          "correct": 29,
+          "total": 104,
+          "accuracy": 0.27884615384615385
+        },
+        "Military Science": {
+          "correct": 4,
+          "total": 8,
+          "accuracy": 0.5
+        },
+        "Philosophy": {
+          "correct": 2,
+          "total": 13,
+          "accuracy": 0.15384615384615385
+        },
+        "Science": {
+          "correct": 107,
+          "total": 371,
+          "accuracy": 0.2884097035040431
+        },
+        "Sociology": {
+          "correct": 1,
+          "total": 5,
+          "accuracy": 0.2
+        }
+      }
+    }
+  }
+}

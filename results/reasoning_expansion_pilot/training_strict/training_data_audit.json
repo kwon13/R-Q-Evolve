@@ -1,0 +1,52 @@
+{
+  "budget_audit": {
+    "budget_equal": false,
+    "instance_difference_reasoning_minus_plain": 0,
+    "issues": [
+      "both conditions must contain at least one training instance"
+    ],
+    "per_run_equal": true,
+    "plain": {
+      "condition": "plain",
+      "instances": 0,
+      "invalid_token_rows": [],
+      "missing_run_rows": [],
+      "missing_token_rows": [],
+      "observed_tokens": 0,
+      "per_run": {},
+      "run_id_complete": true,
+      "run_id_field": "independent_run_id",
+      "token_count_complete": true,
+      "token_count_fields": [
+        "prompt_token_count"
+      ],
+      "total_tokens": 0
+    },
+    "reasoning": {
+      "condition": "reasoning",
+      "instances": 0,
+      "invalid_token_rows": [],
+      "missing_run_rows": [],
+      "missing_token_rows": [],
+      "observed_tokens": 0,
+      "per_run": {},
+      "run_id_complete": true,
+      "run_id_field": "independent_run_id",
+      "token_count_complete": true,
+      "token_count_fields": [
+        "prompt_token_count"
+      ],
+      "total_tokens": 0
+    },
+    "require_per_run_match": true,
+    "same_run_ids": true,
+    "schema_version": 1,
+    "token_difference_reasoning_minus_plain": 0
+  },
+  "note": "This audit checks fixed accepted rows and observed prompt tokens. The training compute manifest must additionally match optimizer, learning rate, update steps, batch composition, verifier, and maximum rollout length.",
+  "schema_version": 1,
+  "static_training_only": true,
+  "tokenizer": "/data1/yhoon113/qwen3-8b-base",
+  "training_allowed": false,
+  "validity_policy": "strict"
+}

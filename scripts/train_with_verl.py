@@ -19,6 +19,30 @@ from rq_evolve.verl_adapter import (
 )
 
 
+def _require_verl_sampling_patch() -> None:
+    """Abort unless verl honours per-call sampling overrides.
+
+    Without the patch, ``code_temperature`` and ``judge_temperature`` are read
+    from the yaml, plumbed onto meta_info, and then dropped by verl's agent
+    loop -- so a judge configured at temperature 0 actually samples at the
+    rollout temperature. Nothing in the logs says so; the only symptom is a
+    "deterministic" gate returning different verdicts on identical input. That
+    already cost one run, so a missing patch is a startup error, not a warning.
+    """
+    sys.path.insert(0, str(ROOT / "patches"))
+    try:
+        import verl_agent_loop_sampling as patch
+    except ImportError as exc:  # pragma: no cover - only if the file is deleted
+        raise SystemExit(f"patches/verl_agent_loop_sampling.py is missing: {exc}")
+    if not patch.is_applied():
+        raise SystemExit(
+            "verl's agent loop is NOT patched for per-call sampling overrides, "
+            "so evolution.code_temperature and evolution.judge_temperature "
+            "would be silently ignored.\n"
+            "  fix: python patches/verl_agent_loop_sampling.py"
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default=str(ROOT / "configs" / "rq_evolve_base.yaml"))
@@ -58,6 +82,7 @@ def main() -> None:
 
         os.environ.setdefault("WANDB_MODE", "offline")
 
+    _require_verl_sampling_patch()
     _warn_if_project_venv_exists()
     # Keep training consistent with the evaluation scripts: load the project
     # .env before config/adapter construction, without overwriting shell vars.

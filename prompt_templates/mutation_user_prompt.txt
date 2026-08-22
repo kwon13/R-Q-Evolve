@@ -1,14 +1,18 @@
-Write one NEW competition-math problem family, taking the LIVE PARENT_PROGRAM
-below as inspiration.
+Here is one problem from the parent family, and the generator that produced it.
+
+PARENT PROBLEM (this is the object to mutate):
+
+$parent_problem
+
+PARENT GENERATOR (only the machine that emits it):
+
+```python
+$parent_source
+```
 
 The parent sits at GROUP="$parent_group", SKILL="$parent_skill".
 
-You are not being asked to move to a particular cell. Do not aim at a label.
-Make the child mathematically distinct from the parent in at least one
-load-bearing way — its objects, its decisive relation, the question it asks, or
-the representation the solution works in — then read its GROUP and SKILL off the
-solution you actually used. Changing only the numbers, the wording, the variable
-names, or the parent's answer/check pattern is not a new family.
+Mutate it. Do not aim at a label: work out the new problem and its solution first, then read GROUP and SKILL off the solution you actually used.
 
 Allowed GROUPS:
 $allowed_groups
@@ -16,23 +20,9 @@ $allowed_groups
 Allowed SKILLS:
 $allowed_skills
 
-Before you answer, check your own program against each of these:
+Before you send it, check:
 
-1. One fenced ```python block, nothing else.
-2. The file does not stop at `return`: `GROUP` and `SKILL` follow it at module
-   level, verbatim from the lists above, read off the solution you just used.
-3. No `<...>` placeholder from the skeleton survives.
-4. `generate(seed)` builds its randomness only from `rng = random.Random(seed)`.
-5. There is an `assert answer == check` whose `check` recounts the quantity the
-   problem asks for by a different procedure — not a copy of `answer`, not
-   derived from it.
-6. `return problem, str(answer)` — the answer, as a string.
-7. Seeds 0, 1, 2, 3, 4 all run without raising, and give at least two different
-   problem texts.
-8. Every sampled value appears in `problem` and changes the answer.
-
-LIVE PARENT_PROGRAM:
-
-```python
-$parent_source
-```
+1. Part 1 is prose; Part 2 is one fenced ```python block and comes last.
+2. No `<...>` placeholder survives, and `GROUP` / `SKILL` follow `return` at module level, verbatim from the lists above.
+3. `assert answer == check`, where `check` recounts the answer a different way.
+4. Seeds 0-4 all run and give at least two different problem texts.

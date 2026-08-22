@@ -422,6 +422,16 @@ class VerlDynamicDataset:
         self.truncation = truncation
         self.min_size = max(1, int(min_size))
         self.data_source = data_source
+        # Where the padding wrap starts. verl's train dataloader is
+        # drop_last=True with a fixed batch size, so when the replay set is
+        # shorter than one batch the tail indices must wrap onto real rows --
+        # and `item % len(rows)` alone always wraps onto rows 0, 1, ... which
+        # are the highest-lagged-R_Q elite's first instances. Measured: 15 rows
+        # into a 32-row batch gave rows 0 and 1 three slots and every other row
+        # two, every iteration, purely because 32 % 15 == 2. Rotating the start
+        # spreads that surplus over the whole set instead of pinning it to one
+        # elite. The sampler advances it once per epoch.
+        self.pad_offset = 0
 
     def __len__(self) -> int:
         return max(len(self.dynamic_dataset.snapshot()), self.min_size)
@@ -431,7 +441,7 @@ class VerlDynamicDataset:
         rows = self.dynamic_dataset.snapshot()
         if not rows:
             raise IndexError("VerlDynamicDataset is empty")
-        row = rows[item % len(rows)]
+        row = rows[(item + self.pad_offset) % len(rows)]
         problem = row["problem"]
         answer = row["answer"]
         extra = {

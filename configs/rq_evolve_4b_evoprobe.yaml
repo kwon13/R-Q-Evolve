@@ -1,17 +1,18 @@
-# 4B on ALL EIGHT GPUs -- the single live training arm, not half of a pair.
+# EVOLUTION PROBE, not a training run.
 #
-# Identical to rq_evolve_4b_base.yaml (R_Q = s(1-s)U, n=5 x m=2 on fresh seeds,
-# replay batch, RLOO, policy judge, 256 steps, test_freq 32, one checkpoint) in
-# everything the science depends on. Only the device count and the run identity
-# differ, so its curves are directly comparable to a later 4-GPU arm.
+# Measures one thing: how many of 32 mutated children per iteration survive
+# verification and the taxonomy judge, now that verl honours per-call sampling
+# (patches/verl_agent_loop_sampling.py) and the judge prompt carries a worked
+# example. Everything about the evolution -- prompts, gates, n x m, seeds -- is
+# identical to rq_evolve_4b_8gpu.yaml so the numbers transfer.
 #
-# Batches are NOT rescaled with the device count: train_batch_size 32 over 8
-# ranks is 4 prompts x m=2 rollouts per rank, and ppo_micro_batch_size_per_gpu
-# stays 2. Doubling ranks halves the FSDP parameter shard, so this run has MORE
-# headroom than the 4-GPU one, not less -- raising the micro-batch at the same
-# time would put an untested memory profile on the critical path.
+# What is turned OFF is only what costs time and tells us nothing here:
+# periodic eval and checkpointing. The policy still trains between iterations,
+# because the archive it mutates from has to be the one a real run would see.
 #
-#   bash scripts/run_train_4b_8gpu.sh
+#   bash scripts/run_train_8gpu.sh configs/rq_evolve_4b_evoprobe.yaml
+#   python scripts/report_evolution_funnel.py rq_output/evo_probe_4b
+
 archive:
   epsilon: 0.3
   ucb_c: 1.0
@@ -27,14 +28,7 @@ evolution:
   # re-scoring rollouts to the trainer as its batch, so the group the
   # RLOO baseline averages over IS these m rollouts.
   eval_seeds: 5
-  # m = 4, not 2. At m=2 a seed contributes learnability only when its two
-  # rollouts happen to disagree, so 82-95% of replay groups came back
-  # degenerate (identical reward -> RLOO advantage exactly 0) and programs with
-  # a pooled s_hat of 0.6 still scored R_Q = 0. P(a seed is informative) is
-  # 1 - s^m - (1-s)^m: at s=0.3 that is 0.42 at m=2 and 0.75 at m=4.
-  # Cost is one extra pass of n x 2 rollouts per program in the scoring phase;
-  # the training update pays nothing extra because replay reuses them.
-  rollouts_per_seed: 4
+  rollouts_per_seed: 2
   select_ignores_uncertainty: false
   select_ignores_variance: false
   verify_seeds: 5
@@ -165,7 +159,7 @@ verl_config:
         lr: 1.0e-6
         weight_decay: 1.0e-2
         lr_warmup_steps_ratio: 0.0
-        total_training_steps: 256
+        total_training_steps: 8
 
     ref:
       log_prob_micro_batch_size: null
@@ -178,7 +172,7 @@ verl_config:
       mode: async
       temperature: 1.0
       top_p: 0.95
-      n: 4   # == evolution.rollouts_per_seed (m); replay requires it
+      n: 2   # == evolution.rollouts_per_seed (m); replay requires it
       tensor_model_parallel_size: 1
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096
@@ -220,21 +214,21 @@ verl_config:
 
   trainer:
     total_epochs: 10000
-    total_training_steps: 256
+    total_training_steps: 8
     project_name: rq_evolve
-    experiment_name: qwen3_4b_rq_evolve_8gpu
+    experiment_name: qwen3_4b_evo_probe
     logger:
       - console
       - wandb
     nnodes: 1
     n_gpus_per_node: 8
     val_before_train: false
-    test_freq: 32
-    save_freq: 32
+    test_freq: 100000   # probe: never validate
+    save_freq: 100000   # probe: never checkpoint
     # Keep ONE checkpoint on disk (see rq_evolve_base.yaml for the sizing).
     max_actor_ckpt_to_keep: 1
     max_critic_ckpt_to_keep: 1
-    default_local_dir: ./rq_output/rq_evolve_4b_8gpu
+    default_local_dir: ./rq_output/evo_probe_4b
     device: cuda
     resume_mode: auto
 

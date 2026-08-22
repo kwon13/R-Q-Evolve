@@ -32,7 +32,10 @@ def _crt_mod_3_p(r3, rp, p):
 def generate(seed):
     rng = random.Random(seed)
 
-    primes = [p for p in range(17, 60) if _is_prime(p)]
+    # Small primes on purpose: the reasoning is the three residue classes
+    # mod 3 and one CRT lift each, and a larger p adds arithmetic without
+    # adding any of that.
+    primes = [p for p in range(5, 20) if _is_prime(p)]
     p = rng.choice(primes)
     a = rng.randint(2, p - 2)
     g = _smallest_quadratic_nonresidue(p)

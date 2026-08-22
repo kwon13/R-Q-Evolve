@@ -26,8 +26,13 @@ WITNESS_SEARCH = 400
 def generate(seed):
     rng = random.Random(seed)
 
+    # Small primes: the contradiction (a_{p+1} = p(d+1)) is identical at any
+    # p, and a large p only lengthens the ruling-out of smaller indices. The
+    # answer is p + 1, so p is the only thing that varies; the upper end is
+    # what keeps a one-parameter family from collapsing onto a handful of
+    # distinct statements while the arithmetic stays small.
     primes = [
-        p for p in range(17, 60)
+        p for p in range(5, 40)
         if _is_prime(p)
     ]
     p = rng.choice(primes)

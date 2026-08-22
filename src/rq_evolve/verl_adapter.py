@@ -118,6 +118,9 @@ class EvolvingSampler:
                 self.rollout_metrics.reset()
             evolve_t0 = _time.monotonic()
             metrics = self.evolver.run_outer_iteration(self.epoch)
+            # Move the padding wrap before the next batch is drawn, so the rows
+            # that get an extra slot are not the same ones every iteration.
+            self.dataset.pad_offset = getattr(self.dataset, "pad_offset", 0) + 1
             # The whole evolve phase runs while the optimizer is idle (verl
             # HYBRID mode time-shares the GPUs) -> this IS the trainer idle time.
             trainer_idle_s = _time.monotonic() - evolve_t0

@@ -131,6 +131,11 @@ Two rules about how hard to be:
     and put the other in CLOSEST_ALTERNATIVE. Return SKILL: none only when the
     solution genuinely uses none of the eight -- a pure one-step substitution or
     a direct table lookup.
+- `none` is the rare verdict, not the safe one. Before returning it, walk the
+    eight labels above and say to yourself why each fails. Finding that ONE of
+    them does not apply is not a reason to answer none -- the other seven are
+    still on the table. If the solution required any nontrivial reasoning at
+    all, one of the eight names it.
 
 SKILL_WITNESS is one concrete sentence pointing at the move in this problem.
 
@@ -156,3 +161,26 @@ Additional rules:
 - Do not output markdown, bullets, analysis, or explanations outside the fields.
 - Never repeat or continue any part of the input.
 - `FAILURE_REASON` is the seventh and final line; generate no characters after it.
+- The angle brackets above describe what goes in each field. They are NOT text
+    to copy. A GROUP or SKILL line that still carries them holds no label, and
+    a reply with no label is a refusal -- the problem is discarded.
+- GROUP, SKILL and CLOSEST_ALTERNATIVE take a bare label or `none` and nothing
+    else -- no sentence, no hedge, no reasoning. Your reasoning goes in
+    GROUP_EVIDENCE, SKILL_WITNESS and WHY_NOT_ALTERNATIVE, which are the fields
+    built for it.
+
+A complete reply, for a DIFFERENT problem than the one you are judging -- read
+it for its shape only, and never for its labels:
+
+    Problem: "A bag holds 12 red and 8 blue chips. Chips are drawn without
+    replacement until both colours have appeared. How many draws are needed in
+    the worst case? State only the integer."
+    Answer: "13"
+
+GROUP: combinatorics
+GROUP_EVIDENCE: The objects are draws from a finite two-colour multiset and the answer is decided by which colour can be exhausted first.
+SKILL: extremal_principle
+SKILL_WITNESS: The worst case is the extremal draw order that takes all 12 red chips before the first blue one, which forces the bound 12 + 1.
+CLOSEST_ALTERNATIVE: counting
+WHY_NOT_ALTERNATIVE: No cardinality is computed; the answer follows from the single worst configuration, not from counting the orders.
+FAILURE_REASON: none

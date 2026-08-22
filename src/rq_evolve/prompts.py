@@ -388,11 +388,36 @@ def _template_context(parent: ProblemProgram) -> dict[str, str]:
     """
     return {
         "parent_source": strip_module_docstring(parent.source_code),
+        "parent_problem": _parent_problem_text(parent),
         "parent_group": str(parent.get_group() or ""),
         "parent_skill": str(parent.get_skill() or ""),
         "allowed_groups": _load_definitions(GROUP_DEFINITIONS_FILE),
         "allowed_skills": _load_definitions(SKILL_DEFINITIONS_FILE),
     }
+
+
+def _parent_problem_text(parent: ProblemProgram) -> str:
+    """The parent's seed-0 statement, or a note saying it could not be run.
+
+    The prompt used to show the source alone, which framed the task as editing
+    a program. It is not: the object being mutated is a MATHEMATICAL PROBLEM,
+    and the program is only the machine that emits it. A model shown code
+    rewrites code -- measured, the largest single failure of distinct children
+    was the child's own cross-check firing, i.e. mathematics committed to before
+    it was worked out. Showing the statement lets the child be designed as a
+    problem first.
+
+    Never raises: the parent is an archived champion that ran at insertion time,
+    but a resume can load a snapshot whose source no longer executes here, and a
+    prompt is not the place to discover that.
+    """
+    try:
+        instance = parent.execute(seed=0)
+    except Exception:  # pragma: no cover - execute already swallows most of these
+        instance = None
+    if instance is None:
+        return "(the parent program did not run here; read its code below instead)"
+    return instance.problem.strip()
 
 
 def build_solver_messages(problem: str) -> list[dict]:

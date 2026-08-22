@@ -98,6 +98,20 @@ class RQEvolver:
     # iteration's rollouts. Scoring and selecting on the same draw would keep
     # whichever elite's measurement noise landed high.
     lagged: LaggedScoreboard = field(default_factory=LaggedScoreboard)
+    # program_id -> why it was rejected, for every child that ever failed a gate.
+    #
+    # Mutation is a near-deterministic function of (prompt, parent) and parents
+    # are drawn with replacement from a small archive, so the same source comes
+    # back repeatedly: one program was regenerated 13 times in 32 slots, and 34%
+    # of a two-iteration probe went on children already rejected. Re-running them
+    # cannot teach us anything -- the judge is deterministic at temperature 0, so
+    # a repeat is guaranteed the same verdict -- while each one still costs a
+    # 5-seed execution and a judge call. Keyed by program_id, which IS
+    # md5(source_code), so a hit means byte-identical code.
+    #
+    # Rejections only. Accepted children live in the archive, which has its own
+    # behaviour/template duplicate check.
+    rejected_children: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.lagged.ewma_alpha = float(self.training_config.lagged_selection_ewma)
@@ -430,13 +444,46 @@ class RQEvolver:
             ]
             outputs = self.backend.mutate(tasks) if tasks else []
             entries: list[dict] = []
+            # Repeats also happen WITHIN one batch: 32 parents are drawn with
+            # replacement from a ~10-cell archive and mutation is near
+            # deterministic, so a measured 11 of 32 slots in one iteration were
+            # the same few programs. self.rejected_children cannot catch those --
+            # it is written when reports are finalized, once the batch is over --
+            # so the first occurrence in a batch claims the id and the rest are
+            # reported against it. They would have produced the same verdict:
+            # the source is byte-identical and the judge is deterministic.
+            in_flight: set[str] = set()
             for task, output in zip(tasks, outputs):
                 child, inst, reason, source = self._make_child_from_output(
-                    task, output
+                    task, output, in_flight=in_flight
                 )
-                if inst is not None:
+                if child is not None and child.program_id in in_flight:
+                    entries.append(
+                        {
+                            "report": CandidateReport(
+                                status="already_rejected",
+                                op=task.op,
+                                child_id=child.program_id,
+                                reason="duplicate of an earlier candidate in this batch",
+                            )
+                        }
+                    )
+                elif child is not None and child.program_id in self.rejected_children:
+                    entries.append(
+                        {
+                            "report": CandidateReport(
+                                status="already_rejected",
+                                op=task.op,
+                                child_id=child.program_id,
+                                reason=reason,
+                            )
+                        }
+                    )
+                elif inst is not None:
+                    in_flight.add(child.program_id)
                     entries.append({"task": task, "child": child, "inst": inst})
                 elif source is not None:
+                    in_flight.add(child.program_id)
                     # Parses but failed verification -> eligible for one
                     # self-fix. Keep the raw output: it becomes the assistant
                     # turn in the multi-turn fix prompt.
@@ -574,12 +621,45 @@ class RQEvolver:
                     ast_findings=_ast_findings(child),
                 )
             )
+        self._memoize_rejections(reports)
         return reports
+
+    # Only rejections that are a property of the SOURCE, and so cannot come out
+    # differently later. The code either runs or it does not; the judge is
+    # deterministic at temperature 0 and sees only the seed-0 problem.
+    #
+    # Deliberately excluded: s_hat_zero, rq_zero, rejected_non_elite and
+    # rollout_failed. Those are verdicts about the CURRENT policy and the
+    # CURRENT occupant of the cell -- a program nobody can solve today is
+    # exactly the program a stronger policy should get another look at, and one
+    # that lost its cell should be reconsidered when the incumbent changes.
+    # Memoizing them would quietly make the archive monotone in a way the
+    # design does not intend.
+    _DETERMINISTIC_REJECTIONS = frozenset(
+        {
+            "verify_failed",
+            "no_code",
+            "mutation_failed",
+            "judge_rejected",
+            "judge_input_too_large",
+        }
+    )
+
+    def _memoize_rejections(self, reports: list[CandidateReport]) -> None:
+        for report in reports:
+            if (
+                report.child_id
+                and report.status in self._DETERMINISTIC_REJECTIONS
+            ):
+                self.rejected_children.setdefault(
+                    report.child_id, f"{report.status}: {report.reason}"
+                )
 
     def _make_child_from_output(
         self,
         task: MutationTask,
         output: str | None,
+        in_flight: set[str] | None = None,
     ):
         """Extract -> build -> verify a child from one model output.
 
@@ -600,6 +680,17 @@ class RQEvolver:
             generation=task.parent.generation + 1,
             metadata=metadata,
         )
+        # Before execution, not after: a repeat costs 5 sandbox runs and a judge
+        # call, and the verdict is already known. `source=None` in the return
+        # also keeps it out of the self-fix retry, which would re-derive the
+        # same program from the same reason.
+        if in_flight is not None and child.program_id in in_flight:
+            # Same batch, same source. Checked here rather than in the caller so
+            # the repeat skips the 5-seed execution too, not just the judge.
+            return child, None, "duplicate of an earlier candidate in this batch", None
+        memo = self.rejected_children.get(child.program_id)
+        if memo is not None:
+            return child, None, memo, None
         inst, reason = self.verify_program(child)
         return child, inst, reason, source
 
@@ -1208,6 +1299,7 @@ class RQEvolver:
                     "used_seeds": used,
                     "seed_cursor": self.seed_stream.to_dict(),
                     "lagged_scores": self.lagged.to_dict(),
+                    "rejected_children": self.rejected_children,
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -1292,6 +1384,7 @@ class RQEvolver:
                 payload.get("lagged_scores"),
                 ewma_alpha=float(self.training_config.lagged_selection_ewma),
             )
+            self.rejected_children = dict(payload.get("rejected_children") or {})
             cursor = payload.get("seed_cursor")
             if cursor:
                 self.seed_stream = SeedStream.from_dict(cursor)

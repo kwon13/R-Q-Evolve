@@ -4,7 +4,11 @@ import random
 def generate(seed):
     rng = random.Random(seed)
 
-    n = rng.randint(30, 150)
+    # n is the only parameter, so its range is also the instance space. The
+    # upper end is kept where 2^(n-3) is still read straight off the closed
+    # form; much larger and the reduction mod 1000 becomes a cycle-finding
+    # puzzle of its own, stacked on top of the induction.
+    n = rng.randint(10, 30)
 
     # Let F_1 = {(1)}. For m >= 2, every permutation in F_{m-1}
     # produces two members of F_m by inserting m at the left end
@@ -23,10 +27,9 @@ def generate(seed):
     #
     #   T_m = m(m-1) 2^(m-3).
     #
-    # T_n itself runs past 40 digits at the top of the n range, which no
-    # solver can be asked to write out, so the question asks for it modulo
-    # 1000. The recursion is still the only way in: the residue is read off
-    # the closed form, not by unrolling 150 steps.
+    # T_n is asked modulo 1000 so the answer stays a short integer. The
+    # recursion is still the only way in -- the residue is read off the
+    # closed form.
     answer = n * (n - 1) * (2 ** (n - 3)) % 1000
 
     # Independent route: compute T_n directly from the recursive construction,

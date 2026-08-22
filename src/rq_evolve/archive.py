@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .code_utils import lint_problem_instance
+from .constancy import check_constancy
 from .concepts import GROUPS, SKILLS, axis_index
 from .program import ProblemProgram
 from .scoring import selection_priority
@@ -130,8 +131,7 @@ class MAPElitesArchive:
     def try_insert(
         self,
         program: ProblemProgram,
-        h_value: float,
-        problem_text: str,
+        u_value: float,
         rq_score: float,
     ) -> bool:
         cell = self._insert_cell(program)
@@ -142,19 +142,29 @@ class MAPElitesArchive:
 
         program.niche_group = group_bin
         program.niche_skill = skill_bin
-        # H is no longer a coordinate, but it is still the uncertainty factor of
-        # R_Q, so it is recorded on the program exactly as before.
-        program.h_score = float(h_value)
+        # U is not a coordinate, but it is the uncertainty factor of
+        # R_Q = s(1-s)U, so it is recorded on the program exactly as before.
+        program.u_score = float(u_value)
         program.rq_score = float(rq_score)
-        program.fitness = float(rq_score)
 
         # --- Safety gates (ported from evo-sample), applied at EVERY archive
         # entry, including champion re-evaluation. ---
-        # 0. The live MAP is the frontier archive: problems at p=0 or p=1 have
-        #    R_Q=0 and must not occupy a niche.
-        if float(rq_score) <= 0.0:
-            program.metadata["archive_status"] = "rq_zero_rejected"
-            return False
+        #
+        # R_Q = 0 is NOT one of them. Classical MAP-Elites does not evict on
+        # fitness alone: a cell holds the best thing found for it so far, and
+        # "nothing yet" is strictly worse than a program the policy cannot
+        # solve. The earlier gate here rejected every p=0 and p=1 candidate,
+        # which cost the bootstrap 3 of 8 seeds and with them the ONLY
+        # representative of geometry, inequality, induction and
+        # extremal_principle -- the grid lost two GROUPs and three SKILLs
+        # before a single mutation ran.
+        #
+        # Nothing downstream needs the gate: training examples are drained by
+        # the frontier band in dataset.py (low < s_hat < high), which excludes
+        # p=0 and p=1 on its own, and cell competition below is a strict `>`
+        # so an R_Q=0 champion yields to the first scoring program that
+        # arrives and never displaces one.
+        #
         # 1. Strict seed-variation: block near-constant / thin-rewording
         #    generators before they pollute the archive and mutation chain.
         if not self._passes_seed_variation(program):
@@ -176,7 +186,7 @@ class MAPElitesArchive:
         niche = self.grid[cell]
         # Champion competition ranks by selection priority: real R_Q in
         # production, s(1-s) under the select_ignores_uncertainty ablation
-        # (program.rq_score / p_hat are already set above). The stored
+        # (program.rq_score / s_hat are already set above). The stored
         # champion_rq stays the real R_Q, so the MAP still logs true scores --
         # only the winner choice is H-blind under the ablation.
         new_priority = self._select_priority(program)
@@ -369,6 +379,16 @@ class MAPElitesArchive:
             and (n_total <= 1 or len(set(problems)) >= 2)
         )
 
+        # Structural gates against a generator that ignores its seed. These are
+        # pass/fail and not a fitness term on purpose: rewarding consistency
+        # would hand a free maximum to exactly the generator being excluded,
+        # and evolution would have a gradient to climb toward it. A gate has no
+        # such gradient. (Design note: Corollary 2.2.)
+        verdict = None
+        if passed:
+            verdict = check_constancy(program.source_code, problems, answers)
+            passed = verdict.passed
+
         program.metadata["validity_check"] = {
             "passed": passed,
             "n_distinct_problems": len(set(problems)),
@@ -376,6 +396,17 @@ class MAPElitesArchive:
             "n_valid": len(answers),
             "n_total": n_total,
             "rq_score_at_check": rq_now,
+            **(
+                {
+                    "constancy_passed": verdict.passed,
+                    "constancy_reason": verdict.reason,
+                    "canonical_templates": verdict.templates,
+                    "distinct_answers": verdict.answers,
+                    "z_sensitive_fraction": round(verdict.z_sensitive_fraction, 3),
+                }
+                if verdict is not None
+                else {}
+            ),
         }
         return passed
 
@@ -388,17 +419,17 @@ class MAPElitesArchive:
         if program is None:
             return 0.0
         return selection_priority(
-            float(getattr(program, "p_hat", 0.0) or 0.0),
+            float(getattr(program, "s_hat", 0.0) or 0.0),
             float(getattr(program, "rq_score", 0.0) or 0.0),
-            float(getattr(program, "h_score", 0.0) or 0.0),
+            float(getattr(program, "u_score", 0.0) or 0.0),
             ignore_uncertainty=self.select_ignores_uncertainty,
             ignore_variance=self.select_ignores_variance,
         )
 
     def _is_learnable(self, program: ProblemProgram | None) -> bool:
-        """Priority>0: a learnable parent. Too-easy generators (p_hat=1.0 ->
+        """Priority>0: a learnable parent. Too-easy generators (s_hat=1.0 ->
         priority 0) stay in the archive but are not selected for mutation.
-        Under the ablation the priority is s(1-s), so p_hat in (0,1) qualifies."""
+        Under the ablation the priority is s(1-s), so s_hat in (0,1) qualifies."""
         return program is not None and self._select_priority(program) > 0.0
 
     def sample_parent(self) -> ProblemProgram | None:

@@ -92,7 +92,7 @@ is explicit config:
 "Detect only" filters still increment `flag_*` metrics and are visible per
 sample in the JSONL. A child whose rollouts are ALL rejected becomes a
 `rollout_failed` candidate report (with the dominant reason) instead of a
-silent `p_hat_zero`.
+silent `s_hat_zero`.
 
 ## Artifacts and metrics
 

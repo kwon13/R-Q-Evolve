@@ -10,8 +10,9 @@ seed_programs/*.py
   -> verify_program()
   -> MAPElitesArchive.try_insert()   # cell = (GROUP, SKILL)
   -> parent selection
-  -> backend.mutate(in_depth | in_breadth prompt)
+  -> backend.mutate(mutation prompt)     # one free-form operator
   -> generated ProblemProgram
+  -> judge(problem, answer) == declared (GROUP, SKILL)?
   -> backend.rollout(G)
   -> R_Q = p_hat * (1 - p_hat) * uncertainty
   -> MAP-Elites update

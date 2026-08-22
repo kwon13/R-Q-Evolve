@@ -23,8 +23,6 @@ evolution:
   # this ablation set select_ignores_uncertainty: false and this: true (and give
   # the run its own RQ_EXP_NAME / RQ_LOCAL_DIR so it doesn't share the none_h dir).
   select_ignores_variance: false
-  # in_breadth is NOT a knob: it is the remainder = 1 - in_depth_ratio.
-  in_depth_ratio: 0.5        # -> in_breadth = 1 - 0.5 = 0.5  (50/50 depth/breadth)
   verify_seeds: 5
   frontier_p_hat_range: [0.0, 1.0]
   # One multi-turn self-fix per rejected child: the model is shown its own
@@ -68,8 +66,6 @@ evolution:
   # collapsing the batch.
   code_temperature: 0.4
   code_top_p: 0.95
-  evaluator_temperature: 0.0
-  evaluator_top_p: 1.0
   # evaluator_model: gpt-5.4-mini
   # evaluator_reasoning_effort: low
   # evaluator_timeout_s: 30
@@ -261,7 +257,15 @@ verl_config:
       enable: false
 
   algorithm:
-    adv_estimator: grpo
+    # RLOO, not GRPO. verl's implementation is m/(m-1)*(r_i - mean), which is
+    # algebraically the per-instance leave-one-out baseline
+    # r_i - (1/(m-1)) sum_{j!=i} r_j -- exact, where GRPO's self-inclusive mean
+    # shrinks the gradient by (1 - 1/m). It also applies no group-std
+    # normalisation: with binary rewards that denominator is sqrt(s(1-s)),
+    # which differs per problem and reweights instances against each other.
+    # Grouping is by prompt, and each instance is its own prompt, so verl's
+    # groups are exactly the per-instance groups the baseline needs.
+    adv_estimator: rloo
     # EasyR1 used actor-side KL loss (use_kl_loss above), not reward-side KL.
     use_kl_in_reward: false
     kl_penalty: low_var_kl
@@ -292,6 +296,20 @@ verl_config:
     # 8 of them give finer resume granularity than 4.
     test_freq: 64
     save_freq: 32
+    # Keep ONE checkpoint on disk. A full-parameter 8B checkpoint is ~16 GB of
+    # model shards plus ~64 GB of AdamW optimizer state (exp_avg + exp_avg_sq,
+    # fp32), so ~80 GB each; at save_freq=32 over 256 steps that is 8 of them,
+    # ~640 GB per run. Two runs side by side do not fit in the 1.2 TB free on /.
+    #
+    # verl's rotation is safe: with max_*_ckpt_to_keep=1 it keeps the existing
+    # checkpoint until the new save has completed, then removes it, so there is
+    # never a moment with no resume point.
+    #
+    # The cost is post-hoc per-step evaluation: only the latest step survives on
+    # disk. The per-step curve comes from the in-loop benchmark at test_freq
+    # instead, which needs no saved checkpoint.
+    max_actor_ckpt_to_keep: 1
+    max_critic_ckpt_to_keep: 1
     # Overridable per ablation via RQ_LOCAL_DIR (also separates the rq_archive/
     # checkpoint dir so ablations never share an archive).
     default_local_dir: ./rq_output/rq_evolve_base_8b

@@ -26,11 +26,11 @@
 5. The program competes for its MAP-Elites cell, which is exactly its declared
    (GROUP, SKILL) pair.
 6. Parent programs are sampled from occupied cells.
-7. The mutation model is shown the parent source under the `in_depth` or
-   `in_breadth` template and writes the child generator directly. One model
-   call, no planning stage.
-8. The child is verified statically and by execution, gated by the LLM
-   coherence evaluator, scored, and inserted if elite.
+7. The mutation model is shown the parent source plus both label vocabularies
+   and writes the child generator directly. One model call, no planning stage
+   and no operator: it chooses what to change and labels the result itself.
+8. The child is verified statically and by execution, gated by the taxonomy
+   judge, scored, and inserted if elite.
 9. Frontier champions render new training examples.
 10. The installed `verl` trainer consumes those examples and updates the solver.
 11. The next outer iteration re-scores every champion against the new weights
@@ -40,10 +40,15 @@
 
 The grid is GROUP x SKILL: 6 mathematical domains by 8 reasoning skills, 48
 cells. Both coordinates are read off the program's own top-level `GROUP` and
-`SKILL` constants, so a cell is a (domain, reasoning) pair and each mutation
-operator moves exactly one coordinate -- `in_depth` holds GROUP and changes
-SKILL, `in_breadth` holds SKILL and changes GROUP. There are no bin counts to
-configure; the shape is the two vocabularies in `concepts.py`.
+`SKILL` constants, so a cell is a (domain, reasoning) pair. There are no bin
+counts to configure; the shape is the two vocabularies in `concepts.py`.
+
+Nothing steers a child to a chosen cell. The operator pair that did -- one held
+GROUP and moved SKILL, the other the mirror -- was removed because ordering a
+label change makes the label a target the child is written to satisfy rather
+than a description of what it produced, and a child filed under a label its
+statement does not support corrupts the coordinates themselves. Coverage is now
+a consequence of mathematical variety plus the judge, not of an instruction.
 
 Uncertainty is not an axis. H remains the uncertainty factor of
 `R_Q = p(1-p)H`, which decides who holds a cell and which champion is drawn as
@@ -77,6 +82,26 @@ family compiler, and no quarantine path.
 
 Four gates stand between a generated child and the archive:
 
+## Outer Iteration (Algorithm 1)
+
+```
+sync θ_t into the rollout engine
+for each elite:                       # Re-scoring == replay 생성
+    n개 fresh seed (비재사용 stream) × m rollout
+    (x_z, y_zj, r_zj, h_zj) 저장 → replay buffer
+    L̂_z = m/(m-1)·ŝ_z(1-ŝ_z),  Û_z,  R̂_Q = mean_z(L̂_z·Û_z),  D̂
+for 32 candidates:                    # inner batch, 단일 변이 연산자
+    mutate → validity → judge → n×m 채점 → cell 경쟁
+T_t ← lagged R̂_Q (t-1 까지의 EWMA) 로 고른 frontier elite
+batch ← T_t 의 이번 iteration replay rollout      # 별도 샘플링 패스 없음
+θ_{t+1} ← RLOO 1회 업데이트 (인스턴스 LOO baseline)
+```
+
+`n=5, m=2` 는 구판 단일 인스턴스 `G=10` 과 같은 rollout 예산이며, 재점수화와
+학습 샘플링이 통합되므로 예산이 이중 지출되지 않습니다. 선택을 지난 iteration의
+점수로 미루는 이유는 winner's curse입니다 — 같은 rollout으로 점수를 매겨 고르고
+그 rollout으로 학습하면 측정 노이즈가 유리하게 실현된 표본이 선택적으로 남습니다.
+
 1. **Static lint** — `lint_generator_source` plus the determinism checks in
    `lint_mutation_generator_source`: a seeded `rng = random.Random(seed)`, no
    direct `random.*` calls, and `sorted()` around dict/set iteration, so a
@@ -104,12 +129,19 @@ Four gates stand between a generated child and the archive:
    visible problem does not vary across seeds. This carries the guarantee the
    static notation contract used to. Under `enforce`, each rendered statement
    is also checked for handing the solver its own technique (P2).
-4. **Operator contract + evaluator** — `in_depth` must preserve the parent's
-   GROUP and change SKILL, `in_breadth` the reverse. `use_evaluator` gates
-   seed-0 coherence and the truth of the declared SKILL before any solver
-   rollout is spent. It is the only gate that reads the rendered statement as
-   prose, so `use_evaluator: false` requires `ast_contract` to be on —
-   `EvolutionConfig.__post_init__` refuses the combination where neither runs.
+4. **Taxonomy judge** — the judge is shown the seed-0 problem and the supplied
+   answer, and nothing else: not the source, not the declared labels, not the
+   parent. It runs its own completeness and answer-consistency gates, derives
+   the shortest clean solution, and returns GROUP and SKILL with a mandatory
+   concrete witness for each. The child is archived only when both match what
+   it declared; `none`, an out-of-vocabulary value and an unreadable reply all
+   reject. `use_evaluator` gates it, and because it is the only gate that reads
+   the rendered statement as prose, `use_evaluator: false` requires
+   `ast_contract` to be on — `EvolutionConfig.__post_init__` refuses the
+   combination where neither runs. The verdict is written to
+   `metadata["judge"]` whether it passes or fails, so the disagreement rate
+   between the Evolver's self-labelling and an independent reading is a
+   measurable quantity rather than an assumption.
 
 All repository-owned standalone vLLM evaluation/comparison entry points default
 to `--vllm-sampler-backend pytorch`.
@@ -146,17 +178,17 @@ shape를 거칩니다:
               │         fix 실패 ─► {report: verify_failed "[after fix]"}
               │                │
               └───────┬────────┘
-                _apply_evaluator()   (INVALID 판정 시)
-                      │  ├────────────────► {report: evaluator_rejected}
-                      │  └── evaluator 오류 ─► 즉시 중단 (예외 전파)
-                      │ (valid → child 유지)
+                _apply_judge()   (라벨 불일치 / none 판정 시)
+                      │  ├────────────────► {report: judge_rejected}
+                      │  └── judge 오류 ───► 즉시 중단 (예외 전파)
+                      │ (declared == judged → child 유지)
               generate_rollouts(child)
                       │
         모든 rollout reject ─────────────► {report: rollout_failed}
-        p_hat <= 0 ──────────────────────► {report: p_hat_zero}
-        R_Q <= 0 (other boundary) ───────► {report: rq_zero}
-        archive.try_insert()
+        archive.try_insert()   (R_Q=0도 셀 경쟁에 참가)
               ├── elite ───────────────────► {report: inserted}
+              ├── s_hat <= 0 ──────────────► {report: s_hat_zero}
+              ├── R_Q <= 0 (other) ────────► {report: rq_zero}
               └── non-elite ───────────────► {report: rejected_non_elite}
 ```
 
@@ -164,8 +196,18 @@ parent가 없으면 batch 진입 직후 `{report: no_parent}` 하나로 조기 �
 
 **`CandidateReport.status` 전체 어휘** ([`evolution.py:29`](../src/rq_evolve/evolution.py#L29)):
 `no_parent`, `mutation_failed`, `no_code`, `verify_failed`,
-`evaluator_rejected`, `evaluator_input_too_large`, `rollout_failed`,
-`p_hat_zero`, `rq_zero`, `inserted`, `rejected_non_elite`.
+`judge_rejected`, `judge_input_too_large`, `rollout_failed`,
+`s_hat_zero`, `rq_zero`, `inserted`, `rejected_non_elite`.
+
+`s_hat_zero` / `rq_zero`는 이제 **조기 반환이 아니라 삽입 실패의 사유**입니다.
+R_Q = 0인 후보도 `try_insert`에 들어가 빈 셀을 차지할 수 있습니다. 고전 MAP-Elites는
+fitness만으로 셀 점유를 막지 않고, "아직 아무것도 없음"은 정책이 못 푸는 프로그램보다
+엄격히 나쁘기 때문입니다. 이전 게이트는 p=0/p=1 후보를 전부 거절해 부트스트랩에서
+시드 8개 중 3개를 잃었고, 그와 함께 geometry·inequality GROUP과
+induction·extremal_principle SKILL의 유일한 대표가 사라졌습니다.
+학습 데이터 오염은 별개 장치가 막습니다 — `dataset.py`의 frontier band
+(`low < p_hat < high`)가 p=0과 p=1을 이미 제외하고, 셀 경쟁이 엄격한 `>`라서
+R_Q=0 champion은 점수 있는 프로그램이 오는 즉시 자리를 내줍니다.
 
 각 report는 `source_code`(`_MAX_LOGGED_SOURCE_CHARS`에서 절단)와 `ast_findings`도
 함께 싣습니다. 아카이브 스냅샷에는 champion만 들어가므로, 이 두 필드가 없으면 거절된
@@ -189,9 +231,10 @@ Evaluator 인증·호출 오류는 report로 기록하지 않고 실험을 즉�
 
 ### Milestone 2: Mutation Quality
 
-- Edit `prompt_templates/in_depth.txt` and `prompt_templates/in_breadth.txt`.
-- Keep `prompt_templates/shots/*.txt` as offline fixtures; live mutation calls
-  omit content-rich shots to avoid example copying.
+- Edit `prompt_templates/mutation_system_prompt.txt` and
+  `prompt_templates/mutation_user_prompt.txt`.
+- Keep `prompt_templates/shots/*.txt` as offline fixtures; the live loop reads
+  nothing from that directory.
 - Add score-aware feedback from parent `p_hat` and uncertainty.
 - Add execution-failure feedback for rejected children.
 

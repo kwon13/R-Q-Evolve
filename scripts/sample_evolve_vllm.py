@@ -2,12 +2,12 @@
 """One evolve phase against a real policy, without the verl/Ray/FSDP stack.
 
 Boots vLLM directly, runs the pipeline that actually changed -- parent
-selection, the two GROUP x SKILL mutation operators, verification, the operator
-contract, the coherence evaluator, solver rollouts, R_Q, archive placement --
-and reports where the children landed. Nothing is trained; weights are frozen,
-so this measures the prompts and the grid, not the RL loop.
+selection, the single free-form mutation operator, verification, the taxonomy
+judge, solver rollouts, R_Q, archive placement -- and reports where the children
+landed. Nothing is trained; weights are frozen, so this measures the prompts and
+the grid, not the RL loop.
 
-    python scripts/sample_evolve_vllm.py --batch 8 --rollouts 4
+    python scripts/sample_evolve_vllm.py --steps 32 --batch 8 --rollouts 4
 
 Entropy for R_Q comes from vLLM's own sampled-token logprobs, not an actor
 forward pass, which is the one place this diverges from the training backend.
@@ -32,7 +32,8 @@ from rq_evolve.backends import PendingRollouts, RolloutRecord  # noqa: E402
 from rq_evolve.concepts import GROUPS, SKILLS  # noqa: E402
 from rq_evolve.config import load_config  # noqa: E402
 from rq_evolve.evolution import RQEvolver  # noqa: E402
-from rq_evolve.prompts import build_solver_prompt  # noqa: E402
+from rq_evolve.openai_evaluator import load_project_dotenv  # noqa: E402
+from rq_evolve.prompts import build_solver_messages  # noqa: E402
 from rq_evolve.reward import answers_match, extract_boxed  # noqa: E402
 from rq_evolve.solver_trace import SOLVER_CHAT_BOUNDARY_STOPS  # noqa: E402
 from rq_evolve.vllm_runtime import (  # noqa: E402
@@ -112,11 +113,11 @@ class VLLMBackend:
             or [{"role": "user", "content": task.prompt}]
             for task in tasks
         ]
-        # A mutation writes a whole generator; an evaluator verdict is 3 lines.
+        # A mutation writes a whole generator; a judge verdict is seven fields.
         max_tokens = max(
             (
-                self.args.eval_tokens
-                if task.stage == "evaluate"
+                self.args.judge_tokens
+                if task.stage == "judge"
                 else self.args.mutate_tokens
             )
             for task in tasks
@@ -153,7 +154,7 @@ class VLLMBackend:
             pending.grouped = []
             return pending
         messages = [
-            [{"role": "user", "content": build_solver_prompt(inst.problem)}]
+            build_solver_messages(inst.problem)
             for inst in instances
             for _ in range(n_rollouts)
         ]
@@ -223,13 +224,18 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/rq_evolve_base.yaml")
     ap.add_argument("--model", default="/data1/yhoon113/qwen3-8b-base")
-    ap.add_argument("--batch", type=int, default=8, help="mutations this phase")
+    ap.add_argument("--steps", type=int, default=32,
+                    help="total mutation candidates this run")
+    ap.add_argument("--batch", type=int, default=8,
+                    help="mutations per batch; parents are resampled each batch")
     ap.add_argument("--rollouts", type=int, default=4, help="solver rollouts per child")
     ap.add_argument("--tp", type=int, default=1)
     ap.add_argument("--gpu-util", type=float, default=0.85)
     ap.add_argument("--max-model-len", type=int, default=12000)
     ap.add_argument("--mutate-tokens", type=int, default=3000)
-    ap.add_argument("--eval-tokens", type=int, default=256)
+    ap.add_argument("--judge-tokens", type=int, default=900)
+    ap.add_argument("--code-temperature", type=float, default=None,
+                    help="override evolution.code_temperature (the swept knob)")
     ap.add_argument("--solver-tokens", type=int, default=2000)
     ap.add_argument("--solver-temperature", type=float, default=1.0)
     ap.add_argument("--solver-top-p", type=float, default=0.95)
@@ -243,6 +249,8 @@ def main() -> int:
     ap.add_argument("--out", default="rq_output/sample_evolve")
     args = ap.parse_args()
 
+    # The judge may be the OpenAI provider, whose key lives in R-Q-Evolve/.env.
+    load_project_dotenv(ROOT)
     cfg = load_config(args.config)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -258,9 +266,17 @@ def main() -> int:
         selection_strategy=cfg.archive.selection_strategy,
     )
     evolution = cfg.evolution
-    evolution.inner_iterations = args.batch
-    evolution.inner_iteration_batch_size = args.batch
+    evolution.inner_iterations = args.steps
+    evolution.inner_iteration_batch_size = min(args.batch, args.steps)
     evolution.num_rollouts = args.rollouts
+    if args.code_temperature is not None:
+        evolution.code_temperature = args.code_temperature
+    print(
+        f"[sample] mutation sampling: temperature={evolution.code_temperature} "
+        f"top_p={evolution.code_top_p} | judge: "
+        f"temperature={evolution.judge_temperature} top_p={evolution.judge_top_p}",
+        flush=True,
+    )
     evolver = RQEvolver(
         archive=archive,
         backend=backend,
@@ -278,7 +294,11 @@ def main() -> int:
     print(render_grid(archive, "\n[sample] grid after seeding"), flush=True)
 
     before = {archive.program_to_cell(c) for c in archive.champions()}
-    print(f"\n[sample] running one evolve phase: {args.batch} mutations", flush=True)
+    print(
+        f"\n[sample] running {args.steps} mutations "
+        f"in batches of {evolution.inner_iteration_batch_size}",
+        flush=True,
+    )
     t0 = time.monotonic()
     metrics = evolver.run_outer_iteration(0)
     elapsed = time.monotonic() - t0
@@ -300,6 +320,35 @@ def main() -> int:
         for reason in reasons[:8]:
             print(f"    - {str(reason)[:140]}")
 
+    # --- judge agreement: the measurement this pipeline exists to produce ---
+    judged = [r for r in reports if r.status == "judge_rejected"]
+    mismatch = [r for r in judged if "label mismatch" in (r.reason or "")]
+    closed = [r for r in judged if "failed closed" in (r.reason or "")]
+    reached_judge = [
+        r for r in reports
+        if r.status not in {"mutation_failed", "no_code", "verify_failed", "no_parent"}
+    ]
+    agreed = len(reached_judge) - len(judged)
+    judge_summary = {
+        "reached_judge": len(reached_judge),
+        "agreed": agreed,
+        "label_mismatch": len(mismatch),
+        "failed_closed": len(closed),
+        "agreement_rate": round(agreed / len(reached_judge), 3) if reached_judge else None,
+    }
+    print("\n[sample] judge agreement:")
+    for k, v in judge_summary.items():
+        print(f"    {k:<20} {v}")
+    axis = Counter()
+    for r in mismatch:
+        for token in ("GROUP", "SKILL"):
+            if f"{token} declared=" in (r.reason or ""):
+                axis[token] += 1
+    if axis:
+        print(f"    mismatching axis     {dict(axis)}")
+    for r in judged[:6]:
+        print(f"    - {str(r.reason)[:150]}")
+
     print(render_grid(archive, "\n[sample] grid after evolve"))
     new_cells = sorted(after - before)
     print(f"\n[sample] cells opened this phase: {len(new_cells)}")
@@ -312,11 +361,15 @@ def main() -> int:
         json.dumps(
             {
                 "model": args.model,
-                "batch": args.batch,
+                "steps": args.steps,
+                "batch": evolution.inner_iteration_batch_size,
+                "code_temperature": evolution.code_temperature,
+                "code_top_p": evolution.code_top_p,
                 "rollouts": args.rollouts,
                 "seeds_placed": inserted,
                 "metrics": metrics,
                 "status_counts": dict(status),
+                "judge": judge_summary,
                 "operator_counts": dict(ops),
                 "cells_before": len(before),
                 "cells_after": len(after),

@@ -84,21 +84,17 @@ def test_fixture_executes_and_varies_across_seeds(program):
     assert len(problems) >= 2, "the visible problem must change across seeds"
 
 
+# The operator contract these fixtures were written against is retired. A
+# mutation no longer holds one axis and moves the other; the child picks both
+# labels from its own finished mathematics and the judge re-derives them. What
+# survives is the pair as a worked example of a genuine mathematical move, so
+# the axis assertions below record what the pair DOES rather than what any
+# operator requires of it.
 @pytest.mark.parametrize("op,parent,child", ALL_PAIRS)
-def test_fixture_pair_satisfies_its_operator_contract(op, parent, child):
-    task = SimpleNamespace(op=op, parent=parent)
-    assert RQEvolver._validate_mutation_contract(task, child) is None
-
-
-@pytest.mark.parametrize("op,parent,child", ALL_PAIRS)
-def test_operator_moves_exactly_one_axis(op, parent, child):
-    """The point of the pair: one axis is held, the other genuinely moves."""
-    if op == "in_depth":
-        assert child.declared_group() == parent.declared_group()
-        assert child.declared_skill() != parent.declared_skill()
-    else:
-        assert child.declared_skill() == parent.declared_skill()
-        assert child.declared_group() != parent.declared_group()
+def test_the_pair_is_a_real_move_on_at_least_one_axis(op, parent, child):
+    moved_group = child.declared_group() != parent.declared_group()
+    moved_skill = child.declared_skill() != parent.declared_skill()
+    assert moved_group or moved_skill, "the child repeats both parent labels"
 
 
 @pytest.mark.parametrize("op,parent,child", ALL_PAIRS)
@@ -113,13 +109,29 @@ def test_child_records_its_evidence_header(op, parent, child):
     assert ("PARENT_CRUX_FAILS:" if op == "in_depth" else "NATIVE_STRUCTURE:") in header
 
 
-def test_fixtures_are_not_on_the_few_shot_injection_path():
-    """Injecting them costs +8k tokens against a 12k window -- keep them out."""
-    from rq_evolve.prompts import SHOT_TEMPLATE_DIR, _load_shot_examples
+def test_fixtures_are_not_on_the_prompt_injection_path():
+    """Injecting them costs +8k tokens against a 12k window -- keep them out.
 
-    for op in FILES:
-        assert _load_shot_examples(op) == ""
-        assert not (SHOT_TEMPLATE_DIR / FILES[op].name).exists()
+    The mutation prompt is now two files read verbatim from the template
+    directory, neither of which carries examples; this pins that the fixtures
+    did not quietly move in there.
+    """
+    from rq_evolve.prompts import PROMPT_TEMPLATE_DIR, SHOT_TEMPLATE_DIR
+    from rq_evolve.prompts import mutation_system_prompt
+    from rq_evolve.program import ProblemProgram
+    from rq_evolve.prompts import build_mutation_task
+
+    for op, path in FILES.items():
+        assert not (SHOT_TEMPLATE_DIR / path.name).exists()
+        assert not (PROMPT_TEMPLATE_DIR / path.name).exists()
+
+    parent = ProblemProgram(
+        source_code='def generate(seed):\n    return "q", "1"\n\n\n'
+        'GROUP = "algebra"\nSKILL = "counting"\n'
+    )
+    rendered = "\n".join(m["content"] for m in build_mutation_task(parent).messages)
+    assert "CRUX:" not in rendered
+    assert "$" not in mutation_system_prompt()
 
 
 def test_the_retired_concept_vocabulary_is_gone_everywhere():

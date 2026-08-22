@@ -132,6 +132,7 @@ class EvolvingSampler:
                 self.evolver.save_state(self.archive_dir, iteration=self.epoch)
                 self.evolver.append_evolution_log(self.archive_dir, self.epoch, metrics)
             self._log_evolve_metrics_to_wandb(metrics)
+            self._log_map_figure_to_wandb(metrics)
             self._log_rollout_instrumentation(trainer_idle_s)
             # This evolution's snapshot now drives the Solver training that follows
             # (and any global_step_* checkpoint saved during it).
@@ -314,6 +315,58 @@ class EvolvingSampler:
         except Exception:
             pass
 
+    def _log_map_figure_to_wandb(self, metrics: dict) -> None:
+        """Send one picture of the GROUP x SKILL archive per outer iteration.
+
+        ``coverage`` says how many of the 48 cells are filled and cannot say
+        which. "Only two domains" and "only two reasoning moves" give the same
+        number and need opposite fixes, so the grid itself is logged as an image
+        and the cells filled since the previous iteration are outlined.
+
+        Best-effort throughout: a logging backend that cannot draw must never
+        take a training run down.
+        """
+        try:
+            import wandb
+
+            if wandb.run is None:
+                return
+            from .map_figure import occupied_cells, render_archive_figure
+
+            archive = self.evolver.archive
+            previous = getattr(self, "_logged_map_cells", None)
+            current = occupied_cells(archive)
+            figure = render_archive_figure(
+                archive,
+                iteration=int(self.epoch),
+                new_cells=(current - previous) if previous is not None else None,
+                stats=metrics,
+            )
+            self._logged_map_cells = current
+            if figure is None:
+                return
+            payload = {"evolve/map": wandb.Image(figure)}
+            hook = getattr(self.evolver, "replay_hook", None)
+            if hook is not None:
+                payload.update(hook.stats.to_wandb("evolve/replay_"))
+            # Which SKILLs the judge is willing to emit at all. A label it never
+            # returns is a cell no child can be archived into, so this bounds
+            # reachable coverage independently of the agreement rate.
+            counts = getattr(self.evolver, "judge_skill_counts", None)
+            if counts:
+                payload.update(
+                    {f"evolve/judge_skill/{k}": v for k, v in counts.items()}
+                )
+            wandb.log(payload, commit=False)
+            try:
+                import matplotlib.pyplot as plt
+
+                plt.close(figure)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     def __len__(self) -> int:
         return len(self.dataset)
 
@@ -420,6 +473,62 @@ class VerlTrainerAdapter:
         if importlib.util.find_spec("verl") is None:
             raise RuntimeError("verl is not installed in this Python environment")
 
+    def _install_replay_hook(self, ctx: dict) -> None:
+        """Serve the solver's training batch from the re-scoring rollouts.
+
+        Without this the trainer samples the policy a second time over prompts
+        the re-scoring already rolled out under the same weights. The hook is
+        installed on the rollout manager instance (no verl edit) and falls
+        through to real generation for anything it cannot serve, so the worst
+        case is the old cost, never a wrong batch.
+        """
+        evolver = ctx.get("evolver")
+        trainer = ctx.get("trainer")
+        if evolver is None or trainer is None:
+            return
+        if not self.rq_config.training_data.replay_training_batch:
+            return
+
+        manager = getattr(trainer, "async_rollout_manager", None)
+        if manager is None:
+            print(
+                "[RQ-Evolve] replay disabled: the trainer exposes no "
+                "async_rollout_manager to wrap",
+                flush=True,
+            )
+            return
+
+        m = int(self.rq_config.evolution.rollouts_per_seed)
+        rollout_n = int(
+            ctx["verl_config"].actor_rollout_ref.rollout.n
+            if "verl_config" in ctx
+            else m
+        )
+        if rollout_n != m:
+            # The trainer repeats each prompt rollout.n times before generating.
+            # If that differs from m the cached group cannot line up row for
+            # row, and every step would silently fall through to generation --
+            # paying the doubled budget the replay exists to remove.
+            raise ValueError(
+                "replay_training_batch requires "
+                f"actor_rollout_ref.rollout.n ({rollout_n}) == "
+                f"evolution.rollouts_per_seed ({m}). Set them equal, or turn "
+                "off training_data.replay_training_batch to keep the separate "
+                "sampling pass."
+            )
+
+        from .replay_hook import ReplayRolloutHook
+
+        hook = ReplayRolloutHook(evolver.replay, rollouts_per_seed=m)
+        if hook.install(manager):
+            self.replay_hook = hook
+            evolver.replay_hook = hook
+            print(
+                f"[RQ-Evolve] replay hook installed (m={m}): the solver update "
+                "reuses the re-scoring rollouts instead of sampling again",
+                flush=True,
+            )
+
     def fit(self) -> None:
         ctx = self._setup()
         if not ctx["static_training"]:
@@ -431,6 +540,7 @@ class VerlTrainerAdapter:
         # Mirror the Solver's GRPO metrics (verl logs them as actor/* , critic/*)
         # under a clean ``solver/*`` namespace alongside ``evolve/*`` metrics.
         _install_solver_metric_alias()
+        self._install_replay_hook(ctx)
 
         ctx["trainer"].fit()
 
@@ -708,7 +818,7 @@ class VerlTrainerAdapter:
         # Backend is now bound to the worker group -> solver rollouts work.
         # Resume the archive if a snapshot exists; otherwise bootstrap by
         # evaluating EVERY seed with the live solver. Real R_Q gives each seed a
-        # real h_score, so seeds spread across H bins (instead of collapsing into
+        # real u_score, so seeds spread across H bins (instead of collapsing into
         # one placeholder bin) and the dataset is refreshed before epoch 0.
         resumed = False
         try:
@@ -1129,7 +1239,7 @@ class VerlTrainerAdapter:
 
         MUST be called AFTER backend.bind(trainer): evaluate_instance runs a
         solver rollout, which needs the worker group. Real R_Q gives each seed a
-        real h_score, which decides who holds a cell -- H is no longer a grid
+        real u_score, which decides who holds a cell -- H is no longer a grid
         coordinate, so a placeholder score would silently hand cells to whoever
         was inserted first. Seeds still compete per niche, so two seeds sharing
         a (GROUP, SKILL) cell keep only the higher-R_Q one — a MAP-Elites
@@ -1147,7 +1257,7 @@ class VerlTrainerAdapter:
         # update_weights. The training loop and the evolve phase push their own
         # weights, but bootstrap is a third generation site: push the live actor
         # weights ONCE here so the solver rollouts use the real policy. Without
-        # this every seed scores ~random -> p_hat 0 -> empty training dataset.
+        # this every seed scores ~random -> s_hat 0 -> empty training dataset.
         # (Previously begin_session pushed per session; that was removed when the
         # resident model made per-session pushes redundant -- but bootstrap still
         # needs the initial sync.)
@@ -1159,8 +1269,17 @@ class VerlTrainerAdapter:
             if inst is None:
                 print(f"[RQ-Evolve] seed rejected after load: {program.program_id} {reason}")
                 continue
-            # Real R_Q via solver rollout; sets program.p_hat / h_score / rq_score.
-            result = evolver.evaluate_instance(program, inst)
+            # Real R_Q via solver rollout over n fresh seeds x m rollouts;
+            # sets program.s_hat / u_score / rq_score.
+            # store_replay: bootstrap rollouts come from theta_0, which is
+            # exactly the weights the first update starts from, so they are a
+            # valid on-policy warm-up batch. Without them refresh_dataset has
+            # nothing to build from and the run dies on an empty dataset.
+            result = evolver.evaluate_programs([program], store_replay=True)[0]
+            if result is not None:
+                # Bootstrap is iteration -1: without a lagged score the seeds
+                # would all be ineligible at t=0 and the first batch empty.
+                evolver.lagged.record(program.program_id, -1, result.rq_score)
             if result is None:
                 print(
                     f"[RQ-Evolve] seed eval failed (all rollouts rejected): "
@@ -1169,15 +1288,14 @@ class VerlTrainerAdapter:
                 continue
             if evolver.archive.try_insert(
                 program=program,
-                h_value=result.uncertainty,
-                problem_text=inst.problem,
+                u_value=result.u_score,
                 rq_score=result.rq_score,
             ):
                 inserted += 1
             else:
                 print(
                     f"[RQ-Evolve] seed not inserted (niche conflict / gate): "
-                    f"{program.program_id} p_hat={result.p_hat:.2f} h={result.uncertainty:.3f}"
+                    f"{program.program_id} s_hat={result.s_hat:.2f} h={result.u_score:.3f}"
                 )
         print(
             f"[RQ-Evolve] bootstrapped {inserted}/{len(seeds)} seeds with real R_Q; "
@@ -1185,7 +1303,9 @@ class VerlTrainerAdapter:
             f"{evolver.archive.n_group_bins}x{evolver.archive.n_skill_bins} "
             f"GROUP x SKILL grid"
         )
-        evolver.refresh_dataset()
+        # warmup: the seed scores were taken at bootstrap, so there is no
+        # earlier iteration to lag against. Every later refresh is lagged.
+        evolver.refresh_dataset(warmup=True)
         if len(evolver.dataset.snapshot()) == 0:
             raise RuntimeError("bootstrap archive produced an empty training dataset")
 

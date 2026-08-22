@@ -1,14 +1,26 @@
+"""The mutation prompt and the judge contract.
+
+The operator pair is gone. Nothing in the mutation prompt names a target GROUP
+or SKILL any more, so these tests check the opposite of what they used to: that
+the child is handed both full vocabularies and no instruction about where to
+land, and that the judge is handed the visible problem and nothing else.
+"""
+
 import pytest
 
 from rq_evolve.concepts import GROUPS, SKILLS
 from rq_evolve.program import ProblemProgram
 from rq_evolve.prompts import (
+    MUTATION_OP,
     _render_template,
     _template_context,
     build_fix_task,
+    build_judge_messages,
     build_mutation_task,
+    judge_accepts,
+    judge_system_prompt,
     mutation_system_prompt,
-    parse_evaluator_verdict,
+    parse_judge_verdict,
 )
 
 
@@ -25,176 +37,185 @@ SKILL = "{skill}"
     )
 
 
-def _conversation(task) -> str:
-    return "\n".join(message["content"] for message in task.messages)
+def _user(parent) -> str:
+    return build_mutation_task(parent).messages[-1]["content"]
 
 
-def _offered(parent, key: str) -> set[str]:
-    """The choice list the template substitutes for the moving axis.
+# --- the mutation prompt ---------------------------------------------------
 
-    Read from the substitution context, not by parsing the rendered sentence:
-    the instruction line also names the parent's own value ("different from
-    ...") so any text scan would see it as offered. Reading the context also
-    survives rewording, which these prompts are actively going through.
+
+def test_the_child_may_read_every_label_it_may_choose():
+    """A label the model can pick but not read a definition for is unfalsifiable.
+
+    With no axis held fixed there is nothing to withhold: the retired operators
+    each dropped the vocabulary of the axis they pinned, on the reasoning that
+    the parent was a worked instance of it.
     """
-    return {v.strip() for v in _template_context("in_depth", parent)[key].split(",")}
-
-
-# --- system prompt ---------------------------------------------------------
-
-
-def test_each_operator_defines_the_axis_it_must_cross_blind():
-    """The held axis has the parent as an instance; the moved axis has nothing.
-
-    in_depth keeps GROUP and moves SKILL, so it carries the SKILL definitions;
-    in_breadth is the mirror. A label the model can pick but not read a
-    definition for is unfalsifiable.
-    """
-    parent = _program("algebra", "transformation")
-
-    a = build_mutation_task("in_depth", parent).messages[-1]["content"]
-    for skill in SKILLS:
-        assert f"- {skill}:" in a, skill
-    assert "- number_theory:" not in a, "in_depth holds GROUP; it has the parent"
-
-    b = build_mutation_task("in_breadth", parent).messages[-1]["content"]
+    user = _user(_program("algebra", "transformation"))
     for group in GROUPS:
-        assert f"- {group}:" in b, group
-    assert "- casework:" not in b, "in_breadth holds SKILL; it has the parent"
-
-
-def test_the_definitions_have_one_source_shared_with_the_evaluator():
-    """Two copies drift; the evaluator must judge against the text the
-    mutation was written from."""
-    from rq_evolve.prompts import skill_definition
-
-    parent = _program("algebra", "transformation")
-    a = build_mutation_task("in_depth", parent).messages[-1]["content"]
+        assert f"{group}:" in user, group
     for skill in SKILLS:
-        assert skill_definition(skill) in a, skill
+        assert f"{skill}:" in user, skill
 
 
-def test_system_prompt_declares_both_axis_vocabularies():
-    system = mutation_system_prompt()
-    for group in GROUPS:
-        assert group in system, group
-    assert "independent" in system
-
-
-def test_system_prompt_teaches_the_self_check_rather_than_demanding_it():
-    """The assert is the only mechanical problem-text/answer agreement check."""
-    system = mutation_system_prompt()
-    assert "assert answer == check" in system
-    assert "recomputed from the words of problem_text" in system
-    assert 'GROUP = "<one of the GROUP vocabulary>"' in system
-    assert 'SKILL = "<one of the SKILL vocabulary>"' in system
-
-
-def test_system_prompt_no_longer_teaches_the_retry_loop_strategy():
-    """Seeds curate their parameter pools; they never reject-and-resample.
-
-    Demanding MAX_ATTEMPTS while every in-context parent omits it produced 0/8
-    compliance -- the parent, not the instruction list, is what an 8B base model
-    imitates.
-    """
-    system = mutation_system_prompt()
-    assert "MAX_ATTEMPTS" not in system
-    assert "continue" not in system
-
-
-def test_system_prompt_no_longer_asks_for_the_retired_labels():
-    system = mutation_system_prompt()
-    assert "CONCEPT_TYPE" not in system
-    assert "CONCEPT_REASON" not in system
-
-
-# --- operator A: same GROUP, different SKILL -------------------------------
-
-
-def test_in_depth_holds_group_and_offers_every_other_skill():
-    parent = _program("algebra", "transformation")
-    user = build_mutation_task("in_depth", parent).messages[-1]["content"]
-
-    assert 'GROUP = "algebra"' in user, "the held axis is named explicitly"
-    offered = _offered(parent, "allowed_skills")
-    assert offered == set(SKILLS) - {"transformation"}, offered
-
-
-# --- operator B: same SKILL, different GROUP -------------------------------
-
-
-def test_in_breadth_holds_skill_and_offers_every_other_group():
-    parent = _program("algebra", "induction")
-    user = build_mutation_task("in_breadth", parent).messages[-1]["content"]
-
-    assert 'SKILL = "induction"' in user, "the held axis is named explicitly"
-    offered = _offered(parent, "allowed_groups")
-    assert offered == set(GROUPS) - {"algebra"}, offered
-
-
-# --- shared rendering rules ------------------------------------------------
-
-
-def test_parent_source_is_inlined_and_shots_are_omitted():
+def test_the_definitions_have_one_source_on_disk():
     parent = _program()
-    for op in ("in_depth", "in_breadth"):
-        user = build_mutation_task(op, parent).messages[-1]["content"]
-        assert "def generate(seed)" in user
-        assert "$few_shot_examples" not in user
-        assert "Few-shot examples:" not in user
+    context = _template_context(parent)
+    for group in GROUPS:
+        assert f"{group}:" in context["allowed_groups"]
+    for skill in SKILLS:
+        assert f"{skill}:" in context["allowed_skills"]
+
+
+def test_the_parent_labels_travel_but_no_target_is_named():
+    """The parent is context. Ordering a label change is what caused the drift.
+
+    Demanding "now produce SKILL=invariant" made the label a target the child
+    was written to satisfy, so the archived coordinates stopped describing the
+    problem. The prompt states where the parent sits and asks for mathematical
+    distinctness instead.
+    """
+    user = _user(_program("geometry", "extremal_principle"))
+    assert 'GROUP="geometry"' in user and 'SKILL="extremal_principle"' in user
+    # The whole vocabulary is offered, so no single cell is being demanded --
+    # asserted on the content rather than on a sentence, because the wording of
+    # these prompts is actively being tuned.
+    for skill in SKILLS:
+        assert f"{skill}:" in user, skill
+    assert "read its GROUP and SKILL off the" in user
+
+
+def test_the_parent_source_is_inlined():
+    parent = _program()
+    assert "def generate(seed):" in _user(parent)
+
+
+def test_the_task_carries_the_single_operator():
+    task = build_mutation_task(_program())
+    assert task.op == MUTATION_OP == "mutate"
+    assert [m["role"] for m in task.messages] == ["system", "user"]
+
+
+def test_the_system_prompt_is_read_from_disk_verbatim():
+    """Verbatim really means verbatim: compare against the file, not a phrase."""
+    from pathlib import Path
+
+    from rq_evolve.prompts import MUTATION_SYSTEM_PROMPT_FILE, PROMPT_TEMPLATE_DIR
+
+    on_disk = (PROMPT_TEMPLATE_DIR / MUTATION_SYSTEM_PROMPT_FILE).read_text().strip()
+    assert mutation_system_prompt() == on_disk
+    assert "$" not in on_disk, "the system turn is not templated"
+
+
+def test_the_system_prompt_carries_the_shape_the_linter_enforces():
+    """Two thirds of rejected children died on the assert contract or on the
+    module shape. The prompt states both as code, not only as prose."""
+    text = mutation_system_prompt()
+    assert "def generate(seed):" in text
+    assert "GROUP = " in text and "SKILL = " in text
+    assert "assert answer == check" in text
+
+
+# --- template rendering ----------------------------------------------------
 
 
 def test_no_placeholder_survives_into_a_rendered_prompt():
-    parent = _program()
-    for op in ("in_depth", "in_breadth"):
-        conversation = _conversation(build_mutation_task(op, parent))
-        for name in (
-            "$parent_group",
-            "$parent_skill",
-            "$allowed_skills",
-            "$allowed_groups",
-            "$parent_source",
-            "$parent_p_hat",
-        ):
-            assert name not in conversation, (op, name)
+    for group, skill in (("algebra", "counting"), ("geometry", "induction")):
+        task = build_mutation_task(_program(group, skill))
+        for message in task.messages:
+            assert "$" not in message["content"], message["content"][:200]
 
 
 def test_an_unsupplied_placeholder_is_an_error_not_a_silent_passthrough():
-    """A literal `$parent_skill` in the prompt reads as a plausible instruction."""
+    """safe_substitute would ship a literal $parent_skill that reads as prose."""
     with pytest.raises(KeyError, match="parent_skill"):
-        _render_template("hold $parent_group, move $parent_skill", {"parent_group": "algebra"})
+        _render_template("use $parent_skill here", {"parent_group": "algebra"})
 
 
 def test_a_dollar_sign_from_substituted_content_is_not_flagged():
-    assert _render_template("$parent_source", {"parent_source": "cost = $5"}) == "cost = $5"
+    rendered = _render_template("$parent_source", {"parent_source": "cost = $5"})
+    assert rendered == "cost = $5"
+
+
+# --- the self-fix conversation ---------------------------------------------
 
 
 def test_fix_task_replays_the_original_conversation():
-    parent = _program()
-    task = build_mutation_task("in_depth", parent)
-    fix_task = build_fix_task(task, "bad code", "missing SKILL")
+    task = build_mutation_task(_program())
+    fix = build_fix_task(task, "```python\nbroken\n```", "execute failed at seed=0")
 
-    assert [m["role"] for m in fix_task.messages] == [
-        "system",
-        "user",
-        "assistant",
-        "user",
-    ]
-    assert fix_task.messages[0]["content"] == task.messages[0]["content"]
-    assert fix_task.messages[1]["content"] == task.messages[-1]["content"]
-    assert fix_task.messages[2]["content"] == "bad code"
-    assert "missing SKILL" in fix_task.messages[3]["content"]
-    assert fix_task.op == task.op
+    roles = [m["role"] for m in fix.messages]
+    assert roles == ["system", "user", "assistant", "user"]
+    assert fix.messages[1]["content"] == task.messages[-1]["content"]
+    assert "broken" in fix.messages[2]["content"]
+    assert "execute failed at seed=0" in fix.messages[3]["content"]
+    assert fix.op == task.op
 
 
-def test_evaluator_verdict_passes_only_on_explicit_valid():
-    valid, reason = parse_evaluator_verdict("reason: coherent\nverdict: VALID")
-    assert valid is True, reason
+# --- the judge -------------------------------------------------------------
 
-    for output in (
-        "reason: contradictory conditions\nverdict: INVALID",
-        "reason: unclear",
-        "",
-    ):
-        valid, _ = parse_evaluator_verdict(output)
-        assert valid is False, output
+
+def test_the_judge_sees_the_problem_and_answer_and_nothing_else():
+    messages = build_judge_messages("How many divisors does 5040 have?", "60")
+    user = messages[1]["content"]
+    assert "How many divisors does 5040 have?" in user
+    assert "60" in user
+    assert "$" not in user
+    assert messages[0]["content"] == judge_system_prompt()
+
+
+def test_the_judge_rubric_names_both_vocabularies_and_the_output_contract():
+    rubric = judge_system_prompt()
+    for label in (*GROUPS, *SKILLS):
+        assert label in rubric, label
+    for field in ("GROUP:", "GROUP_EVIDENCE:", "SKILL:", "SKILL_WITNESS:",
+                  "CLOSEST_ALTERNATIVE:", "WHY_NOT_ALTERNATIVE:", "FAILURE_REASON:"):
+        assert field in rubric, field
+
+
+def test_a_well_formed_verdict_parses_into_its_seven_fields():
+    verdict = parse_judge_verdict(
+        "GROUP: number_theory\n"
+        "GROUP_EVIDENCE: congruences decide membership\n"
+        "SKILL: casework\n"
+        "SKILL_WITNESS: three residue regimes argued differently\n"
+        "CLOSEST_ALTERNATIVE: counting\n"
+        "WHY_NOT_ALTERNATIVE: no structural counting principle appears\n"
+        "FAILURE_REASON: none"
+    )
+    assert verdict.group == "number_theory" and verdict.skill == "casework"
+    assert "congruences" in verdict.group_evidence
+    assert "residue" in verdict.skill_witness
+    assert verdict.closest_alternative == "counting"
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "**GROUP:** number_theory\n**SKILL:** casework",
+        "- GROUP : number_theory\n- SKILL : casework",
+        "GROUP: `number_theory`\nSKILL: `casework`",
+        "GROUP: Number_Theory\nSKILL: CASEWORK",
+    ],
+)
+def test_label_decoration_does_not_decide_the_verdict(reply):
+    """A base model decorates the field name far more often than it misjudges."""
+    verdict = parse_judge_verdict(reply)
+    assert judge_accepts(verdict, "number_theory", "casework")[0] is True
+
+
+@pytest.mark.parametrize(
+    "reply",
+    ["GROUP: numbertheory\nSKILL: casework", "GROUP: number_theory\nSKILL: case work",
+     "GROUP: none\nSKILL: casework", "", "no idea"],
+)
+def test_leniency_on_labels_does_not_loosen_the_values(reply):
+    verdict = parse_judge_verdict(reply)
+    assert judge_accepts(verdict, "number_theory", "casework")[0] is False
+
+
+def test_both_axes_must_agree():
+    good = parse_judge_verdict("GROUP: algebra\nSKILL: invariant")
+    assert judge_accepts(good, "algebra", "invariant")[0] is True
+    assert judge_accepts(good, "algebra", "counting")[0] is False
+    assert judge_accepts(good, "geometry", "invariant")[0] is False

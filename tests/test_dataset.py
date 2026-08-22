@@ -6,15 +6,15 @@ def _program(
     label: str,
     *,
     rq_score: float,
-    p_hat: float = 0.5,
-    h_score: float = 0.1,
+    s_hat: float = 0.5,
+    u_score: float = 0.1,
     group_bin: int = 0,
     skill_bin: int = 0,
 ) -> ProblemProgram:
     return ProblemProgram(
         program_id=label,
-        p_hat=p_hat,
-        h_score=h_score,
+        s_hat=s_hat,
+        u_score=u_score,
         rq_score=rq_score,
         niche_group=group_bin,
         niche_skill=skill_bin,
@@ -35,7 +35,7 @@ def test_training_examples_prioritize_global_rq_when_budget_binds():
         [low_rq_high_h, high_rq_low_h, mid_rq],
         instances_per_program=2,
         training_budget=3,
-        frontier_p_hat_range=(0.0, 1.0),
+        frontier_s_hat_range=(0.0, 1.0),
         used_seeds={},
         strict_anti_reuse=True,
     )

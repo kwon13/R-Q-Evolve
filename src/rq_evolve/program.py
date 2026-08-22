@@ -126,10 +126,12 @@ class ProblemProgram:
     program_id: str = ""
     parent_id: str = ""
     generation: int = 0
-    p_hat: float = 0.0
-    h_score: float = 0.0
+    # Paper notation: s = success rate, U = uncertainty, R_Q = s(1-s)U.
+    # There is no separate `fitness`: it held a byte-for-byte copy of rq_score
+    # and nothing ever read it to decide anything.
+    s_hat: float = 0.0
+    u_score: float = 0.0
     rq_score: float = 0.0
-    fitness: float = 0.0
     # Grid coordinate on the GROUP x SKILL archive. Both are derived from the
     # program's own labels, so they are a cache of program_to_cell, never an
     # independent fact.
@@ -216,9 +218,8 @@ class ProblemProgram:
         """LEGACY. The retired CONCEPT_TYPE label; None on a GROUP/SKILL program.
 
         NOT a stand-in for SKILL. Any comparison of two such programs' concept
-        types now compares None with None and always succeeds -- see
-        ``RQEvolver._validate_mutation_contract``, whose in-depth clause is
-        inert until it is redefined against SKILL.
+        types compares None with None and always succeeds, so it can never be
+        the thing that decides a label question.
         """
         return self._top_level_string_constant("CONCEPT_TYPE")
 
@@ -259,28 +260,40 @@ class ProblemProgram:
             "program_id": self.program_id,
             "parent_id": self.parent_id,
             "generation": self.generation,
-            "p_hat": self.p_hat,
-            "h_score": self.h_score,
+            "s_hat": self.s_hat,
+            "u_score": self.u_score,
             "rq_score": self.rq_score,
-            "fitness": self.fitness,
             "niche_group": self.niche_group,
             "niche_skill": self.niche_skill,
             "last_reeval_step": self.last_reeval_step,
             "metadata": self.metadata,
         }
 
+    # Wire keys written before the notation was aligned with the paper. Every
+    # archive.json on disk -- including the completed 4B/8B runs kept under
+    # analysis/ -- spells these the old way, and a resume that silently reset a
+    # champion's score to 0.0 would be worse than one that crashed.
+    _LEGACY_KEYS = {"p_hat": "s_hat", "h_score": "u_score"}
+
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "ProblemProgram":
         """Rebuild from :meth:`to_dict`, ignoring fields this version dropped.
 
         Snapshots outlive schema changes: a pre-migration archive still carries
-        ``niche_h``/``niche_div`` from the retired H axis. Those coordinates are
-        meaningless on a GROUP x SKILL grid, and the archive re-derives the cell
-        from the labels anyway, so unknown keys are skipped rather than raising
-        and taking the whole resume down.
+        ``niche_h``/``niche_div`` from the retired H axis, and ``fitness`` from
+        back when R_Q was stored twice. Those are meaningless now and the
+        archive re-derives the cell from the labels anyway, so unknown keys are
+        skipped rather than raising and taking the whole resume down. The two
+        keys that were RENAMED rather than dropped are mapped, not skipped.
         """
         known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in payload.items() if k in known})
+        resolved: dict[str, Any] = {}
+        for key, value in payload.items():
+            name = cls._LEGACY_KEYS.get(key, key)
+            # An explicit new-style key always wins over its legacy spelling.
+            if name in known and name not in payload or name == key:
+                resolved[name] = value
+        return cls(**{k: v for k, v in resolved.items() if k in known})
 
     def save(self, path: str | Path) -> None:
         Path(path).write_text(

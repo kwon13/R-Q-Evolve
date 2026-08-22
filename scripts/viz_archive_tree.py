@@ -8,7 +8,7 @@ got displaced at 13 exists only in the earlier snapshots. This script unions
 every snapshot, reconnects ``parent_id -> program_id`` into a forest rooted at
 the seed programs, and renders it.
 
-Because ``p_hat`` is re-estimated as the solver improves, each node carries a
+Because ``s_hat`` is re-estimated as the solver improves, each node carries a
 per-iteration trajectory rather than one number; the terminal view compresses it
 into a sparkline and the HTML view shows the full series.
 
@@ -39,12 +39,20 @@ SPARK_CHARS = "▁▂▃▄▅▆▇█"
 # Seeds carry no ``op`` in metadata; generated children carry the operator that
 # produced them.
 OP_SEED = "seed"
+# "mutate" is the current single operator; in_depth/in_breadth are the retired
+# pair and stay here so archives written before the switch still render.
 OP_COLORS = {
     OP_SEED: "\033[37m",
+    "mutate": "\033[36m",
     "in_depth": "\033[36m",
     "in_breadth": "\033[35m",
 }
-OP_SHORT = {OP_SEED: "seed", "in_depth": "depth", "in_breadth": "breadth"}
+OP_SHORT = {
+    OP_SEED: "seed",
+    "mutate": "mut",
+    "in_depth": "depth",
+    "in_breadth": "breadth",
+}
 
 RESET = "\033[0m"
 DIM = "\033[2m"
@@ -71,7 +79,7 @@ class Node:
     niche_h: int = -1    # new snapshots: the GROUP coordinate
     niche_div: int = -1  # new snapshots: the SKILL coordinate
     source_code: str = ""
-    # (iteration, p_hat, rq_score, h_score), one entry per snapshot it survived.
+    # (iteration, s_hat, rq_score, u_score), one entry per snapshot it survived.
     history: list[tuple[int, float, float, float]] = field(default_factory=list)
     alive: bool = False  # still a champion in the final archive.json
     orphan: bool = False  # parent_id set but that parent never appears
@@ -101,7 +109,7 @@ class Node:
         return len(self.history)
 
     @property
-    def p_hat(self) -> float:
+    def s_hat(self) -> float:
         return self.history[-1][1] if self.history else 0.0
 
     @property
@@ -113,7 +121,7 @@ class Node:
         return max((h[2] for h in self.history), default=0.0)
 
     def sparkline(self) -> str:
-        """p_hat over time; the axis MAP-Elites is actually selecting on."""
+        """s over time; the axis MAP-Elites is actually selecting on."""
         return "".join(
             SPARK_CHARS[min(len(SPARK_CHARS) - 1, max(0, int(p * len(SPARK_CHARS))))]
             for _, p, _, _ in self.history
@@ -133,6 +141,23 @@ def _snapshot_paths(archive_dir: Path) -> list[tuple[int, Path]]:
             found.append((int(match.group(1)), path))
     return sorted(found)
 
+
+
+def _champion_s_hat(champion: dict) -> float:
+    """s (success rate) from a snapshot, whichever spelling wrote it.
+
+    Snapshots written before the notation matched the paper say "p_hat"; the
+    completed 4B/8B runs under analysis/ are all of that vintage, and this tool
+    exists to render them.
+    """
+    value = champion.get("s_hat", champion.get("p_hat", 0.0))
+    return float(value or 0.0)
+
+
+def _champion_u_score(champion: dict) -> float:
+    """U (uncertainty) from a snapshot; "h_score" is the legacy spelling."""
+    value = champion.get("u_score", champion.get("h_score", 0.0))
+    return float(value or 0.0)
 
 def _read_champions(path: Path) -> tuple[list[dict], dict]:
     try:
@@ -195,9 +220,9 @@ def load_nodes(archive_dir: Path) -> tuple[dict[str, Node], dict, list[int]]:
             node.history.append(
                 (
                     iteration,
-                    float(champion.get("p_hat", 0.0)),
+                    _champion_s_hat(champion),
                     float(champion.get("rq_score", 0.0)),
-                    float(champion.get("h_score", 0.0)),
+                    _champion_u_score(champion),
                 )
             )
 
@@ -216,9 +241,9 @@ def load_nodes(archive_dir: Path) -> tuple[dict[str, Node], dict, list[int]]:
                 node.history.append(
                     (
                         tail,
-                        float(champion.get("p_hat", 0.0)),
+                        _champion_s_hat(champion),
                         float(champion.get("rq_score", 0.0)),
-                        float(champion.get("h_score", 0.0)),
+                        _champion_u_score(champion),
                     )
                 )
                 nodes[node.program_id] = node
@@ -291,11 +316,11 @@ def render_tree(roots: list[Node], *, color: bool, show_spark: bool) -> str:
     lines: list[str] = []
     header = (
         f"{'lineage':<{width}}  {'gen':>3} {'op':<7} {'concept_group':<14} "
-        f"{'p̂':>5} {'R_Q':>7} {'best':>7} {'niche':>7} {'iters':>10}  "
+        f"{'ŝ':>5} {'R_Q':>7} {'best':>7} {'niche':>7} {'iters':>10}  "
         f"{'concept_type':<34}"
     )
     if show_spark:
-        header += "  p̂ over iterations"
+        header += "  ŝ over iterations"
     lines.append(paint(header, DIM))
     lines.append(paint("─" * min(len(header), 160), DIM))
 
@@ -319,7 +344,7 @@ def render_tree(roots: list[Node], *, color: bool, show_spark: bool) -> str:
         line = (
             f"{tree_cell}  {node.generation:>3} {op_cell} "
             f"{node.concept_group[:14]:<14} "
-            f"{node.p_hat:5.2f} {rq_cell} {node.best_rq:7.4f} "
+            f"{node.s_hat:5.2f} {rq_cell} {node.best_rq:7.4f} "
             f"{f'({node.niche_h},{node.niche_div})':>7} {status:>10}  "
             f"{node_label(node, 'type', 34):<34}"
         )
@@ -411,7 +436,7 @@ def render_summary(
     out.append("")
     out.append(
         paint(
-            "legend  * = alive in final archive   sparkline = p̂ per iteration "
+            "legend  * = alive in final archive   sparkline = ŝ per iteration "
             "(▁ 0.0 → █ 1.0)",
             DIM,
         )
@@ -576,7 +601,7 @@ def _node_html(node: Node, *, root: bool, with_source: bool) -> str:
         f'<span class="badge op-{esc(node.op)}">{esc(OP_SHORT.get(node.op, node.op))}</span>',
         f'<span class="grp">{esc(node.concept_group)}</span>',
         f'<span class="grp">{esc(node.program_id)}</span>',
-        f'<span class="m">p̂ <b>{node.p_hat:.2f}</b></span>',
+        f'<span class="m">ŝ <b>{node.s_hat:.2f}</b></span>',
         f'<span class="m{hot}">R_Q <b>{node.rq:.4f}</b></span>',
         f'<span class="m">gen <b>{node.generation}</b></span>',
         f'<span class="m">iter <b>{esc(span)}</b></span>',
@@ -589,7 +614,7 @@ def _node_html(node: Node, *, root: bool, with_source: bool) -> str:
         f"<dt>lifespan</dt><dd>{node.lifespan} snapshots"
         f"{' (alive)' if node.alive else ' (displaced)'}</dd>",
         f"<dt>best R_Q</dt><dd>{node.best_rq:.4f}</dd>",
-        "<dt>p̂ series</dt><dd>"
+        "<dt>ŝ series</dt><dd>"
         + esc(", ".join(f"{i}:{p:.2f}" for i, p, _, _ in node.history))
         + "</dd>",
         "</dl>",
@@ -657,7 +682,7 @@ def render_html(
 # SVG rendering (drawn node-link tree; no third-party dependency)
 # --------------------------------------------------------------------------
 
-# Sequential blue ramp, light -> dark, used for p_hat magnitude. A single hue is
+# Sequential blue ramp, light -> dark, used for s_hat magnitude. A single hue is
 # the correct encoding for a continuous magnitude; the categorical concept group
 # rides on the text tag instead, so identity is never colour-alone.
 BLUE_RAMP = [
@@ -683,7 +708,7 @@ GROUP_TAG = {
 
 # One marker per CONCEPT_GROUP. Six groups, six shapes, fixed assignment -- the
 # concept group is a categorical identity, so it gets its own channel instead of
-# competing with p_hat for the fill.
+# competing with s_hat for the fill.
 GROUP_SHAPE = {
     "number_theory": "circle",
     "combinatorics": "square",
@@ -815,7 +840,7 @@ def _ramp(theme: str) -> list[str]:
     """Ramp oriented so the low end recedes toward the surface in either mode.
 
     On light, that is light->dark as published. On dark, the published dark end
-    (#0d366b) sits almost on the dark surface, so the whole high-p̂ half of the
+    (#0d366b) sits almost on the dark surface, so the whole high-ŝ half of the
     scale collapses into the background and the encoding stops reading; the
     dark mode therefore steps the same hue in the opposite direction rather
     than flipping the surface only.
@@ -823,9 +848,9 @@ def _ramp(theme: str) -> list[str]:
     return BLUE_RAMP if theme == "light" else BLUE_RAMP[::-1]
 
 
-def _blue(p_hat: float, theme: str = "light") -> str:
+def _blue(s_hat: float, theme: str = "light") -> str:
     ramp = _ramp(theme)
-    idx = int(max(0.0, min(1.0, p_hat)) * (len(ramp) - 1) + 0.5)
+    idx = int(max(0.0, min(1.0, s_hat)) * (len(ramp) - 1) + 0.5)
     return ramp[idx]
 
 
@@ -904,7 +929,7 @@ def render_svg(
     # --- legend row 1: encodings -----------------------------------------
     lx, ly = MARGIN_L, 78
     out.append(f'<g font-size="11" fill="{palette["ink2"]}">')
-    out.append(f'<text x="{lx}" y="{ly + 4}">p̂ (fill)</text>')
+    out.append(f'<text x="{lx}" y="{ly + 4}">ŝ (fill)</text>')
     for i, hexv in enumerate(_ramp(theme)):
         out.append(
             f'<rect x="{lx + 48 + i * 11}" y="{ly - 5}" width="11" height="11" '
@@ -1009,7 +1034,7 @@ def render_svg(
         out.append(
             marker(
                 shape, x, y, r,
-                f' fill="{_blue(node.p_hat, theme)}" stroke="{palette["grid"]}"'
+                f' fill="{_blue(node.s_hat, theme)}" stroke="{palette["grid"]}"'
                 f' stroke-width="1"{opacity}',
             )
         )
@@ -1034,14 +1059,14 @@ def render_svg(
             out.append(f'<g stroke="{palette["ink2"]}" opacity="0.8">{spark}</g>')
         out.append(
             f'<text x="{x + label_dx - 30:.1f}" y="{y + 3.5:.1f}" font-size="9.5" '
-            f'fill="{palette["ink2"]}">{node.p_hat:.2f}</text>'
+            f'fill="{palette["ink2"]}">{node.s_hat:.2f}</text>'
         )
 
     out.append(
         f'<text x="{MARGIN_L}" y="{height - 8}" font-size="10" '
-        f'fill="{palette["ink2"]}">R_Q = p̂(1-p̂)·H peaks at p̂ = 0.5 — the '
+        f'fill="{palette["ink2"]}">R_Q = ŝ(1-ŝ)·U peaks at ŝ = 0.5 — the '
         f"darkest and lightest fills are both dead niches. Label = CONCEPT_TYPE "
-        f"with its group prefix dropped; sparkline = p̂ per iteration while the "
+        f"with its group prefix dropped; sparkline = ŝ per iteration while the "
         f"program held its niche. Only archived champions appear; program_id is a "
         f"source hash, so re-derivations from other parents collapse onto one "
 f"node.</text>"
@@ -1175,7 +1200,7 @@ def render_png(
 
     # --- legend row 1: encodings -----------------------------------------
     ly = px(78)
-    draw.text((px(MARGIN_L), ly - px(6)), "p̂ (fill)", font=f_small,
+    draw.text((px(MARGIN_L), ly - px(6)), "ŝ (fill)", font=f_small,
               fill=palette["ink2"])
     for i, hexv in enumerate(_ramp(theme)):
         x0 = px(MARGIN_L + 48 + i * 11)
@@ -1277,7 +1302,7 @@ def render_png(
         x, y = cx(node), cy(node)
         r = _radius(node.best_rq, scale)
         shape = GROUP_SHAPE.get(node.concept_group, "circle")
-        marker(shape, x, y, px(r), fill=_blue(node.p_hat, theme),
+        marker(shape, x, y, px(r), fill=_blue(node.s_hat, theme),
                outline=palette["grid"], w=max(1, s))
         if node.alive:
             h = px(_outer_radius(shape, r) + 3.2)
@@ -1300,14 +1325,14 @@ def render_png(
                 ],
                 fill=palette["ink2"], width=max(1, s),
             )
-        draw.text((x + px(label_dx - 30), y - px(6)), f"{node.p_hat:.2f}",
+        draw.text((x + px(label_dx - 30), y - px(6)), f"{node.s_hat:.2f}",
                   font=f_label, fill=palette["ink2"])
 
     draw.text(
         (px(MARGIN_L), px(height - 18)),
-        "R_Q = p̂(1-p̂)·H peaks at p̂ = 0.5 — the darkest and lightest fills are "
+        "R_Q = ŝ(1-ŝ)·U peaks at ŝ = 0.5 — the darkest and lightest fills are "
         "both dead niches. Label = CONCEPT_TYPE with its group prefix dropped; "
-        "sparkline = p̂ per iteration while the program held its niche. Only "
+        "sparkline = ŝ per iteration while the program held its niche. Only "
         "archived champions appear; program_id is a source hash, so "
         "re-derivations from other parents collapse onto one node.",
         font=f_label, fill=palette["ink2"],
@@ -1598,7 +1623,7 @@ def draw_convergence(
             )
             canvas.marker(
                 GROUP_SHAPE.get(parent.concept_group, "circle"),
-                CONV_SRC_X + 12, y, 4.0, _blue(parent.p_hat, _theme_of(palette)),
+                CONV_SRC_X + 12, y, 4.0, _blue(parent.s_hat, _theme_of(palette)),
                 outline=palette["grid"],
             )
             y += CONV_ROW_H
@@ -1623,7 +1648,7 @@ def draw_convergence(
         shape = GROUP_SHAPE.get(target.concept_group, "circle")
         canvas.marker(
             shape, CONV_DST_X, block_mid, r,
-            _blue(target.p_hat, _theme_of(palette)), outline=palette["grid"],
+            _blue(target.s_hat, _theme_of(palette)), outline=palette["grid"],
         )
         if target.alive:
             canvas.ring(CONV_DST_X, block_mid, _outer_radius(shape, r) + 3.2,
@@ -1667,7 +1692,7 @@ def draw_convergence(
                 continue
             canvas.marker(
                 GROUP_SHAPE.get(node.concept_group, "circle"), x, y, 4.0,
-                _blue(node.p_hat, _theme_of(palette)), outline=palette["grid"],
+                _blue(node.s_hat, _theme_of(palette)), outline=palette["grid"],
             )
             label = node_label(node, "type", 26)
             canvas.text(x + 10, y + 3.5, label, size=9.5, fill=palette["ink"])
@@ -1682,7 +1707,7 @@ def draw_convergence(
     canvas.text(
         34, canvas.height - 10,
         "Orange = an edge that participates in a cycle. Marker shape = "
-        "CONCEPT_GROUP, fill = p̂, ring = alive in the final archive.",
+        "CONCEPT_GROUP, fill = ŝ, ring = alive in the final archive.",
         size=10, fill=palette["ink2"],
     )
 
@@ -1779,7 +1804,7 @@ def main() -> None:
         "--sort", choices=("iter", "rq", "id", "group"), default="iter",
         help="sibling ordering (default: iter = discovery order)",
     )
-    parser.add_argument("--no-spark", action="store_true", help="hide the p̂ sparkline")
+    parser.add_argument("--no-spark", action="store_true", help="hide the ŝ sparkline")
     parser.add_argument(
         "--quiet", action="store_true",
         help="with --svg, skip the terminal tree and print only the output path",

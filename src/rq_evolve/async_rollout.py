@@ -19,7 +19,7 @@ Bounds: ``max_in_flight_chunks`` (engine backpressure), ``queue_maxsize``
 ``request_timeout_s`` + ``max_retries`` (no chunk waits forever; failures are
 explicit records, never silent drops).
 
-The entropy (uncertainty) pass is NOT streamed: it is an FSDP actor forward on
+The entropy (u_score) pass is NOT streamed: it is an FSDP actor forward on
 the same GPUs vLLM occupies, so it runs once, batched, after the last chunk
 drains -- identical memory profile to the legacy path (see
 ``VerlPolicyBackend.finalize_rollouts``).
@@ -74,6 +74,11 @@ class ChunkResult:
     # batch.repeat(n).union(output) for the deferred entropy pass; None for
     # failed chunks (their records are rejected and get entropy 0.0).
     full_batch: Any = None
+    # The RAW generation output, kept separate from full_batch. Replay hands
+    # this back to the trainer in place of a second sampling pass, and it must
+    # be the generation side only: full_batch already carries the prompt-side
+    # keys, which the trainer unions in itself.
+    output: Any = None
 
 
 class RayAgentLoopTransport:
@@ -416,7 +421,9 @@ class ChunkedRolloutScheduler:
         full_batch = None
         if job.batch is not None and responses is not None:
             full_batch = job.batch.repeat(repeat_times=n, interleave=True).union(output)
-        return ChunkResult(job=job, grouped=grouped, full_batch=full_batch)
+        return ChunkResult(
+            job=job, grouped=grouped, full_batch=full_batch, output=output
+        )
 
     def _consume_failure(
         self, job: ChunkJob, failure: ChunkFailure, latency_s: float, ts_end_wall: float

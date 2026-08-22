@@ -28,13 +28,43 @@ ARM_LABELS = {
     "novar": "Without variance",
 }
 
+# Okabe-Ito, matching build_separate_detailed_evolution_figures.py so this figure
+# sits next to the others in the paper without a palette change.
 ARM_COLORS = {
-    "full": "#2ca02c",
-    "flat": "#ff7f0e",
-    "noreeval": "#1f77b4",
-    "nounc": "#d62728",
-    "novar": "#9467bd",
+    "full": "#009E73",
+    "flat": "#E69F00",
+    "noreeval": "#0072B2",
+    "nounc": "#D55E00",
+    "novar": "#CC79A7",
 }
+
+C_TEXT = "#20242A"
+C_MUTED = "#65758B"
+C_GRID = "#D5DBE3"
+C_BAR_HIGHLIGHT = "#0072B2"
+C_BAR_PLAIN = "#B9C0CA"
+C_BASELINE = "#B7791F"
+
+
+def configure_style() -> None:
+    """The paper's shared rcParams (see build_separate_detailed_evolution_figures)."""
+    import matplotlib as mpl
+
+    mpl.rcParams.update(
+        {
+            "font.family": "DejaVu Sans",
+            "font.size": 9,
+            "axes.titlesize": 10,
+            "axes.labelsize": 9,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            "axes.linewidth": 0.75,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
+            "savefig.facecolor": "white",
+            "figure.facecolor": "white",
+        }
+    )
 
 # One entry per figure column pair: the line panel's title and draw order, the
 # bar panel's order, and that bar panel's tick labels. "full" is named
@@ -44,20 +74,16 @@ ARM_COLORS = {
 # the three 8B runs.
 PANELS = (
     (
-        "Ablation: Archive Structure & Reevaluation",
+        "Archive structure",
         ("noreeval", "flat", "full"),
         ("full", "flat", "noreeval"),
-        {"full": "Full", "flat": "Flat\narchive", "noreeval": "w/o reeval."},
+        {"full": "Full", "flat": "Flat", "noreeval": "w/o re-eval"},
     ),
     (
-        "Ablation: R_Q Score Components",
+        "$R_Q$ components",
         ("nounc", "novar", "full"),
         ("full", "nounc", "novar"),
-        {
-            "full": "Full $R_Q$\n($L \\times U$)",
-            "nounc": "$L$ only\n($U = 1$)",
-            "novar": "$U$ only\n($L = 1$)",
-        },
+        {"full": "Full", "nounc": "$L$ only", "novar": "$U$ only"},
     ),
 )
 
@@ -223,6 +249,8 @@ def plot(args: argparse.Namespace) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    configure_style()
+
     run_root = args.run_root.expanduser().resolve()
     output_dir = args.output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -286,19 +314,22 @@ def plot(args: argparse.Namespace) -> None:
             f"arms {arms} do not fill any panel; each panel needs all of "
             + " or ".join(str(list(entry[1])) for entry in PANELS)
         )
-    panels = [(title, list(line_arms)) for title, line_arms, _, _ in active]
+    suffix = f" ({args.size_label})" if args.size_label else ""
+    panels = [(title + suffix, list(line_arms)) for title, line_arms, _, _ in active]
     bar_panels = [list(bar_arms) for _, _, bar_arms, _ in active]
     bar_labels = [[ticks[key] for key in bar_arms] for _, _, bar_arms, ticks in active]
 
     all_values = [value for values in series.values() for value in values.values()]
     lower = max(0.0, min(all_values) - 1.3)
     upper = min(100.0, max(all_values) + 1.8)
-    fig = plt.figure(figsize=(12.5 * len(active), 7.6))
+    # Sized for \includegraphics[width=\textwidth] at the paper's 9 pt base font,
+    # not for viewing at 100%.
+    fig = plt.figure(figsize=(3.9 * len(active), 2.9))
     grid = fig.add_gridspec(
         1,
         2 * len(active),
-        width_ratios=[3.0, 1.25] * len(active),
-        wspace=0.30,
+        width_ratios=[3.0, 1.45] * len(active),
+        wspace=0.46,
     )
     axes = [fig.add_subplot(grid[0, 2 * i]) for i in range(len(active))]
     for ax in axes[1:]:
@@ -308,7 +339,7 @@ def plot(args: argparse.Namespace) -> None:
     for ax, (title, keys) in zip(axes, panels):
         for key in keys:
             values = [series[key][step] for step in steps]
-            linewidth = 3.3 if key == "full" else 2.8
+            linewidth = 1.8 if key == "full" else 1.4
             zorder = 4 if key == "full" else 3
             ax.step(
                 [*steps, tail_step],
@@ -319,28 +350,40 @@ def plot(args: argparse.Namespace) -> None:
                 label=labels[key],
                 zorder=zorder,
             )
+        # End labels stay INSIDE the axes. At the paper's figure width there is
+        # no margin to the right, so anything placed outside lands on the bar
+        # panel next door. Arms finishing within a hair of each other are pushed
+        # apart from the bottom up.
+        ends = sorted(((series[key][steps[-1]], key) for key in keys))
+        gap = 0.075 * (upper - lower)
+        placed: list[float] = []
+        for value, key in ends:
+            target = value if not placed else max(value, placed[-1] + gap)
+            placed.append(target)
             ax.annotate(
-                f"{values[-1]:.2f}",
-                xy=(tail_step, values[-1]),
-                xytext=(-7, 10 if key == "full" else -15),
+                f"{value:.1f}",
+                xy=(steps[-1], target),
+                xytext=(3, 0),
                 textcoords="offset points",
-                ha="right",
-                va="bottom" if key == "full" else "top",
+                ha="left",
+                va="center",
                 color=colors[key],
-                fontsize=10.5,
+                fontsize=6.5,
                 weight="bold",
+                zorder=6,
+                bbox=dict(boxstyle="square,pad=0.12", facecolor="white",
+                          edgecolor="none", alpha=0.82),
             )
-        ax.set_title(title, fontsize=20, weight="bold", pad=14)
-        ax.set_xlabel("Global Training Step (Saved Models)", fontsize=14, weight="bold")
+        ax.set_title(title, weight="bold", pad=6, color=C_TEXT)
+        ax.set_xlabel("Global training step")
         ax.set_xticks(steps)
         ax.set_xlim(steps[0], tail_step)
         ax.set_ylim(lower, upper)
-        ax.grid(True, linestyle="--", alpha=0.28)
-        ax.legend(loc="lower right", fontsize=11.5, framealpha=0.94)
-        ax.tick_params(labelsize=11.5)
-    axes[0].set_ylabel(
-        "Evolved Performance Score (%)", fontsize=15, weight="bold"
-    )
+        ax.grid(True, linestyle="-", linewidth=0.5, color=C_GRID)
+        ax.legend(loc="lower right", fontsize=7, framealpha=0.95,
+                  borderpad=0.35, handlelength=1.4, labelspacing=0.3)
+        ax.tick_params(colors=C_TEXT)
+    axes[0].set_ylabel("Evolved performance score (%)")
     for ax in axes[1:]:
         ax.tick_params(axis="y", labelleft=False)
 
@@ -356,8 +399,8 @@ def plot(args: argparse.Namespace) -> None:
         ax.bar(
             positions,
             values,
-            color=["#0b7db8", "#929292", "#929292"],
-            width=0.62,
+            color=[C_BAR_HIGHLIGHT] + [C_BAR_PLAIN] * (len(keys) - 1),
+            width=0.66,
             zorder=3,
         )
         ax.scatter(
@@ -375,8 +418,8 @@ def plot(args: argparse.Namespace) -> None:
                 f"{value:.2f}",
                 va="bottom",
                 ha="center",
-                fontsize=11,
-                color="#2b2b2b",
+                fontsize=7,
+                color=C_TEXT,
                 weight="bold",
             )
         ax.axhline(
@@ -393,53 +436,42 @@ def plot(args: argparse.Namespace) -> None:
             transform=ax.get_yaxis_transform(),
             ha="left",
             va="center",
-            fontsize=10.5,
-            color="#b76817",
+            fontsize=6.5,
+            color=C_BASELINE,
             weight="bold",
             clip_on=False,
         )
-        ax.set_xticks(positions, tick_labels)
+        ax.set_xticks(positions, tick_labels, rotation=35, ha="right",
+                      rotation_mode="anchor")
         ax.set_xlim(-0.55, len(keys) - 0.45)
         ax.set_ylim(benchmark_lower, benchmark_upper)
         first_tick = 2 * math.ceil(benchmark_lower / 2)
         ax.set_yticks(list(range(first_tick, int(benchmark_upper) + 1, 2)))
-        ax.set_ylabel("Average Math Score", fontsize=12, weight="bold")
-        ax.set_title(
-            f"Benchmark AVG @ Step {steps[-1]}",
-            fontsize=15,
-            weight="bold",
-            pad=14,
-        )
-        ax.grid(True, axis="y", linestyle=":", alpha=0.35)
+        ax.set_ylabel("Math average (%)")
+        ax.set_title(f"Step {steps[-1]}", pad=6, color=C_TEXT)
+        ax.grid(True, axis="y", linestyle="-", linewidth=0.5, color=C_GRID)
         ax.set_axisbelow(True)
-        ax.tick_params(axis="x", labelsize=9.5)
-        ax.tick_params(axis="y", labelsize=10.5)
+        ax.tick_params(axis="x", labelsize=6.5, colors=C_TEXT, pad=1)
+        ax.tick_params(axis="y", colors=C_TEXT)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-    fig.suptitle(
-        args.suptitle,
-        fontsize=23,
-        weight="bold",
-        y=1.01,
-    )
-    fig.text(
-        0.5,
-        -0.015,
-        (
-            "Standard benchmark AVG: Math500 · GSM8K · AMC23 · AIME24 · "
-            "AIME25 · Minerva Math · OlympiadBench"
-        ),
-        ha="center",
-        fontsize=11,
-        color="#444444",
-    )
+    # Both default to empty: a figure title that restates the caption, and a
+    # footnote listing the benchmarks, are caption material.
+    if args.suptitle:
+        fig.suptitle(args.suptitle, fontsize=21, weight="bold", y=1.01)
+    if args.footnote:
+        fig.text(0.5, -0.015, args.footnote, ha="center", fontsize=10.5,
+                 color="#444444")
+    pdf_path = output_dir / "evolved_performance_ablation_480.pdf"
     png_path = output_dir / "evolved_performance_ablation_480.png"
     svg_path = output_dir / "evolved_performance_ablation_480.svg"
-    fig.savefig(png_path, dpi=180, bbox_inches="tight")
-    fig.savefig(svg_path, bbox_inches="tight")
+    fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0.08)
+    fig.savefig(svg_path, bbox_inches="tight", pad_inches=0.08)
+    fig.savefig(png_path, dpi=450, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
-    print(f"[EPB] wrote {png_path}")
+    print(f"[EPB] wrote {pdf_path}")
     print(f"[EPB] wrote {svg_path}")
+    print(f"[EPB] wrote {png_path}")
     print(f"[EPB] wrote {output_dir / 'ablation_scores.md'}")
 
 
@@ -484,7 +516,19 @@ def build_argparser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--suptitle",
-        default="R-Q-Evolve 4B Ablation on the Fixed 480-Problem Benchmark",
+        default="",
+        help="figure title; empty (the default) leaves it to the caption",
+    )
+    parser.add_argument(
+        "--footnote",
+        default="",
+        help="line under the figure; empty (the default) leaves it to the caption",
+    )
+    parser.add_argument(
+        "--size-label",
+        default="",
+        help="model scale appended to each panel title, e.g. 8B. Without it the "
+        "4B and 8B figures are indistinguishable once the title is dropped",
     )
     for key, default_run in DEFAULT_RUNS.items():
         parser.add_argument(

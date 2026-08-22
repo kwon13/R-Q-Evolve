@@ -479,8 +479,8 @@ class HighRQCandidate:
     global_step: int
     child_id: str
     rq_score: float
-    p_hat: float
-    uncertainty: float
+    s_hat: float
+    u_score: float
     op: str
     source_code: str | None
 
@@ -602,8 +602,16 @@ def load_inserted_rq_candidates(
                     global_step=step_by_outer[iteration],
                     child_id=child_id,
                     rq_score=float(report.get("rq_score", 0.0) or 0.0),
-                    p_hat=float(report.get("p_hat", 0.0) or 0.0),
-                    uncertainty=float(report.get("uncertainty", 0.0) or 0.0),
+                    # Reports written before the notation matched the paper
+                    # spell these "p_hat"/"uncertainty". This reads completed
+                    # runs off disk, so both spellings have to work or every
+                    # EPS number from an older run silently becomes 0.0.
+                    s_hat=float(
+                        report.get("s_hat", report.get("p_hat", 0.0)) or 0.0
+                    ),
+                    u_score=float(
+                        report.get("u_score", report.get("uncertainty", 0.0)) or 0.0
+                    ),
                     op=str(report.get("op") or "unknown"),
                     source_code=(
                         str(report["source_code"])
@@ -794,8 +802,8 @@ def build_high_rq_interval_rows(
                 "group": group,
                 "skill": skill,
                 "rq_score": candidate.rq_score,
-                "p_hat": candidate.p_hat,
-                "uncertainty": candidate.uncertainty,
+                "s_hat": candidate.s_hat,
+                "u_score": candidate.u_score,
                 "render_seed": int(render_seed),
                 "problem": problem,
                 "problem_short": _short_problem(problem) if problem else "",
@@ -857,8 +865,8 @@ def build_prominent_high_rq_rows(
                 "group": group,
                 "skill": skill,
                 "rq_score": candidate.rq_score,
-                "p_hat": candidate.p_hat,
-                "uncertainty": candidate.uncertainty,
+                "s_hat": candidate.s_hat,
+                "u_score": candidate.u_score,
                 "op": candidate.op,
             }
         )
@@ -903,14 +911,14 @@ def write_prominent_high_rq_report(
             "are shown."
         ),
         "",
-        "| emerged step | outer | group / skill | R_Q | p_hat | H |",
+        "| emerged step | outer | group / skill | R_Q | s_hat | H |",
         "|---:|---:|---|---:|---:|---:|",
     ]
     for row in rows:
         lines.append(
             f"| {row['emerged_global_step']} | {row['outer_iteration']} | "
             f"{row['group']} / {row['skill']} | {row['rq_score']:.2f} | "
-            f"{row['p_hat']:.3f} | {row['uncertainty']:.2f} |"
+            f"{row['s_hat']:.3f} | {row['u_score']:.2f} |"
         )
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return json_path, markdown_path
@@ -938,15 +946,15 @@ def write_high_rq_interval_report(
             "seed 0 for inspection."
         ),
         "",
-        "| checkpoint | emerged | outer | group / skill | R_Q | p_hat | H | child |",
+        "| checkpoint | emerged | outer | group / skill | R_Q | s_hat | H | child |",
         "|---:|---:|---:|---|---:|---:|---:|---|",
     ]
     for row in rows:
         lines.append(
             f"| {row['checkpoint_step']} | {row['emerged_global_step']} | "
             f"{row['outer_iteration']} | {row['group']} / {row['skill']} | "
-            f"{row['rq_score']:.2f} | {row['p_hat']:.3f} | "
-            f"{row['uncertainty']:.2f} | `{row['child_id']}` |"
+            f"{row['rq_score']:.2f} | {row['s_hat']:.3f} | "
+            f"{row['u_score']:.2f} | `{row['child_id']}` |"
         )
     lines.extend(["", "## Rendered problems", ""])
     for row in rows:

@@ -13,7 +13,7 @@ class RolloutRecord:
     entropy: float
     # --- async-RL metadata (defaulted: legacy call sites unaffected) --------
     # accepted | rejected; rejected records carry reject_reason and are
-    # excluded from p_hat / R_Q scoring (never trained on silently).
+    # excluded from s_hat / R_Q scoring (never trained on silently).
     status: str = "accepted"
     reject_reason: str | None = None
     # Policy/adapter version at GENERATION time (PolicyVersionTracker.stamp()),
@@ -48,6 +48,11 @@ class PendingRollouts:
     # finalize_rollouts runs the deferred entropy pass over the chunks' batches
     # and backfills RolloutRecord.entropy instead of using full_batch/decoded.
     chunk_results: list | None = None
+    # One backend-native generation payload per instance, aligned with
+    # ``grouped``. The verl backend puts the real DataProto rows here so the
+    # solver update can be served from them instead of sampling again; a
+    # backend that cannot slice its output simply leaves it None.
+    payloads: list | None = None
 
 
 class EvolutionBackend(Protocol):

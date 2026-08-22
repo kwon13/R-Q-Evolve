@@ -311,10 +311,12 @@ def test_an_accumulator_initialised_from_a_parameter_is_not_an_alias():
 
 
 def test_transitive_dependence_on_the_answer_is_not_consumption():
-    """In ``11_kth_root_count.py`` the answer is the sampled parameter ``t`` and
+    """In ``seed_..._primitive_root.py`` the answer is the sampled parameter ``d`` and
     the prime is chosen so that ``t | p - 1``, so every route reaches ``t``
     through the construction. Only a DIRECT read is consumption."""
-    source = ROOT.joinpath("seed_programs", "11_kth_root_count.py").read_text()
+    source = ROOT.joinpath(
+        "seed_programs", "seed_number_theory_transformation_primitive_root.py"
+    ).read_text()
     assert check_generator_contract(source) == []
 
 
@@ -427,14 +429,13 @@ def test_tombstone_operation_multiset_overlap_cannot_separate_the_corpus():
 def test_tombstone_the_answer_need_not_depend_on_every_stated_parameter():
     """REJECTED: directed ancestry for P1.
 
-    It fires on four of the six seeds -- ``10_inequalities`` states ``s`` while
-    the answer uses ``m`` with ``s = 3 * m`` (siblings), and
-    ``11_kth_root_count`` states parameters that are descendants of the answer.
-    The surviving form is the undirected component.
+    It fired on four of the six seeds of the day: a statement may name a
+    parameter that is a SIBLING of the answer (both descend from one draw) or
+    its DESCENDANT, and neither is a defect. The surviving form is the
+    undirected component, so the whole seed corpus must stay clean of P1.
     """
-    for name in ("10_inequalities.py", "11_kth_root_count.py"):
-        source = ROOT.joinpath("seed_programs", name).read_text()
-        assert "P1" not in _codes(source), name
+    for path in sorted(ROOT.joinpath("seed_programs").glob("*.py")):
+        assert "P1" not in _codes(path.read_text()), path.name
 
 
 def test_tombstone_a_shared_helper_is_not_by_itself_a_defect():
@@ -442,5 +443,7 @@ def test_tombstone_a_shared_helper_is_not_by_itself_a_defect():
     independent." ``12_derangement_fixed_points.py`` routes both go through
     ``_derangement``; the seed mitigates it with a separate identity assert.
     """
-    source = ROOT.joinpath("seed_programs", "12_derangement_fixed_points.py").read_text()
+    source = ROOT.joinpath(
+        "seed_programs", "seed_geometry_extremal_principle_min_area_triangle.py"
+    ).read_text()
     assert check_generator_contract(source) == []

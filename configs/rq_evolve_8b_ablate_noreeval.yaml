@@ -39,8 +39,6 @@ evolution:
   # this ablation set select_ignores_uncertainty: false and this: true (and give
   # the run its own RQ_EXP_NAME / RQ_LOCAL_DIR so it doesn't share the none_h dir).
   select_ignores_variance: false
-  # in_breadth is NOT a knob: it is the remainder = 1 - in_depth_ratio.
-  in_depth_ratio: 0.5        # -> in_breadth = 1 - 0.5 = 0.5  (50/50 depth/breadth)
   verify_seeds: 5
   frontier_p_hat_range: [0.0, 1.0]
   # One multi-turn self-fix per rejected child: the model is shown its own
@@ -84,8 +82,6 @@ evolution:
   # collapsing the batch.
   code_temperature: 0.4
   code_top_p: 0.95
-  evaluator_temperature: 0.0
-  evaluator_top_p: 1.0
   # ABLATION: champions are never rescored or evicted -- the archive's time axis removed
   reevaluate_champions: false
   # evaluator_model: gpt-5.4-mini
@@ -279,7 +275,7 @@ verl_config:
       enable: false
 
   algorithm:
-    adv_estimator: grpo
+    adv_estimator: rloo
     # EasyR1 used actor-side KL loss (use_kl_loss above), not reward-side KL.
     use_kl_in_reward: false
     kl_penalty: low_var_kl
@@ -312,6 +308,9 @@ verl_config:
     # actor/ dirs deleted before the next arm is launched.
     test_freq: 32
     save_freq: 32
+    # Keep ONE checkpoint on disk (see rq_evolve_base.yaml for the sizing).
+    max_actor_ckpt_to_keep: 1
+    max_critic_ckpt_to_keep: 1
     # Overridable per ablation via RQ_LOCAL_DIR (also separates the rq_archive/
     # checkpoint dir so ablations never share an archive).
     default_local_dir: ./rq_output/rq_evolve_8b_ablate_noreeval

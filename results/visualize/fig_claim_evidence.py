@@ -150,7 +150,7 @@ fig, axes = plt.subplots(1, 3, figsize=(16, 4.8), gridspec_kw={"width_ratios":[1
 ax = axes[0]
 for c in final_rows:
     op = operator_of(c)
-    p, h, rq = c.get("p_hat", 0), c.get("h_score", 0), c.get("rq_score", 0)
+    p, h, rq = c.get("s_hat", c.get("p_hat", 0)), c.get("u_score", c.get("h_score", 0)), c.get("rq_score", 0)
     ax.scatter(p, h, s=80 + 2600*rq, color=COLORS[op], edgecolor="white", linewidth=.8, alpha=.9)
 ax.axvspan(0, 1, color="#f1f0ed", zorder=0)
 ax.set_xlim(-.03, 1.03); ax.set_xlabel("Solver pass rate $\\hat p$"); ax.set_ylabel("uncertainty $H$")

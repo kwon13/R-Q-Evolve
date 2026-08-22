@@ -1,0 +1,54 @@
+# Temperature sweep for the free-form mutation operator, measured by MAP
+# coverage after 32 mutation steps from the seed corpus.
+#
+# The judge is the fixed part of the experiment: GPT re-derives GROUP and SKILL
+# from the visible problem alone and the child is archived only when both match
+# what it declared. Only evolution.code_temperature moves between arms, and
+# scripts/sample_evolve_vllm.py --code-temperature overrides it per run.
+evolution:
+  seed_programs_dir: seed_programs
+  inner_iterations: 32
+  inner_iteration_batch_size: 8
+  num_rollouts: 4
+  verify_seeds: 5
+  frontier_p_hat_range: [0.0, 1.0]
+  fix_retry: true
+
+  # The label gate. This file is the ABLATION arm: an external judge, independent
+  # of the policy being trained. Production uses evaluator_provider: policy (the
+  # default) so the loop needs no extra module.
+  use_evaluator: true
+  judge_rubric: mutation_judge_system_prompt.txt
+  evaluator_provider: openai
+  evaluator_model: gpt-5.4-mini
+  evaluator_reasoning_effort: low
+  evaluator_timeout_s: 120.0
+  evaluator_max_output_tokens: 900
+  evaluator_concurrency: 8
+  # Used only by the policy-provider judge; kept explicit so the greedy read is
+  # visible whichever provider is selected.
+  judge_temperature: 0.0
+  judge_top_p: 1.0
+
+  # The swept knob.
+  code_temperature: 0.4
+  code_top_p: 0.95
+
+  ast_contract: enforce
+  # EXPERIMENT CONTROL, not a production setting. With re-evaluation on, a
+  # champion is rescored against the frozen policy every outer iteration and
+  # evicted when its R_Q collapses -- in a 4-mutation smoke that emptied a
+  # one-champion archive and the phase reported no_parent. Holding the parent
+  # pool fixed is what makes the arms comparable: the only thing that differs
+  # between them is code_temperature, and coverage then measures what mutation
+  # opened rather than what eviction closed.
+  reevaluate_champions: false
+  archive_binning: grid
+
+archive:
+  epsilon: 0.3
+  ucb_c: 1.0
+  selection_strategy: ucb
+
+training_data:
+  instances_per_program: 1

@@ -103,9 +103,17 @@ def main() -> int:
     if not instances:
         print("no runnable seed programs"); return 1
 
-    results = {
-        tag: asyncio.run(score_model(tag, instances, args)) for tag in SERVERS
-    }
+    async def score_all():
+        # One event loop for both servers. They are separate GPUs, so scoring
+        # them one after the other left half the hardware idle and doubled the
+        # turnaround of the edit-and-remeasure loop this script exists for.
+        tags = list(SERVERS)
+        outs = await asyncio.gather(
+            *(score_model(tag, instances, args) for tag in tags)
+        )
+        return dict(zip(tags, outs))
+
+    results = asyncio.run(score_all())
 
     print(f"\nn={args.eval_seeds} fresh seeds x m={args.rollouts} rollouts, "
           f"temperature={args.temperature}\n")

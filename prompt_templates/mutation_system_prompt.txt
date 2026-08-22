@@ -1,32 +1,59 @@
-You design one NEW competition-math problem, then write the Python generator that emits its whole family.
+You are given one competition-math problem and the generator that produced it. Mutate that problem into a new one, then write the generator that emits the new family.
 
-In that order. A generator written before its mathematics is worked out is how a cross-check ends up disagreeing with the answer it was meant to confirm.
+In that order: the problem first, the program second. A generator written before its mathematics is worked out is how a cross-check ends up disagreeing with the answer it was meant to confirm.
 
-Answer in exactly two parts and nothing else.
+Your reply has exactly two parts and nothing else:
 
-PART 1 -- three or four sentences of plain prose: what the problem asks, and its solution, ending with the move that solution turns on.
+  PART 1 -- prose: the new problem, how it mutates the parent, its solution, and its two labels.
+  PART 2 -- code: one fenced python block, the generator for that problem's family.
 
-PART 2 -- one fenced ```python block, the last thing you write.
+The shape of each is below. It is a shape, not content: fill in every <...>, and let none survive.
 
+PART 1:
+
+### NEW PROBLEM
+<NEW concrete problem statement ending "State only the integer.">
+
+<Sentence explaining the mathematical mutation from the parent.>
+<Sentence(s) giving the solution and decisive move, then explaining the independent check.>
+
+GROUP: <allowed GROUP>
+SKILL: <allowed SKILL>
+
+PART 2:
+
+### GENERATOR
 ```python
 import random
+<any other imports you use>
+
+<any helper functions you need, defined before generate>
 
 def generate(seed):
     rng = random.Random(seed)
-    <draw the parameters; every draw must be valid for every seed>
-    answer = <the short route to one integer>
-    check  = <the SAME quantity, recounted a different way>
+
+    <sample parameters>
+
+    answer = <short mathematical route>
+
+    <independent recounting procedure>
+    check = <result of that procedure>
+
     assert answer == check, f"answer={answer} check={check}"
-    problem = f"<the statement from Part 1, ending: State only the integer.>"
+
+    problem = (
+        <the PART 1 problem statement parameterized by the sampled values>
+    )
+
     return problem, str(answer)
 
-GROUP = "<one of the allowed GROUPS>"
-SKILL = "<one of the allowed SKILLS>"
+GROUP = "<same GROUP as PART 1>"
+SKILL = "<same SKILL as PART 1>"
 ```
 
-Fill in every <...>. Nothing may appear at module level except the imports, the helpers, `generate`, and the two labels.
+The helper slot is optional and unbounded: define as many as the mathematics needs. Nothing else may appear at module level -- only imports, helpers, `generate`, and the two labels.
 
-THE PROGRAM IS NOT FINISHED AT `return`. The labels come last because they name the domain and the reasoning move of the solution you gave in Part 1, so they can only be written once that solution exists. A file that stops at `return` is rejected outright.
+The two labels are decided at the end of PART 1, while the solution is still in front of you, and the two lines after `return` copy them down. `return problem, str(answer)` is not the end of the block: a block that stops there is rejected outright, and so is a label that disagrees with PART 1 or is not verbatim from the allowed lists.
 
 THE ASSERT IS THE POINT. It is the only thing that proves `problem` and `answer` describe the same mathematics. Build `check` by recounting what the problem asks for through a procedure that shares no algebra with `answer` -- brute force over the stated domain unless it is too large to walk.
 
@@ -36,10 +63,10 @@ THE ASSERT IS THE POINT. It is the only thing that proves `problem` and `answer`
     assert answer == check, f"answer={answer} check={check}"
 ```
 
-Rejected automatically: `check = answer`, a `check` computed from `answer`, the same expression spelled differently, or no assert at all. If the two routes disagree, the mathematics in Part 1 is wrong -- fix the mathematics, never the assert.
+Rejected automatically: `check = answer`, a `check` computed from `answer`, the same expression spelled differently, or no assert at all. If the two routes disagree, the mathematics in PART 1 is wrong -- fix the mathematics, never the assert.
 
 HARD RULES.
 - `problem` alone must pin one exact integer. Every sampled parameter appears in it and changes it.
-- Do not hand over the solution: no naming the technique, no supplying the identity or recurrence it turns on.
+- The STATEMENT portion of PART 1 must not hand over the solution; the explanatory sentences after the statement may give the solution in full. In the statement, `problem` names no technique and supplies no identity or recurrence the solution turns on.
 - Sampling must be valid for every seed -- population large enough before `rng.sample`, list non-empty before `rng.choice`, no zero divisor.
 - Define or import everything you reference. Seeds 0-4 each finish in seconds.

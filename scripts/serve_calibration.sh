@@ -10,6 +10,14 @@
 # re-measures in seconds, so a seed can be edited and re-scored as fast as it
 # can be reasoned about.
 #
+# --generation-config vllm: the checkpoints ship a generation_config.json with
+# max_new_tokens=2048, and `vllm serve` applies it as a default that an
+# explicit request max_tokens does not lift. Every prompt A/B run before this
+# was measured against that ceiling -- 11 of 24 replies on 8B ended in
+# finish_reason=length, truncating exactly the tail of the file where the
+# assert and the two labels live. verl's own engine is unaffected: it passes
+# override_generation_config with max_new_tokens=response_length (5000).
+#
 # One GPU each, tensor-parallel 1. Both models fit with room to spare (4B ~8 GiB
 # of weights, 8B ~16 GiB, on 97 GiB cards) and TP=1 avoids the illegal-memory
 # access this box hits on sm_120 with TP=2. GPUs 2-7 stay free.
@@ -50,6 +58,7 @@ serve() {  # name, model, gpu, port
     --max-model-len 12000 \
     --dtype bfloat16 \
     --enforce-eager \
+    --generation-config vllm \
     --trust-remote-code \
     > "$LOGDIR/$name.log" 2>&1 &
   echo "$!" > "$LOGDIR/$name.pid"

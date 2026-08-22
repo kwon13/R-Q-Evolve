@@ -67,27 +67,32 @@ def test_the_definitions_have_one_source_on_disk():
         assert f"{skill}:" in context["allowed_skills"]
 
 
-def test_the_parent_labels_travel_but_no_target_is_named():
-    """The parent is context. Ordering a label change is what caused the drift.
+def test_the_parents_cell_never_reaches_the_prompt():
+    """Neither in prose nor in the tail of its own source.
 
-    Demanding "now produce SKILL=invariant" made the label a target the child
-    was written to satisfy, so the archived coordinates stopped describing the
-    problem. The prompt states where the parent sits and asks for mathematical
-    distinctness instead.
+    Showing the parent's labels anchored the child to them: 97% of 118 distinct
+    children declared the cell their parent already occupied, across only 12
+    distinct cells. Deleting them from the source alone once backfired, because
+    the parent is the exemplar and one ending at `return` taught that -- so the
+    SYSTEM prompt now states the required ending, and says why the example does
+    not show it.
     """
-    user = _user(_program("geometry", "extremal_principle"))
-    assert 'GROUP="geometry"' in user and 'SKILL="extremal_principle"' in user
-    # The whole vocabulary is offered, so no single cell is being demanded --
-    # asserted on the content rather than on a sentence, because the wording of
-    # these prompts is actively being tuned.
+    parent = _program("geometry", "extremal_principle")
+    task = build_mutation_task(parent)
+    user, system = task.messages[1]["content"], task.messages[0]["content"]
+    head = user[: user.index("Allowed GROUPS:")]
+    assert "geometry" not in head and "extremal_principle" not in head
+    # Deleted, not redacted -- anything left in that tail gets copied.
+    assert "GROUP =" not in head and "SKILL =" not in head
+    # What replaces the lost ending is the shape block, which shows the two
+    # lines after `return`, plus PART 1 committing to the labels first.
+    flat = " ".join(system.split())
+    assert "GROUP: <allowed GROUP>" in flat
+    assert 'GROUP = "<same GROUP as PART 1>"' in flat
+    assert "is not the end of the block" in flat.lower()
+    # The whole vocabulary is still offered, so no single cell is demanded.
     for skill in SKILLS:
         assert f"{skill}:" in user, skill
-    # The labels are read OFF the finished solution, never handed in as a goal.
-    # Matched on the idea, not a sentence -- and on whitespace-normalised text,
-    # because these prompts are hard-wrapped and a phrase can straddle a line.
-    flat = " ".join(user.split())
-    assert "off the solution" in flat
-    assert "Do not aim at a label" in flat
 
 
 def test_the_parent_source_is_inlined():

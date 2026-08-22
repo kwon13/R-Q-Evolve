@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from string import Template
 
-from .code_utils import strip_module_docstring
+from .code_utils import strip_label_declarations, strip_module_docstring
 from .concepts import GROUPS, SKILLS
 from .program import ProblemProgram
 
@@ -387,10 +387,15 @@ def _template_context(parent: ProblemProgram) -> dict[str, str]:
     misapply.
     """
     return {
-        "parent_source": strip_module_docstring(parent.source_code),
+        # The parent's cell is withheld: from the prose, and from the tail of
+        # its own source. With the real labels shown, 97% of 118 distinct
+        # children declared the cell their parent already occupied, across only
+        # 12 distinct cells. What replaces the ending the tail used to teach is
+        # PART 1 committing to GROUP and SKILL before any code is written.
+        "parent_source": strip_label_declarations(
+            strip_module_docstring(parent.source_code)
+        ),
         "parent_problem": _parent_problem_text(parent),
-        "parent_group": str(parent.get_group() or ""),
-        "parent_skill": str(parent.get_skill() or ""),
         "allowed_groups": _load_definitions(GROUP_DEFINITIONS_FILE),
         "allowed_skills": _load_definitions(SKILL_DEFINITIONS_FILE),
     }

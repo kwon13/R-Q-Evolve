@@ -21,6 +21,7 @@ import hashlib
 import json
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -96,17 +97,27 @@ def main() -> int:
     rows, sigs = [], {}
 
     print(f"[probe] {args.n} children, temp={args.temperature}, model={args.model}")
-    for i, parent in enumerate(jobs):
-        op = MUTATION_OP
+
+    # Generate every child at once. One at a time left the server almost idle
+    # -- vLLM batches concurrent requests -- and made a 24-child probe take
+    # minutes when the point of this script is a fast edit-and-rerun loop.
+    # Verification stays sequential below: it is cheap and runs subprocesses.
+    def _generate(parent):
         task = build_mutation_task(parent, temperature=args.temperature,
                                    top_p=args.top_p)
-        reply = client.chat.completions.create(
+        return client.chat.completions.create(
             model=args.model,
             messages=task.messages,
             temperature=args.temperature,
             top_p=args.top_p,
             max_tokens=args.max_tokens,
         )
+
+    with ThreadPoolExecutor(max_workers=min(len(jobs), 32)) as pool_exec:
+        replies = list(pool_exec.map(_generate, jobs))
+
+    for i, (parent, reply) in enumerate(zip(jobs, replies)):
+        op = MUTATION_OP
         text = reply.choices[0].message.content or ""
         source = extract_generator_code(text)
         row = {

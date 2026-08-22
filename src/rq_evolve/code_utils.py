@@ -143,6 +143,53 @@ def strip_module_docstring(source_code: str) -> str:
     return "\n".join(kept).strip()
 
 
+def strip_label_declarations(source_code: str) -> str:
+    """Delete the top-level GROUP / SKILL assignments from a parent generator.
+
+    The parent shown in a mutation prompt must not carry its own cell. With the
+    real labels visible, 97% of 118 distinct children declared the cell their
+    parent already occupied, across only 12 distinct cells; hiding them cut that
+    to 25%.
+
+    Whatever sits in that tail is what the child copies, so there is no
+    redaction that is safe on its own: `GROUP = "..."` produced children whose
+    declared cell was literally `...`, and the skeleton placeholder produced
+    `<one of the allowed GROUPS>`. Deleting the lines is the only form that
+    cannot be copied -- but it removes the ending the contract requires, and on
+    its own it drove "missing GROUP; missing SKILL" from 0 to 11 of 24. It is
+    safe only because the system prompt now makes PART 1 commit to GROUP and
+    SKILL before any code is written, so the two lines in the block are a
+    transcription rather than a step the reply can reach the end without taking.
+
+    Line-based, like :func:`strip_module_docstring`. Returns the source
+    unchanged if it does not parse.
+    """
+    try:
+        tree = ast.parse(source_code)
+    except (SyntaxError, ValueError):
+        return source_code
+
+    drop: set[int] = set()
+    for node in tree.body:
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        if any(
+            isinstance(target, ast.Name) and target.id in ("GROUP", "SKILL")
+            for target in targets
+        ):
+            drop.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+    if not drop:
+        return source_code
+
+    kept = [
+        line
+        for i, line in enumerate(source_code.splitlines(), start=1)
+        if i not in drop
+    ]
+    return "\n".join(kept).rstrip()
+
+
 def lint_generator_source(source_code: str) -> list[str]:
     """Cheap static checks before executing a generated program."""
     reasons: list[str] = []

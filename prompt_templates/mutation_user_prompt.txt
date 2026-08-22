@@ -4,15 +4,13 @@ PARENT PROBLEM (this is the object to mutate):
 
 $parent_problem
 
-PARENT GENERATOR (only the machine that emits it):
+PARENT GENERATOR (only the machine that emits it; its own GROUP and SKILL lines are not shown):
 
 ```python
 $parent_source
 ```
 
-The parent sits at GROUP="$parent_group", SKILL="$parent_skill".
-
-Mutate it. Do not aim at a label: work out the new problem and its solution first, then read GROUP and SKILL off the solution you actually used.
+Mutate it: work out the new problem and its solution first, then read GROUP and SKILL off the solution you actually used.
 
 Allowed GROUPS:
 $allowed_groups
@@ -22,7 +20,7 @@ $allowed_skills
 
 Before you send it, check:
 
-1. Part 1 is prose; Part 2 is one fenced ```python block and comes last.
-2. No `<...>` placeholder survives, and `GROUP` / `SKILL` follow `return` at module level, verbatim from the lists above.
+1. Part 1 opens with the problem itself, in full, with real numbers, and closes with its GROUP and SKILL lines; Part 2 is one fenced ```python block and comes last.
+2. No `<...>` survives. The block does not end at `return`: `GROUP` and `SKILL` follow it at module level, matching Part 1 and verbatim from the lists above.
 3. `assert answer == check`, where `check` recounts the answer a different way.
 4. Seeds 0-4 all run and give at least two different problem texts.

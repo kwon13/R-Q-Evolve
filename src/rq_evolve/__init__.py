@@ -4,7 +4,8 @@ from .archive import MAPElitesArchive
 from .config import RQEvolveConfig
 from .evolution import RQEvolver
 from .program import ProblemInstance, ProblemProgram
-from .scoring import RQResult, compute_rq, compute_rq_full
+from .scoring import RQResult, SeedStat, compute_rq_program, score_seed
+from .seed_stream import SeedStream
 
 __all__ = [
     "MAPElitesArchive",
@@ -13,6 +14,8 @@ __all__ = [
     "ProblemInstance",
     "ProblemProgram",
     "RQResult",
-    "compute_rq",
-    "compute_rq_full",
+    "SeedStat",
+    "SeedStream",
+    "compute_rq_program",
+    "score_seed",
 ]

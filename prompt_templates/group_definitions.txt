@@ -1,7 +1,6 @@
-GROUP definitions — the child's answer computation must use the chosen GROUP's load-bearing structure, and the problem must stop being well-defined without it:
-- number_theory: The objects are integers, and the load-bearing relations are divisibility, primality, gcd and lcm, and congruences mod m.
-- combinatorics: The objects are finite sets and arrangements, and the load-bearing structure is selecting, ordering, distributing, or matching their elements.
-- sequence: The objects are indexed terms a(1), a(2), ..., and the load-bearing structure is the term-to-term rule (a recurrence) or the long-run behavior of the terms.
-- algebra: The objects are polynomials and equations, and the load-bearing structure is the exact relation between roots, coefficients, and symbolic manipulation of the equations.
-- geometry: The objects are points, lines, circles, and figures, and the load-bearing structure is distance, angle, area, or incidence among them.
-- inequality: The objects are real quantities under a stated constraint, and the load-bearing structure is comparison — bounding, ordering, or optimizing subject to that constraint.
+number_theory: integers whose solution essentially uses divisibility, primality, gcd/lcm, valuations, or congruences; integer values alone do not qualify
+combinatorics: finite selections, arrangements, assignments, graphs, matchings, or discrete configurations whose combinatorial structure determines the answer
+sequence: indexed terms whose recurrence, iteration rule, or behavior across indices is essential
+algebra: equations, polynomials, functions, roots, coefficients, or symbolic identities whose exact algebraic relations determine the answer; formulas alone do not qualify when the real task is constrained optimization
+geometry: points, lines, circles, polygons, regions, or figures whose distance, angle, area, incidence, similarity, or other geometric relation is essential
+inequality: constrained real quantities whose solution essentially uses comparison, bounds, equality cases, ordering, or optimization

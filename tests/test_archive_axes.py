@@ -50,10 +50,10 @@ def test_uncertainty_no_longer_moves_a_program_between_cells():
     high = _program("algebra", "induction", value=2, tag="second")
     assert archive.program_to_cell(low) == archive.program_to_cell(high)
 
-    archive.try_insert(low, h_value=0.05, problem_text="p", rq_score=0.1)
-    archive.try_insert(high, h_value=5.0, problem_text="q", rq_score=0.2)
+    archive.try_insert(low, u_value=0.05, rq_score=0.1)
+    archive.try_insert(high, u_value=5.0, rq_score=0.2)
     # One cell, so the higher R_Q wins it outright rather than both surviving
-    # in separate uncertainty bands.
+    # in separate u_score bands.
     assert len(archive.champions()) == 1
     assert archive.champions()[0].program_id == high.program_id
 
@@ -61,12 +61,12 @@ def test_uncertainty_no_longer_moves_a_program_between_cells():
 def test_h_is_still_recorded_and_still_decides_the_champion():
     archive = MAPElitesArchive()
     winner = _program("algebra", "counting", value=7, tag="winner")
-    archive.try_insert(winner, h_value=0.42, problem_text="p", rq_score=0.3)
-    assert archive.champions()[0].h_score == pytest.approx(0.42)
+    archive.try_insert(winner, u_value=0.42, rq_score=0.3)
+    assert archive.champions()[0].u_score == pytest.approx(0.42)
 
     # Same cell, lower R_Q -> loses, and the incumbent is untouched.
     loser = _program("algebra", "counting", value=8, tag="loser")
-    assert archive.try_insert(loser, h_value=9.9, problem_text="q", rq_score=0.01) is False
+    assert archive.try_insert(loser, u_value=9.9, rq_score=0.01) is False
     assert archive.champions()[0].program_id == winner.program_id
 
 
@@ -92,7 +92,7 @@ def test_an_unlabelled_program_is_rejected_not_hashed_into_a_cell():
     assert archive.program_to_cell(unlabelled) is None
     assert archive.target_cell(unlabelled) is None
     assert archive.try_insert(
-        unlabelled, h_value=1.0, problem_text="q", rq_score=0.5
+        unlabelled, u_value=1.0, rq_score=0.5
     ) is False
     assert unlabelled.metadata["archive_status"] == "unlabelled_rejected"
     assert archive.champions() == []
@@ -110,8 +110,7 @@ def test_stats_report_per_axis_coverage():
     for i, skill in enumerate(("counting", "invariant", "induction")):
         archive.try_insert(
             _program("algebra", skill, value=i),
-            h_value=1.0,
-            problem_text=f"p{i}",
+            u_value=1.0,
             rq_score=0.1 * (i + 1),
         )
     stats = archive.stats()
@@ -125,8 +124,7 @@ def test_snapshot_round_trip_preserves_cells():
     for group, skill in (("algebra", "counting"), ("geometry", "invariant")):
         archive.try_insert(
             _program(group, skill, value=len(group)),
-            h_value=1.0,
-            problem_text=f"{group}-{skill}",
+            u_value=1.0,
             rq_score=0.5,
         )
     payload = archive.to_payload()
@@ -152,7 +150,7 @@ def test_a_pre_migration_snapshot_is_dropped_rather_than_misplaced(capsys):
                 ),
                 "program_id": "old",
                 "rq_score": 0.5,
-                "h_score": 0.3,
+                "u_score": 0.3,
                 # Coordinates from the retired H x diversity grid.
                 "niche_h": 4,
                 "niche_div": 3,
@@ -219,8 +217,7 @@ def test_flat_binning_fills_every_slot_before_any_competition():
         for value, tag in ((3, "alpha"), (5, "beta")):
             archive.try_insert(
                 program=_program("algebra", "counting", value=value, tag=tag),
-                h_value=1.0,
-                problem_text=f"p{value}",
+                u_value=1.0,
                 rq_score=float(value),
             )
         assert len(archive.champions()) == expected, binning
@@ -245,8 +242,7 @@ def test_flat_binning_survives_a_snapshot_round_trip():
     for value, tag in enumerate(tags, start=1):
         archive.try_insert(
             program=_program("algebra", "counting", value=value, tag=tag),
-            h_value=1.0,
-            problem_text=f"p{value}",
+            u_value=1.0,
             rq_score=float(value),
         )
     assert len(archive.champions()) == 5
@@ -260,8 +256,7 @@ def test_flat_binning_survives_a_snapshot_round_trip():
     for value, tag in enumerate(tags, start=1):
         grid.try_insert(
             program=_program("algebra", "counting", value=value, tag=tag),
-            h_value=1.0,
-            problem_text=f"p{value}",
+            u_value=1.0,
             rq_score=float(value),
         )
     regrid = MAPElitesArchive(binning="grid")
@@ -277,8 +272,7 @@ def test_flat_binning_still_refuses_an_unlabelled_program():
     archive = MAPElitesArchive(binning="flat")
     inserted = archive.try_insert(
         program=_program("not_a_group", "not_a_skill"),
-        h_value=1.0,
-        problem_text="p",
+        u_value=1.0,
         rq_score=1.0,
     )
     assert inserted is False
@@ -298,8 +292,7 @@ def test_flat_binning_challenges_the_weakest_occupant_once_full():
     for i, name in enumerate(names):
         archive.try_insert(
             program=_program("algebra", "counting", value=i + 1, tag=name),
-            h_value=1.0,
-            problem_text=name,
+            u_value=1.0,
             rq_score=float(i + 1),
         )
     assert len(archive.champions()) == total
@@ -309,8 +302,7 @@ def test_flat_binning_challenges_the_weakest_occupant_once_full():
     # answer-leak lint only inspects answers longer than two characters.
     assert archive.try_insert(
         program=_program("algebra", "counting", value=99, tag="strong"),
-        h_value=1.0,
-        problem_text="strong",
+        u_value=1.0,
         rq_score=10_000.0,
     )
     assert len(archive.champions()) == total

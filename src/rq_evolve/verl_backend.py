@@ -8,7 +8,7 @@ from verl.utils.model import compute_position_id_with_mask
 
 from .backends import EvolutionBackend, PendingRollouts, RolloutRecord
 from .program import ProblemInstance
-from .prompts import MutationTask, build_solver_prompt
+from .prompts import MutationTask, build_solver_messages
 from .reward import answers_match, extract_boxed
 
 
@@ -17,7 +17,7 @@ class VerlPolicyBackend(EvolutionBackend):
 
     The backend is bound after ``trainer.init_workers()`` because the worker
     group does not exist before then. Mutation and solver rollout both call
-    ``trainer.actor_rollout_wg.generate_sequences``. Rollout uncertainty is
+    ``trainer.actor_rollout_wg.generate_sequences``. Rollout u_score is
     estimated from the actor forward pass entropy returned by the installed
     verl actor worker.
     """
@@ -241,11 +241,18 @@ class VerlPolicyBackend(EvolutionBackend):
             return PendingRollouts(instances=[], n_rollouts=n)
         if self._streaming_active():
             return self._generate_rollouts_streaming(list(instances), n)
-        prompts = [build_solver_prompt(inst.problem) for inst in instances]
-        output, full_batch = self._generate_with_batch(prompts, n_repeat=n)
+        prompts = [inst.problem for inst in instances]
+        messages = [build_solver_messages(inst.problem) for inst in instances]
+        output, full_batch = self._generate_with_batch(
+            prompts,
+            n_repeat=n,
+            messages=messages,
+            ground_truths=[inst.answer for inst in instances],
+        )
         responses = output.batch.get("responses")
         if responses is None:
             return PendingRollouts(instances=list(instances), n_rollouts=n)
+        payloads = self._slice_per_instance(output, len(instances), n)
         decoded = [
             self.tokenizer.decode(row.tolist(), skip_special_tokens=True)
             for row in responses
@@ -255,6 +262,7 @@ class VerlPolicyBackend(EvolutionBackend):
             n_rollouts=n,
             full_batch=full_batch,
             decoded=decoded,
+            payloads=payloads,
         )
 
     def _generate_rollouts_streaming(
@@ -296,8 +304,15 @@ class VerlPolicyBackend(EvolutionBackend):
         chunk_size = max(1, int(cfg.chunk_size))
         for chunk_id, start in enumerate(range(0, len(instances), chunk_size)):
             chunk_instances = instances[start : start + chunk_size]
-            prompts = [build_solver_prompt(inst.problem) for inst in chunk_instances]
-            batch = self._make_prompt_batch(prompts)
+            prompts = [inst.problem for inst in chunk_instances]
+            batch = self._make_prompt_batch(
+                prompts,
+                messages=[
+                    build_solver_messages(inst.problem)
+                    for inst in chunk_instances
+                ],
+                ground_truths=[inst.answer for inst in chunk_instances],
+            )
             gen_batch = batch.pop(
                 batch_keys=["input_ids", "attention_mask", "position_ids"],
                 non_tensor_batch_keys=[
@@ -364,15 +379,27 @@ class VerlPolicyBackend(EvolutionBackend):
             else:
                 entropies = self._response_entropies(merged)
         offset = 0
+        payloads: list = []
         for result in results:
             has_rows = result.full_batch is not None
-            for rows in result.grouped:
+            # Same slicing as the batched path: rows are instance-major because
+            # the chunk repeated each prompt n times with interleave=True.
+            chunk_payloads = self._slice_per_instance(
+                result.output, len(result.grouped), result.job.n_rollouts
+            ) if result.output is not None else None
+            for index, rows in enumerate(result.grouped):
                 for record in rows:
                     if has_rows and offset < len(entropies):
                         record.entropy = entropies[offset]
                     if has_rows:
                         offset += 1
                 grouped_all.append(rows)
+                payloads.append(
+                    chunk_payloads[index]
+                    if chunk_payloads is not None and index < len(chunk_payloads)
+                    else None
+                )
+        pending.payloads = payloads
         return grouped_all
 
     def finalize_rollouts(self, pending: PendingRollouts) -> list[list[RolloutRecord]]:
@@ -439,9 +466,12 @@ class VerlPolicyBackend(EvolutionBackend):
         max_tokens: int | None = None,
         temperature: float | None = None,
         top_p: float | None = None,
+        ground_truths: list[str] | None = None,
     ):
         trainer = self._require_trainer()
-        batch = self._make_prompt_batch(prompts, messages=messages)
+        batch = self._make_prompt_batch(
+            prompts, messages=messages, ground_truths=ground_truths
+        )
         gen_batch = batch.pop(
             batch_keys=["input_ids", "attention_mask", "position_ids"],
             non_tensor_batch_keys=[
@@ -520,14 +550,15 @@ class VerlPolicyBackend(EvolutionBackend):
         values: list[float] = []
         for row, mask in zip(entropy, response_mask):
             valid = row[mask.bool()]
-            # Total entropy over the trajectory, NOT the per-token mean: H is
-            # the exploration cost the solver actually paid, so a problem that
-            # keeps it uncertain for 800 tokens is worth more than one that
-            # does so for 80. Dividing by the length T would price those the
-            # same. R_Q still averages over the N rollouts in
-            # RQEvolver._score_from_rollouts; only the length normalisation is
-            # dropped.
-            values.append(float(valid.sum().item()) if valid.numel() else 0.0)
+            # LENGTH-NORMALIZED, h = (1/|y|) sum_l H(x, y_<l). The summed
+            # variant this replaces made cross-problem variation track response
+            # length instead of uncertainty, and correlated strongly with the
+            # systematic length asymmetry between successful and failed
+            # rollouts (failures run longer) -- measured across three
+            # checkpoints. Normalizing also bounds h by log|V|, which is what
+            # makes R_Q's concentration bound a constant shared by every
+            # program rather than one scaled by each program's response length.
+            values.append(float(valid.mean().item()) if valid.numel() else 0.0)
         return values
 
     def _chat_template_len(self, text: str) -> int:
@@ -671,7 +702,36 @@ class VerlPolicyBackend(EvolutionBackend):
             msgs[i]["content"] = clipped
         return msgs
 
-    def _make_prompt_batch(self, prompts: list[str], messages: list | None = None):
+    @staticmethod
+    def _slice_per_instance(output, n_instances: int, n_rollouts: int) -> list | None:
+        """Split one generation output into per-instance DataProto slices.
+
+        ``gen_batch.repeat(..., interleave=True)`` lays the rows out as
+        instance-major, so instance i owns rows [i*m, (i+1)*m). Returning the
+        REAL slices, rather than rebuilding tensors from decoded text, is what
+        makes replay safe: whatever contract the trainer expects of a generation
+        output is satisfied because this IS one.
+        """
+        try:
+            total = len(output.batch)
+        except Exception:
+            return None
+        if n_instances <= 0 or total != n_instances * n_rollouts:
+            return None
+        try:
+            return [
+                output.slice(i * n_rollouts, (i + 1) * n_rollouts)
+                for i in range(n_instances)
+            ]
+        except Exception:
+            return None
+
+    def _make_prompt_batch(
+        self,
+        prompts: list[str],
+        messages: list | None = None,
+        ground_truths: list[str] | None = None,
+    ):
         tokenizer = self._require_tokenizer()
         max_prompt_length = self.max_prompt_length or 1024
         pad_token_id = tokenizer.pad_token_id
@@ -683,8 +743,10 @@ class VerlPolicyBackend(EvolutionBackend):
 
         # Per item, build (a) the rendered prompt text used for input_ids and
         # (b) the chat-message list handed to the agent loop as raw_prompt.
-        # Multi-turn items (fix-retry) carry a [system,user,assistant,user]
-        # conversation; single-turn items wrap the text as one user message.
+        # Items that arrive as a conversation -- solver rollouts ([system,user])
+        # and fix-retries ([system,user,assistant,user]) -- are chat-templated
+        # here; the remaining bare strings are mutation prompts, wrapped as one
+        # user turn.
         # Both are length-capped: verl 0.7.x's AgentLoopWorker re-tokenizes
         # raw_prompt with the chat template and NEVER truncates it
         # (tokenizer.pad(padding="max_length") only right-pads), so an
@@ -732,15 +794,24 @@ class VerlPolicyBackend(EvolutionBackend):
         raw_prompt_ids_arr = np.empty(len(prompts), dtype=object)
         for i, ids in enumerate(raw_prompt_ids):
             raw_prompt_ids_arr[i] = ids
-        # The agent loop unconditionally invokes the reward loop worker (the
-        # naive reward manager reads non_tensor_batch["data_source"] and
-        # non_tensor_batch["reward_model"]["ground_truth"]). Our backend
-        # computes its own reward in evolution.py and discards verl's value,
-        # but the call still has to type-check -> provide placeholders.
+        # The agent loop scores every generation AS IT PRODUCES IT and stores
+        # the result in the output's `rm_scores`; verl's `extract_reward` then
+        # reads that tensor directly rather than recomputing. So the ground
+        # truth handed in here is the one the training reward is computed from.
+        #
+        # It used to be an empty placeholder, on the reasoning that this backend
+        # grades its own rollouts and discards verl's number. Replay made that
+        # false: the solver update now trains on THESE rollouts, and an empty
+        # ground truth scores every one of them 0 -- zero reward, zero
+        # advantage, zero gradient, silently, for a whole run. Mutation prompts
+        # have no ground truth and still pass "".
         data_source_arr = np.array(["rq_evolve"] * len(prompts), dtype=object)
         reward_model_arr = np.empty(len(prompts), dtype=object)
         for i in range(len(prompts)):
-            reward_model_arr[i] = {"ground_truth": ""}
+            truth = ""
+            if ground_truths is not None and i < len(ground_truths):
+                truth = str(ground_truths[i] or "")
+            reward_model_arr[i] = {"ground_truth": truth}
         data = {
             "input_ids": input_ids,
             "attention_mask": attention_mask,

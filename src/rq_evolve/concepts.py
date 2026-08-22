@@ -2,8 +2,8 @@
 
 A program declares exactly two labels at module top level::
 
-    GROUP = "number_theory"   # 수학 도메인 — 무엇에 관한 문제인가
-    SKILL = "counting"        # 추론 스킬  — 푸는 데 무엇이 필요한가
+    GROUP = "number_theory"
+    SKILL = "counting"
 
 The two axes are deliberately independent. One GROUP holds many SKILLs (the
 same domain reached by different reasoning), and one SKILL spans many GROUPs

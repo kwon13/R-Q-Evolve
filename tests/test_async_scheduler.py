@@ -242,7 +242,7 @@ def test_filter_flags_and_optional_rejection(tmp_path):
     assert snap["flag_invalid_answer"] == G
     assert snap["flag_duplicate"] == G - 1
     assert snap["rejected_overlong"] == G
-    # invalid answers stay ACCEPTED with correct=False (p_hat semantics)
+    # invalid answers stay ACCEPTED with correct=False (s_hat semantics)
     assert all(rec.status == "accepted" and rec.correct is False
                for rec in by_id[0].grouped[0])
     assert all(rec.status == "rejected" for rec in by_id[2].grouped[0])

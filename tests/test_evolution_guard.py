@@ -2,8 +2,8 @@
 
 A transient infra failure (chunk timeout, worker error) during
 reevaluate_champions / bootstrap previously flowed into _score_from_rollouts,
-which mutates p_hat/h_score/rq_score IN PLACE -- evicting a champion from its
-true niche (the stale-p_hat archive-pollution failure mode). evaluate_instances
+which mutates s_hat/u_score/rq_score IN PLACE -- evicting a champion from its
+true niche (the stale-s_hat archive-pollution failure mode). evaluate_instances
 now yields None for those groups and callers keep prior scores.
 """
 
@@ -21,7 +21,7 @@ from rq_evolve.openai_evaluator import (
     validate_openai_evaluator_environment,
 )
 from rq_evolve.program import ProblemInstance, ProblemProgram
-from rq_evolve.prompts import build_evaluator_messages
+from rq_evolve.prompts import MUTATION_OP, build_judge_messages
 
 
 class ScriptedBackend:
@@ -67,62 +67,73 @@ def _accepted(correct, entropy=1.0):
     )
 
 
-def _evolver(grouped):
+def _evolver(grouped, eval_seeds=1):
+    """One seed per program by default, so scripted rollout groups line up 1:1.
+
+    These tests are about how a group of rollouts is HANDLED (rejected, mixed,
+    contaminated), not about the n x m aggregation, so the seed axis is held at
+    one instance and the m axis is whatever the script provides.
+    """
     archive = MAPElitesArchive(**asdict(ArchiveConfig()))
-    return RQEvolver(archive=archive, backend=ScriptedBackend(grouped))
+    config = EvolutionConfig(eval_seeds=eval_seeds)
+    return RQEvolver(
+        archive=archive, backend=ScriptedBackend(grouped), evolution_config=config
+    )
 
 
-def _program(pid, p_hat=0.7, h=1.2, rq=0.25):
-    program = ProblemProgram(source_code="def generate(seed): pass", program_id=pid)
-    program.p_hat, program.h_score, program.rq_score, program.fitness = p_hat, h, rq, rq
+def _program(pid, s_hat=0.7, h=1.2, rq=0.25):
+    # Labelled, because the judge gate compares its own verdict against these.
+    program = ProblemProgram(
+        source_code=(
+            "def generate(seed):\n"
+            '    return f"what is {seed} plus four?", "4"\n\n\n'
+            'GROUP = "algebra"\n'
+            'SKILL = "counting"\n'
+        ),
+        program_id=pid,
+    )
+    program.s_hat, program.u_score, program.rq_score = s_hat, h, rq
     return program
 
 
 def test_all_rejected_group_yields_none_and_keeps_scores():
     champion = _program("champ")
-    inst = ProblemInstance(problem="p", answer="4", program_id="champ", seed=0)
     evolver = _evolver([[_rejected(), _rejected()]])
-    results = evolver.evaluate_instances([champion], [inst])
+    results = evolver.evaluate_programs([champion])
     assert results == [None]
     # prior scores untouched -- the champion is not zeroed out of its niche
-    assert champion.p_hat == 0.7
-    assert champion.h_score == 1.2
+    assert champion.s_hat == 0.7
+    assert champion.u_score == 1.2
     assert champion.rq_score == 0.25
     assert any(e["event"] == "eval_rollout_failed" for e in evolver.events)
 
 
 def test_mixed_groups_score_only_the_healthy_one():
-    ok_prog, bad_prog = _program("ok"), _program("bad", p_hat=0.5, h=2.0, rq=0.5)
-    insts = [
-        ProblemInstance(problem="a", answer="4", program_id="ok", seed=0),
-        ProblemInstance(problem="b", answer="4", program_id="bad", seed=0),
-    ]
+    ok_prog, bad_prog = _program("ok"), _program("bad", s_hat=0.5, h=2.0, rq=0.5)
     evolver = _evolver(
         [
-            [_accepted(True), _accepted(False)],       # healthy: p_hat 0.5
+            [_accepted(True), _accepted(False)],       # healthy: s_hat 0.5
             [_rejected("worker_error"), _rejected("worker_error")],
         ]
     )
-    results = evolver.evaluate_instances([ok_prog, bad_prog], insts)
-    assert results[0] is not None and results[0].p_hat == 0.5
+    results = evolver.evaluate_programs([ok_prog, bad_prog])
+    assert results[0] is not None and results[0].s_hat == 0.5
     assert results[1] is None
-    assert bad_prog.p_hat == 0.5 and bad_prog.h_score == 2.0  # untouched
+    assert bad_prog.s_hat == 0.5 and bad_prog.u_score == 2.0  # untouched
 
 
 def test_rejected_samples_excluded_from_p_hat():
     prog = _program("mixed")
-    inst = ProblemInstance(problem="p", answer="4", program_id="mixed", seed=0)
-    # 2 accepted (1 correct) + 2 rejected -> p_hat over ACCEPTED only = 0.5
+    # 2 accepted (1 correct) + 2 rejected -> s_hat over ACCEPTED only = 0.5
     evolver = _evolver([[_accepted(True), _accepted(False), _rejected(), _rejected()]])
-    result = evolver.evaluate_instances([prog], [inst])[0]
+    result = evolver.evaluate_programs([prog])[0]
     assert result is not None
-    assert result.p_hat == 0.5
+    assert result.s_hat == 0.5
     assert result.num_rollouts == 2
 
 
 def test_p_hat_regrades_cleaned_first_conversation():
     prog = _program("cleaned")
-    inst = ProblemInstance(problem="p", answer="4", program_id="cleaned", seed=0)
     contaminated = RolloutRecord(
         response=(
             r"Correct solution: \boxed{4}."
@@ -135,42 +146,39 @@ def test_p_hat_regrades_cleaned_first_conversation():
     )
     evolver = _evolver([[contaminated]])
 
-    result = evolver.evaluate_instances([prog], [inst])[0]
+    result = evolver.evaluate_programs([prog])[0]
 
     assert result is not None
-    assert result.p_hat == 1.0
+    assert result.s_hat == 1.0
     assert result.num_correct == 1
 
 
-def test_openai_evaluator_rejects_invalid(monkeypatch):
+def test_openai_judge_rejects_when_it_fails_closed(monkeypatch):
     def fake_openai(messages, config):
         assert config.model == "gpt-5.4-mini"
         assert messages[0]["role"] == "system"
-        return "reason: disconnected condition\nverdict: INVALID"
+        return "GROUP: none\nSKILL: none\nFAILURE_REASON: disconnected condition"
 
     monkeypatch.setattr("rq_evolve.evolution.evaluate_messages_with_openai", fake_openai)
     evolver = _evolver([])
     evolver.evolution_config = EvolutionConfig(evaluator_provider="openai")
     child = _program("child")
     entry = {
-        "task": type("Task", (), {"op": "in_depth"})(),
+        "task": type("Task", (), {"op": MUTATION_OP})(),
         "child": child,
         "inst": ProblemInstance(problem="p", answer="4", program_id="child", seed=0),
     }
-    evolver._apply_evaluator([entry])
-    assert entry["report"].status == "evaluator_rejected"
+    evolver._apply_judge([entry])
+    assert entry["report"].status == "judge_rejected"
     assert entry["report"].child_id == "child"
 
 
-def test_evaluator_receives_answer_and_generator_source():
-    messages = build_evaluator_messages(
-        "Compute 2+2.",
-        answer_text="4",
-        program_source='def generate(seed): return "Compute 2+2.", "4"',
-    )
+def test_judge_receives_the_problem_and_answer_only():
+    messages = build_judge_messages("Compute 2+2.", "4")
     content = messages[-1]["content"]
-    assert "Generated answer:\n4" in content
-    assert "Generator source:" in content
+    assert "Compute 2+2." in content
+    assert "4" in content
+    assert "def generate" not in content
 
 
 def test_openai_evaluator_preserves_target_order(monkeypatch):
@@ -179,8 +187,8 @@ def test_openai_evaluator_preserves_target_order(monkeypatch):
     def fake_openai(messages, config):
         seen.append(messages[1]["content"])
         if "second" in messages[1]["content"]:
-            return "reason: ok\nverdict: VALID"
-        return "reason: first invalid\nverdict: INVALID"
+            return "GROUP: algebra\nSKILL: counting\nFAILURE_REASON: none"
+        return "GROUP: none\nSKILL: none\nFAILURE_REASON: disconnected condition"
 
     monkeypatch.setattr("rq_evolve.evolution.evaluate_messages_with_openai", fake_openai)
     evolver = _evolver([])
@@ -192,7 +200,7 @@ def test_openai_evaluator_preserves_target_order(monkeypatch):
     for pid, problem in (("first", "first problem"), ("second", "second problem")):
         entries.append(
             {
-                "task": type("Task", (), {"op": "in_depth"})(),
+                "task": type("Task", (), {"op": MUTATION_OP})(),
                 "child": _program(pid),
                 "inst": ProblemInstance(
                     problem=problem,
@@ -203,8 +211,8 @@ def test_openai_evaluator_preserves_target_order(monkeypatch):
             }
         )
 
-    evolver._apply_evaluator(entries)
-    assert entries[0]["report"].status == "evaluator_rejected"
+    evolver._apply_judge(entries)
+    assert entries[0]["report"].status == "judge_rejected"
     assert "child" in entries[1]
     assert len(seen) == 2
 
@@ -218,14 +226,14 @@ def test_openai_evaluator_error_aborts_evolution(monkeypatch):
     evolver.evolution_config = EvolutionConfig(evaluator_provider="openai")
     child = _program("child")
     entry = {
-        "task": type("Task", (), {"op": "in_depth"})(),
+        "task": type("Task", (), {"op": MUTATION_OP})(),
         "child": child,
         "inst": ProblemInstance(problem="p", answer="4", program_id="child", seed=0),
     }
     import pytest
 
     with pytest.raises(EvaluatorRuntimeError, match="OPENAI_API_KEY"):
-        evolver._apply_evaluator([entry])
+        evolver._apply_judge([entry])
 
 
 def test_openai_evaluator_missing_key_fails_preflight(monkeypatch):

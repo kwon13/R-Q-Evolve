@@ -13,66 +13,7 @@ SOLVER_SYSTEM_PROMPT = (
     "Please reason step by step, and put your final answer within \\boxed{}."
 )
 
-groups = ", ".join(GROUPS)
-skills = ", ".join(SKILLS)
 
-MUTATION_CODE_SKELETON = """
-Required structural skeleton (replace every <...> placeholder; this is not a
-mathematical example and must not be returned with placeholders):
-```python
-import random
-
-GROUP = "<one of the GROUP vocabulary>"
-SKILL = "<one of the SKILL vocabulary>"
-
-def generate(seed):
-    rng = random.Random(seed)
-    <draw parameters from ranges that admit no degenerate case>
-    answer = <the intended route to the integer answer>
-    check = <the same quantity, recomputed from what the problem text says>
-    assert answer == check, f"answer={answer} check={check}"
-    problem = <one question about that one integer>
-    return problem, str(answer)
-```
-"""
-
-# The one contract item nothing else in the pipeline can replace. verify_program
-# checks the answer is an integer and that the statement varies; the evaluator
-# checks the statement reads coherently. Neither checks that problem_text and
-# answer describe the SAME mathematics -- a sample run produced "arrange 4
-# distinct objects in 9 positions" answered with 4**9 instead of P(9,4), and it
-# passed every gate. An independent recomputation is the only mechanical way to
-# catch that, so the prompt shows how to build one rather than merely demanding it.
-MUTATION_ASSERT_RULE = """
-The assert is the only check that problem_text and answer describe the same
-mathematics. Build it like this:
-
-```python
-    answer = <the intended route>
-    check = <the same quantity, recomputed from the words of problem_text>
-    assert answer == check, f"answer={answer} check={check}"
-```
-
-Give the assert that message. When it fires you are shown the failure and get
-one chance to repair the program, and "AssertionError" with no values does not
-say which of the two routes was wrong.
-
-`check` must come from a genuinely different procedure -- counting the stated
-objects one by one, a complement, a closed form against a loop, a small-case
-enumeration. Repeating the first route's expression, or asserting a property of
-`answer` alone, checks nothing. Keep `check` cheap: seeds 0-4 each run under a
-few seconds.
-"""
-
-
-# One file per axis, each the single source for that axis's meanings. The
-# operator that HOLDS an axis has the parent as a concrete instance of it and
-# needs no definition; the operator that MOVES an axis is crossing into a value
-# it has never seen an instance of, so it gets that axis's file:
-#   in_depth   holds GROUP, moves SKILL -> skill_definitions
-#   in_breadth holds SKILL, moves GROUP -> group_definitions
-# The evaluator reads skill_definitions too, to judge a declared label against
-# the same text the mutation was written from.
 SKILL_DEFINITIONS_FILE = "skill_definitions.txt"
 GROUP_DEFINITIONS_FILE = "group_definitions.txt"
 
@@ -88,77 +29,46 @@ def _load_definitions(filename: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
+MUTATION_SYSTEM_PROMPT_FILE = "mutation_system_prompt.txt"
+MUTATION_USER_PROMPT_FILE = "mutation_user_prompt.txt"
+JUDGE_SYSTEM_PROMPT_FILE = "mutation_judge_system_prompt.txt"
+JUDGE_USER_PROMPT_FILE = "mutation_judge_user_prompt.txt"
+
+# One mutation operator. The pair that forced a label change on one axis --
+# in_depth held GROUP and moved SKILL, in_breadth the mirror -- is retired.
+# Ordering the model to land on a SKILL it had not yet solved for made the
+# label a target instead of a description, and the child was written to satisfy
+# the order: the archived GROUP/SKILL then disagreed with what the visible
+# problem actually demanded, which is the one error the MAP cannot survive.
+# The child now picks both labels from its own finished mathematics, and the
+# judge re-derives them from the visible problem alone.
+MUTATION_OP = "mutate"
+
+
 @lru_cache(maxsize=1)
 def mutation_system_prompt() -> str:
-    """Role, output discipline, code skeleton, then the SKILL_CRITERIA block.
+    """The Evolver's system turn, read verbatim from the template directory."""
+    return _load_template(MUTATION_SYSTEM_PROMPT_FILE).strip()
 
-    The per-operator templates own the numbered instructions and the axis
-    definitions each operator needs. This carries only what neither says: who
-    the model is, that exactly one code block comes back, the shape to fill in,
-    and how to build the self-check.
 
-    Built on demand rather than at import: the criteria block is read from
-    ``PROMPT_TEMPLATE_DIR``, which honours ``RQ_EVOLVE_PROMPT_DIR`` and is
-    defined further down this module.
+@lru_cache(maxsize=4)
+def judge_system_prompt(rubric_file: str = JUDGE_SYSTEM_PROMPT_FILE) -> str:
+    """The judge's system turn: the validity gate and taxonomy rubric.
+
+    ``rubric_file`` is a parameter rather than a constant so a rubric can be
+    swapped without touching code -- ``evolution.judge_rubric`` selects it and
+    ``scripts/compare_judges.py`` uses it to put two rubrics on one corpus.
+
+    The shipped rubric keeps two validity gates and then judges both axes
+    against the same one-line definitions the Evolver reads. An earlier draft
+    additionally required a SKILL to survive a routineness test, a mandatory
+    named witness and a closest-alternative challenge; measured over 41 items
+    that took both-axis agreement from 41% to 2% and returned ``SKILL: none``
+    for 6 of 8 hand-labelled seeds, so a "declared == judged" gate built on it
+    rejected ground truth. See analysis/judge_pipeline_v2/.
     """
-    return (
-        "You design one executable Python program for competition-math "
-        "problems. Each file defines `generate(seed)`, which returns one "
-        "(problem_text, answer) pair, and then labels what it produced on two "
-        "independent axes.\n"
-        "\n"
-        "Think silently. Return exactly one complete program in one ```python``` "
-        "block and no other text. Never output analysis, JSON, a chat-message "
-        "object, role/content wrappers, example labels, the parent program, or "
-        "any few-shot example. Generate a new program for the LIVE parent only.\n"
-        "\n"
-        f"GROUP must be exactly one of: {groups}\n"
-        f"SKILL must be exactly one of: {skills}\n"
-        "The two axes are independent: any GROUP may pair with any SKILL. "
-        "GROUP names the mathematical domain; SKILL names the reasoning the "
-        "visible problem forces a solver to perform.\n"
-        "\n"
-        f"{MUTATION_CODE_SKELETON}\n"
-        f"{MUTATION_ASSERT_RULE}\n"
-        "Before emitting code, silently verify: exactly one Python block; seeds "
-        "0 through 4 terminate; `check` recomputes the answer from the problem "
-        "text rather than repeating the first route; the problem is not the "
-        "parent's problem reworded; and the declared SKILL is the reasoning the "
-        "visible problem actually forces. If any check fails, redesign before "
-        "answering."
-    )
+    return _load_template(rubric_file).strip()
 
-EVALUATOR_SYSTEM_PROMPT = (
-    "You are an evaluator for generated math word problems and their generator "
-    "programs.\n"
-    "Determine whether the problem is internally coherent, whether the supplied "
-    "answer solves the visible problem, and—when source is supplied—whether the "
-    "code computes exactly the mathematics stated in problem_text.\n\n"
-    "Recompute from the literal values printed in the visible problem; do not "
-    "trust source comments, intended formulas, or the supplied answer. If source "
-    "overwrites a list, matrix, graph, sequence, bound, or coefficient object, "
-    "mark INVALID when problem_text is formatted from stale pre-overwrite aliases "
-    "while the answer is computed from the updated object.\n\n"
-    "Mark the problem as INVALID if any stated condition, theorem, system, recurrence, optimization, or variable definition is not logically connected to the final question (even if the answer can still be computed by ignoring it), if the statement combines two or more independent problems or poses multiple unrelated final questions, if the same variable name is reused for unrelated objects in an ambiguous way, or if the final requested answer does not follow from the stated problem; otherwise, check for contradictory conditions, irrelevant conditions, inapplicable claims about solution methods, and extraneous assumptions.\n"
-    "Also mark INVALID if the returned answer is wrong, the code uses hidden "
-    "quantities or a different mathematical object than the problem states, "
-    "the code's declared answer checks are internally inconsistent, bounded "
-    "sampling cannot terminate, or the program copies an example instead of mutating the live "
-    "parent.\n"
-    "A declared SKILL is a claim about what the problem forces a solver to do, "
-    "and it is the claim most often false: a label is free to write, the "
-    "reasoning is not. Judge it against the SKILL definition supplied with the "
-    "candidate, reading only the visible problem -- never the source comments, "
-    "the constant, or what the generator seems to have intended. Answer "
-    "skill_required: NO whenever the problem can be solved without that "
-    "reasoning, and mark the verdict INVALID with it.\n"
-    "Return:\n"
-    "- reason: concise explanation\n"
-    "- skill_required: YES or NO\n"
-    "- verdict: VALID or INVALID"
-)
-
-EVALUATOR_SHOT_FILE = "evaluator.txt"
 
 @dataclass(slots=True)
 class MutationTask:
@@ -183,59 +93,31 @@ SHOT_TEMPLATE_DIR = Path(
     os.environ.get("RQ_EVOLVE_SHOT_DIR", PROMPT_TEMPLATE_DIR / "shots")
 )
 
-# The two operators each hold one axis fixed and move the other.
-#
-#   in_depth   -- operator A: GROUP fixed, SKILL must change.
-#                 Same mathematical domain, different decisive reasoning.
-#   in_breadth -- operator B: SKILL fixed, GROUP must change.
-#                 Same decisive reasoning, transported to another domain.
-#
-# The op names are the pre-migration ones, kept so `evolution.in_depth_ratio`,
-# the sampler and every archived report string still line up. "depth" now means
-# "stays in the domain", "breadth" means "leaves the domain".
-PROMPT_TEMPLATE_FILES = {
-    "in_depth": "mutate_A_skill_within_group.txt",
-    "in_breadth": "mutate_B_group_within_skill.txt",
-}
-# Live mutation substitutes $few_shot_examples with the empty string, so no shot
-# file is read today. The mapping stays name-parallel for the day it is re-enabled;
-# the old shots/in_*.txt fixtures are written against the retired CONCEPT_* labels
-# and must be regenerated before any of them is injected again.
-SHOT_TEMPLATE_FILES = PROMPT_TEMPLATE_FILES
-
 
 def build_mutation_task(
-    op: str,
     parent: ProblemProgram,
     *,
     temperature: float | None = None,
     top_p: float | None = None,
 ) -> MutationTask:
-    if op not in PROMPT_TEMPLATE_FILES:
-        raise ValueError(f"unknown mutation op: {op}")
+    """One mutation request: the parent program plus both label vocabularies.
 
-    template = _load_prompt_template(op)
-    # Mutation runs WITHOUT few-shot examples, deliberately. Two reasons, both
-    # measured: the verified example pairs cost +8,047 tokens, which leaves 872
-    # of the 12,000-token rollout window for the response (a child generator is
-    # 2-4k); and code_temperature is 0.0, the greedy decoding that made the
-    # model copy an example instead of mutating the live parent. The structural
-    # lesson those pairs carry is in MUTATION_CODE_SKELETON and
-    # MUTATION_ASSERT_RULE instead, at ~150 tokens. Restoring injection means
-    # raising rollout.max_model_len first -- see tests/fixtures/mutation_pairs/.
-    context = _template_context(op=op, parent=parent)
-    live_user = _render_template(template, {**context, "few_shot_examples": ""})
+    There is no operator argument. The Evolver decides for itself what to change
+    and labels the finished child from its own shortest solution; nothing here
+    demands a particular GROUP or SKILL.
+    """
     system_prompt = mutation_system_prompt()
-
+    user_prompt = _render_template(
+        _load_template(MUTATION_USER_PROMPT_FILE),
+        _template_context(parent),
+    )
     return MutationTask(
-        op=op,
-        prompt=f"{system_prompt}\n\n{live_user}",
+        op=MUTATION_OP,
+        prompt=f"{system_prompt}\n\n{user_prompt}",  # flat fallback only
         parent=parent,
-        # Both representations omit code-rich few-shots; greedy decoding was
-        # copying them instead of mutating the live parent.
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": live_user},
+            {"role": "user", "content": user_prompt},
         ],
         temperature=temperature,
         top_p=top_p,
@@ -279,179 +161,188 @@ def build_fix_task(
     )
 
 
-def _load_evaluator_shots() -> str:
-    path = SHOT_TEMPLATE_DIR / EVALUATOR_SHOT_FILE
-    if not path.exists():
-        return ""
-    return path.read_text(encoding="utf-8").strip()
+JUDGE_FIELDS = (
+    "GROUP",
+    "GROUP_EVIDENCE",
+    "SKILL",
+    "SKILL_WITNESS",
+    "CLOSEST_ALTERNATIVE",
+    "WHY_NOT_ALTERNATIVE",
+    "FAILURE_REASON",
+)
 
 
-def skill_definition(skill: str | None) -> str:
-    """The one SKILL_CRITERIA line for ``skill``, or "" when it is unknown.
+@dataclass(slots=True)
+class JudgeVerdict:
+    """One parsed judge reply.
 
-    The evaluator cannot judge a label it has no definition for, so the line
-    travels with the candidate instead of the evaluator being expected to
-    remember all eight.
+    ``group`` and ``skill`` are None whenever the judge failed closed (it emits
+    the literal ``none``) or whenever the field was missing, unparseable, or
+    outside the vocabulary. None is the answer, not an error: every one of those
+    shapes means the judge did not certify a label, and they must all reject.
     """
-    if not skill:
-        return ""
-    for line in _load_definitions(SKILL_DEFINITIONS_FILE).splitlines():
-        if line.startswith(f"- {skill}:"):
-            return line.strip()
-    return ""
+
+    group: str | None = None
+    skill: str | None = None
+    group_evidence: str = ""
+    skill_witness: str = ""
+    closest_alternative: str = ""
+    why_not_alternative: str = ""
+    failure_reason: str = ""
+    raw: str = ""
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "group": self.group,
+            "skill": self.skill,
+            "group_evidence": self.group_evidence,
+            "skill_witness": self.skill_witness,
+            "closest_alternative": self.closest_alternative,
+            "why_not_alternative": self.why_not_alternative,
+            "failure_reason": self.failure_reason,
+        }
 
 
-def build_evaluator_messages(
+def build_judge_messages(
     problem_text: str,
+    answer_text: str,
     *,
-    answer_text: str | None = None,
-    program_source: str | None = None,
-    skill: str | None = None,
+    rubric_file: str = JUDGE_SYSTEM_PROMPT_FILE,
 ) -> list[dict]:
-    """Render the semantic generator review conversation for one problem."""
-    blocks: list[str] = []
-    shots = _load_evaluator_shots()
-    if shots:
-        blocks.append(shots)
-    review = (
-        "Now evaluate the following problem.\n\n"
-        f"Problem:\n{problem_text.strip()}\n"
+    """The judge conversation for one (problem, answer) pair.
+
+    The generator source, the declared labels, and the parent never travel with
+    it. The judge has to reach GROUP and SKILL from the visible problem alone,
+    which is the only way its answer can disagree with the declared one.
+    """
+    user = _render_template(
+        _load_template(JUDGE_USER_PROMPT_FILE),
+        {
+            "problem_text": str(problem_text).strip(),
+            "answer": str(answer_text).strip(),
+        },
     )
-    if answer_text is not None:
-        review += f"\nGenerated answer:\n{str(answer_text).strip()}\n"
-    if program_source is not None:
-        review += (
-            "\nGenerator source:\n```python\n"
-            + str(program_source).strip()
-            + "\n```\n"
-        )
-    definition = skill_definition(skill)
-    if definition:
-        review += (
-            f"\nThe generator declares SKILL = {skill!r}, defined as:\n"
-            f"{definition}\n"
-            "Decide from the visible problem alone whether that reasoning is "
-            "genuinely required. Output skill_required: YES only if it is.\n"
-        )
-    blocks.append(f"{review}\nAnswer:")
     return [
-        {"role": "system", "content": EVALUATOR_SYSTEM_PROMPT},
-        {"role": "user", "content": "\n\n".join(blocks)},
+        {"role": "system", "content": judge_system_prompt(rubric_file)},
+        {"role": "user", "content": user},
     ]
 
 
-def build_evaluator_task(
+def build_judge_task(
     program: ProblemProgram,
     problem_text: str,
+    answer_text: str,
     *,
-    answer_text: str | None = None,
-    program_source: str | None = None,
     temperature: float | None = None,
     top_p: float | None = None,
+    rubric_file: str = JUDGE_SYSTEM_PROMPT_FILE,
 ) -> MutationTask:
-    """Wrap an evaluator query as a MutationTask so ``backend.mutate`` can run it.
+    """Wrap a judge query as a MutationTask so ``backend.mutate`` can run it.
 
-    Reuses the existing batched generate path (mutate reads ``messages``); no new
-    backend method is needed. ``parent`` carries the program under review purely
-    for reporting -- mutate only consumes ``messages``/``prompt``.
+    Reuses the batched generate path; no new backend method is needed.
+    ``parent`` carries the program under review purely for reporting.
     """
-    messages = build_evaluator_messages(
-        problem_text,
-        answer_text=answer_text,
-        program_source=program_source,
-        skill=program.get_skill(),
+    messages = build_judge_messages(
+        problem_text, answer_text, rubric_file=rubric_file
     )
-    flat = f"{messages[0]['content']}\n\n{messages[1]['content']}"
     return MutationTask(
-        op="evaluate",
-        prompt=flat,
+        op="judge",
+        prompt=f"{messages[0]['content']}\n\n{messages[1]['content']}",
         parent=program,
         messages=messages,
-        stage="evaluate",
+        stage="judge",
         temperature=temperature,
         top_p=top_p,
     )
 
 
-def parse_evaluator_verdict(
-    output: str,
-    *,
-    require_skill: bool = False,
-) -> tuple[bool, str]:
-    """Parse an evaluator response into ``(is_valid, reason)``.
+def _judge_field(text: str, name: str) -> str:
+    """Read one ``NAME: value`` line, tolerating decoration around the label.
 
-    A candidate passes ONLY on an explicit VALID verdict. Field labels are read
-    leniently (case, bullets, emphasis markers) because a base model varies the
-    spelling of the label far more than the judgement; field VALUES stay strict.
-    Falls back to scanning the whole text for a verdict. Anything else -- INVALID,
-    no verdict at all, empty, or unreadable -- is NOT valid and is discarded, so
-    only problems the evaluator clearly endorses reach the archive. ``INVALID``
-    is checked before ``VALID`` because it contains ``VALID`` as a substring.
+    The output contract asks for seven bare lines, but a base model reliably
+    wraps a field name in bullets, bold markers, or numbering while getting the
+    value right. The label match is lenient for that reason; the VALUES are
+    then held to the closed vocabularies below, so leniency here can only
+    recover a well-formed verdict, never invent one.
+    """
+    match = re.search(
+        r"^[\s>*_#-]*" + name + r"[\s*_]*:[ \t]*(.*)$",
+        text,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    return match.group(1).strip() if match else ""
+
+
+def _judge_label(value: str, vocabulary: tuple[str, ...]) -> str | None:
+    """A vocabulary member, or None for ``none``/missing/anything unrecognised."""
+    # Strip whitespace and decoration together: a base model writes
+    # "**GROUP:** number_theory", which leaves "** number_theory" as the value,
+    # and stripping punctuation alone would hand back a leading space.
+    token = value.strip(" \t`'\"*_.:#").lower()
+    if not token or token == "none":
+        return None
+    return token if token in vocabulary else None
+
+
+def parse_judge_verdict(output: str) -> JudgeVerdict:
+    """Parse a judge reply into its seven fields.
+
+    Never raises. An empty, truncated, or off-contract reply parses to a verdict
+    with ``group``/``skill`` None, which ``judge_accepts`` rejects -- the judge
+    is a gate that has to fail closed, so an unreadable answer must not be
+    distinguishable from a refusal.
     """
     text = output or ""
-    # Tolerate the shapes a base model actually emits around the field name --
-    # "Reason:", "- reason:", "**verdict**:", a leading bullet or number. Of 160
-    # captured off-format replies, the judgement was usually right and only the
-    # spelling of the label was wrong, so an exact-prefix match discarded good
-    # verdicts. The field VALUES stay strict.
-    def field(name: str) -> str:
-        m = re.search(
-            r"^[\s>*_#-]*" + name + r"[\s*_]*:\s*(.+)$",
-            text, re.IGNORECASE | re.MULTILINE,
+    return JudgeVerdict(
+        group=_judge_label(_judge_field(text, "GROUP"), GROUPS),
+        skill=_judge_label(_judge_field(text, "SKILL"), SKILLS),
+        group_evidence=_judge_field(text, "GROUP_EVIDENCE"),
+        skill_witness=_judge_field(text, "SKILL_WITNESS"),
+        closest_alternative=_judge_field(text, "CLOSEST_ALTERNATIVE"),
+        why_not_alternative=_judge_field(text, "WHY_NOT_ALTERNATIVE"),
+        failure_reason=_judge_field(text, "FAILURE_REASON"),
+        raw=text,
+    )
+
+
+def judge_accepts(
+    verdict: JudgeVerdict,
+    declared_group: str | None,
+    declared_skill: str | None,
+) -> tuple[bool, str]:
+    """The gate: both labels must survive the judge AND match what was declared.
+
+    Agreement on both axes is the whole condition. A child the judge labels
+    validly but differently is still rejected: the archive would file it under
+    the declared cell while the problem belongs in another, and a MAP whose
+    coordinates lie is worse than a MAP with an empty cell.
+    """
+    if verdict.group is None or verdict.skill is None:
+        reason = verdict.failure_reason.strip()
+        missing = " and ".join(
+            axis
+            for axis, value in (("GROUP", verdict.group), ("SKILL", verdict.skill))
+            if value is None
         )
-        return m.group(1).strip() if m else ""
+        if not reason or reason.lower() == "none":
+            reason = f"judge returned no {missing}"
+        return False, f"judge failed closed ({missing}): {reason}"
 
-    reason = field("reason")
-    verdict = field("verdict").upper()
-    skill_required = field("skill_required").upper()
-
-    if not verdict:
-        upper = text.upper()
-        if "INVALID" in upper:
-            verdict = "INVALID"
-        elif "VALID" in upper:
-            verdict = "VALID"
-    is_valid = verdict.startswith("VALID")  # INVALID / missing / off-format -> discard
-    if require_skill and not skill_required.startswith("YES"):
-        # A silent or negative answer both mean the same thing: nothing
-        # established that the declared SKILL is the reasoning this problem
-        # forces, which is exactly the claim that goes unchecked otherwise.
-        #
-        # Silence carries the raw output. In an earlier run 11 of 17 evaluator
-        # rejections were silent, and this branch overwrote `reason` before the
-        # text fallback below could run -- so 19% of a batch was discarded on a
-        # signal there was no way to audit. Verdict unchanged; the evidence now
-        # survives.
-        is_valid = False
-        if skill_required:
-            reason = "declared SKILL is not required by the visible problem" + (
-                "; " + reason if reason else ""
-            )
-        else:
-            reason = (
-                "evaluator gave no skill_required line; raw output: "
-                + (text.strip()[:220] or "(empty)")
-            )
-    if not reason:
-        reason = text.strip()[:300] or "no explicit VALID verdict"
-    return is_valid, reason
+    mismatches = []
+    if verdict.group != declared_group:
+        mismatches.append(f"GROUP declared={declared_group!r} judged={verdict.group!r}")
+    if verdict.skill != declared_skill:
+        mismatches.append(f"SKILL declared={declared_skill!r} judged={verdict.skill!r}")
+    if mismatches:
+        return False, "label mismatch: " + "; ".join(mismatches)
+    return True, ""
 
 
-def _load_prompt_template(op: str) -> str:
-    path = PROMPT_TEMPLATE_DIR / PROMPT_TEMPLATE_FILES[op]
+def _load_template(filename: str) -> str:
+    path = PROMPT_TEMPLATE_DIR / filename
     if not path.exists():
         raise FileNotFoundError(f"missing prompt template: {path}")
     return path.read_text(encoding="utf-8")
-
-
-def _load_shot_examples(op: str) -> str:
-    path = SHOT_TEMPLATE_DIR / SHOT_TEMPLATE_FILES[op]
-    if not path.exists():
-        return ""
-    text = path.read_text(encoding="utf-8").strip()
-    if not text:
-        return ""
-    return f"Few-shot examples:\n\n{text}"
 
 
 def _template_identifiers(template: str) -> set[str]:
@@ -486,37 +377,40 @@ def _render_template(template: str, context: dict[str, str]) -> str:
     return Template(template).safe_substitute(context)
 
 
-def _template_context(
-    op: str,
-    parent: ProblemProgram,
-) -> dict[str, str]:
-    parent_group = str(parent.get_group() or "")
-    parent_skill = str(parent.get_skill() or "")
+def _template_context(parent: ProblemProgram) -> dict[str, str]:
+    """Placeholders for ``mutation_user_prompt.txt``.
+
+    Both vocabularies go in whole. The retired operators each withheld the axis
+    they held fixed, on the reasoning that the parent was already a worked
+    instance of it; with no axis held there is nothing to withhold, and a label
+    the child may choose but cannot read the meaning of is a label it will
+    misapply.
+    """
     return {
-        "few_shot_examples": _load_shot_examples(op),
-        "parent_id": parent.program_id,
-        "parent_generation": str(parent.generation),
         "parent_source": strip_module_docstring(parent.source_code),
-        "parent_group": parent_group,
-        "parent_skill": parent_skill,
-        # Operator A holds GROUP and must land on a different SKILL; operator B
-        # holds SKILL and must land on a different GROUP. Each list is its axis
-        # minus the parent's own value, so the forbidden option is never offered.
-        "allowed_skills": ", ".join(
-            skill for skill in SKILLS if skill != parent_skill
-        ),
-        "allowed_groups": ", ".join(
-            group for group in GROUPS if group != parent_group
-        ),
-        # Each template references only its own; the renderer ignores the
-        # unused key, and both stay on one source file.
-        "skill_definitions": _load_definitions(SKILL_DEFINITIONS_FILE),
-        "group_definitions": _load_definitions(GROUP_DEFINITIONS_FILE),
-        "parent_p_hat": f"{float(getattr(parent, 'p_hat', 0.0) or 0.0):.3f}",
-        "parent_h_score": f"{float(getattr(parent, 'h_score', 0.0) or 0.0):.3f}",
-        "parent_rq_score": f"{float(getattr(parent, 'rq_score', 0.0) or 0.0):.6f}",
+        "parent_group": str(parent.get_group() or ""),
+        "parent_skill": str(parent.get_skill() or ""),
+        "allowed_groups": _load_definitions(GROUP_DEFINITIONS_FILE),
+        "allowed_skills": _load_definitions(SKILL_DEFINITIONS_FILE),
     }
 
 
-def build_solver_prompt(problem: str) -> str:
-    return f"{SOLVER_SYSTEM_PROMPT}\n\nProblem: {problem}\n\n"
+def build_solver_messages(problem: str) -> list[dict]:
+    """The solver conversation: rules in the system turn, problem in the user turn.
+
+    Every other measurement path in the codebase -- ``dataset.py``,
+    ``math_eval.py``, the expansion experiments, the standalone vLLM eval --
+    sends ``SOLVER_SYSTEM_PROMPT`` as a system turn. The rollout path used to
+    concatenate it into the user turn instead, so the policy was trained on one
+    prompt shape and scored on another.
+
+    ``shot_internal.build_solver_messages`` is the same conversation with an
+    optional worked example spliced in, and its no-shot branch returns exactly
+    what this returns. The two stay in step because both read the one
+    ``SOLVER_SYSTEM_PROMPT`` above; this is the production rollout/eval builder,
+    that one belongs to the shot diagnostics.
+    """
+    return [
+        {"role": "system", "content": SOLVER_SYSTEM_PROMPT},
+        {"role": "user", "content": problem},
+    ]

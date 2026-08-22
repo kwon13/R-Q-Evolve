@@ -16,22 +16,30 @@ from .code_utils import (
 )
 from .concepts import validate_label_decl
 from .config import EvolutionConfig, TrainingDataConfig
-from .dataset import DynamicProblemDataset, build_training_examples
+from .dataset import (
+    DynamicProblemDataset,
+    build_replay_training_examples,
+    build_training_examples,
+)
 from .openai_evaluator import (
     EvaluatorRuntimeError,
     OpenAIEvaluatorConfig,
     evaluate_messages_with_openai,
 )
 from .program import ProblemInstance, ProblemProgram
+from .replay import LaggedScoreboard, RolloutReplayBuffer
+from .seed_stream import SeedStream
 from .prompts import (
     MutationTask,
-    build_evaluator_messages,
-    build_evaluator_task,
+    MUTATION_OP,
+    build_judge_messages,
+    build_judge_task,
     build_fix_task,
     build_mutation_task,
-    parse_evaluator_verdict,
+    judge_accepts,
+    parse_judge_verdict,
 )
-from .scoring import RQResult, compute_rq_full, is_frontier
+from .scoring import RQResult, compute_rq_program, is_frontier, score_seed
 from .solver_trace import clean_and_grade_solver_rollout
 
 
@@ -48,8 +56,8 @@ class CandidateReport:
     op: str
     child_id: str | None = None
     rq_score: float = 0.0
-    p_hat: float = 0.0
-    uncertainty: float = 0.0
+    s_hat: float = 0.0
+    u_score: float = 0.0
     reason: str | None = None
     source_code: str | None = None
     ast_findings: list[str] = field(default_factory=list)
@@ -78,6 +86,21 @@ class RQEvolver:
     training_config: TrainingDataConfig = field(default_factory=TrainingDataConfig)
     dataset: DynamicProblemDataset = field(default_factory=DynamicProblemDataset)
     used_seeds: dict[str, set[int]] = field(default_factory=dict)
+    # The never-reused seed source every evaluation draws from. Persisted with
+    # the archive so a resumed run does not re-issue seeds the pre-restart run
+    # already graded on -- which would reopen exactly the overfitting hole that
+    # fresh seeds close.
+    seed_stream: SeedStream = field(default_factory=SeedStream)
+    # This iteration's re-scoring rollouts, kept so the solver update trains on
+    # them instead of paying for a second sampling pass over the same programs.
+    replay: RolloutReplayBuffer = field(default_factory=RolloutReplayBuffer)
+    # Which elites train is decided by PAST scores; what they train on is this
+    # iteration's rollouts. Scoring and selecting on the same draw would keep
+    # whichever elite's measurement noise landed high.
+    lagged: LaggedScoreboard = field(default_factory=LaggedScoreboard)
+
+    def __post_init__(self) -> None:
+        self.lagged.ewma_alpha = float(self.training_config.lagged_selection_ewma)
     events: list[dict] = field(default_factory=list)
     # Candidate reports from the most recent run_outer_iteration, exposed so the
     # sampler can persist them to the per-step evolution log.
@@ -86,7 +109,7 @@ class RQEvolver:
     # select_random_order ablation shuffle across outer iterations (reproducible).
     dataset_refresh_count: int = 0
     # Per-champion frontier decision from the most recent refresh_dataset():
-    # {program_id, p_hat, rq_score, decision: in_frontier | p_hat_out_of_range}.
+    # {program_id, s_hat, rq_score, decision: in_frontier | s_hat_out_of_range}.
     # Persisted into evolution_log.jsonl so the learnability/curriculum filter
     # is observable (which champions fed the training set, and why not).
     last_frontier: list[dict] = field(default_factory=list)
@@ -131,13 +154,16 @@ class RQEvolver:
                     }
                 )
                 continue
-            result = self.evaluate_instance(program, inst)
-            if result is None or result.rq_score <= 0.0:
+            result = self.evaluate_programs([program], store_replay=True)[0]
+            if result is None:
                 continue
+            # Bootstrap counts as iteration -1. Without it every seed would be
+            # "first scored this iteration" at t=0, the lagged filter would
+            # exclude all of them, and the first training batch would be empty.
+            self.lagged.record(program.program_id, -1, result.rq_score)
             if self.archive.try_insert(
                 program=program,
-                h_value=result.uncertainty,
-                problem_text=inst.problem,
+                u_value=result.u_score,
                 rq_score=result.rq_score,
             ):
                 inserted += 1
@@ -153,10 +179,7 @@ class RQEvolver:
         n = n_seeds or self.evolution_config.verify_seeds
         source_errors = lint_generator_source(program.source_code)
         mode = self.evolution_config.ast_contract
-        is_generated_mutation = program.metadata.get("op") in {
-            "in_depth",
-            "in_breadth",
-        }
+        is_generated_mutation = program.metadata.get("op") == MUTATION_OP
         if is_generated_mutation:
             # Determinism only: a seeded `rng`, no direct `random.*` calls, and
             # sorted() around dict/set iteration, so a program yields the same
@@ -170,7 +193,7 @@ class RQEvolver:
             # on 20/20 candidates for instance_data and on 9 of 14 rejections
             # for the notation pair. Execution-level checks carry the guarantee
             # instead: every verified seed must yield an integer answer below,
-            # and the evaluator gates coherence before the archive.
+            # and the judge gates the labels before the archive.
             source_errors.extend(
                 lint_mutation_generator_source(
                     program.source_code,
@@ -257,6 +280,24 @@ class RQEvolver:
         attempted = 0
         inserted = 0
         reports: list[CandidateReport] = []
+        # Judge telemetry for this outer iteration only. Accumulated across the
+        # inner batches because the gate runs once per batch, and reset here so
+        # a wandb series reads per-iteration rather than cumulative.
+        self.judge_tally = {
+            "reached": 0,
+            "agreed": 0,
+            "group_agreed": 0,
+            "skill_agreed": 0,
+            "label_mismatch": 0,
+            "failed_closed": 0,
+            "skill_none": 0,
+            "group_none": 0,
+        }
+        self.judge_skill_counts: dict[str, int] = {}
+        # Rollouts are on-policy for exactly one update; carrying them across an
+        # iteration would need an importance-ratio correction this design does
+        # not have, so the buffer starts empty every time.
+        self.replay.begin_iteration(outer_iteration)
 
         # Push current actor weights into vLLM ONCE for the whole evolve phase.
         # Evolve runs no optimizer step, so weights are static throughout:
@@ -288,6 +329,48 @@ class RQEvolver:
         self.refresh_dataset()
         stats = self.archive.stats()
         frontier_in = sum(1 for f in self.last_frontier if f["decision"] == "in_frontier")
+        # Dispersion is a diagnostic, never a fitness term (rewarding
+        # consistency would hand a free maximum to a seed-ignoring generator),
+        # but it is the signal that says whether a champion's R_Q is an average
+        # over comparable instances or over a trivial/impossible mixture.
+        dispersions = [
+            float(c.metadata.get("dispersion", 0.0))
+            for c in self.archive.champions()
+            if "dispersion" in (c.metadata or {})
+        ]
+        dispersion_metrics = (
+            {
+                "mean_dispersion": sum(dispersions) / len(dispersions),
+                "max_dispersion": max(dispersions),
+            }
+            if dispersions
+            else {}
+        )
+        # Replay accounting. `replay_degenerate_frac` is the share of the batch
+        # that can produce no gradient at all (all-correct or all-wrong groups
+        # self-neutralise under the per-instance LOO baseline), so it is the
+        # honest measure of how much of the update is wasted.
+        replay_metrics = self.replay.stats()
+        tally = getattr(self, "judge_tally", {}) or {}
+        reached = tally.get("reached", 0)
+        judge_metrics = {f"judge_{k}": v for k, v in tally.items()}
+        if reached:
+            judge_metrics["judge_agree_rate"] = tally["agreed"] / reached
+            judge_metrics["judge_group_agree_rate"] = tally["group_agreed"] / reached
+            judge_metrics["judge_skill_agree_rate"] = tally["skill_agreed"] / reached
+            judge_metrics["judge_skill_none_rate"] = tally["skill_none"] / reached
+        # Distinct SKILLs the judge actually emitted, excluding "none".
+        judge_metrics["judge_skill_vocabulary"] = len(
+            [k for k in getattr(self, "judge_skill_counts", {}) if k != "none"]
+        )
+        # Why candidates died, not just how many. accept_rate alone cannot tell
+        # "the Evolver writes code that does not run" from "the judge refuses
+        # the labels", and those need opposite fixes.
+        status_counts: dict[str, int] = {}
+        for report in reports:
+            key = f"status_{report.status}"
+            status_counts[key] = status_counts.get(key, 0) + 1
+
         result = {
             "outer_iteration": outer_iteration,
             "attempted": attempted,
@@ -296,6 +379,12 @@ class RQEvolver:
             "dataset_size": len(self.dataset),
             "frontier_in": frontier_in,
             "frontier_out": len(self.last_frontier) - frontier_in,
+            "eval_seeds": self.evolution_config.eval_seeds,
+            "rollouts_per_seed": self.evolution_config.rollouts_per_seed,
+            **dispersion_metrics,
+            **replay_metrics,
+            **judge_metrics,
+            **status_counts,
             **stats,
         }
         self.last_reports = reports
@@ -314,19 +403,17 @@ class RQEvolver:
           * ``{"report": CandidateReport}`` -- terminal; carries the outcome.
 
         Flow: mutate() -> split into the three shapes -> _resolve_retries
-        (_retry -> child | report) -> _apply_evaluator (drops incoherent children
+        (_retry -> child | report) -> _apply_judge (drops mislabelled children
         -> report) -> generate_rollouts on survivors -> each child scored and
         archived into a terminal CandidateReport. See docs/PIPELINE.md
         ("Evolution Candidate State") for the diagram and full status vocabulary.
         """
-        requests: list[tuple[str, ProblemProgram]] = []
+        parents: list[ProblemProgram] = []
         for _ in range(batch_size):
             parent = self.archive.sample_parent()
             if parent is None:
                 return [CandidateReport(status="no_parent", op="none")]
-
-            op = self._sample_operator(parent)
-            requests.append((op, parent))
+            parents.append(parent)
 
         # One vLLM wake for the whole batch: the mutation generate and every
         # solver generate run while vLLM is awake; entropy (actor forward) is
@@ -335,12 +422,11 @@ class RQEvolver:
         try:
             tasks = [
                 build_mutation_task(
-                    op,
                     parent,
                     temperature=self.evolution_config.code_temperature,
                     top_p=self.evolution_config.code_top_p,
                 )
-                for op, parent in requests
+                for parent in parents
             ]
             outputs = self.backend.mutate(tasks) if tasks else []
             entries: list[dict] = []
@@ -357,7 +443,7 @@ class RQEvolver:
                     # ``source`` and ``child_id`` ride INSIDE the payload on
                     # purpose. _resolve_retries writes e["report"] without
                     # calling e.clear(), so a top-level "child" key would
-                    # survive into _apply_evaluator's selector and desync the
+                    # survive into _apply_judge's selector and desync the
                     # zip(to_eval, grouped) that attributes rollout groups.
                     entries.append(
                         {
@@ -395,23 +481,33 @@ class RQEvolver:
             # generate reuses the already-awake rollout worker.
             self._resolve_retries(entries)
 
-            # Final coherence gate: drop verified children whose seed-0 problem
-            # the evaluator marks INVALID, BEFORE solver rollouts are spent on
-            # them. Runs in the same open vLLM session as mutate.
-            self._apply_evaluator(entries)
+            # Final gate: the judge re-derives GROUP and SKILL from the
+            # seed-0 problem alone and must land on both declared labels.
+            # Runs BEFORE solver rollouts are spent, in the same open session.
+            self._apply_judge(entries)
 
             to_eval = [e for e in entries if "child" in e]
+            # A candidate is graded on n FRESH seeds, not on the seed-0 instance
+            # the judge saw: a generator that special-cases the instance it is
+            # scored on is otherwise indistinguishable from an honest one.
+            for e in to_eval:
+                e["eval_instances"] = self.draw_instances(e["child"])
             pending = self.backend.generate_rollouts(
-                [e["inst"] for e in to_eval],
-                n_rollouts=self.evolution_config.num_rollouts,
+                [inst for e in to_eval for inst in e["eval_instances"]],
+                n_rollouts=self.evolution_config.rollouts_per_seed,
             )
         finally:
             self.backend.end_session()
 
         grouped = self.backend.finalize_rollouts(pending)
-        rollouts_by_child = {
-            id(e["child"]): rollouts for e, rollouts in zip(to_eval, grouped)
-        }
+        rollouts_by_child: dict[int, list] = {}
+        cursor = 0
+        for e in to_eval:
+            take = len(e["eval_instances"])
+            rollouts_by_child[id(e["child"])] = list(
+                zip(e["eval_instances"], grouped[cursor : cursor + take])
+            )
+            cursor += take
 
         reports: list[CandidateReport] = []
         for entry in entries:
@@ -419,63 +515,61 @@ class RQEvolver:
                 reports.append(entry["report"])
                 continue
             task, child, inst = entry["task"], entry["child"], entry["inst"]
-            rollouts = rollouts_by_child.get(id(child), [])
-            accepted = [
-                r for r in rollouts if getattr(r, "status", "accepted") == "accepted"
-            ]
-            if rollouts and not accepted:
-                # Every rollout for this child was rejected (timeout / worker
-                # error / stale / ...): report the dominant reason explicitly
-                # instead of letting it masquerade as an ordinary p_hat_zero.
+            scored = rollouts_by_child.get(id(child), [])
+            stats = []
+            for eval_inst, rollouts in scored:
+                stat = self._seed_stat(child, eval_inst, rollouts)
+                if stat is not None:
+                    stats.append(stat)
+            if not stats:
+                # Every seed lost its rollouts (timeout / worker error / stale).
+                # Report the dominant reason instead of letting it masquerade as
+                # an ordinary s_hat_zero.
                 reasons: dict[str, int] = {}
-                for r in rollouts:
-                    key = r.reject_reason or "unknown"
-                    reasons[key] = reasons.get(key, 0) + 1
+                for _, rollouts in scored:
+                    for r in rollouts:
+                        key = r.reject_reason or "unknown"
+                        reasons[key] = reasons.get(key, 0) + 1
                 reports.append(
                     CandidateReport(
                         status="rollout_failed",
                         op=task.op,
                         child_id=child.program_id,
-                        reason=max(reasons, key=reasons.get),
-                        source_code=_logged_source(child.source_code),
-                        ast_findings=_ast_findings(child),
-                    )
-                )
-                continue
-            result = self._score_from_rollouts(child, rollouts, instance=inst)
-            if result.rq_score <= 0.0:
-                reports.append(
-                    CandidateReport(
-                        status=(
-                            "p_hat_zero"
-                            if result.p_hat <= 0.0
-                            else "rq_zero"
+                        reason=(
+                            max(reasons, key=reasons.get) if reasons else "no seeds"
                         ),
-                        op=task.op,
-                        child_id=child.program_id,
-                        rq_score=result.rq_score,
-                        p_hat=result.p_hat,
-                        uncertainty=result.uncertainty,
                         source_code=_logged_source(child.source_code),
                         ast_findings=_ast_findings(child),
                     )
                 )
                 continue
-
+            result = self._store_result(child, compute_rq_program(stats))
+            # An R_Q of 0 no longer ends the candidate's run. It still cannot
+            # take a cell from a scoring champion (competition is a strict `>`)
+            # and it still contributes no training examples (the frontier band
+            # in dataset.py drops p=0 and p=1), but it can hold an otherwise
+            # empty cell and be drawn as a mutation parent from there.
             inserted = self._try_insert_with_telemetry(
                 program=child,
-                h_value=result.uncertainty,
-                problem_text=inst.problem,
+                u_value=result.u_score,
                 rq_score=result.rq_score,
             )
+            if inserted:
+                status = "inserted"
+            elif result.s_hat <= 0.0:
+                status = "s_hat_zero"
+            elif result.rq_score <= 0.0:
+                status = "rq_zero"
+            else:
+                status = "rejected_non_elite"
             reports.append(
                 CandidateReport(
-                    status="inserted" if inserted else "rejected_non_elite",
+                    status=status,
                     op=task.op,
                     child_id=child.program_id,
                     rq_score=result.rq_score,
-                    p_hat=result.p_hat,
-                    uncertainty=result.uncertainty,
+                    s_hat=result.s_hat,
+                    u_score=result.u_score,
                     source_code=_logged_source(child.source_code),
                     ast_findings=_ast_findings(child),
                 )
@@ -499,7 +593,7 @@ class RQEvolver:
         if source is None:
             return None, None, "no parseable generate() in output", None
 
-        metadata = {"op": task.op}
+        metadata = {"op": task.op}  # MUTATION_OP; the judge decides the labels
         child = ProblemProgram(
             source_code=source,
             parent_id=task.parent.program_id,
@@ -507,48 +601,7 @@ class RQEvolver:
             metadata=metadata,
         )
         inst, reason = self.verify_program(child)
-        if inst is not None:
-            reason = self._validate_mutation_contract(task, child)
-            if reason is not None:
-                inst = None
         return child, inst, reason, source
-
-    @staticmethod
-    def _validate_mutation_contract(
-        task: MutationTask,
-        child: ProblemProgram,
-    ) -> str | None:
-        """Enforce the requested operator: one axis held, the other moved.
-
-        Each operator has to be checked on BOTH axes. Requiring only the move
-        lets a child drift on the axis that was supposed to stay fixed, and
-        requiring only the hold lets a child return the parent's own label on
-        the axis that was supposed to move -- which is the whole mutation.
-        """
-        parent_group = task.parent.get_group()
-        parent_skill = task.parent.get_skill()
-        child_group = child.get_group()
-        child_skill = child.get_skill()
-
-        if task.op == "in_depth":
-            # Operator A: same GROUP, different SKILL.
-            if child_group != parent_group:
-                return (
-                    "in_depth must keep GROUP: "
-                    f"{parent_group!r} -> {child_group!r}"
-                )
-            if child_skill == parent_skill:
-                return f"in_depth must change SKILL from {parent_skill!r}"
-        elif task.op == "in_breadth":
-            # Operator B: same SKILL, different GROUP.
-            if child_skill != parent_skill:
-                return (
-                    "in_breadth must keep SKILL: "
-                    f"{parent_skill!r} -> {child_skill!r}"
-                )
-            if child_group == parent_group:
-                return f"in_breadth must change GROUP from {parent_group!r}"
-        return None
 
     def _resolve_retries(self, entries: list[dict]) -> None:
         """Finalize every ``_retry`` entry into a success or a report entry.
@@ -601,79 +654,106 @@ class RQEvolver:
                     ast_findings=_ast_findings(child),
                 )
 
-    def _apply_evaluator(self, entries: list[dict]) -> None:
-        """LLM coherence gate over every verified child's seed-0 problem.
+    def _apply_judge(self, entries: list[dict]) -> None:
+        """Label gate: the judge must independently reach both declared labels.
 
-        For each ``{"task","child","inst"}`` entry the evaluator judges whether
-        the seed-0 problem statement is internally coherent (using
-        ``EVALUATOR_SYSTEM_PROMPT`` + the ``evaluator.txt`` shots). A child marked
-        INVALID is converted in place to an ``evaluator_rejected`` report, so it
-        is discarded before solver rollouts and never reaches the archive.
+        For each ``{"task","child","inst"}`` entry the judge sees ONLY the seed-0
+        problem text and the supplied answer -- never the source, the declared
+        GROUP/SKILL, or the parent. It runs its own validity gates, reconstructs
+        the shortest human solution, and returns a GROUP and a SKILL. The child
+        survives only when both agree with what it declared.
 
-        With ``evaluator_provider=policy``, one batched ``mutate`` over all
-        targets runs inside the already-open vLLM session. With
-        ``evaluator_provider=openai``, the same evaluator messages are sent to
-        the OpenAI Responses API using ``evaluator_model``. Evaluator
-        configuration or runtime failures raise immediately; they are never
-        converted into candidate reports because continuing would invalidate
-        the resulting curriculum.
+        That is the whole point of the redesign. The Evolver labels its own
+        output, and a label it invented is unfalsifiable until something else
+        derives one from the visible problem. A child whose statement says one
+        thing and whose label says another does not merely score badly -- it is
+        filed in the wrong cell, so the MAP's coordinates stop meaning anything
+        and both the parent sampler and the coverage metric read a fiction.
 
-        A candidate whose own evaluator prompt is too large is the exception:
-        that is a fact about one child, not a broken evaluator, so it is
-        dropped here rather than allowed to reach the backend. Batched
-        generation fails as a unit, so a single oversized prompt would
-        otherwise raise for the whole batch and abort a run that has nothing
-        wrong with it.
+        With ``evaluator_provider=policy`` one batched ``mutate`` runs inside the
+        already-open vLLM session; with ``openai`` the same messages go to the
+        Responses API. Judge configuration or runtime failures raise immediately
+        -- continuing would silently admit unlabelled children.
         """
         if not self.evolution_config.use_evaluator:
             return
         targets = [e for e in entries if "child" in e]
         if not targets:
             return
-        targets = self._drop_oversized_evaluator_inputs(targets)
+        targets = self._drop_oversized_judge_inputs(targets)
         if not targets:
             return
         if self.evolution_config.evaluator_provider == "openai":
-            outputs = self._run_openai_evaluator(targets)
+            outputs = self._run_openai_judge(targets)
         else:
-            eval_tasks = [
-                build_evaluator_task(
+            judge_tasks = [
+                build_judge_task(
                     e["child"],
                     e["inst"].problem,
-                    answer_text=e["inst"].answer,
-                    program_source=e["child"].source_code,
-                    temperature=self.evolution_config.evaluator_temperature,
-                    top_p=self.evolution_config.evaluator_top_p,
+                    e["inst"].answer,
+                    temperature=self.evolution_config.judge_temperature,
+                    top_p=self.evolution_config.judge_top_p,
+                    rubric_file=self.evolution_config.judge_rubric,
                 )
                 for e in targets
             ]
             try:
-                outputs = self.backend.mutate(eval_tasks)
+                outputs = self.backend.mutate(judge_tasks)
             except Exception as exc:
                 raise EvaluatorRuntimeError(
-                    "Evaluator backend failed; aborting R_Q-Evolve instead of "
+                    "Judge backend failed; aborting R_Q-Evolve instead of "
                     f"continuing with an invalid curriculum: {exc}"
                 ) from exc
         for e, output in zip(targets, outputs):
             if isinstance(output, Exception):
                 raise EvaluatorRuntimeError(
-                    "Evaluator call failed; aborting R_Q-Evolve instead of "
+                    "Judge call failed; aborting R_Q-Evolve instead of "
                     f"discarding the candidate and continuing: {output}"
                 ) from output
-            # The SKILL gate applies to generated children only. A seed's label
-            # is hand-written and already trusted; a child's is a claim the
-            # model made about its own output, and nothing else in the pipeline
-            # tests whether it is true.
-            is_valid, reason = parse_evaluator_verdict(
-                output or "",
-                require_skill=bool(e["child"].metadata.get("op")),
+            child = e["child"]
+            verdict = parse_judge_verdict(output or "")
+            accepted, reason = judge_accepts(
+                verdict,
+                child.get_group(),
+                child.get_skill(),
             )
-            if is_valid:
+            # Recorded either way: the disagreements are the measurement that
+            # says whether the Evolver's self-labelling is trustworthy at all.
+            child.metadata["judge"] = {
+                "accepted": accepted,
+                "reason": reason,
+                **verdict.to_dict(),
+            }
+            tally = getattr(self, "judge_tally", None)
+            if tally is not None:
+                tally["reached"] += 1
+                tally["agreed"] += int(accepted)
+                tally["group_agreed"] += int(verdict.group == child.get_group())
+                tally["skill_agreed"] += int(verdict.skill == child.get_skill())
+                tally["skill_none"] += int(verdict.skill is None)
+                tally["group_none"] += int(verdict.group is None)
+                if not accepted:
+                    key = (
+                        "failed_closed"
+                        if verdict.group is None or verdict.skill is None
+                        else "label_mismatch"
+                    )
+                    tally[key] += 1
+                # Which SKILLs the judge is willing to emit at all. A label it
+                # never returns is a label no child can be archived under, so
+                # this bounds reachable coverage independently of how often the
+                # Evolver is right -- measured at 3 of 8 for one judge and 6 of
+                # 8 for another over the same corpus.
+                name = verdict.skill or "none"
+                self.judge_skill_counts[name] = (
+                    self.judge_skill_counts.get(name, 0) + 1
+                )
+            if accepted:
                 continue
-            task, child = e["task"], e["child"]
+            task = e["task"]
             e.clear()
             e["report"] = CandidateReport(
-                status="evaluator_rejected",
+                status="judge_rejected",
                 op=task.op,
                 child_id=child.program_id,
                 reason=reason,
@@ -681,13 +761,16 @@ class RQEvolver:
                 ast_findings=_ast_findings(child),
             )
 
-    def _drop_oversized_evaluator_inputs(self, targets: list[dict]) -> list[dict]:
-        """Convert candidates with an over-budget evaluator prompt into reports.
+    def _drop_oversized_judge_inputs(self, targets: list[dict]) -> list[dict]:
+        """Convert candidates with an over-budget judge prompt into reports.
 
         The budget is read off the backend's own context window when it exposes
         one, so this tracks ``rollout.max_model_len`` instead of duplicating it.
         Without a window to read, nothing is dropped: refusing to guess is
         better than silently rejecting valid children on an invented limit.
+
+        Batched generation fails as a unit, so one oversized prompt would
+        otherwise raise for a whole batch that has nothing wrong with it.
         """
         budget = getattr(self.backend, "max_prompt_chars", None)
         if budget is None:
@@ -699,13 +782,14 @@ class RQEvolver:
             # chars/token is below anything real text produces, so the guard
             # trips early rather than one token too late.
             budget = max(0, int(window) - 512) * 2
+        entry_rubric = self.evolution_config.judge_rubric
         kept: list[dict] = []
         for entry in targets:
-            task = build_evaluator_task(
+            task = build_judge_task(
                 entry["child"],
                 entry["inst"].problem,
-                answer_text=entry["inst"].answer,
-                program_source=entry["child"].source_code,
+                entry["inst"].answer,
+                rubric_file=entry_rubric,
             )
             size = sum(len(m.get("content", "")) for m in task.messages or [])
             if size <= budget:
@@ -714,7 +798,7 @@ class RQEvolver:
             mutation_task, child = entry["task"], entry["child"]
             self.events.append(
                 {
-                    "event": "evaluator_input_too_large",
+                    "event": "judge_input_too_large",
                     "program_id": child.program_id,
                     "op": mutation_task.op,
                     "prompt_chars": size,
@@ -723,11 +807,11 @@ class RQEvolver:
             )
             entry.clear()
             entry["report"] = CandidateReport(
-                status="evaluator_input_too_large",
+                status="judge_input_too_large",
                 op=mutation_task.op,
                 child_id=child.program_id,
                 reason=(
-                    f"evaluator prompt is {size} chars, over the {budget}-char "
+                    f"judge prompt is {size} chars, over the {budget}-char "
                     "context budget; dropping this candidate instead of "
                     "failing the batch"
                 ),
@@ -736,7 +820,7 @@ class RQEvolver:
             )
         return kept
 
-    def _run_openai_evaluator(self, targets: list[dict]) -> list[str | Exception]:
+    def _run_openai_judge(self, targets: list[dict]) -> list[str | Exception]:
         cfg = OpenAIEvaluatorConfig(
             model=self.evolution_config.evaluator_model,
             reasoning_effort=self.evolution_config.evaluator_reasoning_effort,
@@ -744,11 +828,11 @@ class RQEvolver:
             max_output_tokens=self.evolution_config.evaluator_max_output_tokens,
         )
 
-        def evaluate_one(e: dict) -> str | Exception:
-            messages = build_evaluator_messages(
+        def judge_one(e: dict) -> str | Exception:
+            messages = build_judge_messages(
                 e["inst"].problem,
-                answer_text=e["inst"].answer,
-                program_source=e["child"].source_code,
+                e["inst"].answer,
+                rubric_file=self.evolution_config.judge_rubric,
             )
             try:
                 return evaluate_messages_with_openai(messages, cfg)
@@ -757,7 +841,7 @@ class RQEvolver:
 
         max_workers = min(self.evolution_config.evaluator_concurrency, len(targets))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            return list(executor.map(evaluate_one, targets))
+            return list(executor.map(judge_one, targets))
 
     def _score_from_rollouts(
         self,
@@ -766,133 +850,181 @@ class RQEvolver:
         *,
         instance: ProblemInstance | None = None,
     ) -> RQResult:
-        # Streamed rollouts carry a status: rejected samples (timeout / stale /
-        # overlong / ...) leave the p_hat estimate entirely -- they are logged
-        # with a reason but never scored. Legacy records default to "accepted".
+        """One instance's rollouts -> a one-seed R_Q. Kept for single-instance
+        callers; the program-level path is :meth:`evaluate_program`."""
+        stat = self._seed_stat(program, instance, rollouts, seed=
+                               int(getattr(instance, "seed", 0) or 0))
+        return self._store_result(program, compute_rq_program([stat] if stat else []))
+
+    def _seed_stat(
+        self,
+        program: ProblemProgram,
+        instance: ProblemInstance | None,
+        rollouts: list[RolloutRecord],
+    ) -> "SeedStat | None":
+        """Collapse one instance's m rollouts into its (s, L, U) triple.
+
+        Rejected rollouts (timeout / stale / worker error) leave the estimate
+        entirely -- they were never drawn from the policy, so counting them as
+        failures would understate s. A seed whose rollouts were ALL rejected
+        returns None and is dropped from the seed set rather than scored as 0:
+        one transient infra failure must not look like an unsolvable instance.
+        """
         accepted = [
             r for r in rollouts if getattr(r, "status", "accepted") == "accepted"
         ]
+        if not accepted:
+            return None
         flags = [
             clean_and_grade_solver_rollout(record, instance)[2]
             if instance is not None
             else bool(record.correct)
             for record in accepted
         ]
-        uncertainty = (
-            sum(r.entropy for r in accepted) / len(accepted)
-            if accepted
-            else 0.0
+        return score_seed(
+            seed=int(getattr(instance, "seed", 0) or 0),
+            correct_flags=flags,
+            rollout_entropies=[r.entropy for r in accepted],
         )
-        result = compute_rq_full(flags, uncertainty)
-        program.p_hat = result.p_hat
-        program.h_score = result.uncertainty
+
+    @staticmethod
+    def _store_result(program: ProblemProgram, result: RQResult) -> RQResult:
+        program.s_hat = result.s_hat
+        program.u_score = result.u_score
         program.rq_score = result.rq_score
-        program.fitness = result.rq_score
+        program.metadata["dispersion"] = result.dispersion
+        program.metadata["num_seeds"] = result.num_seeds
         return result
 
-    def evaluate_instances(
+    def draw_instances(
+        self,
+        program: ProblemProgram,
+        n_seeds: int | None = None,
+    ) -> list[ProblemInstance]:
+        """Execute ``program`` on n FRESH seeds from its never-reused stream.
+
+        Seeds it cannot execute are skipped, not retried at a lower seed: the
+        stream only moves forward, so a program that fails on some seeds is
+        simply graded on fewer instances rather than on a re-drawn set.
+        """
+        n = int(n_seeds or self.evolution_config.eval_seeds)
+        instances: list[ProblemInstance] = []
+        for seed in self.seed_stream.take(program.program_id, n):
+            inst = program.execute(seed=seed)
+            if inst is not None:
+                instances.append(inst)
+        return instances
+
+    def evaluate_programs(
         self,
         programs: list[ProblemProgram],
-        instances: list[ProblemInstance],
+        *,
+        store_replay: bool = False,
     ) -> list[RQResult | None]:
-        """Score a batch of (program, instance) pairs with ONE vLLM wake/sleep.
+        """Score each program on n fresh seeds x m rollouts, one vLLM session.
 
-        All solver rollouts are generated while vLLM is awake; vLLM is slept
-        once, then entropies (actor forward) are computed against the freed
-        memory. Replaces N per-instance wake_up cycles with a single one.
+        Every program's instances go into ONE flat rollout batch and are
+        regrouped afterwards, so n x m evaluation costs the same number of
+        wake/sleep cycles as the old single-instance path.
 
-        A group whose rollouts were ALL rejected (streaming timeout / worker
-        error / staleness) yields ``None`` instead of an RQResult: scoring it
-        would zero the program's p_hat/h_score IN PLACE and let a single
-        transient infra failure evict a champion from its true niche (the
-        stale-p_hat archive-pollution failure mode). Callers must skip None.
+        With ``store_replay`` the rollouts are kept in :attr:`replay` instead of
+        being discarded, and become the solver's training batch. That is only
+        correct for the re-scoring pass: those rollouts come from the same
+        theta_t that the following update starts from, so training on them is
+        on-policy. Candidate scoring passes ``False`` -- a child inserted this
+        iteration has no lagged score yet and does not train until the next one.
         """
-        if not instances:
+        if not programs:
             return []
+        per_program: list[list[ProblemInstance]] = [
+            self.draw_instances(p) for p in programs
+        ]
+        flat = [inst for group in per_program for inst in group]
+        if not flat:
+            return [None] * len(programs)
+
         self.backend.begin_session()
         try:
             pending = self.backend.generate_rollouts(
-                instances, n_rollouts=self.evolution_config.num_rollouts
+                flat, n_rollouts=self.evolution_config.rollouts_per_seed
             )
         finally:
             self.backend.end_session()
         grouped = self.backend.finalize_rollouts(pending)
+        payloads = getattr(pending, "payloads", None) or []
+
         results: list[RQResult | None] = []
-        for program, instance, rollouts in zip(programs, instances, grouped):
-            accepted = [
-                r for r in rollouts if getattr(r, "status", "accepted") == "accepted"
-            ]
-            if rollouts and not accepted:
-                reasons = sorted({r.reject_reason or "unknown" for r in rollouts})
+        cursor = 0
+        for program, instances in zip(programs, per_program):
+            stats = []
+            for instance in instances:
+                rollouts = grouped[cursor] if cursor < len(grouped) else []
+                cursor += 1
+                stat = self._seed_stat(program, instance, rollouts)
+                if stat is not None:
+                    stats.append(stat)
+                    if store_replay:
+                        self.replay.store(
+                            program.program_id,
+                            instance,
+                            rollouts,
+                            payload=(
+                                payloads[cursor - 1]
+                                if cursor - 1 < len(payloads)
+                                else None
+                            ),
+                        )
+            if not stats:
+                # Every seed lost its rollouts. Scoring this as 0 would zero the
+                # program's s_hat/u_score in place and let one transient infra
+                # failure evict a champion from its true niche.
                 self.events.append(
                     {
                         "event": "eval_rollout_failed",
                         "program_id": program.program_id,
-                        "reasons": reasons,
+                        "seeds_drawn": len(instances),
                     }
-                )
-                print(
-                    f"[RQ-Evolve] eval skipped for {program.program_id}: all "
-                    f"{len(rollouts)} rollouts rejected ({reasons}); keeping "
-                    f"previous scores"
                 )
                 results.append(None)
                 continue
-            results.append(
-                self._score_from_rollouts(
-                    program,
-                    rollouts,
-                    instance=instance,
-                )
-            )
+            results.append(self._store_result(program, compute_rq_program(stats)))
         return results
-
-    def evaluate_instance(
-        self,
-        program: ProblemProgram,
-        instance: ProblemInstance,
-    ) -> RQResult | None:
-        return self.evaluate_instances([program], [instance])[0]
 
     def reevaluate_champions(self) -> None:
         """Refresh champion scores under the current backend.
 
         One vLLM wake/sleep for the whole champion set (was one per champion).
         """
-        pairs: list[tuple[ProblemProgram, ProblemInstance]] = []
-        for champion in list(self.archive.champions()):
-            inst = champion.execute(seed=0)
-            if inst is None:
-                continue
-            pairs.append((champion, inst))
-        if not pairs:
+        champions = list(self.archive.champions())
+        if not champions:
             return
-        results = self.evaluate_instances(
-            [p for p, _ in pairs], [i for _, i in pairs]
-        )
+        # Fresh seeds every re-scoring. A program that degenerates on only an
+        # eps-fraction of its seed space is caught with probability
+        # 1-(1-eps)^n per re-evaluation, so tail-overfitted generators leave the
+        # archive within a few iterations instead of surviving on a lucky seed.
+        results = self.evaluate_programs(champions, store_replay=True)
 
-        for (champion, inst), result in zip(pairs, results):
+        for champion, result in zip(champions, results):
             if result is None:
                 # all rollouts rejected (transient timeout/worker error) --
                 # keep the champion's previous scores and niche untouched.
                 continue
             # Every champion is rescored against the same weights before any of
             # them moves, so re-binning cannot depend on the order of this loop.
+            # Recorded BEFORE the archive moves, so the score is attributed to
+            # the iteration that measured it regardless of what happens to the
+            # champion's cell afterwards.
+            self.lagged.record(
+                champion.program_id, self.current_iteration, result.rq_score
+            )
             self.archive.remove_program(champion.program_id)
-            if result.rq_score <= 0.0:
-                self.events.append(
-                    {
-                        "event": "champion_removed_after_reevaluation",
-                        "program_id": champion.program_id,
-                        "reason": "rq_zero",
-                        "p_hat": result.p_hat,
-                    }
-                )
-                continue
+            # A champion whose rescore comes back at R_Q = 0 is reinserted, not
+            # dropped. Removing it emptied the cell and left the grid with no
+            # record that the region had ever been reached; keeping it means the
+            # cell reports what is actually the best generator found for it.
             inserted = self._try_insert_with_telemetry(
                 program=champion,
-                h_value=result.uncertainty,
-                problem_text=inst.problem,
+                u_value=result.u_score,
                 rq_score=result.rq_score,
                 source="champion_reevaluation",
             )
@@ -902,7 +1034,7 @@ class RQEvolver:
                         "event": "champion_removed_after_reevaluation",
                         "program_id": champion.program_id,
                         "reason": "lost_target_bin_competition",
-                        "p_hat": result.p_hat,
+                        "s_hat": result.s_hat,
                         "rq_score": result.rq_score,
                     }
                 )
@@ -911,8 +1043,7 @@ class RQEvolver:
         self,
         *,
         program: ProblemProgram,
-        h_value: float,
-        problem_text: str,
+        u_value: float,
         rq_score: float,
         source: str = "mutation",
     ) -> bool:
@@ -924,8 +1055,7 @@ class RQEvolver:
         )
         inserted = self.archive.try_insert(
             program=program,
-            h_value=h_value,
-            problem_text=problem_text,
+            u_value=u_value,
             rq_score=rq_score,
         )
         if (
@@ -947,29 +1077,87 @@ class RQEvolver:
             )
         return inserted
 
-    def refresh_dataset(self) -> None:
+    def refresh_dataset(self, *, warmup: bool = False) -> None:
         # Record each champion's frontier decision (the learnability filter that
         # decides which problems feed training) with the SAME predicate
         # build_training_examples uses -- observability only, no behavior change.
-        low, high = self.evolution_config.frontier_p_hat_range
+        low, high = self.evolution_config.frontier_s_hat_range
         self.last_frontier = [
             {
                 "program_id": champion.program_id,
-                "p_hat": round(float(champion.p_hat), 4),
+                "s_hat": round(float(champion.s_hat), 4),
                 "rq_score": round(float(champion.rq_score), 6),
                 "decision": (
                     "in_frontier"
-                    if is_frontier(champion.p_hat, low, high)
-                    else "p_hat_out_of_range"
+                    if is_frontier(champion.s_hat, low, high)
+                    else "s_hat_out_of_range"
                 ),
             }
             for champion in self.archive.champions()
         ]
+        if self.training_config.replay_training_batch:
+            examples = build_replay_training_examples(
+                self.archive.champions(),
+                replay=self.replay,
+                lagged=self.lagged,
+                iteration=self.current_iteration,
+                frontier_s_hat_range=self.evolution_config.frontier_s_hat_range,
+                training_budget=self.training_config.training_budget,
+                warmup=warmup,
+            )
+            if not examples and not warmup:
+                # Nothing has a prior measurement to be selected on. That is the
+                # same situation as bootstrap -- a cold resume, or an archive
+                # that turned over completely -- and the honest response is to
+                # fall back to the current scores rather than hand the trainer
+                # an empty dataloader. The lag re-engages the moment any
+                # champion carries history again.
+                champions = list(self.archive.champions())
+                if champions and all(
+                    self.lagged.selection_score(c.program_id, self.current_iteration)
+                    is None
+                    for c in champions
+                ):
+                    self.events.append(
+                        {
+                            "event": "replay_warmup_fallback",
+                            "iteration": self.current_iteration,
+                            "champions": len(champions),
+                        }
+                    )
+                    examples = build_replay_training_examples(
+                        champions,
+                        replay=self.replay,
+                        lagged=self.lagged,
+                        iteration=self.current_iteration,
+                        frontier_s_hat_range=(
+                            self.evolution_config.frontier_s_hat_range
+                        ),
+                        training_budget=self.training_config.training_budget,
+                        warmup=True,
+                    )
+            # The dataset is modulo-padded up to train_batch_size. Under replay
+            # that repeats IDENTICAL responses rather than resampling them, so a
+            # short batch double-counts the same rollouts. Harmless but worth
+            # seeing: it shrinks as the archive fills.
+            budget = self.training_config.training_budget
+            if examples and budget and len(examples) < budget:
+                self.events.append(
+                    {
+                        "event": "replay_batch_short",
+                        "iteration": self.current_iteration,
+                        "examples": len(examples),
+                        "requested": budget,
+                    }
+                )
+            self.dataset.update(examples)
+            self.dataset_refresh_count += 1
+            return
         examples = build_training_examples(
             self.archive.champions(),
             instances_per_program=self.training_config.instances_per_program,
             training_budget=self.training_config.training_budget,
-            frontier_p_hat_range=self.evolution_config.frontier_p_hat_range,
+            frontier_s_hat_range=self.evolution_config.frontier_s_hat_range,
             used_seeds=self.used_seeds,
             strict_anti_reuse=self.training_config.strict_anti_reuse,
             select_lowest_rq_first=self.training_config.select_lowest_rq_first,
@@ -1018,6 +1206,8 @@ class RQEvolver:
                     "strict_anti_reuse": self.training_config.strict_anti_reuse,
                     "instances_per_program": self.training_config.instances_per_program,
                     "used_seeds": used,
+                    "seed_cursor": self.seed_stream.to_dict(),
+                    "lagged_scores": self.lagged.to_dict(),
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -1045,10 +1235,10 @@ class RQEvolver:
         Unlike the archive (latest snapshot only), this is append-only, so the
         full evolution trajectory is preserved: per-iteration metrics plus every
         candidate report. ``CandidateReport.status`` is one of: no_parent,
-        mutation_failed, no_code, verify_failed, evaluator_rejected,
-        evaluator_input_too_large, rollout_failed, p_hat_zero, rq_zero,
-        inserted, rejected_non_elite (each with op, rq_score, p_hat,
-        uncertainty; see docs/PIPELINE.md "Evolution Candidate State").
+        mutation_failed, no_code, verify_failed, judge_rejected,
+        judge_input_too_large, rollout_failed, s_hat_zero, rq_zero,
+        inserted, rejected_non_elite (each with op, rq_score, s_hat,
+        u_score; see docs/PIPELINE.md "Evolution Candidate State").
 
         Each report also carries ``source_code`` (truncated at
         ``_MAX_LOGGED_SOURCE_CHARS``) and ``ast_findings``. Only champions land
@@ -1098,6 +1288,18 @@ class RQEvolver:
                 pid: set(seeds)
                 for pid, seeds in payload.get("used_seeds", {}).items()
             }
+            self.lagged = LaggedScoreboard.from_dict(
+                payload.get("lagged_scores"),
+                ewma_alpha=float(self.training_config.lagged_selection_ewma),
+            )
+            cursor = payload.get("seed_cursor")
+            if cursor:
+                self.seed_stream = SeedStream.from_dict(cursor)
+            else:
+                # A snapshot from before the stream existed records WHICH seeds
+                # were emitted, not how far the stream ran. Resume one past the
+                # largest so nothing is issued twice.
+                self.seed_stream = SeedStream.from_used_seeds(self.used_seeds)
         iteration_file = directory / self._ITERATION_FILE
         if iteration_file.exists():
             payload = json.loads(iteration_file.read_text(encoding="utf-8"))
@@ -1109,15 +1311,6 @@ class RQEvolver:
             {"event": "archive_restored", "champions": n_champions}
         )
         return True
-
-    def _sample_operator(self, parent: ProblemProgram | None = None) -> str:
-        del parent  # reserved for future per-concept controllers
-        depth_probability = self.evolution_config.in_depth_ratio
-        roll = random.random()
-        if roll < depth_probability:
-            return "in_depth"
-        return "in_breadth"
-
 
 def _answer_parseable(answer: str) -> bool:
     try:

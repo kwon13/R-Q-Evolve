@@ -1,9 +1,8 @@
-SKILL definitions — the child's key solving idea must match its declared SKILL:
-- casework: The solution must split into explicitly named cases (by residue, sign, or size order), each case needs its own argument, and no single uniform formula covers all of them.
-- induction: The problem is built on a recursive structure of size n with n >= 30, so the answer is reached only by relating size n to smaller sizes, never by unrolling step by step.
-- contradiction: The answer depends on proving that a described object cannot exist, and the candidates to rule out are unbounded, so no finite check can settle it.
-- invariant: The problem states a repeatable move with no step limit, and only a conserved quantity (parity, residue class, monotone value) decides which states are reachable.
-- extremal_principle: The answer is the best possible bound — a least or greatest k — whose optimality must hold over far too many configurations to enumerate, while the bound itself is achieved by some configuration.
-- counting: The answer is the size of a finite set too large to list, so it must be computed structurally with complement counting, inclusion-exclusion, the product rule, or a bijection.
-- transformation: The problem stalls under direct attack in its stated form, and only a substitution, coordinate change, or other re-representation not mentioned in the statement makes the answer exact.
-- construction: The answer is a threshold — the least or greatest n where a property first holds — certified by building an explicit object and too far out to reach by scanning n = 1, 2, 3, ....
+casework: one visible problem has genuinely distinct cases requiring materially different treatments; uniform branches or seed-level variation do not qualify
+induction: a size-n or recursive structure essentially depends on smaller instances; direct unrolling or closed-form substitution does not qualify
+contradiction: assuming a relevant possibility is necessary and leads to a specific impossibility; finite checking does not qualify
+invariant: a repeatable process is decided by a preserved or monotone quantity
+extremal_principle: an extremal object or configuration is used structurally to force a sharp bound or conclusion; direct optimization of an explicit formula does not qualify
+counting: a finite cardinality requires a nontrivial structural counting principle such as inclusion-exclusion, complement, bijection, product rule, pigeonhole, or double counting; small direct enumeration does not qualify
+transformation: an indispensable nontrivial change of representation turns the problem into a materially different structure; routine rewriting, substitution, formula use, or direct optimization does not qualify
+construction: an explicit construction certifies existence, attainability, sharpness, or a threshold; merely giving an example does not qualify

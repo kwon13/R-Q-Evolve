@@ -26,8 +26,8 @@ def test_random_selection_strategy_does_not_call_ucb():
     archive = MAPElitesArchive(selection_strategy="random")
     first = _program("algebra", 1)
     second = _program("geometry", 2)
-    archive.try_insert(first, h_value=1.0, problem_text="algebra", rq_score=0.1)
-    archive.try_insert(second, h_value=2.0, problem_text="geometry", rq_score=0.2)
+    archive.try_insert(first, u_value=1.0, rq_score=0.1)
+    archive.try_insert(second, u_value=2.0, rq_score=0.2)
 
     def fail_ucb(_occupied):
         raise AssertionError("random selection should not call _sample_ucb")

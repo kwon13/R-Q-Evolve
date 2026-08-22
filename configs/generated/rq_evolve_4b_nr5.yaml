@@ -1,10 +1,4 @@
 archive:
-  n_h_bins: 10
-  n_div_bins: 6
-  h_range:
-  - 0.1
-  - 0.6
-  diversity_axis: concept_group
   epsilon: 0.3
   ucb_c: 1.0
   selection_strategy: random
@@ -15,7 +9,6 @@ evolution:
   num_rollouts: 5
   select_ignores_uncertainty: false
   select_ignores_variance: false
-  in_depth_ratio: 0.5
   verify_seeds: 5
   frontier_p_hat_range:
   - 0.0
@@ -136,7 +129,7 @@ verl_config:
     reward_model:
       enable: false
   algorithm:
-    adv_estimator: grpo
+    adv_estimator: rloo
     use_kl_in_reward: false
     kl_penalty: low_var_kl
     norm_adv_by_std_in_grpo: true
@@ -153,6 +146,9 @@ verl_config:
     val_before_train: false
     test_freq: 32
     save_freq: 32
+    # Keep ONE checkpoint on disk (see rq_evolve_base.yaml for the sizing).
+    max_actor_ckpt_to_keep: 1
+    max_critic_ckpt_to_keep: 1
     default_local_dir: ./rq_output/rq_evolve_4b_nr5
     device: cuda
     resume_mode: auto

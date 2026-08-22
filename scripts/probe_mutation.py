@@ -36,9 +36,11 @@ from rq_evolve.ast_contract import check_generator_contract  # noqa: E402
 from rq_evolve.concepts import GROUPS, SKILLS  # noqa: E402
 from rq_evolve.evolution import RQEvolver  # noqa: E402
 from rq_evolve.program import ProblemProgram  # noqa: E402
-from rq_evolve.prompts import build_mutation_task, mutation_system_prompt  # noqa: E402
-
-OPS = {"in_depth": "GROUP held, SKILL moved", "in_breadth": "SKILL held, GROUP moved"}
+from rq_evolve.prompts import (  # noqa: E402
+    MUTATION_OP,
+    build_mutation_task,
+    mutation_system_prompt,
+)
 
 
 def parents(seed_dir: Path) -> list[ProblemProgram]:
@@ -72,7 +74,6 @@ def main() -> int:
     ap.add_argument("--base-url", default="http://127.0.0.1:8077/v1")
     ap.add_argument("--model", default="qwen3-8b-base")
     ap.add_argument("--n", type=int, default=8, help="children to generate")
-    ap.add_argument("--op", choices=[*OPS, "both"], default="both")
     ap.add_argument("--temperature", type=float, default=0.0)
     ap.add_argument("--top-p", type=float, default=1.0)
     ap.add_argument("--max-tokens", type=int, default=3000)
@@ -85,19 +86,19 @@ def main() -> int:
 
     client = OpenAI(base_url=args.base_url, api_key="none")
     pool = parents(Path(args.seed_dir))
-    ops = list(OPS) if args.op == "both" else [args.op]
-    # Deterministic round-robin over (op, parent): the same command re-run after
+    # Deterministic round-robin over the parents: the same command re-run after
     # a template edit hits the same parents, so a change in the output is a
     # change in the prompt and not a change in the sample.
-    jobs = [(ops[i % len(ops)], pool[i % len(pool)]) for i in range(args.n)]
+    jobs = [pool[i % len(pool)] for i in range(args.n)]
 
     system = mutation_system_prompt()
     evolver = RQEvolver(archive=None, backend=None)
     rows, sigs = [], {}
 
     print(f"[probe] {args.n} children, temp={args.temperature}, model={args.model}")
-    for i, (op, parent) in enumerate(jobs):
-        task = build_mutation_task(op, parent, temperature=args.temperature,
+    for i, parent in enumerate(jobs):
+        op = MUTATION_OP
+        task = build_mutation_task(parent, temperature=args.temperature,
                                    top_p=args.top_p)
         reply = client.chat.completions.create(
             model=args.model,
@@ -140,12 +141,15 @@ def main() -> int:
             rows.append(row)
             continue
 
-        contract = RQEvolver._validate_mutation_contract(
-            SimpleNamespace(op=op, parent=parent), child
+        # The operator contract is retired: nothing requires a particular
+        # label move any more. What is worth flagging is a child that simply
+        # repeats BOTH parent labels -- the mutation that did not happen.
+        repeats_parent = (
+            child.declared_group() == parent.declared_group()
+            and child.declared_skill() == parent.declared_skill()
         )
-        row["verdict"] = "contract_failed" if contract else "ok"
-        if contract:
-            row["reason"] = contract
+        row["verdict"] = "ok"
+        row["repeats_parent_labels"] = repeats_parent
         row["problem"] = " ".join(inst.problem.split())
         row["answer"] = inst.answer
         row["problem_chars"] = len(inst.problem)

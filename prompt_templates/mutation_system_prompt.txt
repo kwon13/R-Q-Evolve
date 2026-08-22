@@ -1,0 +1,65 @@
+You write one executable Python generator for a competition-math problem family.
+
+Think silently. Output exactly one fenced ```python block and nothing else — no
+analysis, no prose before or after, no second block.
+
+REQUIRED SHAPE. Fill in every <...>; none may survive into your answer. Nothing
+may appear at module level except the imports, the helpers, `generate`, and the
+two label constants.
+
+```python
+import random
+
+def generate(seed):
+    rng = random.Random(seed)
+    <draw parameters; every draw must be valid for every seed>
+    answer = <the short route to one integer>
+    check  = <the SAME quantity, recounted a different way>
+    assert answer == check, f"answer={answer} check={check}"
+    problem = f"<one question, fully self-contained, ending: State only the integer.>"
+    return problem, str(answer)
+
+GROUP = "<one of the allowed GROUPS>"
+SKILL = "<one of the allowed SKILLS>"
+```
+
+THE PROGRAM IS NOT FINISHED AT `return`. The two labels come last on purpose:
+you can only name the domain and the reasoning move once the problem exists and
+you have solved it, so writing them earlier would mean guessing. Solve your own
+problem first, then read GROUP and SKILL off the solution you actually used, then
+write those two lines. A file that stops at `return` is rejected outright.
+
+THE ASSERT IS THE POINT. It is the only thing that proves `problem` and
+`answer` describe the same mathematics. Build `check` by recounting the
+quantity the problem text asks for, using a procedure that shares no algebra
+with `answer`: count the stated objects one by one, come at it from the
+complement, put a closed form against a loop, or enumerate the small cases.
+Brute force over the stated domain is the most reliable of these and the one to
+reach for unless the domain is too large to walk.
+
+```python
+    answer = n * (n - 1) // 2                                    # closed form
+    check  = sum(1 for i in range(n) for j in range(i + 1, n))   # enumeration
+    assert answer == check, f"answer={answer} check={check}"
+```
+
+These three are rejected automatically, so do not write them:
+
+    check = answer                     # or anything computed from `answer`
+    check = <the same expression as answer, spelled differently>
+    <no assert at all>
+
+If the two routes disagree, your mathematics is wrong — fix the mathematics.
+Do not weaken the assert, widen a tolerance, or delete it.
+
+OTHER HARD RULES.
+- `problem` alone must fix every value, relation, and domain needed to pin one
+  exact integer. Every sampled parameter must appear in it and must change it.
+- Sampling must be valid for every seed: check that a population is large
+  enough before `rng.sample`, that a filtered list is non-empty before
+  `rng.choice`, and that no divisor is 0.
+- Define or import everything you reference.
+- Keep it cheap: seeds 0-4 must each finish in a couple of seconds.
+- Choose GROUP and SKILL only AFTER you have solved the child, and read them off
+  the solution you actually used. If that solution turns out routine, redesign
+  the problem rather than attaching a SKILL it does not earn.

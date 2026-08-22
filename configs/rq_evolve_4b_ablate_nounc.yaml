@@ -19,11 +19,16 @@ evolution:
   seed_programs_dir: seed_programs
   inner_iterations: 32
   inner_iteration_batch_size: 32
-  num_rollouts: 10
+  # n x m fitness (paper Table B.1 default): 5 fresh seeds x 2 rollouts =
+  # the same 10-rollout budget the old single-instance G=10 scoring spent.
+  # m MUST equal actor_rollout_ref.rollout.n below: replay hands the
+  # re-scoring rollouts to the trainer as its batch, so the group the
+  # RLOO baseline averages over IS these m rollouts.
+  eval_seeds: 5
+  rollouts_per_seed: 2
   # ABLATION: H := 1 -- champions ranked by s(1-s) alone
   select_ignores_uncertainty: true
   select_ignores_variance: false
-  in_depth_ratio: 0.5
   verify_seeds: 5
   frontier_p_hat_range: [0.0, 1.0]
   # Matched to configs/rq_evolve_base.yaml; see that file for the evidence
@@ -36,7 +41,11 @@ evolution:
   # -- answer correctness, statement well-posedness, and skill_required -- is
   # NOT recovered by a structural checker. Set back to true to restore it;
   # every evaluator_* key below is left in place for exactly that.
-  use_evaluator: false
+  # ON for both arms. The question under test is U, not the gate, so the
+  # gate has to be identical on both sides -- and without it the declared
+  # GROUP/SKILL are unverified, which makes the coverage numbers this
+  # comparison reads a fiction.
+  use_evaluator: true
   # Structural contract on the child's own cross-check, before execution.
   # Measured on 456 archived champions: 45% flagged, 0 of the 14 clean
   # programs. use_evaluator=false requires this to be shadow or enforce.
@@ -50,10 +59,11 @@ evolution:
   # collapsing the batch.
   code_temperature: 0.4
   code_top_p: 0.95
-  evaluator_temperature: 0.0
-  evaluator_top_p: 1.0
 
 training_data:
+  # The training batch IS the re-scoring rollouts; there is no separate
+  # sampling pass, so instances_per_program no longer applies.
+  replay_training_batch: true
   instances_per_program: 8
   training_budget: null
   strict_anti_reuse: true
@@ -147,7 +157,7 @@ verl_config:
         lr: 1.0e-6
         weight_decay: 1.0e-2
         lr_warmup_steps_ratio: 0.0
-        total_training_steps: 128
+        total_training_steps: 256
 
     ref:
       log_prob_micro_batch_size: null
@@ -160,7 +170,7 @@ verl_config:
       mode: async
       temperature: 1.0
       top_p: 0.95
-      n: 8
+      n: 2   # == evolution.rollouts_per_seed (m); replay requires it
       tensor_model_parallel_size: 1
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096
@@ -195,14 +205,14 @@ verl_config:
       enable: false
 
   algorithm:
-    adv_estimator: grpo
+    adv_estimator: rloo
     use_kl_in_reward: false
     kl_penalty: low_var_kl
     norm_adv_by_std_in_grpo: true
 
   trainer:
     total_epochs: 10000
-    total_training_steps: 128
+    total_training_steps: 256
     project_name: rq_evolve
     experiment_name: qwen3_4b_ablate_nounc
     logger:
@@ -213,6 +223,9 @@ verl_config:
     val_before_train: false
     test_freq: 32
     save_freq: 32
+    # Keep ONE checkpoint on disk (see rq_evolve_base.yaml for the sizing).
+    max_actor_ckpt_to_keep: 1
+    max_critic_ckpt_to_keep: 1
     default_local_dir: ./rq_output/rq_evolve_4b_ablate_nounc
     device: cuda
     resume_mode: auto

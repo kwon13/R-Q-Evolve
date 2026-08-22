@@ -439,8 +439,8 @@ class VerlDynamicDataset:
             "program_id": row.get("program_id"),
             "seed": row.get("seed"),
             "rq_score": row.get("rq_score"),
-            "p_hat": row.get("p_hat"),
-            "h_score": row.get("h_score"),
+            "s_hat": row.get("s_hat"),
+            "u_score": row.get("u_score"),
             "group_bin": row.get("group_bin"),
             "skill_bin": row.get("skill_bin"),
         }
@@ -487,12 +487,83 @@ class VerlDynamicDataset:
         }
 
 
+def build_replay_training_examples(
+    champions,
+    *,
+    replay,
+    lagged,
+    iteration: int,
+    frontier_s_hat_range: tuple[float, float],
+    training_budget: int | None = None,
+    warmup: bool = False,
+) -> list[dict]:
+    """The training set: this iteration's re-scoring rollouts, lagged-selected.
+
+    There is no sampling pass. Each elite contributes exactly the instances the
+    re-scoring already rolled out, so every instance trained on is an instance
+    that was measured -- a tail instance the evaluation never saw cannot reach
+    the batch, and nothing goes stale between scoring and the update.
+
+    WHICH elites contribute is decided by their score as of the previous
+    iteration. Ranking by the same rollouts that will be trained on conditions
+    the sample on the selection event: the elite whose measurement noise
+    happened to land high is the one kept, which biases the update even though
+    each per-instance baseline is individually unbiased. The lag breaks that at
+    first order and costs no extra rollouts. An elite with no lagged score --
+    inserted this iteration -- simply waits one iteration.
+    """
+    low, high = frontier_s_hat_range
+    ranked: list[tuple[float, object]] = []
+    for champion in champions:
+        score = lagged.selection_score(champion.program_id, iteration)
+        if warmup and score is None:
+            # The one pass with nothing to lag against. Bootstrap scores every
+            # seed under theta_0, which is exactly the weights the first update
+            # starts from, so those rollouts are on-policy warm-up data -- and
+            # there is no earlier measurement to select on because there is no
+            # earlier iteration. Ranking falls back to the current score.
+            score = float(getattr(champion, "rq_score", 0.0) or 0.0)
+        if score is None:
+            continue
+        if not replay.has(champion.program_id):
+            continue
+        # The frontier band uses the CURRENT measurement: an elite selected on
+        # its past score but degenerate right now would contribute a batch of
+        # zero advantages.
+        if not is_frontier(float(getattr(champion, "s_hat", 0.0)), low, high):
+            continue
+        ranked.append((score, champion))
+    ranked.sort(key=lambda pair: pair[0], reverse=True)
+
+    examples: list[dict] = []
+    for score, champion in ranked:
+        for group in replay.get(champion.program_id):
+            if training_budget is not None and len(examples) >= training_budget:
+                return examples
+            examples.append(
+                {
+                    "problem": group.instance.problem,
+                    "answer": group.instance.answer,
+                    "program_id": champion.program_id,
+                    "seed": group.instance.seed,
+                    "rq_score": champion.rq_score,
+                    "s_hat": champion.s_hat,
+                    "u_score": champion.u_score,
+                    "group_bin": int(getattr(champion, "niche_group", -1)),
+                    "skill_bin": int(getattr(champion, "niche_skill", -1)),
+                    "lagged_rq": score,
+                    "replay_rollouts": group.size,
+                }
+            )
+    return examples
+
+
 def build_training_examples(
     champions: list[ProblemProgram],
     *,
     instances_per_program: int,
     training_budget: int | None,
-    frontier_p_hat_range: tuple[float, float],
+    frontier_s_hat_range: tuple[float, float],
     used_seeds: dict[str, set[int]] | None = None,
     strict_anti_reuse: bool = True,
     select_lowest_rq_first: bool = False,
@@ -516,19 +587,19 @@ def build_training_examples(
     ``instances_per_program`` instances, but the resulting rows are ordered by
     R_Q before the trainer's sampler shuffles them.
 
-    Only frontier champions (low < p_hat < high) contribute; duplicate
+    Only frontier champions (low < s_hat < high) contribute; duplicate
     (problem, answer) instances are dropped; seeds advance monotonically under
     ``strict_anti_reuse``. This is framework-free — ``verl_adapter.py``
     tokenizes the returned dicts.
     """
-    low, high = frontier_p_hat_range
+    low, high = frontier_s_hat_range
     budget = training_budget or max(1, len(champions) * instances_per_program)
     used_seeds = used_seeds if used_seeds is not None else {}
 
     frontier_champions = [
         c
         for c in champions
-        if is_frontier(float(getattr(c, "p_hat", 0.5)), low, high)
+        if is_frontier(float(getattr(c, "s_hat", 0.5)), low, high)
     ]
 
     if select_random_order:
@@ -540,9 +611,9 @@ def build_training_examples(
         ranked_champions = sorted(
             frontier_champions,
             key=lambda c: selection_priority(
-                float(getattr(c, "p_hat", 0.5) or 0.5),
+                float(getattr(c, "s_hat", 0.5) or 0.5),
                 float(getattr(c, "rq_score", 0.0) or 0.0),
-                float(getattr(c, "h_score", 0.0) or 0.0),
+                float(getattr(c, "u_score", 0.0) or 0.0),
                 ignore_uncertainty=select_ignores_uncertainty,
                 ignore_variance=select_ignores_variance,
             ),
@@ -585,8 +656,8 @@ def build_training_examples(
                 "program_id": pid,
                 "seed": inst.seed,
                 "rq_score": champ.rq_score,
-                "p_hat": champ.p_hat,
-                "h_score": champ.h_score,
+                "s_hat": champ.s_hat,
+                "u_score": champ.u_score,
                 "group_bin": group_bin,
                 "skill_bin": skill_bin,
             }

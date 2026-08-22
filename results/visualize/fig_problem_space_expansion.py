@@ -121,8 +121,8 @@ for line in Path(BASE, "evolution_log.jsonl").read_text(encoding="utf-8").splitl
     if args.max_outer_iteration is not None and rec.get('iteration', -1) > args.max_outer_iteration:
         continue
     for r in rec.get('reports', []):
-        if r.get('status') == 'inserted' and r.get("p_hat") is not None:
-            p_hat = float(r["p_hat"])
+        if r.get('status') == 'inserted' and r.get("s_hat", r.get("p_hat")) is not None:
+            p_hat = float(r.get("s_hat", r["p_hat"]))
             if math.isfinite(p_hat):
                 ins.append((int(rec['iteration']), r['op'], p_hat))
 

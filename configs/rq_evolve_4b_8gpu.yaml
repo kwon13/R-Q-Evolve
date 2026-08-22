@@ -27,14 +27,18 @@ evolution:
   # re-scoring rollouts to the trainer as its batch, so the group the
   # RLOO baseline averages over IS these m rollouts.
   eval_seeds: 5
-  # m = 4, not 2. At m=2 a seed contributes learnability only when its two
-  # rollouts happen to disagree, so 82-95% of replay groups came back
-  # degenerate (identical reward -> RLOO advantage exactly 0) and programs with
-  # a pooled s_hat of 0.6 still scored R_Q = 0. P(a seed is informative) is
-  # 1 - s^m - (1-s)^m: at s=0.3 that is 0.42 at m=2 and 0.75 at m=4.
-  # Cost is one extra pass of n x 2 rollouts per program in the scoring phase;
-  # the training update pays nothing extra because replay reuses them.
-  rollouts_per_seed: 4
+  # n=5, m=2 -- the paper's Table B.1 default, and the same 10-rollout budget
+  # per program the old single-instance G=10 scoring spent.
+  #
+  # m=4 was tried and reverted. It does what it claims: measured on 8B it took
+  # degenerate replay groups (both rollouts of a seed scoring alike, so the
+  # RLOO advantage is exactly 0) from 82-95% down to 33-50%. It also doubles
+  # the scoring pass, which is ~83% of the evolve phase's generated tokens, and
+  # the evolve phase is ~72% of an iteration. n controls concentration
+  # (O(sqrt(1/n))) and m the estimator's bias (O(1/m)); this budget spends it
+  # on n. m >= 2 is not a preference: at m=1 the plug-in learnability is
+  # identically 0 for every program and R_Q is unidentifiable.
+  rollouts_per_seed: 2
   select_ignores_uncertainty: false
   select_ignores_variance: false
   verify_seeds: 5
@@ -178,7 +182,7 @@ verl_config:
       mode: async
       temperature: 1.0
       top_p: 0.95
-      n: 4   # == evolution.rollouts_per_seed (m); replay requires it
+      n: 2   # == evolution.rollouts_per_seed (m); replay requires it
       tensor_model_parallel_size: 1
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096

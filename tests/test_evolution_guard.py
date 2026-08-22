@@ -285,3 +285,97 @@ def test_reevaluate_champions_can_be_switched_off():
             except Exception:
                 pass  # the stub backend cannot complete a batch; the spy is the point
             assert spy.called is enabled, enabled
+
+
+def test_a_child_rejected_once_is_not_re_evaluated():
+    """Mutation regenerates the same source; re-judging it teaches nothing.
+
+    program_id is md5 of the source and the judge is deterministic at
+    temperature 0, so a repeat is guaranteed the same verdict while still
+    costing a 5-seed execution and a judge call. In a two-iteration probe one
+    program came back 13 times and 34% of all slots went to repeats.
+    """
+    from rq_evolve.evolution import CandidateReport, RQEvolver
+
+    evolver = RQEvolver.__new__(RQEvolver)
+    evolver.rejected_children = {}
+    evolver._memoize_rejections(
+        [
+            CandidateReport(status="verify_failed", op="mutate", child_id="aaa",
+                            reason="assert fired"),
+            CandidateReport(status="judge_rejected", op="mutate", child_id="bbb",
+                            reason="label mismatch"),
+            CandidateReport(status="no_code", op="mutate", child_id="ccc"),
+        ]
+    )
+    assert set(evolver.rejected_children) == {"aaa", "bbb", "ccc"}
+    assert "assert fired" in evolver.rejected_children["aaa"]
+
+
+def test_policy_dependent_rejections_are_never_memoized():
+    """A program nobody can solve TODAY must get another look tomorrow.
+
+    s_hat_zero / rq_zero / rejected_non_elite / rollout_failed are verdicts
+    about the current policy and the current occupant of the cell, not about
+    the source. Memoizing them would make the archive monotone in a way the
+    design does not intend -- the whole point of re-scoring is that a
+    champion's fitness moves as the solver improves.
+    """
+    from rq_evolve.evolution import CandidateReport, RQEvolver
+
+    evolver = RQEvolver.__new__(RQEvolver)
+    evolver.rejected_children = {}
+    evolver._memoize_rejections(
+        [
+            CandidateReport(status=status, op="mutate", child_id=f"id_{status}")
+            for status in (
+                "s_hat_zero",
+                "rq_zero",
+                "rejected_non_elite",
+                "rollout_failed",
+                "inserted",
+            )
+        ]
+    )
+    assert evolver.rejected_children == {}
+
+
+def test_a_repeat_inside_one_batch_is_not_executed_twice():
+    """32 parents drawn with replacement from ~10 cells produce repeats WITHIN
+    a batch, which the cross-iteration memo cannot see: it is written when
+    reports are finalized, after the batch is over. Measured 11 of 32 slots in
+    one iteration. The repeat must skip the 5-seed execution, not just the
+    judge, so the check lives beside the memo rather than in the caller.
+    """
+    from rq_evolve.evolution import RQEvolver
+    from rq_evolve.prompts import build_mutation_task
+    from rq_evolve.program import ProblemProgram
+
+    source = (
+        "import random\n\n\n"
+        "def generate(seed):\n"
+        '    return f"What is {seed} + 1?", str(seed + 1)\n\n\n'
+        'GROUP = "algebra"\nSKILL = "invariant"\n'
+    )
+    parent = ProblemProgram(source_code=source)
+    task = build_mutation_task(parent)
+
+    evolver = RQEvolver.__new__(RQEvolver)
+    evolver.rejected_children = {}
+    executed = []
+    evolver.verify_program = lambda program, **kw: (executed.append(program.program_id), (None, "x"))[1]
+
+    output = f"```python\n{source}```"
+
+    # extract_generator_code normalizes the block, so the id is whatever the
+    # extracted source hashes to -- take it from the call, not from `source`.
+    first, _, _, _ = evolver._make_child_from_output(task, output, in_flight=set())
+    child_id = first.program_id
+    assert executed == [child_id], "the first occurrence must be executed"
+
+    child, inst, reason, src = evolver._make_child_from_output(
+        task, output, in_flight={child_id}
+    )
+    assert executed == [child_id], "the repeat must NOT be executed again"
+    assert inst is None and src is None
+    assert "duplicate" in reason

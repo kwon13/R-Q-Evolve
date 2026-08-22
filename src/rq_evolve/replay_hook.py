@@ -26,6 +26,9 @@ class ReplayServeStats:
     served_steps: int = 0
     served_rows: int = 0
     generated_rows: int = 0
+    # generate_sequences calls that are not training steps at all. Counted
+    # apart from `steps` so hit_rate stays a statement about training.
+    non_training_calls: int = 0
     misses: dict[str, int] = field(default_factory=dict)
 
     def miss(self, reason: str) -> None:
@@ -40,6 +43,7 @@ class ReplayServeStats:
             f"{prefix}hit_rate": (
                 self.served_steps / self.steps if self.steps else 0.0
             ),
+            f"{prefix}non_training_calls": self.non_training_calls,
         }
         payload.update({f"{prefix}miss_{k}": v for k, v in self.misses.items()})
         return payload
@@ -108,14 +112,48 @@ class ReplayRolloutHook:
         self._original = None
 
     # ------------------------------------------------------------------
+    def _is_non_training_call(self, gen_batch) -> bool:
+        """True when this generate_sequences call is not a training step.
+
+        Three callers share this method. Only the trainer's is replayable: its
+        rows come from the dynamic dataset and carry ``extra_info`` naming the
+        (program_id, seed) whose rollouts are in the buffer. The other two must
+        always generate --
+
+        * this backend's own evolve phase (mutation, judge, R_Q scoring), whose
+          batches ``verl_backend._make_prompt_batch`` builds with exactly
+          data_source / raw_prompt / raw_prompt_ids / reward_model, and
+        * verl's validation batches, which carry no extra_info either.
+
+        They used to fall through ``_plan`` and be counted and logged as steps,
+        so an iteration with three evolve-phase calls printed "step 2/3/4:
+        generating instead" between two genuinely replayed training steps and
+        reported replay/hit_rate 0.4 for a run whose training hit rate was 1.0.
+        """
+        non_tensor = getattr(gen_batch, "non_tensor_batch", None) or {}
+        if "extra_info" in non_tensor and "raw_prompt" in non_tensor:
+            return False
+        self.stats.non_training_calls += 1
+        if self.stats.non_training_calls == 1:
+            print(
+                "[replay] passing through generate_sequences calls that are not "
+                "training steps (evolve-phase mutation/judge/scoring, and "
+                "validation): they carry no extra_info, so there is nothing "
+                "stored to serve. Expected; logged once, then counted only.",
+                flush=True,
+            )
+        return True
+
     def _try_serve(self, gen_batch):
         """The stored rows for this batch, or None to fall through."""
+        if self._is_non_training_call(gen_batch):
+            return None
         self.stats.steps += 1
         rows = self._plan(gen_batch)
         if rows is None:
             self.stats.generated_rows += self._batch_size(gen_batch)
             print(
-                f"[replay] step {self.stats.steps}: generating instead "
+                f"[replay] training step {self.stats.steps}: generating instead "
                 f"({dict(self.stats.misses)})",
                 flush=True,
             )
@@ -136,7 +174,8 @@ class ReplayRolloutHook:
         print(
             f"[replay] served step from the buffer: {self._batch_size(served)} "
             f"rows, no sampling pass "
-            f"({self.stats.served_steps}/{self.stats.steps} steps so far)",
+            f"({self.stats.served_steps}/{self.stats.steps} training steps "
+            f"so far)",
             flush=True,
         )
         return served

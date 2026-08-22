@@ -82,12 +82,54 @@ def test_the_parent_labels_travel_but_no_target_is_named():
     # these prompts is actively being tuned.
     for skill in SKILLS:
         assert f"{skill}:" in user, skill
-    assert "read its GROUP and SKILL off the" in user
+    # The labels are read OFF the finished solution, never handed in as a goal.
+    # Matched on the idea, not a sentence -- and on whitespace-normalised text,
+    # because these prompts are hard-wrapped and a phrase can straddle a line.
+    flat = " ".join(user.split())
+    assert "off the solution" in flat
+    assert "Do not aim at a label" in flat
 
 
 def test_the_parent_source_is_inlined():
     parent = _program()
     assert "def generate(seed):" in _user(parent)
+
+
+def test_the_parent_problem_is_shown_not_just_its_code():
+    """The object being mutated is a PROBLEM; the program only emits it.
+
+    Showing the source alone framed the task as editing code, and a model shown
+    code rewrites code: across distinct children the largest single failure was
+    the child's own cross-check firing -- mathematics committed to before it was
+    worked out. The parent's seed-0 statement goes in the prompt so the child can
+    be designed as a problem first.
+    """
+    parent = _program()
+    user = _user(parent)
+    statement = parent.execute(seed=0).problem
+    assert statement.strip() in user
+    # And the statement must come BEFORE the source, since that is the order the
+    # reply is asked to work in.
+    assert user.index(statement.strip()) < user.index("def generate(seed):")
+
+
+def test_a_parent_that_cannot_run_still_produces_a_prompt():
+    """A resume can load a snapshot whose source no longer executes here. That
+    is not something to discover while building a prompt."""
+    from rq_evolve.program import ProblemProgram
+
+    broken = ProblemProgram(
+        source_code='GROUP = "algebra"\nSKILL = "invariant"\n'  # no generate()
+    )
+    user = _user(broken)
+    assert "did not run here" in user
+
+
+def test_the_reply_is_a_design_then_a_program():
+    """Part 1 in prose, Part 2 the code -- the code cannot come first."""
+    system = build_mutation_task(_program()).messages[0]["content"]
+    assert system.index("PART 1") < system.index("PART 2")
+    assert "```python" in system
 
 
 def test_the_task_carries_the_single_operator():

@@ -1,41 +1,34 @@
-You write one executable Python generator for a competition-math problem family.
+You design one NEW competition-math problem, then write the Python generator that emits its whole family.
 
-Think silently. Output exactly one fenced ```python block and nothing else — no
-analysis, no prose before or after, no second block.
+In that order. A generator written before its mathematics is worked out is how a cross-check ends up disagreeing with the answer it was meant to confirm.
 
-REQUIRED SHAPE. Fill in every <...>; none may survive into your answer. Nothing
-may appear at module level except the imports, the helpers, `generate`, and the
-two label constants.
+Answer in exactly two parts and nothing else.
+
+PART 1 -- three or four sentences of plain prose: what the problem asks, and its solution, ending with the move that solution turns on.
+
+PART 2 -- one fenced ```python block, the last thing you write.
 
 ```python
 import random
 
 def generate(seed):
     rng = random.Random(seed)
-    <draw parameters; every draw must be valid for every seed>
+    <draw the parameters; every draw must be valid for every seed>
     answer = <the short route to one integer>
     check  = <the SAME quantity, recounted a different way>
     assert answer == check, f"answer={answer} check={check}"
-    problem = f"<one question, fully self-contained, ending: State only the integer.>"
+    problem = f"<the statement from Part 1, ending: State only the integer.>"
     return problem, str(answer)
 
 GROUP = "<one of the allowed GROUPS>"
 SKILL = "<one of the allowed SKILLS>"
 ```
 
-THE PROGRAM IS NOT FINISHED AT `return`. The two labels come last on purpose:
-you can only name the domain and the reasoning move once the problem exists and
-you have solved it, so writing them earlier would mean guessing. Solve your own
-problem first, then read GROUP and SKILL off the solution you actually used, then
-write those two lines. A file that stops at `return` is rejected outright.
+Fill in every <...>. Nothing may appear at module level except the imports, the helpers, `generate`, and the two labels.
 
-THE ASSERT IS THE POINT. It is the only thing that proves `problem` and
-`answer` describe the same mathematics. Build `check` by recounting the
-quantity the problem text asks for, using a procedure that shares no algebra
-with `answer`: count the stated objects one by one, come at it from the
-complement, put a closed form against a loop, or enumerate the small cases.
-Brute force over the stated domain is the most reliable of these and the one to
-reach for unless the domain is too large to walk.
+THE PROGRAM IS NOT FINISHED AT `return`. The labels come last because they name the domain and the reasoning move of the solution you gave in Part 1, so they can only be written once that solution exists. A file that stops at `return` is rejected outright.
+
+THE ASSERT IS THE POINT. It is the only thing that proves `problem` and `answer` describe the same mathematics. Build `check` by recounting what the problem asks for through a procedure that shares no algebra with `answer` -- brute force over the stated domain unless it is too large to walk.
 
 ```python
     answer = n * (n - 1) // 2                                    # closed form
@@ -43,23 +36,10 @@ reach for unless the domain is too large to walk.
     assert answer == check, f"answer={answer} check={check}"
 ```
 
-These three are rejected automatically, so do not write them:
+Rejected automatically: `check = answer`, a `check` computed from `answer`, the same expression spelled differently, or no assert at all. If the two routes disagree, the mathematics in Part 1 is wrong -- fix the mathematics, never the assert.
 
-    check = answer                     # or anything computed from `answer`
-    check = <the same expression as answer, spelled differently>
-    <no assert at all>
-
-If the two routes disagree, your mathematics is wrong — fix the mathematics.
-Do not weaken the assert, widen a tolerance, or delete it.
-
-OTHER HARD RULES.
-- `problem` alone must fix every value, relation, and domain needed to pin one
-  exact integer. Every sampled parameter must appear in it and must change it.
-- Sampling must be valid for every seed: check that a population is large
-  enough before `rng.sample`, that a filtered list is non-empty before
-  `rng.choice`, and that no divisor is 0.
-- Define or import everything you reference.
-- Keep it cheap: seeds 0-4 must each finish in a couple of seconds.
-- Choose GROUP and SKILL only AFTER you have solved the child, and read them off
-  the solution you actually used. If that solution turns out routine, redesign
-  the problem rather than attaching a SKILL it does not earn.
+HARD RULES.
+- `problem` alone must pin one exact integer. Every sampled parameter appears in it and changes it.
+- Do not hand over the solution: no naming the technique, no supplying the identity or recurrence it turns on.
+- Sampling must be valid for every seed -- population large enough before `rng.sample`, list non-empty before `rng.choice`, no zero divisor.
+- Define or import everything you reference. Seeds 0-4 each finish in seconds.

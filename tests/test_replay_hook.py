@@ -231,3 +231,49 @@ def test_solver_rollouts_carry_the_real_ground_truth():
     )
     assert "ground_truths=[inst.answer for inst in instances]" in batched
     assert "ground_truths=[inst.answer for inst in chunk_instances]" in streaming
+
+
+def test_evolve_phase_calls_are_not_counted_as_training_steps():
+    """The hook wraps ONE method that three callers share.
+
+    Only the trainer's call is replayable. This backend's own evolve phase
+    (mutation, judge, R_Q scoring) and verl's validation both go through
+    generate_sequences with no extra_info, and both must generate. Counting
+    them as steps reported replay/hit_rate 0.4 on a run whose two training
+    steps were both served from the buffer.
+    """
+    calls = []
+
+    def original(batch, *a, **k):
+        calls.append(batch)
+        return "GENERATED"
+
+    manager = types.SimpleNamespace(generate_sequences=original)
+    hook = _hook(_buffer([("a", 0, "q")]))
+    hook.install(manager)
+
+    # What verl_backend._make_prompt_batch builds: no extra_info anywhere.
+    evolve_batch = _FakeBatch(8)
+    evolve_batch.non_tensor_batch = {
+        "data_source": ["rq_evolve"] * 8,
+        "raw_prompt": [[{"role": "user", "content": "mutate this"}]] * 8,
+        "raw_prompt_ids": [[1, 2]] * 8,
+        "reward_model": [{"ground_truth": ""}] * 8,
+    }
+    for _ in range(3):
+        assert manager.generate_sequences(evolve_batch) == "GENERATED"
+
+    assert hook.stats.steps == 0, "evolve-phase calls are not training steps"
+    assert hook.stats.non_training_calls == 3
+    assert hook.stats.served_steps == 0
+    assert len(calls) == 3
+
+    # The classifier does not swallow a real training batch on the way past.
+    assert hook._plan(_request([("a", 0, "q")])) is not None
+
+    # And the three pass-throughs stay out of the ratio: one training step,
+    # served, reads 1.0 -- not 1/4.
+    hook.stats.steps = hook.stats.served_steps = 1
+    report = hook.stats.to_wandb()
+    assert report["replay/hit_rate"] == pytest.approx(1.0)
+    assert report["replay/non_training_calls"] == 3

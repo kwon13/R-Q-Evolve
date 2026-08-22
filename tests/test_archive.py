@@ -71,3 +71,50 @@ SKILL = "construction"
     archive = MAPElitesArchive()
 
     assert archive._passes_seed_variation(program) is False
+
+
+def test_every_occupied_niche_can_be_a_mutation_parent():
+    """R_Q = 0 champions stay on the map AND reproduce.
+
+    Filtering them out of the parent pool made them sterile: they held a cell
+    and never mutated, so the cells most in need of new material -- the ones
+    the policy cannot solve yet -- were exactly the ones evolution could not
+    start from. On a 4B probe that left 5 of 10 champions eligible, two of them
+    in the same skill column, and both evolved children landed there.
+
+    R_Q = 0 covers two opposite cases and the test pins both: s_hat = 0
+    (unsolvable today) and s_hat = 1 (solved outright).
+    """
+    def _distinct(group: str, skill: str, template: str) -> ProblemProgram:
+        # Distinct problem TEMPLATES: the archive rejects a second champion whose
+        # statement skeleton matches an existing one, which would make this test
+        # about template dedup rather than about the parent pool.
+        return ProblemProgram(
+            source_code=(
+                "import random\n\n\n"
+                "def generate(seed):\n"
+                f'    return f"{template}", str(seed)\n\n\n'
+                f'GROUP = "{group}"\n'
+                f'SKILL = "{skill}"\n'
+            )
+        )
+
+    archive = MAPElitesArchive(selection_strategy="random")
+    unsolvable = _distinct(
+        "geometry", "extremal_principle", "Largest triangle with perimeter {seed}?"
+    )
+    solved_outright = _distinct(
+        "algebra", "invariant", "Constant term after {seed} shifts?"
+    )
+    unsolvable.s_hat, unsolvable.u_score = 0.0, 0.4
+    solved_outright.s_hat, solved_outright.u_score = 1.0, 0.4
+    for program in (unsolvable, solved_outright):
+        assert archive.try_insert(program, u_value=0.4, rq_score=0.0)
+        # Neither is "learnable" -- that is precisely the case under test.
+        assert archive._is_learnable(program) is False
+
+    drawn = {archive.sample_parent().program_id for _ in range(60)}
+    assert drawn == {unsolvable.program_id, solved_outright.program_id}, (
+        "an archive of only R_Q=0 champions must still yield parents, and both "
+        "cells must be reachable"
+    )

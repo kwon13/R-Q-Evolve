@@ -46,7 +46,11 @@ def _strictly_inside(p, a, b, c):
 def generate(seed):
     rng = random.Random(seed)
 
-    n = rng.randint(10, 14)
+    # The extremal argument does not depend on n, so n stays where the triple
+    # count is still inspectable by hand: C(7,3) = 35. A larger set turns the
+    # question into an exhaustive search over triples instead of the argument
+    # the problem is meant to test.
+    n = rng.randint(5, 7)
 
     for _ in range(MAX_ATTEMPTS):
         # Build a point set in general position.
@@ -56,8 +60,8 @@ def generate(seed):
 
         while len(points) < n:
             p = (
-                rng.randint(-400, 400),
-                rng.randint(-400, 400),
+                rng.randint(-15, 15),
+                rng.randint(-15, 15),
             )
 
             if p in points:

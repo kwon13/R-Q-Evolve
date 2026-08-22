@@ -427,18 +427,37 @@ class MAPElitesArchive:
         )
 
     def _is_learnable(self, program: ProblemProgram | None) -> bool:
-        """Priority>0: a learnable parent. Too-easy generators (s_hat=1.0 ->
-        priority 0) stay in the archive but are not selected for mutation.
-        Under the ablation the priority is s(1-s), so s_hat in (0,1) qualifies."""
+        """Priority > 0, i.e. 0 < s_hat < 1 with a non-zero uncertainty term.
+
+        NOT a parent filter -- see ``sample_parent``. Kept as a description of
+        which champions are learnable RIGHT NOW, which is a different question
+        from which ones are worth mutating.
+        """
         return program is not None and self._select_priority(program) > 0.0
 
     def sample_parent(self) -> ProblemProgram | None:
         occupied = [(key, n) for key, n in self.grid.items() if n.champion is not None]
         if not occupied:
             return None
-        # Prefer learnable (RQ>0) champions as mutation parents; fall back to all
-        # occupied niches when none are learnable (e.g. early bootstrap).
-        pool = [(key, n) for key, n in occupied if self._is_learnable(n.champion)] or occupied
+        # EVERY occupied niche is a parent, R_Q = 0 included.
+        #
+        # This used to keep only champions with R_Q > 0. That silently undid the
+        # decision to let R_Q = 0 champions stay on the map: they held a cell and
+        # never reproduced, so the cells that most need new blood were exactly
+        # the ones mutation could not start from. Measured on a 4B probe, the
+        # pool was 5 of 10 champions and every excluded cell was s_hat = 0 --
+        # casework, induction, invariant, extremal_principle, inequality/counting
+        # -- the five the policy cannot solve yet. Two of the five survivors were
+        # `counting`, so 40% of parents came from one skill column and both
+        # evolved children landed there.
+        #
+        # R_Q = 0 covers two opposite situations and neither is a reason to
+        # sterilise a niche. s_hat = 0 means the policy cannot solve it YET, and
+        # a stronger policy should get another look; s_hat = 1 means it is solved
+        # outright, and its structure is still a fine starting point for a
+        # harder variant. Fitness decides which champion holds a cell, not which
+        # cells may reproduce -- that is the MAP-Elites separation.
+        pool = occupied
 
         if self.selection_strategy == "random":
             key, niche = random.choice(pool)

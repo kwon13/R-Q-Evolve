@@ -1,17 +1,15 @@
-# 4B on ALL EIGHT GPUs -- the single live training arm, not half of a pair.
+# 8B on ALL EIGHT GPUs -- the live training arm.
 #
-# Identical to rq_evolve_4b_base.yaml (R_Q = s(1-s)U, n=5 x m=2 on fresh seeds,
-# replay batch, RLOO, policy judge, 256 steps, test_freq 32, one checkpoint) in
-# everything the science depends on. Only the device count and the run identity
-# differ, so its curves are directly comparable to a later 4-GPU arm.
+# Derived from rq_evolve_4b_8gpu.yaml, NOT from rq_evolve_base.yaml. The older
+# 8B config predates the n x m rewrite: it still declares rollout.n: 8 (replay
+# requires n == m == 2 and aborts at startup), reaches n x m only through the
+# deprecated num_rollouts alias, and runs with use_evaluator: false, which
+# leaves the declared GROUP/SKILL unverified. Deriving from the 4B arm instead
+# means every setting the science depends on is byte-identical to the arm this
+# is meant to be read against, and only the model and its memory budget differ.
 #
-# Batches are NOT rescaled with the device count: train_batch_size 32 over 8
-# ranks is 4 prompts x m=2 rollouts per rank, and ppo_micro_batch_size_per_gpu
-# stays 2. Doubling ranks halves the FSDP parameter shard, so this run has MORE
-# headroom than the 4-GPU one, not less -- raising the micro-batch at the same
-# time would put an untested memory profile on the critical path.
-#
-#   bash scripts/run_train_4b_8gpu.sh
+#   bash scripts/run_train_8gpu.sh configs/rq_evolve_8b_8gpu.yaml
+
 archive:
   epsilon: 0.3
   ucb_c: 1.0
@@ -133,7 +131,7 @@ verl_config:
 
   actor_rollout_ref:
     model:
-      path: /data1/yhoon113/qwen3-4b-base
+      path: /data1/yhoon113/qwen3-8b-base
       trust_remote_code: true
       use_remove_padding: true
       enable_gradient_checkpointing: true
@@ -142,11 +140,11 @@ verl_config:
       strategy: fsdp
       ppo_mini_batch_size: 32
       ppo_micro_batch_size: null
-      # 2, not 4. Activation memory scales with hidden_size x micro-batch, not
-      # with parameter count: 4B has hidden 2560 against 8B's 4096, so micro=4
-      # costs (2560/4096) x (4/2) = 1.25x the 8B config's peak, on a model that
-      # is supposed to be the cheaper one. A run at 4 OOMed in backward at step
-      # 5 once another user took 18 GiB on GPU 0.
+      # 2, the value every 8B config here has settled on. Activation memory
+      # scales with hidden_size x micro-batch: at hidden 4096 a micro-batch of 4
+      # doubles the backward peak, and vLLM is resident throughout (it never
+      # sleeps, see free_cache_engine below), so that peak has ~50 GiB to live
+      # in, not the whole card.
       ppo_micro_batch_size_per_gpu: 2
       use_dynamic_bsz: false
       # vLLM stays resident (enable_sleep_mode: false) holding ~36 GiB, leaving
@@ -182,7 +180,7 @@ verl_config:
       tensor_model_parallel_size: 1
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096
-      gpu_memory_utilization: 0.43
+      gpu_memory_utilization: 0.45
       max_model_len: 12000
       max_num_batched_tokens: 12000
       dtype: bfloat16
@@ -222,7 +220,7 @@ verl_config:
     total_epochs: 10000
     total_training_steps: 256
     project_name: rq_evolve
-    experiment_name: qwen3_4b_rq_evolve_8gpu
+    experiment_name: qwen3_8b_rq_evolve_8gpu
     logger:
       - console
       - wandb
@@ -234,7 +232,7 @@ verl_config:
     # Keep ONE checkpoint on disk (see rq_evolve_base.yaml for the sizing).
     max_actor_ckpt_to_keep: 1
     max_critic_ckpt_to_keep: 1
-    default_local_dir: ./rq_output/rq_evolve_4b_8gpu
+    default_local_dir: ./rq_output/rq_evolve_8b_8gpu
     device: cuda
     resume_mode: auto
 

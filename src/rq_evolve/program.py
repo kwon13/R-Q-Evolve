@@ -1,4 +1,5 @@
 import ast
+from .safe_parse import safe_ast_parse
 import hashlib
 import json
 import os
@@ -158,7 +159,7 @@ class ProblemProgram:
 
     def _top_level_string_constant(self, name: str) -> str | None:
         try:
-            tree = ast.parse(self.source_code)
+            tree = safe_ast_parse(self.source_code)
         except SyntaxError:
             return None
 

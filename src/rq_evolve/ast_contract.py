@@ -42,6 +42,7 @@ THE CHECK IS EXISTENTIAL, NOT UNIVERSAL
 from __future__ import annotations
 
 import ast
+from .safe_parse import safe_ast_parse
 import copy
 import re
 from dataclasses import dataclass
@@ -501,7 +502,7 @@ def check_generator_contract(source_code: str) -> list[Finding]:
     owns them, and reporting them twice would double every message.
     """
     try:
-        tree = ast.parse(source_code)
+        tree = safe_ast_parse(source_code)
     except (SyntaxError, ValueError):
         return []
 

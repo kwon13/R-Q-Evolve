@@ -1,4 +1,5 @@
 import ast
+from .safe_parse import ParserBomb, safe_ast_parse
 import textwrap
 import re
 
@@ -89,7 +90,15 @@ def _trim_to_parseable_prefix(code: str) -> str | None:
             return None
         snippet = "\n".join(lines[:end]).strip()
         try:
-            tree = ast.parse(snippet)
+            tree = safe_ast_parse(snippet)
+        except ParserBomb:
+            # Shaving trailing lines cannot defuse a nesting bomb (the nesting
+            # is within a line), and stepping through would retry the explosive
+            # parse up to _TRIM_MAX_ATTEMPTS more times -- bail out of the
+            # whole candidate. Must precede the SyntaxError arm: ParserBomb is
+            # a SyntaxError so existing handlers elsewhere absorb it, but here
+            # the jump-to-lineno recovery would defeat the point.
+            return None
         except (SyntaxError, ValueError) as exc:
             # Jump to just before the failing line (O(#error-points), not O(n));
             # ValueError (NUL bytes) has no lineno -> fall back to a single step.
@@ -99,16 +108,6 @@ def _trim_to_parseable_prefix(code: str) -> str | None:
             else:
                 end -= 1
             continue
-        except (MemoryError, RecursionError):
-            # A nesting bomb. Pure paren runs hit CPython's cheap "too many
-            # nested parentheses" SyntaxError, but mixed nesting -- a base
-            # model looping "[1," for thousands of tokens -- explodes the PEG
-            # parser's arena and raises MemoryError with host RAM to spare.
-            # It killed a training run at 2026-08-23 18:29: one degenerate
-            # reply must cost one candidate, never the trainer. Shaving
-            # trailing lines cannot defuse it (the nesting is within a line),
-            # so bail out of the whole candidate.
-            return None
         if any(
             isinstance(node, ast.FunctionDef) and node.name == "generate"
             for node in tree.body
@@ -130,7 +129,7 @@ def strip_module_docstring(source_code: str) -> str:
     own docstring; only the *parent shown in the prompt* is stripped.
     """
     try:
-        tree = ast.parse(source_code)
+        tree = safe_ast_parse(source_code)
     except (SyntaxError, ValueError):
         return source_code
 
@@ -176,7 +175,7 @@ def strip_label_declarations(source_code: str) -> str:
     unchanged if it does not parse.
     """
     try:
-        tree = ast.parse(source_code)
+        tree = safe_ast_parse(source_code)
     except (SyntaxError, ValueError):
         return source_code
 
@@ -210,7 +209,7 @@ def lint_generator_source(source_code: str) -> list[str]:
             reasons.append(f"forbidden source pattern: {pattern}")
 
     try:
-        tree = ast.parse(source_code)
+        tree = safe_ast_parse(source_code)
     except (SyntaxError, ValueError) as exc:
         return [f"syntax error: {exc}"]
 
@@ -257,7 +256,7 @@ def lint_mutation_generator_source(
     when a caller explicitly enables both route-related flags.
     """
     try:
-        tree = ast.parse(source_code)
+        tree = safe_ast_parse(source_code)
     except (SyntaxError, ValueError) as exc:
         return [f"syntax error: {exc}"]
 
@@ -945,7 +944,7 @@ def extract_problem_template(source_code: str) -> str | None:
     caller falls back to the rendered instance rather than dropping the parent.
     """
     try:
-        tree = ast.parse(source_code)
+        tree = safe_ast_parse(source_code)
     except (SyntaxError, ValueError):
         return None
 

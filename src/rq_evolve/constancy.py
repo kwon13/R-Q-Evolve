@@ -30,6 +30,7 @@ lives here rather than in the text linter.
 from __future__ import annotations
 
 import ast
+from .safe_parse import safe_ast_parse
 import re
 from dataclasses import dataclass
 
@@ -95,7 +96,7 @@ def z_sensitive_fraction(source: str) -> float:
     a gate must not reject on its own inability to look.
     """
     try:
-        tree = ast.parse(source)
+        tree = safe_ast_parse(source)
     except (SyntaxError, ValueError):
         return 1.0
     generate = _generate_function(tree)

@@ -99,6 +99,16 @@ def _trim_to_parseable_prefix(code: str) -> str | None:
             else:
                 end -= 1
             continue
+        except (MemoryError, RecursionError):
+            # A nesting bomb. Pure paren runs hit CPython's cheap "too many
+            # nested parentheses" SyntaxError, but mixed nesting -- a base
+            # model looping "[1," for thousands of tokens -- explodes the PEG
+            # parser's arena and raises MemoryError with host RAM to spare.
+            # It killed a training run at 2026-08-23 18:29: one degenerate
+            # reply must cost one candidate, never the trainer. Shaving
+            # trailing lines cannot defuse it (the nesting is within a line),
+            # so bail out of the whole candidate.
+            return None
         if any(
             isinstance(node, ast.FunctionDef) and node.name == "generate"
             for node in tree.body

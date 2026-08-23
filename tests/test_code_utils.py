@@ -29,3 +29,22 @@ def test_stripping_labels_leaves_unparseable_source_alone():
 
     broken = "def generate(seed:\n    pass\n"
     assert strip_label_declarations(broken) == broken
+
+
+def test_a_parser_bomb_is_a_failed_extraction_not_a_dead_trainer():
+    """Mixed nesting ("[1,[1,[1,..." for thousands of tokens) explodes
+    CPython's PEG-parser arena and raises MemoryError with host RAM to spare --
+    pure paren runs get the cheap "too many nested parentheses" SyntaxError,
+    but this shape does not. One such reply killed the 2026-08-23 run mid-
+    iteration. A degenerate generation must cost its own candidate and nothing
+    else."""
+    from rq_evolve.code_utils import extract_generator_code
+
+    bomb = (
+        "```python\n"
+        "def generate(seed):\n"
+        "    x = " + "[1," * 50_000 + "1" + "]" * 50_000 + "\n"
+        "    return \"q\", \"1\"\n"
+        "```\n"
+    )
+    assert extract_generator_code(bomb) is None

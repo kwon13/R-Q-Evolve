@@ -7,20 +7,57 @@ from rq_evolve.concepts import GROUPS, SKILLS
 from rq_evolve.program import ProblemProgram
 
 
+# Two vocabularies, multiplied, give 48 statements that are pairwise unalike --
+# enough to fill the whole grid. They have to be genuinely different questions,
+# not one question with a word swapped: the archive rejects a champion whose
+# numeric-free statement is largely contained in one already held, so a fixture
+# built from a shared skeleton plus a short tag would be turned away by that
+# gate rather than by the capacity rule the flat-binning tests are probing.
+_SUBJECTS = (
+    "lattice points inside a convex hull",
+    "prime gaps below a bound",
+    "leaves of a rooted binary tree",
+    "coins stacked in decreasing piles",
+    "tilings of a strip by dominoes",
+    "chords crossing inside a circle",
+)
+_ACTIONS = (
+    "counted after a single shuffle",
+    "measured along the main diagonal",
+    "summed over every odd index",
+    "compared against their mirror images",
+    "grouped by residue modulo three",
+    "ordered by increasing weight",
+    "paired off until none remain",
+    "relabelled by a fixed permutation",
+)
+
+
+def _distinct_tags(count: int) -> list[str]:
+    """``count`` phrases no two of which read as the same question."""
+    assert count <= len(_SUBJECTS) * len(_ACTIONS)
+    return [
+        f"{_SUBJECTS[i % len(_SUBJECTS)]} {_ACTIONS[i // len(_SUBJECTS)]}"
+        for i in range(count)
+    ]
+
+
 def _program(
     group: str, skill: str, value: int = 1, tag: str = ""
 ) -> ProblemProgram:
     """A minimal generator carrying one (GROUP, SKILL) pair.
 
-    ``tag`` varies the problem wording. The archive rejects two champions whose
-    numeric-free problem skeletons match, so programs that must coexist need
-    distinct phrasing, not just distinct numbers.
+    ``tag`` supplies the wording, and it carries the whole statement rather than
+    filling a slot in a fixed sentence -- see ``_distinct_tags``. The archive
+    rejects two champions whose numeric-free problem skeletons match, so
+    programs that must coexist need distinct phrasing, not just distinct
+    numbers.
     """
-    phrase = tag or f"{group}-{skill}"
+    phrase = tag or f"{group} studied by {skill}"
     return ProblemProgram(
         source_code=f'''
 def generate(seed):
-    return f"Take the {phrase} route: what is {value} + {{seed}}?", str({value} + seed)
+    return f"{phrase}, then add {{seed}} to {value}.", str({value} + seed)
 
 
 GROUP = "{group}"
@@ -214,7 +251,7 @@ def test_flat_binning_fills_every_slot_before_any_competition():
 
     for binning, expected in (("grid", 1), ("flat", 2)):
         archive = MAPElitesArchive(binning=binning)
-        for value, tag in ((3, "alpha"), (5, "beta")):
+        for value, tag in zip((3, 5), _distinct_tags(2)):
             archive.try_insert(
                 program=_program("algebra", "counting", value=value, tag=tag),
                 u_value=1.0,
@@ -236,7 +273,7 @@ def test_flat_binning_survives_a_snapshot_round_trip():
 
     # Distinct wording, not distinct numbers: the archive dedupes on the
     # numeric-free skeleton, so "t1".."t5" would collapse into one program.
-    tags = ("alpha", "beta", "gamma", "delta", "epsilon")
+    tags = _distinct_tags(5)
 
     archive = MAPElitesArchive(binning="flat")
     for value, tag in enumerate(tags, start=1):
@@ -285,10 +322,10 @@ def test_flat_binning_challenges_the_weakest_occupant_once_full():
 
     archive = MAPElitesArchive(binning="flat")
     total = len(GROUPS) * len(SKILLS)
-    # Alphabetic tags: the template-duplicate gate replaces every digit with
-    # 'N', so "t0"/"t1" normalise to the same skeleton and only the first would
-    # be admitted.
-    names = [f"{chr(97 + i // 26)}{chr(97 + i % 26)}" for i in range(total)]
+    # Distinct questions, not distinct numbers: the template-duplicate gate
+    # replaces every digit with 'N', so "t0"/"t1" normalise to one skeleton and
+    # only the first would be admitted.
+    names = _distinct_tags(total)
     for i, name in enumerate(names):
         archive.try_insert(
             program=_program("algebra", "counting", value=i + 1, tag=name),

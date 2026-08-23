@@ -1,4 +1,5 @@
 import hashlib
+from difflib import SequenceMatcher
 import json
 import math
 import random
@@ -182,6 +183,16 @@ class MAPElitesArchive:
             program.metadata["archive_status"] = "duplicate_template_rejected"
             program.metadata["duplicate_of"] = tdup.program_id
             return False
+        # 4. Near-duplicate: the same statement a few words apart. Exact hashes
+        #    miss it, and with SKILL labels only ~22% accurate the restatement
+        #    lands in a different cell and counts as new coverage.
+        near = self._find_near_duplicate_template(program)
+        if near is not None:
+            other, ratio = near
+            program.metadata["archive_status"] = "near_duplicate_template_rejected"
+            program.metadata["duplicate_of"] = other.program_id
+            program.metadata["duplicate_ratio"] = round(ratio, 3)
+            return False
 
         niche = self.grid[cell]
         # Champion competition ranks by selection priority: real R_Q in
@@ -305,6 +316,84 @@ class MAPElitesArchive:
         ).hexdigest()
         program.metadata[cache_key] = signature
         return signature
+
+    # A restatement is not "similar to" the original -- it CONTAINS it, plus a
+    # few words. So the measure is containment (matched characters over the
+    # shorter statement), not SequenceMatcher's ratio, which divides by the
+    # combined length and so penalises exactly the extra words that make a
+    # restatement a restatement: the live pair
+    #
+    #   Let n = N. How many distinct prime factors does n have?
+    #   Let n = N be a positive integer. How many distinct prime factors ...
+    #
+    # scores 1.00 by containment and only 0.88 by ratio.
+    #
+    # Measured on a live 21-cell archive, containment separated the collisions
+    # (1.000, 0.964, 0.901) from the merely related (0.855, 0.788, 0.720).
+    near_duplicate_template_ratio: float = 0.90
+    # Containment alone would reject a genuinely bigger question that happens to
+    # open with a smaller one ("... how many divisors?" vs "... how many
+    # divisors? of those, how many are prime?"). Both statements must also be
+    # comparable in size before one is called a restatement of the other.
+    near_duplicate_length_ratio: float = 0.60
+
+    def template_text(self, program: ProblemProgram, n_seeds: int = 5) -> str | None:
+        """The numeric-free statement set, as text rather than a hash.
+
+        ``program_template_signature`` compares hashes, so it only catches an
+        exact match. That let "Let n = N. How many distinct prime factors does
+        n have?" and "Let n = N be a positive integer. How many distinct prime
+        factors does n have?" occupy two different cells: five words apart, and
+        two different hashes. Comparing the text admits a threshold.
+        """
+        cache_key = f"_template_text_{n_seeds}"
+        cached = (program.metadata or {}).get(cache_key)
+        if cached is not None:
+            return str(cached) or None
+        templates = []
+        for seed in range(n_seeds):
+            inst = program.execute(seed=seed)
+            if inst is None:
+                return None
+            templates.append(self._template_normalize_text(inst.problem))
+        text = " ".join(sorted(set(templates)))
+        program.metadata[cache_key] = text
+        return text
+
+    def _find_near_duplicate_template(
+        self, program: ProblemProgram
+    ) -> tuple[ProblemProgram, float] | None:
+        """The closest champion whose statement is essentially this one.
+
+        Archive-wide, and deliberately so: the labels are what decide the cell,
+        and when they are unreliable the same problem lands in several cells and
+        reports as coverage. A cell holding a restatement of another cell is a
+        cell the curriculum does not actually have.
+        """
+        mine = self.template_text(program)
+        if not mine:
+            return None
+        best: tuple[ProblemProgram, float] | None = None
+        for niche in self.grid.values():
+            existing = niche.champion
+            if existing is None or existing.program_id == program.program_id:
+                continue
+            theirs = self.template_text(existing)
+            if not theirs:
+                continue
+            shorter, longer = sorted((len(mine), len(theirs)))
+            if shorter / max(1, longer) < self.near_duplicate_length_ratio:
+                continue
+            matched = sum(
+                block.size
+                for block in SequenceMatcher(None, mine, theirs).get_matching_blocks()
+            )
+            ratio = matched / max(1, shorter)
+            if ratio >= self.near_duplicate_template_ratio and (
+                best is None or ratio > best[1]
+            ):
+                best = (existing, ratio)
+        return best
 
     def _find_duplicate(self, program, signature_fn) -> ProblemProgram | None:
         signature = signature_fn(program)

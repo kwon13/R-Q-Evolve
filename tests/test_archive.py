@@ -118,3 +118,65 @@ def test_every_occupied_niche_can_be_a_mutation_parent():
         "an archive of only R_Q=0 champions must still yield parents, and both "
         "cells must be reachable"
     )
+
+
+def _family(group: str, skill: str, statement: str) -> ProblemProgram:
+    return ProblemProgram(
+        source_code=(
+            "import random\n\n\n"
+            "def generate(seed):\n"
+            "    rng = random.Random(seed)\n"
+            "    n = rng.randint(10, 99)\n"
+            # The answer must not be a number the statement prints, or the
+            # instance lint rejects it before the duplicate gate is reached.
+            "    answer = n * 7 + 3\n"
+            f'    return f"{statement}", str(answer)\n\n\n'
+            f'GROUP = "{group}"\nSKILL = "{skill}"\n'
+        )
+    )
+
+
+def test_a_restatement_of_another_cell_is_not_new_coverage():
+    """Exact template hashes only catch an exact match. Live, that let
+
+        Let n = N. How many distinct prime factors does n have?
+        Let n = N be a positive integer. How many distinct prime factors does n have?
+
+    hold two different cells: five words apart, two different hashes. With
+    SKILL labels around 22% accurate the restatement reliably lands somewhere
+    else and reports as coverage the curriculum does not have.
+    """
+    archive = MAPElitesArchive(selection_strategy="random")
+    first = _family(
+        "number_theory", "counting",
+        "Let n = {n}. How many distinct prime factors does n have? State only the integer.",
+    )
+    restated = _family(
+        "number_theory", "transformation",
+        "Let n = {n} be a positive integer. How many distinct prime factors does n have? State only the integer.",
+    )
+    assert archive.try_insert(first, u_value=0.4, rq_score=0.2)
+    assert not archive.try_insert(restated, u_value=0.4, rq_score=0.9), (
+        "a higher score must not buy a second cell for the same question"
+    )
+    assert restated.metadata["archive_status"] == "near_duplicate_template_rejected"
+    assert restated.metadata["duplicate_of"] == first.program_id
+    assert restated.metadata["duplicate_ratio"] >= 0.9
+    assert len(archive.champions()) == 1
+
+
+def test_a_genuinely_different_question_still_gets_its_cell():
+    """The gate is text similarity, which is a weak proxy for mathematical
+    sameness -- so it sits high enough that neighbouring questions survive."""
+    archive = MAPElitesArchive(selection_strategy="random")
+    divisors = _family(
+        "number_theory", "counting",
+        "Let n = {n}. How many positive divisors does n have? State only the integer.",
+    )
+    triangle = _family(
+        "geometry", "extremal_principle",
+        "A triangle has integer sides and perimeter {n}. Find its greatest possible area doubled. State only the integer.",
+    )
+    assert archive.try_insert(divisors, u_value=0.4, rq_score=0.2)
+    assert archive.try_insert(triangle, u_value=0.4, rq_score=0.2)
+    assert len(archive.champions()) == 2

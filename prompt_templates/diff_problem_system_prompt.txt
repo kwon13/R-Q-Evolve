@@ -10,32 +10,32 @@ PARENT FAMILY:
 Start with P(x) = {start_polynomial}. In one move, P(x) may be replaced by P(x+1) or P(x-1), and any number of moves may be performed. Exactly one of {candidate_polynomials} is reachable. Find its index. State only the integer.
 
 OUTPUT:
-STRUCTURAL MUTATION: The target changes from polynomial orbit membership to the size of an intersection between two plane figures, and the decisive reasoning changes from an invariant argument to separating the genuinely different positions the two figures can take.
-CHILD FAMILY: A circle has centre O and radius r = {radius}, and a line lies at distance d = {distance} from O, where r and d are positive integers. How many points lie on both the circle and the line? State only the integer.
-GROUP: geometry
+STRUCTURAL MUTATION: The target changes from polynomial orbit membership to counting integer solutions of an absolute-value equation, and the decisive reasoning changes from an invariant argument to splitting into the two sign cases and testing each resulting square equation separately.
+CHILD FAMILY: Let b = {inner_value} and c = {threshold} be positive integers. How many integers x satisfy |x^2 - b| = c? State only the integer.
+GROUP: algebra
 SKILL: casework
 
 
 EXAMPLE 2 — INDUCTION
 
 PARENT FAMILY:
-A binary string has length {length} and contains exactly {ones} ones, with no two ones adjacent. How many such strings are there? State only the integer.
+Let a_1 = {first_term} and a_{k+1} = a_k + {step}. Find a_{n}. State only the integer.
 
 OUTPUT:
-STRUCTURAL MUTATION: The target changes from counting constrained strings directly to determining which removals preserve a recursively tileable board, and the decisive reasoning changes to reducing a size-2^k board to smaller copies of the same problem.
-CHILD FAMILY: Let k = {exponent} be a positive integer. Consider a 2^k by 2^k board of unit squares. For how many choices of one unit square to remove can the remaining board be tiled completely by L-shaped trominoes, each consisting of three unit squares? State only the integer.
-GROUP: combinatorics
+STRUCTURAL MUTATION: The target changes from unrolling an arithmetic recurrence to counting the regions that lines create in the plane, and the decisive reasoning changes to adding one line at a time and proving how many new regions each addition must create.
+CHILD FAMILY: Let n = {line_count}. In the plane, n lines are in general position: no two are parallel and no three pass through one point. Into how many regions do these lines divide the plane? State only the integer.
+GROUP: geometry
 SKILL: induction
 
 
 EXAMPLE 3 — CONTRADICTION
 
 PARENT FAMILY:
-Let {n} points lie on a circle. How many triangles can be formed using three of the points as vertices? State only the integer.
+Let S be a square whose corners are lattice points and whose side length is {side_length}. How many lattice points lie strictly inside S? State only the integer.
 
 OUTPUT:
-STRUCTURAL MUTATION: The target changes from counting finite geometric selections to bounding how long a descending process can run, and the decisive reasoning changes to assuming it runs longer and deriving a positive integer below every positive integer.
-CHILD FAMILY: A strictly decreasing sequence of positive integers begins with a_1 = {first_term}. What is the greatest possible number of terms the sequence can have? State only the integer.
+STRUCTURAL MUTATION: The target changes from counting interior lattice points to bounding the length of a proper-divisor sequence, and the decisive reasoning changes to assuming one more term exists and deriving a step that removes no prime factor, which is impossible for a proper divisor.
+CHILD FAMILY: A sequence of positive integers a_1, a_2, ..., a_K satisfies a_1 = {starting_value}, and each a_(k+1) is a proper divisor of a_k, meaning a_(k+1) divides a_k and a_(k+1) < a_k. What is the greatest possible value of K? State only the integer.
 GROUP: sequence
 SKILL: contradiction
 
@@ -43,25 +43,25 @@ SKILL: contradiction
 EXAMPLE 4 — INVARIANT
 
 PARENT FAMILY:
-Let S be a set of {point_count} points in the plane. Among triangles satisfying {triangle_condition}, find the maximum value of {geometric_quantity}. State only the integer.
+How many ordered pairs (x, y) of positive integers satisfy x + {coefficient} * y = {total}? State only the integer.
 
 OUTPUT:
-STRUCTURAL MUTATION: The target changes from geometric optimization to determining the terminal state of a repeated integer process, and the decisive reasoning changes to identifying a quantity preserved by every move.
-CHILD FAMILY: Start with positive integers a = {first_integer} and b = {second_integer}. While a and b are unequal, replace the larger one by the positive difference of the two. When the two integers become equal, find their common value. State only the integer.
-GROUP: number_theory
+STRUCTURAL MUTATION: The target changes from counting solutions of a linear equation to finding the terminal value of a merging process, and the decisive reasoning changes to noticing that the product of (1 + t) over all numbers t on the board is unchanged by every move.
+CHILD FAMILY: The numbers 1 through {board_size} are written on a blackboard. In each move, two numbers a and b are erased and the single number a + b + a*b is written. After {board_size} - 1 moves one number remains. Determine that number. State only the integer.
+GROUP: algebra
 SKILL: invariant
 
 
-EXAMPLE 5 — EXTREMAL PRINCIPLE
+EXAMPLE 5 — CONSTRUCTION
 
 PARENT FAMILY:
-Let a_1 = {first_term} and define a_{k+1} = {recurrence}. Find a_{n}. State only the integer.
+Let N = {modulus}. How many integers k with 1 <= k <= N are coprime to N? State only the integer.
 
 OUTPUT:
-STRUCTURAL MUTATION: The target changes from evaluating a recursively defined sequence to a sharp maximum of a product under a fixed sum, and the decisive reasoning changes to a bound whose equality case pins the optimum exactly.
-CHILD FAMILY: Let x, y, and z be positive real numbers with x + y + z = s = {sum}, where s is a positive integer. Find the maximum possible value of the greatest integer not exceeding xyz. State only the integer.
+STRUCTURAL MUTATION: The target changes from counting coprime residues to a guaranteed lower bound on the maximum of a constrained collection, and the decisive reasoning changes to proving the averaging bound and constructing the balanced collection that attains it, so that no larger integer works.
+CHILD FAMILY: Let n = {count} and s = {total} be positive integers with n < s. Positive integers a_1, ..., a_n have sum s. Find the greatest integer L such that in every such collection, the largest of the numbers is at least L. State only the integer.
 GROUP: inequality
-SKILL: extremal_principle
+SKILL: construction
 
 
 EXAMPLE 6 — COUNTING
@@ -88,16 +88,17 @@ GROUP: number_theory
 SKILL: transformation
 
 
-EXAMPLE 8 — CONSTRUCTION
+EXAMPLE 8 — EXTREMAL PRINCIPLE
 
 PARENT FAMILY:
-Let {real_variables} satisfy {constraints}. Find the maximum possible value of {expression}. State only the integer.
+A binary string has length {length} and contains no two adjacent ones. How many such strings are there? State only the integer.
 
 OUTPUT:
-STRUCTURAL MUTATION: The target changes from optimizing real quantities to finding the least integer meeting simultaneous modular requirements, and the decisive reasoning changes to explicitly constructing a solution from coprime congruences.
-CHILD FAMILY: Let m = {first_modulus} and n = {second_modulus} be coprime integers greater than 1, and let a = {first_residue} and b = {second_residue} satisfy 0 <= a < m and 0 <= b < n. Find the least positive integer x such that x is congruent to a modulo m and to b modulo n. State only the integer.
-GROUP: number_theory
-SKILL: construction
+STRUCTURAL MUTATION: The target changes from counting constrained binary strings to the maximum size of a graph avoiding a forbidden substructure, and the decisive reasoning changes to bounding the number of edges through the extremal bipartition and exhibiting the complete bipartite graph that attains the bound.
+CHILD FAMILY: Let n = {vertex_count} be a positive integer. Find the maximum number of edges in a simple graph with n vertices that contains no triangle. State only the integer.
+GROUP: combinatorics
+SKILL: extremal_principle
+
 
 Now create a child family for the given PARENT FAMILY.
 

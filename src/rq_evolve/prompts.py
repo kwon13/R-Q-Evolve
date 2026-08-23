@@ -33,8 +33,6 @@ def _load_definitions(filename: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-MUTATION_SYSTEM_PROMPT_FILE = "mutation_system_prompt.txt"
-MUTATION_USER_PROMPT_FILE = "mutation_user_prompt.txt"
 JUDGE_SYSTEM_PROMPT_FILE = "mutation_judge_system_prompt.txt"
 JUDGE_USER_PROMPT_FILE = "mutation_judge_user_prompt.txt"
 
@@ -47,12 +45,6 @@ JUDGE_USER_PROMPT_FILE = "mutation_judge_user_prompt.txt"
 # The child now picks both labels from its own finished mathematics, and the
 # judge re-derives them from the visible problem alone.
 MUTATION_OP = "mutate"
-
-
-@lru_cache(maxsize=1)
-def mutation_system_prompt() -> str:
-    """The Evolver's system turn, read verbatim from the template directory."""
-    return _load_template(MUTATION_SYSTEM_PROMPT_FILE).strip()
 
 
 @lru_cache(maxsize=4)
@@ -96,73 +88,6 @@ PROMPT_TEMPLATE_DIR = Path(
 SHOT_TEMPLATE_DIR = Path(
     os.environ.get("RQ_EVOLVE_SHOT_DIR", PROMPT_TEMPLATE_DIR / "shots")
 )
-
-
-def build_mutation_task(
-    parent: ProblemProgram,
-    *,
-    temperature: float | None = None,
-    top_p: float | None = None,
-) -> MutationTask:
-    """One mutation request: the parent program plus both label vocabularies.
-
-    There is no operator argument. The Evolver decides for itself what to change
-    and labels the finished child from its own shortest solution; nothing here
-    demands a particular GROUP or SKILL.
-    """
-    system_prompt = mutation_system_prompt()
-    user_prompt = _render_template(
-        _load_template(MUTATION_USER_PROMPT_FILE),
-        _template_context(parent),
-    )
-    return MutationTask(
-        op=MUTATION_OP,
-        prompt=f"{system_prompt}\n\n{user_prompt}",  # flat fallback only
-        parent=parent,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=temperature,
-        top_p=top_p,
-    )
-
-
-def build_fix_task(
-    task: MutationTask,
-    failed_output: str,
-    reason: str,
-) -> MutationTask:
-    system_prompt = mutation_system_prompt()
-    if task.messages:
-        original_user = str(task.messages[-1].get("content", ""))
-    else:
-        original_user = task.prompt
-        if original_user.startswith(system_prompt):
-            original_user = original_user[len(system_prompt):].lstrip("\n")
-
-    fix_request = (
-        "Your program above was REJECTED by the validator.\n"
-        f"Rejection reason(s): {reason or 'unspecified'}\n"
-        "Fix ONLY the issue(s) above while keeping the mathematical idea intact. "
-        "Output the corrected full program in one ```python ``` block."
-    )
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": original_user},
-        {"role": "assistant", "content": failed_output},
-        {"role": "user", "content": fix_request},
-    ]
-    return MutationTask(
-        op=task.op,
-        prompt=f"{failed_output}\n\n{fix_request}",  # flat fallback only
-        parent=task.parent,
-        messages=messages,
-        stage=task.stage,
-        max_output_tokens=task.max_output_tokens,
-        temperature=task.temperature,
-        top_p=task.top_p,
-    )
 
 
 JUDGE_FIELDS = (

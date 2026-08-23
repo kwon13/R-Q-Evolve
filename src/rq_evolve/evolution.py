@@ -35,10 +35,8 @@ from .prompts import (
     MUTATION_OP,
     build_judge_messages,
     build_judge_task,
-    build_fix_task,
     build_family_task,
     build_generator_task,
-    build_mutation_task,
     parse_declared_labels,
     parse_family_plan,
     judge_accepts,
@@ -439,18 +437,13 @@ class RQEvolver:
         # deferred until after end_session (vLLM asleep) inside finalize_rollouts.
         self.backend.begin_session()
         try:
-            if self.evolution_config.two_stage_mutation:
-                tasks, outputs = self._mutate_in_two_stages(parents)
-            else:
-                tasks = [
-                    build_mutation_task(
-                        parent,
-                        temperature=self.evolution_config.code_temperature,
-                        top_p=self.evolution_config.code_top_p,
-                    )
-                    for parent in parents
-                ]
-                outputs = self.backend.mutate(tasks) if tasks else []
+            if not self.evolution_config.two_stage_mutation:
+                raise RuntimeError(
+                    "single-stage mutation was removed along with its prompt "
+                    "templates (mutation_*_prompt.txt); set "
+                    "evolution.two_stage_mutation: true"
+                )
+            tasks, outputs = self._mutate_in_two_stages(parents)
             entries: list[dict] = []
             # Repeats also happen WITHIN one batch: 32 parents are drawn with
             # replacement from a ~10-cell archive and mutation is near
@@ -770,55 +763,33 @@ class RQEvolver:
         return child, inst, reason, source
 
     def _resolve_retries(self, entries: list[dict]) -> None:
-        """Finalize every ``_retry`` entry into a success or a report entry.
+        """Collapse every ``_retry`` entry into its verify_failed report.
 
-        With ``fix_retry`` enabled, each verify-failed child gets ONE self-fix
-        round (one batched ``mutate`` over all retryable entries); survivors
-        become ``{"task","child","inst"}`` and are tagged ``fixed_after_retry``.
-        With it disabled, the originals collapse straight to a verify_failed
-        report so no entry is ever left dangling.
+        The self-fix round went with the single-stage prompts: ``build_fix_task``
+        replayed the original mutation conversation, and that conversation no
+        longer exists in the two-stage pipeline. ``fix_retry`` therefore cannot
+        be honoured -- refusing loudly beats silently skipping the fix the
+        config asked for.
         """
         targets = [e for e in entries if "_retry" in e]
         if not targets:
             return
-        enabled = self.evolution_config.fix_retry
-        if enabled:
-            fix_tasks = [
-                build_fix_task(
-                    e["_retry"]["task"], e["_retry"]["output"], e["_retry"]["reason"]
-                )
-                for e in targets
-            ]
-            outputs = self.backend.mutate(fix_tasks)
-        else:
-            outputs = [None] * len(targets)
-
-        for e, output in zip(targets, outputs):
+        if self.evolution_config.fix_retry:
+            raise RuntimeError(
+                "fix_retry was removed along with the single-stage mutation "
+                "prompts; set evolution.fix_retry: false"
+            )
+        for e in targets:
             info = e.pop("_retry")
             task = info["task"]
-            if not enabled:
-                e["report"] = CandidateReport(
-                    status="verify_failed",
-                    op=task.op,
-                    child_id=info.get("child_id"),
-                    reason=info["reason"],
-                    source_code=_logged_source(info.get("source")),
-                    ast_findings=list(info.get("ast_findings") or []),
-                )
-                continue
-            child, inst, reason, source = self._make_child_from_output(task, output)
-            if inst is not None:
-                child.metadata["fixed_after_retry"] = True
-                e["task"], e["child"], e["inst"] = task, child, inst
-            else:
-                e["report"] = CandidateReport(
-                    status="verify_failed",
-                    op=task.op,
-                    child_id=child.program_id if child else "",
-                    reason=f"[after fix] {reason}",
-                    source_code=_logged_source(source or info.get("source")),
-                    ast_findings=_ast_findings(child),
-                )
+            e["report"] = CandidateReport(
+                status="verify_failed",
+                op=task.op,
+                child_id=info.get("child_id"),
+                reason=info["reason"],
+                source_code=_logged_source(info.get("source")),
+                ast_findings=list(info.get("ast_findings") or []),
+            )
 
     def _apply_judge(self, entries: list[dict]) -> None:
         """Label gate: the judge must independently reach both declared labels.

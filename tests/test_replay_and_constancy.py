@@ -293,11 +293,24 @@ def _loop_evolver(backend, n=3, m=2):
     )
 
 
+# One sentence per tag, and genuinely different sentences: the archive's
+# near-duplicate gate compares numeric-free statements by containment, so two
+# fixtures that differ only in a "[A]"/"[B]" tag are one problem to it and the
+# second would be turned away -- which is exactly what these tests must not
+# depend on. Answers stay seed+1 across tags; only the wording changes.
+_TAG_QUESTIONS = {
+    "A": "what is {seed} plus one?",
+    "B": "a shelf holds {seed} books and one more arrives. how many books stand on it?",
+    "C": "a choir of {seed} singers gains a soloist. how many voices sing together?",
+}
+
+
 def _seeded(evolver, tag, group):
+    question = _TAG_QUESTIONS[tag]
     program = ProblemProgram(
         source_code=(
             "def generate(seed):\n"
-            f'    return f"[{tag}] what is {{seed}} plus one?", str(seed + 1)\n\n\n'
+            f'    return f"{question}", str(seed + 1)\n\n\n'
             f'GROUP = "{group}"\nSKILL = "counting"\n'
         )
     )

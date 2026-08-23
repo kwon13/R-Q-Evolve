@@ -1,9 +1,13 @@
-"""The mutation prompt and the judge contract.
+"""The two-stage mutation prompts and the judge contract.
 
-The operator pair is gone. Nothing in the mutation prompt names a target GROUP
-or SKILL any more, so these tests check the opposite of what they used to: that
-the child is handed both full vocabularies and no instruction about where to
-land, and that the judge is handed the visible problem and nothing else.
+Single-stage mutation (one prompt that rewrote the whole program) is gone,
+and with it ``build_mutation_task``/``build_fix_task`` and their templates.
+Mutation is now two calls: stage 1 (``build_family_task``) mutates the problem
+FAMILY in prose and commits to GROUP/SKILL, stage 2 (``build_generator_task``)
+writes the generator for that fixed family with the parent inlined as a worked
+example of the statement-to-program mapping. These tests pin what each stage
+may see -- the vocabularies, the parent's problem, the parent's label-stripped
+source -- and what neither stage may see: the parent's own cell.
 """
 
 import pytest
@@ -14,12 +18,11 @@ from rq_evolve.prompts import (
     MUTATION_OP,
     _render_template,
     _template_context,
-    build_fix_task,
+    build_family_task,
+    build_generator_task,
     build_judge_messages,
-    build_mutation_task,
     judge_accepts,
     judge_system_prompt,
-    mutation_system_prompt,
     parse_judge_verdict,
 )
 
@@ -37,21 +40,30 @@ SKILL = "{skill}"
     )
 
 
-def _user(parent) -> str:
-    return build_mutation_task(parent).messages[-1]["content"]
+def _plan() -> dict:
+    return {
+        "CHILD FAMILY": "Let n = {n}. How many? State only the integer.",
+        "STRUCTURAL MUTATION": "a different target",
+        "GROUP": "geometry",
+        "SKILL": "casework",
+    }
 
 
-# --- the mutation prompt ---------------------------------------------------
+def _family_user(parent) -> str:
+    return build_family_task(parent).messages[-1]["content"]
+
+
+def _gen_user(parent) -> str:
+    return build_generator_task(parent, _plan()).messages[-1]["content"]
+
+
+# --- stage 1: the problem, in prose ----------------------------------------
 
 
 def test_the_child_may_read_every_label_it_may_choose():
-    """A label the model can pick but not read a definition for is unfalsifiable.
-
-    With no axis held fixed there is nothing to withhold: the retired operators
-    each dropped the vocabulary of the axis they pinned, on the reasoning that
-    the parent was a worked instance of it.
-    """
-    user = _user(_program("algebra", "transformation"))
+    """A label the model can pick but not read a definition for is
+    unfalsifiable, so stage 1 carries both full vocabularies."""
+    user = _family_user(_program("algebra", "transformation"))
     for group in GROUPS:
         assert f"{group}:" in user, group
     for skill in SKILLS:
@@ -67,111 +79,97 @@ def test_the_definitions_have_one_source_on_disk():
         assert f"{skill}:" in context["allowed_skills"]
 
 
-def test_the_parents_cell_never_reaches_the_prompt():
-    """Neither in prose nor in the tail of its own source.
-
-    Showing the parent's labels anchored the child to them: 97% of 118 distinct
-    children declared the cell their parent already occupied, across only 12
-    distinct cells. Deleting them from the source alone once backfired, because
-    the parent is the exemplar and one ending at `return` taught that -- so the
-    SYSTEM prompt now states the required ending, and says why the example does
-    not show it.
-    """
-    parent = _program("geometry", "extremal_principle")
-    task = build_mutation_task(parent)
-    user, system = task.messages[1]["content"], task.messages[0]["content"]
-    head = user[: user.index("Allowed GROUPS:")]
-    assert "geometry" not in head and "extremal_principle" not in head
-    # Deleted, not redacted -- anything left in that tail gets copied.
-    assert "GROUP =" not in head and "SKILL =" not in head
-    # What replaces the lost ending is the shape block, which shows the two
-    # lines after `return`, plus PART 1 committing to the labels first.
-    flat = " ".join(system.split())
-    assert "GROUP: ..." in flat and "SKILL: ..." in flat
-    # The whole vocabulary is still offered, so no single cell is demanded.
-    for skill in SKILLS:
-        assert f"{skill}:" in user, skill
-
-
-def test_the_parent_source_is_inlined():
-    parent = _program()
-    assert "def generate(seed):" in _user(parent)
-
-
-def test_the_parent_problem_is_shown_not_just_its_code():
+def test_stage_one_shows_the_problem_and_no_code():
     """The object being mutated is a PROBLEM; the program only emits it.
 
-    Showing the source alone framed the task as editing code, and a model shown
-    code rewrites code: across distinct children the largest single failure was
-    the child's own cross-check firing -- mathematics committed to before it was
-    worked out. The parent's seed-0 statement goes in the prompt so the child can
-    be designed as a problem first.
+    Showing source framed the task as editing code, and a base model shown
+    code rewrites code -- child/parent source similarity sat at 0.99 under
+    whole-program rewriting. Stage 1 therefore sees the family and one
+    rendered instance, and no program at all.
     """
     parent = _program()
-    user = _user(parent)
+    user = _family_user(parent)
     statement = parent.execute(seed=0).problem
     assert statement.strip() in user
-    # And the statement must come BEFORE the source, since that is the order the
-    # reply is asked to work in.
-    assert user.index(statement.strip()) < user.index("def generate(seed):")
+    assert "def generate" not in user
+
+
+def test_the_parents_cell_never_reaches_either_stage():
+    """Showing the parent's labels anchored the child to them: children
+    declared the parent's own cell 96% of the time. Stage 1 carries no label
+    declarations; stage 2 shows the source with its tail stripped, and its
+    system prompt says the labels are added afterwards."""
+    parent = _program("geometry", "extremal_principle")
+    family_user = _family_user(parent)
+    assert 'GROUP = "' not in family_user and 'SKILL = "' not in family_user
+
+    task = build_generator_task(parent, _plan())
+    gen_user, gen_system = task.messages[1]["content"], task.messages[0]["content"]
+    assert 'GROUP = "' not in gen_user and 'SKILL = "' not in gen_user
+    assert "Do not write GROUP or SKILL lines" in gen_system
+
+
+def test_the_parent_source_is_inlined_in_stage_two():
+    assert "def generate(seed):" in _gen_user(_program())
+
+
+def test_the_fixed_child_family_reaches_stage_two_verbatim():
+    """Stage 2 does not re-decide the problem; it receives stage 1's family."""
+    assert _plan()["CHILD FAMILY"] in _gen_user(_program())
 
 
 def test_a_parent_that_cannot_run_still_produces_a_prompt():
     """A resume can load a snapshot whose source no longer executes here. That
     is not something to discover while building a prompt."""
-    from rq_evolve.program import ProblemProgram
-
     broken = ProblemProgram(
         source_code='GROUP = "algebra"\nSKILL = "invariant"\n'  # no generate()
     )
-    user = _user(broken)
-    assert "did not run here" in user
+    assert "did not run here" in _family_user(broken)
 
 
-def test_the_reply_is_a_design_then_a_program():
-    """Part 1 in prose, Part 2 the code -- the code cannot come first."""
-    system = build_mutation_task(_program()).messages[0]["content"]
-    assert system.index("PART 1") < system.index("PART 2")
-    assert "```python" in system
+def test_both_stages_carry_the_single_operator():
+    family = build_family_task(_program())
+    generator = build_generator_task(_program(), _plan())
+    assert family.op == generator.op == MUTATION_OP == "mutate"
+    for task, stage in ((family, "family"), (generator, "generator")):
+        assert [m["role"] for m in task.messages] == ["system", "user"]
+        assert task.stage == stage
 
 
-def test_the_task_carries_the_single_operator():
-    task = build_mutation_task(_program())
-    assert task.op == MUTATION_OP == "mutate"
-    assert [m["role"] for m in task.messages] == ["system", "user"]
-
-
-def test_the_system_prompt_is_read_from_disk_verbatim():
+def test_the_system_prompts_are_read_from_disk_verbatim():
     """Verbatim really means verbatim: compare against the file, not a phrase."""
-    from pathlib import Path
+    from rq_evolve.prompts import (
+        FAMILY_SYSTEM_PROMPT_FILE,
+        GENERATOR_SYSTEM_PROMPT_FILE,
+        PROMPT_TEMPLATE_DIR,
+    )
 
-    from rq_evolve.prompts import MUTATION_SYSTEM_PROMPT_FILE, PROMPT_TEMPLATE_DIR
+    for filename, task in (
+        (FAMILY_SYSTEM_PROMPT_FILE, build_family_task(_program())),
+        (GENERATOR_SYSTEM_PROMPT_FILE, build_generator_task(_program(), _plan())),
+    ):
+        on_disk = (PROMPT_TEMPLATE_DIR / filename).read_text()
+        assert task.messages[0]["content"] == on_disk
+        assert "$" not in on_disk, "the system turn is not templated"
 
-    on_disk = (PROMPT_TEMPLATE_DIR / MUTATION_SYSTEM_PROMPT_FILE).read_text().strip()
-    assert mutation_system_prompt() == on_disk
-    assert "$" not in on_disk, "the system turn is not templated"
+
+def test_stage_one_asks_for_the_four_lines():
+    """The whole stage-1 contract is four labelled lines; the labels are
+    committed here, while the solution is still in view, and the harness
+    staples them onto the program afterwards (set_label_declarations)."""
+    system = build_family_task(_program()).messages[0]["content"]
+    for line in ("STRUCTURAL MUTATION:", "CHILD FAMILY:", "GROUP:", "SKILL:"):
+        assert line in system, line
+    assert 'ending "State only the integer."' in system
 
 
-def test_the_system_prompt_carries_the_shape_the_linter_enforces():
+def test_stage_two_states_the_shape_the_linter_enforces():
     """Two thirds of rejected children died on the assert contract or on the
-    module shape. The prompt states both as code, not only as prose."""
-    text = mutation_system_prompt()
-    assert "def generate(seed):" in text
-    assert "assert answer == check" in text
-
-
-def test_the_labels_are_asked_for_in_prose_not_after_return():
-    """A label line past `return problem, str(answer)` is past the strongest
-    completion boundary in the file, and it was simply dropped -- 15 of 24
-    children on one probe. The contract moves both labels into PART 1, where
-    they are written while the solution is still in view, and the harness puts
-    them onto the program afterwards (parse_declared_labels).
-    """
-    flat = " ".join(mutation_system_prompt().split())
-    assert "GROUP: ..." in flat and "SKILL: ..." in flat
-    assert "GROUP and SKILL appear only in PART 1" in flat
-    # And the skeleton must not re-teach the old ending.
-    assert 'GROUP = "' not in mutation_system_prompt()
+    module shape. The stage-2 prompt states both as code, not only as prose."""
+    system = build_generator_task(_program(), _plan()).messages[0]["content"]
+    assert "def generate(seed):" in system
+    assert "assert answer == check" in system
+    assert "```python" in system
 
 
 # --- template rendering ----------------------------------------------------
@@ -179,9 +177,10 @@ def test_the_labels_are_asked_for_in_prose_not_after_return():
 
 def test_no_placeholder_survives_into_a_rendered_prompt():
     for group, skill in (("algebra", "counting"), ("geometry", "induction")):
-        task = build_mutation_task(_program(group, skill))
-        for message in task.messages:
-            assert "$" not in message["content"], message["content"][:200]
+        parent = _program(group, skill)
+        for task in (build_family_task(parent), build_generator_task(parent, _plan())):
+            for message in task.messages:
+                assert "$" not in message["content"], message["content"][:200]
 
 
 def test_an_unsupplied_placeholder_is_an_error_not_a_silent_passthrough():
@@ -193,21 +192,6 @@ def test_an_unsupplied_placeholder_is_an_error_not_a_silent_passthrough():
 def test_a_dollar_sign_from_substituted_content_is_not_flagged():
     rendered = _render_template("$parent_source", {"parent_source": "cost = $5"})
     assert rendered == "cost = $5"
-
-
-# --- the self-fix conversation ---------------------------------------------
-
-
-def test_fix_task_replays_the_original_conversation():
-    task = build_mutation_task(_program())
-    fix = build_fix_task(task, "```python\nbroken\n```", "execute failed at seed=0")
-
-    roles = [m["role"] for m in fix.messages]
-    assert roles == ["system", "user", "assistant", "user"]
-    assert fix.messages[1]["content"] == task.messages[-1]["content"]
-    assert "broken" in fix.messages[2]["content"]
-    assert "execute failed at seed=0" in fix.messages[3]["content"]
-    assert fix.op == task.op
 
 
 # --- the judge -------------------------------------------------------------

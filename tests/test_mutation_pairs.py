@@ -112,14 +112,17 @@ def test_child_records_its_evidence_header(op, parent, child):
 def test_fixtures_are_not_on_the_prompt_injection_path():
     """Injecting them costs +8k tokens against a 12k window -- keep them out.
 
-    The mutation prompt is now two files read verbatim from the template
-    directory, neither of which carries examples; this pins that the fixtures
-    did not quietly move in there.
+    The mutation prompt is now four files read verbatim from the template
+    directory (a system/user pair per stage), none of which carries these
+    fixtures; this pins that they did not quietly move in there.
     """
-    from rq_evolve.prompts import PROMPT_TEMPLATE_DIR, SHOT_TEMPLATE_DIR
-    from rq_evolve.prompts import mutation_system_prompt
     from rq_evolve.program import ProblemProgram
-    from rq_evolve.prompts import build_mutation_task
+    from rq_evolve.prompts import (
+        PROMPT_TEMPLATE_DIR,
+        SHOT_TEMPLATE_DIR,
+        build_family_task,
+        build_generator_task,
+    )
 
     for op, path in FILES.items():
         assert not (SHOT_TEMPLATE_DIR / path.name).exists()
@@ -129,9 +132,11 @@ def test_fixtures_are_not_on_the_prompt_injection_path():
         source_code='def generate(seed):\n    return "q", "1"\n\n\n'
         'GROUP = "algebra"\nSKILL = "counting"\n'
     )
-    rendered = "\n".join(m["content"] for m in build_mutation_task(parent).messages)
-    assert "CRUX:" not in rendered
-    assert "$" not in mutation_system_prompt()
+    plan = {"CHILD FAMILY": "How many? State only the integer.",
+            "STRUCTURAL MUTATION": "different target"}
+    for task in (build_family_task(parent), build_generator_task(parent, plan)):
+        rendered = "\n".join(m["content"] for m in task.messages)
+        assert "CRUX:" not in rendered
 
 
 def test_the_retired_concept_vocabulary_is_gone_everywhere():

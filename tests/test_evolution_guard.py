@@ -348,7 +348,7 @@ def test_a_repeat_inside_one_batch_is_not_executed_twice():
     judge, so the check lives beside the memo rather than in the caller.
     """
     from rq_evolve.evolution import RQEvolver
-    from rq_evolve.prompts import build_mutation_task
+    from rq_evolve.prompts import MUTATION_OP, MutationTask
     from rq_evolve.program import ProblemProgram
 
     source = (
@@ -358,7 +358,9 @@ def test_a_repeat_inside_one_batch_is_not_executed_twice():
         'GROUP = "algebra"\nSKILL = "invariant"\n'
     )
     parent = ProblemProgram(source_code=source)
-    task = build_mutation_task(parent)
+    # The guard reads only task.op and task.parent; which stage produced the
+    # task is irrelevant to in-batch dedup, so build the task directly.
+    task = MutationTask(op=MUTATION_OP, prompt="", parent=parent)
 
     from rq_evolve.config import EvolutionConfig
 

@@ -13,6 +13,7 @@ from .code_utils import (
     lint_generator_source,
     lint_mutation_generator_source,
     lint_problem_instance,
+    set_label_declarations,
 )
 from .concepts import validate_label_decl
 from .config import EvolutionConfig, TrainingDataConfig
@@ -35,7 +36,11 @@ from .prompts import (
     build_judge_messages,
     build_judge_task,
     build_fix_task,
+    build_family_task,
+    build_generator_task,
     build_mutation_task,
+    parse_declared_labels,
+    parse_family_plan,
     judge_accepts,
     parse_judge_verdict,
 )
@@ -434,15 +439,18 @@ class RQEvolver:
         # deferred until after end_session (vLLM asleep) inside finalize_rollouts.
         self.backend.begin_session()
         try:
-            tasks = [
-                build_mutation_task(
-                    parent,
-                    temperature=self.evolution_config.code_temperature,
-                    top_p=self.evolution_config.code_top_p,
-                )
-                for parent in parents
-            ]
-            outputs = self.backend.mutate(tasks) if tasks else []
+            if self.evolution_config.two_stage_mutation:
+                tasks, outputs = self._mutate_in_two_stages(parents)
+            else:
+                tasks = [
+                    build_mutation_task(
+                        parent,
+                        temperature=self.evolution_config.code_temperature,
+                        top_p=self.evolution_config.code_top_p,
+                    )
+                    for parent in parents
+                ]
+                outputs = self.backend.mutate(tasks) if tasks else []
             entries: list[dict] = []
             # Repeats also happen WITHIN one batch: 32 parents are drawn with
             # replacement from a ~10-cell archive and mutation is near
@@ -655,6 +663,56 @@ class RQEvolver:
                     report.child_id, f"{report.status}: {report.reason}"
                 )
 
+    def _mutate_in_two_stages(self, parents):
+        """Problem first, program second: two batched calls instead of one.
+
+        Returns ``(tasks, outputs)`` in the shape the single-call path returns,
+        so everything downstream -- retries, judging, scoring, reporting -- is
+        untouched. A parent whose stage-1 reply does not parse yields an empty
+        output, which ``_make_child_from_output`` already reports as a failed
+        mutation.
+
+        The labels come from stage 1 and are stapled onto the program here
+        rather than asked of stage 2, because the ONE thing every variant of
+        this prompt got wrong was the file's tail: whatever the parent's last
+        two lines contained is what the child's contained, including nothing.
+        """
+        family_tasks = [
+            build_family_task(
+                parent,
+                temperature=self.evolution_config.code_temperature,
+                top_p=self.evolution_config.code_top_p,
+            )
+            for parent in parents
+        ]
+        family_replies = self.backend.mutate(family_tasks) if family_tasks else []
+
+        plans = [parse_family_plan(reply) for reply in family_replies]
+        self.stage_one_parsed = sum(1 for plan in plans if plan is not None)
+
+        live = [(i, parents[i], plan) for i, plan in enumerate(plans) if plan]
+        gen_tasks = [
+            build_generator_task(
+                parent, plan,
+                temperature=self.evolution_config.generator_temperature,
+                top_p=self.evolution_config.generator_top_p,
+            )
+            for _, parent, plan in live
+        ]
+        gen_replies = self.backend.mutate(gen_tasks) if gen_tasks else []
+
+        tasks = list(family_tasks)
+        outputs: list[str | None] = [None] * len(parents)
+        for (i, _parent, plan), reply in zip(live, gen_replies):
+            source = extract_generator_code(reply or "")
+            if source is None:
+                continue
+            outputs[i] = set_label_declarations(source, plan["GROUP"], plan["SKILL"])
+            # The task carried downstream is the one whose reply a self-fix
+            # would have to repair: the generator call, not the family call.
+            tasks[i] = gen_tasks[live.index((i, _parent, plan))]
+        return tasks, outputs
+
     def _make_child_from_output(
         self,
         task: MutationTask,
@@ -672,6 +730,23 @@ class RQEvolver:
         source = extract_generator_code(output)
         if source is None:
             return None, None, "no parseable generate() in output", None
+        if self.evolution_config.two_stage_mutation:
+            # Stage 2's reply was already extracted and had stage 1's labels
+            # stapled on; re-extracting would take the fenced block back out of
+            # it and lose them again.
+            source = output
+
+        # The contract puts GROUP / SKILL in PART 1 and ends the python block
+        # at `return problem, str(answer)`, so the extracted program carries no
+        # labels of its own. Put them back from the prose. A label line after
+        # `return` sits past the strongest completion boundary in the file and
+        # was simply dropped -- 15 of 24 children on one probe -- whereas one
+        # decided in PART 1, with the solution still in view, gets written.
+        # Missing or out-of-vocabulary labels are left alone here so that
+        # verify_program reports them through validate_label_decl as before.
+        group, skill = parse_declared_labels(output)
+        if group and skill:
+            source = set_label_declarations(source, group, skill)
 
         metadata = {"op": task.op}  # MUTATION_OP; the judge decides the labels
         child = ProblemProgram(

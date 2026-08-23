@@ -1,59 +1,67 @@
-You are given one competition-math problem and the generator that produced it. Mutate that problem into a new one, then write the generator that emits the new family.
-
-In that order: the problem first, the program second. A generator written before its mathematics is worked out is how a cross-check ends up disagreeing with the answer it was meant to confirm.
-
+You are given one competition-math problem and the generator that produced it. First decide a mathematically substantive mutation of the parent: preserve exactly one load-bearing component, change at least two others, and ensure that the parent’s solution cannot be reused verbatim. Then write and solve the resulting child problem, determine its GROUP and SKILL from that solution, and only after the mathematics is fixed, write the Python generator that emits the child family.
+A valid mutation changes the mathematics, not merely the instance. Changing only numerical values, parameter ranges, candidate order, names, wording, or the number of options does not count. The child must have a new decisive reasoning move, and its solution must not be obtainable from the parent’s solution by parameter substitution or renaming alone.
 Your reply has exactly two parts and nothing else:
+- PART 1 -- mutation plan, child problem, solution, independent check, GROUP, and SKILL.
+- PART 2 -- exactly one fenced Python block implementing the generator for that child family.
 
-  PART 1 -- prose: the new problem, how it mutates the parent, its solution, and its two labels.
-  PART 2 -- code: one fenced python block, the generator for that problem's family.
+Your reply must follow this exact structure.
 
-The shape of each is below. It is a shape, not content: fill in every <...>, and let none survive.
+PART 1
 
-PART 1:
+MUTATION:
+Preserve: <one load-bearing component from the parent>
+Change: <at least two load-bearing components>
+Why genuinely new: <one sentence explaining why the parent's decisive solution cannot solve the child>
+Key claim: <the new mathematical fact the child relies on, verified in one short derivation>
 
-### NEW PROBLEM
-<NEW concrete problem statement ending "State only the integer.">
+CHILD PROBLEM:
+<new concrete problem ending "State only the integer.">
 
-<Sentence explaining the mathematical mutation from the parent.>
-<Sentence(s) giving the solution and decisive move, then explaining the independent check.>
+SOLUTION:
+<solve the child using a decisive move different from the parent's>
 
-GROUP: <allowed GROUP>
-SKILL: <allowed SKILL>
+CHECK:
+<independent recounting that does not reuse the solution route>
 
-PART 2:
+GROUP: ...
+SKILL: ...
 
-### GENERATOR
+---
+
+PART 2
+
+Output exactly one fenced ```python block and nothing after it.
+
+The block must have this structure:
+
 ```python
 import random
-<any other imports you use>
+# other imports if needed
 
-<any helper functions you need, defined before generate>
+# helper functions if needed
 
 def generate(seed):
     rng = random.Random(seed)
 
-    <sample parameters>
+    # sample all parameters
 
-    answer = <short mathematical route>
+    # compute the answer by the solution route
+    answer = ...
 
-    <independent recounting procedure>
-    check = <result of that procedure>
+    # independently recompute the same quantity
+    check = ...
 
     assert answer == check, f"answer={answer} check={check}"
 
     problem = (
-        <the PART 1 problem statement parameterized by the sampled values>
+        # parameterized version of PART 1 / PROBLEM only
     )
 
     return problem, str(answer)
-
-GROUP = "<same GROUP as PART 1>"
-SKILL = "<same SKILL as PART 1>"
 ```
 
-The helper slot is optional and unbounded: define as many as the mathematics needs. Nothing else may appear at module level -- only imports, helpers, `generate`, and the two labels.
-
-The two labels are decided at the end of PART 1, while the solution is still in front of you, and the two lines after `return` copy them down. `return problem, str(answer)` is not the end of the block: a block that stops there is rejected outright, and so is a label that disagrees with PART 1 or is not verbatim from the allowed lists.
+The helper slot is optional and unbounded: define as many as the mathematics needs. Nothing else may appear at module level except imports, helpers, and generate.
+The Python block ends after return problem, str(answer). GROUP and SKILL appear only in PART 1 and must be verbatim from the allowed lists.
 
 THE ASSERT IS THE POINT. It is the only thing that proves `problem` and `answer` describe the same mathematics. Build `check` by recounting what the problem asks for through a procedure that shares no algebra with `answer` -- brute force over the stated domain unless it is too large to walk.
 
@@ -70,3 +78,8 @@ HARD RULES.
 - The STATEMENT portion of PART 1 must not hand over the solution; the explanatory sentences after the statement may give the solution in full. In the statement, `problem` names no technique and supplies no identity or recurrence the solution turns on.
 - Sampling must be valid for every seed -- population large enough before `rng.sample`, list non-empty before `rng.choice`, no zero divisor.
 - Define or import everything you reference. Seeds 0-4 each finish in seconds.
+- The mutation must be mathematically substantive. A child that preserves the parent's objects, operations, target, and decisive solution argument while changing only parameters or wording is rejected.
+- You may reuse the generator interface, but do not copy the parent's mathematical helper functions, answer formula, checking logic, or generation logic unless that component remains genuinely necessary after the mathematical mutation.
+- The child must preserve exactly one load-bearing component of the parent and change at least two.
+- The decisive reasoning move must change.
+- If the parent's solution can solve the child after only substituting new values or renaming objects, reject the child and redesign it.

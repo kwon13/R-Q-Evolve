@@ -85,6 +85,19 @@ class EvolutionConfig:
     # outputs are contract-heavy and should be much more deterministic.
     code_temperature: float = 0.4
     code_top_p: float = 0.95
+    # Mutation in two calls: stage 1 writes the child PROBLEM in prose with no
+    # program in front of it, stage 2 writes that problem's generator with the
+    # parent shown only as a worked example of the statement-to-program
+    # mapping. Measured against the single call that asks for a mutated
+    # program: child/parent source similarity 0.99 -> 0.14, and children
+    # declaring their parent's own cell 96% -> 0%. Both come from the same
+    # thing -- a base policy shown a program to mutate reproduces it.
+    two_stage_mutation: bool = False
+    # Stage 2 is transcription of a fixed specification onto a fixed shape, so
+    # it wants no exploration; stage 1 keeps code_temperature because it is
+    # invention and collapses to one child per parent at 0.
+    generator_temperature: float = 0.0
+    generator_top_p: float = 1.0
     # The judge is a measurement, so it is read greedily: any sampling noise
     # here shows up as label disagreement that the generator did not cause.
     judge_temperature: float = 0.0

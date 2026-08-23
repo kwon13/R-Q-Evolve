@@ -360,8 +360,11 @@ def test_a_repeat_inside_one_batch_is_not_executed_twice():
     parent = ProblemProgram(source_code=source)
     task = build_mutation_task(parent)
 
+    from rq_evolve.config import EvolutionConfig
+
     evolver = RQEvolver.__new__(RQEvolver)
     evolver.rejected_children = {}
+    evolver.evolution_config = EvolutionConfig()
     executed = []
     evolver.verify_program = lambda program, **kw: (executed.append(program.program_id), (None, "x"))[1]
 
@@ -379,3 +382,56 @@ def test_a_repeat_inside_one_batch_is_not_executed_twice():
     assert executed == [child_id], "the repeat must NOT be executed again"
     assert inst is None and src is None
     assert "duplicate" in reason
+
+
+def test_two_stage_mutation_returns_the_single_call_shape():
+    """Stage 1 writes the problem, stage 2 its generator, and the pair comes
+    back as (tasks, outputs) so retries, judging, scoring and reporting are
+    untouched. A parent whose stage-1 reply does not parse yields no output,
+    which the existing path already reports as a failed mutation."""
+    from rq_evolve.config import EvolutionConfig
+    from rq_evolve.evolution import RQEvolver
+    from rq_evolve.program import ProblemProgram
+
+    parent = ProblemProgram(
+        source_code=(
+            "import random\n\n\n"
+            "def generate(seed):\n"
+            '    problem = f"Count to {seed}. State only the integer."\n'
+            '    return problem, "1"\n\n\n'
+            'GROUP = "algebra"\nSKILL = "invariant"\n'
+        )
+    )
+    child_code = (
+        "```python\nimport random\n\n\n"
+        "def generate(seed):\n"
+        '    problem = f"How many? {seed} State only the integer."\n'
+        '    return problem, "2"\n```'
+    )
+    plan = ("STRUCTURAL MUTATION: the target changes\n"
+            "CHILD FAMILY: How many? State only the integer.\n"
+            "GROUP: geometry\nSKILL: casework\n")
+
+    calls = []
+
+    class _Backend:
+        def mutate(self, tasks):
+            calls.append([t.stage for t in tasks])
+            if tasks[0].stage == "family":
+                return [plan, "nothing parseable here"]
+            return [child_code]
+
+    evolver = RQEvolver.__new__(RQEvolver)
+    evolver.evolution_config = EvolutionConfig(two_stage_mutation=True)
+    evolver.backend = _Backend()
+
+    tasks, outputs = evolver._mutate_in_two_stages([parent, parent])
+    assert calls == [["family", "family"], ["generator"]], calls
+    assert len(tasks) == len(outputs) == 2
+    # The parsed one carries stage 1's labels, stapled on rather than asked of
+    # stage 2 -- the file's tail is the one thing every prompt variant lost.
+    assert 'GROUP = "geometry"' in outputs[0]
+    assert 'SKILL = "casework"' in outputs[0]
+    assert "algebra" not in outputs[0] and "invariant" not in outputs[0]
+    # The unparsed one is simply absent, not a half-built child.
+    assert outputs[1] is None

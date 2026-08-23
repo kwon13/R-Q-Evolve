@@ -4,13 +4,12 @@ PARENT PROBLEM (this is the object to mutate):
 
 $parent_problem
 
-PARENT GENERATOR (only the machine that emits it; its own GROUP and SKILL lines are not shown):
-
+PARENT GENERATOR (only the machine that emits it):
 ```python
 $parent_source
 ```
 
-Mutate it: work out the new problem and its solution first, then read GROUP and SKILL off the solution you actually used.
+Mutate it according to the system instructions. Work out and validate the mathematical mutation before writing the child problem, and write the generator only after the child mathematics is fixed.
 
 Allowed GROUPS:
 $allowed_groups
@@ -19,8 +18,9 @@ Allowed SKILLS:
 $allowed_skills
 
 Before you send it, check:
-
-1. Part 1 opens with the problem itself, in full, with real numbers, and closes with its GROUP and SKILL lines; Part 2 is one fenced ```python block and comes last.
-2. No `<...>` survives. The block does not end at `return`: `GROUP` and `SKILL` follow it at module level, matching Part 1 and verbatim from the lists above.
-3. `assert answer == check`, where `check` recounts the answer a different way.
-4. Seeds 0-4 all run and give at least two different problem texts.
+1. PART 1 follows the required order: MUTATION, CHILD PROBLEM, SOLUTION, CHECK, GROUP, SKILL.
+2. The child is mathematically distinct from the parent: at least two load-bearing components change, including OPERATION or TARGET, and the decisive reasoning move changes.
+3. PART 2 is exactly one fenced ```python block and comes last; GROUP and SKILL appear only in PART 1.
+4. No <...> survives.
+5. assert answer == check, where check recomputes the same quantity by an independent route.
+6. Seeds 0-4 all run and produce at least two different problem texts.

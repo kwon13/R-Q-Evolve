@@ -87,9 +87,7 @@ def test_the_parents_cell_never_reaches_the_prompt():
     # What replaces the lost ending is the shape block, which shows the two
     # lines after `return`, plus PART 1 committing to the labels first.
     flat = " ".join(system.split())
-    assert "GROUP: <allowed GROUP>" in flat
-    assert 'GROUP = "<same GROUP as PART 1>"' in flat
-    assert "is not the end of the block" in flat.lower()
+    assert "GROUP: ..." in flat and "SKILL: ..." in flat
     # The whole vocabulary is still offered, so no single cell is demanded.
     for skill in SKILLS:
         assert f"{skill}:" in user, skill
@@ -159,8 +157,21 @@ def test_the_system_prompt_carries_the_shape_the_linter_enforces():
     module shape. The prompt states both as code, not only as prose."""
     text = mutation_system_prompt()
     assert "def generate(seed):" in text
-    assert "GROUP = " in text and "SKILL = " in text
     assert "assert answer == check" in text
+
+
+def test_the_labels_are_asked_for_in_prose_not_after_return():
+    """A label line past `return problem, str(answer)` is past the strongest
+    completion boundary in the file, and it was simply dropped -- 15 of 24
+    children on one probe. The contract moves both labels into PART 1, where
+    they are written while the solution is still in view, and the harness puts
+    them onto the program afterwards (parse_declared_labels).
+    """
+    flat = " ".join(mutation_system_prompt().split())
+    assert "GROUP: ..." in flat and "SKILL: ..." in flat
+    assert "GROUP and SKILL appear only in PART 1" in flat
+    # And the skeleton must not re-teach the old ending.
+    assert 'GROUP = "' not in mutation_system_prompt()
 
 
 # --- template rendering ----------------------------------------------------
@@ -266,3 +277,25 @@ def test_both_axes_must_agree():
     assert judge_accepts(good, "algebra", "invariant")[0] is True
     assert judge_accepts(good, "algebra", "counting")[0] is False
     assert judge_accepts(good, "geometry", "invariant")[0] is False
+
+
+def test_part_one_labels_are_read_back_off_the_reply():
+    """The program the model returns has no labels; these are where they live."""
+    from rq_evolve.prompts import parse_declared_labels
+
+    reply = (
+        "PART 1\n\nMUTATION:\nPreserve: the grid\n\n"
+        "CHILD PROBLEM:\nHow many? State only the integer.\n\n"
+        "GROUP: geometry\nSKILL: extremal_principle\n\n"
+        "---\n\nPART 2\n\n```python\ndef generate(seed):\n    pass\n```\n"
+    )
+    assert parse_declared_labels(reply) == ("geometry", "extremal_principle")
+
+
+def test_labels_outside_the_vocabulary_are_not_invented():
+    """verify_program reports them through validate_label_decl; guessing here
+    would hide a child that never chose a legal label."""
+    from rq_evolve.prompts import parse_declared_labels
+
+    assert parse_declared_labels("GROUP: arithmetic\nSKILL: substitution") == (None, None)
+    assert parse_declared_labels("no labels at all") == (None, None)

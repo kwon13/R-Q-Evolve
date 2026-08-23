@@ -1,0 +1,173 @@
+You write the Python generator for a given competition-math problem family.
+
+A family is a problem statement with parameters. Its generator draws those parameters from `rng = random.Random(seed)`, computes the answer, and returns the statement with the parameters filled in. You are shown several worked transformations from a reference family and its generator to a new family and its generator, and then a reference pair and a new family of your own to finish.
+
+In every one of them the reference generator is a model of the CODE and never of the mathematics: the new family asks a different question, so its parameters, its answer route and its check route are all its own. Reuse something from the reference only where it stays mathematically correct for the new family.
+
+Reply with exactly one fenced ```python block and nothing else.
+
+The generator must:
+- define `generate(seed)` and return `problem, str(answer)`;
+- draw every parameter from `rng = random.Random(seed)`;
+- emit exactly the family you were given, with its parameters substituted -- same question, same wording;
+- give every sampled parameter a visible effect on the statement and on the answer;
+- compute `answer` by solving the family's question;
+- compute `check` by a materially different route -- brute force over the stated domain unless it is too large to walk -- that neither reuses `answer` nor restates its formula;
+- contain `assert answer == check, f"answer={answer} check={check}"`;
+- define or import everything it references;
+- run for seeds 0-4 in seconds and produce at least two distinct problem texts.
+
+Do not write GROUP or SKILL lines; they are added afterwards.
+
+Three worked transformations follow, in exactly the shape of the task. Read them for two things: the reference generator is a model of the CODE, never of the mathematics, and `check` always walks the stated domain by a route that shares no algebra with `answer`. That cross-check is the only thing proving the statement and the number describe the same mathematics, so a `check` that recomputes `answer` a second way is worth nothing.
+
+
+WORKED EXAMPLE 1
+
+EXAMPLE -- this family
+
+Let N = {N}. How many positive divisors does N have? State only the integer.
+
+is produced by this generator:
+```python
+import random
+
+def generate(seed):
+    rng = random.Random(seed)
+    N = rng.randint(20, 100)
+
+    root = int(N**0.5)
+    answer = sum(N % d == 0 for d in range(1, root + 1)) * 2
+    if root * root == N:
+        answer -= 1
+
+    check = sum(N % d == 0 for d in range(1, N + 1))
+    assert answer == check, f"answer={answer} check={check}"
+
+    problem = f"Let N = {N}. How many positive divisors does N have? State only the integer."
+    return problem, str(answer)
+```
+
+NOW WRITE THE GENERATOR FOR THIS FAMILY
+
+Let a = {a} and b = {b}, where a <= b. How many even integers x satisfy a <= x <= b? State only the integer.
+
+CORRECT OUTPUT:
+```python
+import random
+
+def generate(seed):
+    rng = random.Random(seed)
+    a = rng.randint(1, 20)
+    b = rng.randint(a + 1, a + 20)
+
+    answer = b // 2 - (a - 1) // 2
+    check = sum(x % 2 == 0 for x in range(a, b + 1))
+    assert answer == check, f"answer={answer} check={check}"
+
+    problem = f"Let a = {a} and b = {b}, where a <= b. How many even integers x satisfy a <= x <= b? State only the integer."
+    return problem, str(answer)
+```
+
+
+WORKED EXAMPLE 2
+
+EXAMPLE -- this family
+
+How many binary strings of length {n} contain exactly {k} ones? State only the integer.
+
+is produced by this generator:
+```python
+import random
+from math import comb
+
+def generate(seed):
+    rng = random.Random(seed)
+    n = rng.randint(5, 9)
+    k = rng.randint(1, n - 1)
+
+    answer = comb(n, k)
+    check = sum(bin(x).count("1") == k for x in range(1 << n))
+    assert answer == check, f"answer={answer} check={check}"
+
+    problem = f"How many binary strings of length {n} contain exactly {k} ones? State only the integer."
+    return problem, str(answer)
+```
+
+NOW WRITE THE GENERATOR FOR THIS FAMILY
+
+There are {n} people and {n} distinct hats, one belonging to each person. In how many assignments does no person receive their own hat? State only the integer.
+
+CORRECT OUTPUT:
+```python
+import random
+from itertools import permutations
+
+def generate(seed):
+    rng = random.Random(seed)
+    n = rng.randint(4, 7)
+
+    d0, d1 = 1, 0
+    for m in range(2, n + 1):
+        d0, d1 = d1, (m - 1) * (d0 + d1)
+    answer = d1
+
+    check = sum(
+        all(p[i] != i for i in range(n))
+        for p in permutations(range(n))
+    )
+    assert answer == check, f"answer={answer} check={check}"
+
+    problem = f"There are {n} people and {n} distinct hats, one belonging to each person. In how many assignments does no person receive their own hat? State only the integer."
+    return problem, str(answer)
+```
+
+
+WORKED EXAMPLE 3
+
+EXAMPLE -- this family
+
+Let n = {n}. Find the sum of the first n positive integers. State only the integer.
+
+is produced by this generator:
+```python
+import random
+
+def generate(seed):
+    rng = random.Random(seed)
+    n = rng.randint(5, 30)
+
+    answer = n * (n + 1) // 2
+    check = sum(range(1, n + 1))
+    assert answer == check, f"answer={answer} check={check}"
+
+    problem = f"Let n = {n}. Find the sum of the first n positive integers. State only the integer."
+    return problem, str(answer)
+```
+
+NOW WRITE THE GENERATOR FOR THIS FAMILY
+
+Let A = (0, 0), B = ({a}, 0), and C = (0, {b}). How many lattice points lie strictly inside triangle ABC? State only the integer.
+
+CORRECT OUTPUT:
+```python
+import random
+from math import gcd
+
+def generate(seed):
+    rng = random.Random(seed)
+    a = rng.randint(3, 10)
+    b = rng.randint(3, 10)
+
+    answer = (a * b - a - b - gcd(a, b) + 2) // 2
+
+    check = sum(
+        b * x + a * y < a * b
+        for x in range(1, a)
+        for y in range(1, b)
+    )
+    assert answer == check, f"answer={answer} check={check}"
+
+    problem = f"Let A = (0, 0), B = ({a}, 0), and C = (0, {b}). How many lattice points lie strictly inside triangle ABC? State only the integer."
+    return problem, str(answer)
+```

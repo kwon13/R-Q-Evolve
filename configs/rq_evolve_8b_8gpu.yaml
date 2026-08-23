@@ -44,18 +44,28 @@ evolution:
   # Matched to configs/rq_evolve_base.yaml; see that file for the evidence
   # behind each value.
   #
-  # One multi-turn self-fix per rejected child: 38% of candidates die on their
-  # own AssertionError, which is a signal the model can act on.
-  fix_retry: true
-  # OFF, replaced by ast_contract below. What the evaluator uniquely provided
-  # -- answer correctness, statement well-posedness, and skill_required -- is
-  # NOT recovered by a structural checker. Set back to true to restore it;
-  # every evaluator_* key below is left in place for exactly that.
-  # ON for both arms. The question under test is U, not the gate, so the
-  # gate has to be identical on both sides -- and without it the declared
-  # GROUP/SKILL are unverified, which makes the coverage numbers this
-  # comparison reads a fiction.
-  use_evaluator: true
+  # OFF. The self-fix round shows the model its own rejected program and asks
+  # for a repair, and it was earning its extra generation back when 38% of
+  # candidates died on their own AssertionError. It is not earning it now:
+  # measured over 41 children, the FIRST mutation output was already 99%
+  # identical to its parent (14 of 15 non-retried children were >95% copies),
+  # so the fix round is repairing copies rather than rescuing ideas -- and it
+  # spends one generation per failure to do it.
+  fix_retry: false
+  # OFF for the two-stage mutation. The judge re-derives GROUP and SKILL from
+  # the child's seed-0 statement and admits it only when both match what the
+  # child declared -- which was the answer to a generator that labelled its own
+  # output after writing it. Stage 1 now writes the problem and reads its labels
+  # off that problem before any code exists, so the label is no longer a
+  # post-hoc claim about a program.
+  #
+  # What is lost with it is the only gate that reads the STATEMENT: lint, the
+  # AST contract and the assert all pass on a well-formed program emitting an
+  # unanswerable question (a measured child asked for a count over a set the
+  # statement never bounds, and `answer == check` held because both routes
+  # copied the parent's bound). Turn this back on if ill-posed children show up
+  # in the archive.
+  use_evaluator: false
   # Structural contract on the child's own cross-check, before execution.
   # Measured on 456 archived champions: 45% flagged, 0 of the 14 clean
   # programs. use_evaluator=false requires this to be shadow or enforce.
@@ -67,8 +77,21 @@ evolution:
   # already in it -- and identical children are rejected as duplicate_behavior,
   # so those slots yield nothing. 0.4 tightens instruction-following without
   # collapsing the batch.
+  # Mutation runs in two calls: stage 1 writes the child PROBLEM in prose
+  # with no program in front of it, stage 2 writes that problem's generator
+  # with the parent shown only as a worked example of the statement-to-
+  # program mapping. Measured against the single call that asked for a
+  # mutated program: child/parent source similarity 0.99 -> 0.14, children
+  # declaring their parent's own cell 96% -> 0%.
+  two_stage_mutation: true
+  # Stage 1 is invention and needs temperature; at 0 one parent yields one
+  # child and a 32-slot batch collapses.
   code_temperature: 0.4
   code_top_p: 0.95
+  # Stage 2 transcribes a fixed specification onto a fixed shape. There is
+  # nothing to explore, and sampling only adds ways to mis-write it.
+  generator_temperature: 0.0
+  generator_top_p: 1.0
 
 training_data:
   # The training batch IS the re-scoring rollouts; there is no separate

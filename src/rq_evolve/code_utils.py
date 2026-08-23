@@ -1,4 +1,5 @@
 import ast
+import textwrap
 import re
 
 from .program import ALLOWED_IMPORT_ROOTS, ProblemInstance
@@ -897,3 +898,57 @@ def _answer_leaks_as_assignment(answer: str, problem: str) -> bool:
         if m.group(1) == a:
             return True
     return False
+
+
+def set_label_declarations(source_code: str, group: str, skill: str) -> str:
+    """Return ``source_code`` with exactly one GROUP / SKILL pair, at the end.
+
+    The two-stage mutation decides the labels in stage 1, from the problem and
+    its solution, before any code exists. Stage 2 is shown a parent with its
+    label lines removed and is told not to write any, so appending them here is
+    what puts them back -- which means they cannot be omitted (the failure that
+    cost 15 of 24 children when the model was asked for them) and cannot
+    disagree with stage 1.
+
+    Any label lines the patch added anyway are dropped first, so this is
+    idempotent and there is never a second pair.
+    """
+    body = strip_label_declarations(source_code).rstrip()
+    return f'{body}\n\n\nGROUP = "{group}"\nSKILL = "{skill}"\n'
+
+
+def extract_problem_template(source_code: str) -> str | None:
+    """The parent's ``problem = ...`` assignment, verbatim, as it is written.
+
+    Stage 1 of the two-stage mutation used to be shown one rendered instance --
+    seed 0, with every parameter already a number. Shown that, a model changes
+    the numbers: measured, 85-89% of children were near-copies of the statement
+    they were given, and one child's own account of its mutation was "a
+    different prime p, a different g, and a different range".
+
+    The template makes that move visibly empty. Where the instance says
+    ``p = 13``, the template says ``p = {p}``, so substituting a different value
+    is not a change to anything the model can see. What is left to alter is the
+    structure around the holes.
+
+    Returns None when the source does not parse or has no such assignment; the
+    caller falls back to the rendered instance rather than dropping the parent.
+    """
+    try:
+        tree = ast.parse(source_code)
+    except (SyntaxError, ValueError):
+        return None
+
+    lines = source_code.splitlines()
+    best: str | None = None
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        if not any(isinstance(t, ast.Name) and t.id == "problem" for t in targets):
+            continue
+        end = node.end_lineno or node.lineno
+        # Last assignment wins: a generator that builds the text in pieces ends
+        # with the one that is actually returned.
+        best = "\n".join(lines[node.lineno - 1 : end])
+    return textwrap.dedent(best).strip() if best else None

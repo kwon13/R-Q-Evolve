@@ -1,0 +1,110 @@
+You are given a parameterized competition-math problem family. Create a structurally different child family.
+A Structural Mutation must change the mathematical task itself. The child should require a genuinely different TARGET or a genuinely different DECISIVE REASONING MOVE in its shortest clean solution. Changing only parameters, coefficients, ranges, names, wording, polynomial degree, candidate count, or the direction of the same predicate does not count.
+The CHILD FAMILY must be self-contained and well-posed as written: its requested answer must exist, be finite, unique, and integer-valued.
+The examples below illustrate the intended strength of Structural Mutation. They are not templates to copy. Notice that the child may move far away from the parent's objects and wording when that is needed to create genuinely new mathematics.
+
+
+EXAMPLE 1 — CASEWORK
+
+PARENT FAMILY:
+Start with P(x) = {start_polynomial}. In one move, P(x) may be replaced by P(x+1) or P(x-1), and any number of moves may be performed. Exactly one of {candidate_polynomials} is reachable. Find its index. State only the integer.
+
+OUTPUT:
+STRUCTURAL MUTATION: The target changes from polynomial orbit membership to the size of an intersection between two plane figures, and the decisive reasoning changes from an invariant argument to separating the genuinely different positions the two figures can take.
+CHILD FAMILY: A circle has centre O and radius r = {radius}, and a line lies at distance d = {distance} from O, where r and d are positive integers. How many points lie on both the circle and the line? State only the integer.
+GROUP: geometry
+SKILL: casework
+
+
+EXAMPLE 2 — INDUCTION
+
+PARENT FAMILY:
+A binary string has length {length} and contains exactly {ones} ones, with no two ones adjacent. How many such strings are there? State only the integer.
+
+OUTPUT:
+STRUCTURAL MUTATION: The target changes from counting constrained strings directly to determining which removals preserve a recursively tileable board, and the decisive reasoning changes to reducing a size-2^k board to smaller copies of the same problem.
+CHILD FAMILY: Let k = {exponent} be a positive integer. Consider a 2^k by 2^k board of unit squares. For how many choices of one unit square to remove can the remaining board be tiled completely by L-shaped trominoes, each consisting of three unit squares? State only the integer.
+GROUP: combinatorics
+SKILL: induction
+
+
+EXAMPLE 3 — CONTRADICTION
+
+PARENT FAMILY:
+Let {n} points lie on a circle. How many triangles can be formed using three of the points as vertices? State only the integer.
+
+OUTPUT:
+STRUCTURAL MUTATION: The target changes from counting finite geometric selections to bounding how long a descending process can run, and the decisive reasoning changes to assuming it runs longer and deriving a positive integer below every positive integer.
+CHILD FAMILY: A strictly decreasing sequence of positive integers begins with a_1 = {first_term}. What is the greatest possible number of terms the sequence can have? State only the integer.
+GROUP: sequence
+SKILL: contradiction
+
+
+EXAMPLE 4 — INVARIANT
+
+PARENT FAMILY:
+Let S be a set of {point_count} points in the plane. Among triangles satisfying {triangle_condition}, find the maximum value of {geometric_quantity}. State only the integer.
+
+OUTPUT:
+STRUCTURAL MUTATION: The target changes from geometric optimization to determining the terminal state of a repeated integer process, and the decisive reasoning changes to identifying a quantity preserved by every move.
+CHILD FAMILY: Start with positive integers a = {first_integer} and b = {second_integer}. While a and b are unequal, replace the larger one by the positive difference of the two. When the two integers become equal, find their common value. State only the integer.
+GROUP: number_theory
+SKILL: invariant
+
+
+EXAMPLE 5 — EXTREMAL PRINCIPLE
+
+PARENT FAMILY:
+Let a_1 = {first_term} and define a_{k+1} = {recurrence}. Find a_{n}. State only the integer.
+
+OUTPUT:
+STRUCTURAL MUTATION: The target changes from evaluating a recursively defined sequence to a sharp maximum of a product under a fixed sum, and the decisive reasoning changes to a bound whose equality case pins the optimum exactly.
+CHILD FAMILY: Let x, y, and z be positive real numbers with x + y + z = s = {sum}, where s is a positive integer. Find the maximum possible value of the greatest integer not exceeding xyz. State only the integer.
+GROUP: inequality
+SKILL: extremal_principle
+
+
+EXAMPLE 6 — COUNTING
+
+PARENT FAMILY:
+Let x and y be positive integers satisfying {equation}. Find the maximum possible value of x+y. State only the integer.
+
+OUTPUT:
+STRUCTURAL MUTATION: The target changes from optimizing integer solutions of an equation to counting permutations subject to simultaneous forbidden assignments, and the decisive reasoning changes to inclusion-exclusion over overlapping bad events.
+CHILD FAMILY: There are {n} people and {n} distinct hats, with each person owning exactly one hat. In how many assignments of the hats does no person receive their own hat? State only the integer.
+GROUP: combinatorics
+SKILL: counting
+
+
+EXAMPLE 7 — TRANSFORMATION
+
+PARENT FAMILY:
+Among the integers from 1 through {upper_bound}, count those satisfying {divisibility_condition}. State only the integer.
+
+OUTPUT:
+STRUCTURAL MUTATION: The target changes from filtering integers by a divisibility condition to counting solutions of a nonlinear Diophantine equation, and the decisive reasoning changes to converting that equation into a multiplicative factorization.
+CHILD FAMILY: Let N = {positive_integer} be a positive integer. How many ordered pairs of positive integers (x, y) satisfy xy + x + y = N? State only the integer.
+GROUP: number_theory
+SKILL: transformation
+
+
+EXAMPLE 8 — CONSTRUCTION
+
+PARENT FAMILY:
+Let {real_variables} satisfy {constraints}. Find the maximum possible value of {expression}. State only the integer.
+
+OUTPUT:
+STRUCTURAL MUTATION: The target changes from optimizing real quantities to finding the least integer meeting simultaneous modular requirements, and the decisive reasoning changes to explicitly constructing a solution from coprime congruences.
+CHILD FAMILY: Let m = {first_modulus} and n = {second_modulus} be coprime integers greater than 1, and let a = {first_residue} and b = {second_residue} satisfy 0 <= a < m and 0 <= b < n. Find the least positive integer x such that x is congruent to a modulo m and to b modulo n. State only the integer.
+GROUP: number_theory
+SKILL: construction
+
+Now create a child family for the given PARENT FAMILY.
+
+Solve the child internally before answering so that GROUP and SKILL describe the shortest clean solution, not merely words or operations appearing in the statement.
+
+Reply with exactly these four lines and nothing else:
+STRUCTURAL MUTATION: <one sentence naming the substantive change in TARGET or DECISIVE REASONING MOVE>
+CHILD FAMILY: <the new parameterized natural-language problem family, using {descriptive_parameter_names} for quantities that vary across instances, ending "State only the integer.">
+GROUP: <one allowed GROUP>
+SKILL: <one allowed SKILL>

@@ -5,7 +5,11 @@ from functools import lru_cache
 from pathlib import Path
 from string import Template
 
-from .code_utils import strip_label_declarations, strip_module_docstring
+from .code_utils import (
+    extract_problem_template,
+    strip_label_declarations,
+    strip_module_docstring,
+)
 from .concepts import GROUPS, SKILLS
 from .program import ProblemProgram
 
@@ -444,3 +448,172 @@ def build_solver_messages(problem: str) -> list[dict]:
         {"role": "system", "content": SOLVER_SYSTEM_PROMPT},
         {"role": "user", "content": problem},
     ]
+
+
+_PART1_LABEL = r"^[ \t]*{key}[ \t]*:[ \t]*[\"']?([A-Za-z_]+)"
+
+
+def parse_declared_labels(reply: str) -> tuple[str | None, str | None]:
+    """Read GROUP / SKILL off a reply's PART 1 prose.
+
+    The mutation contract puts the two labels in PART 1 and ends the python
+    block at ``return problem, str(answer)``. That is deliberate: a label line
+    sitting after ``return`` is past the strongest completion boundary in the
+    file and was simply dropped -- 15 of 24 children on one probe -- while a
+    label decided in PART 1, with the solution still in view, is written as
+    part of the reasoning. The cost is that the extracted program has no labels
+    of its own, so they have to be put back from here.
+
+    Returns whatever is recognisable; validation of the pair belongs to
+    :func:`rq_evolve.concepts.validate_label_decl`, which the caller already
+    runs.
+    """
+    text = reply or ""
+    out: list[str | None] = []
+    for key, vocabulary in (("GROUP", GROUPS), ("SKILL", SKILLS)):
+        found = None
+        for match in re.finditer(_PART1_LABEL.format(key=key), text, re.M):
+            value = match.group(1)
+            if value in vocabulary:
+                found = value  # last wins: a reply that restates them means it
+        out.append(found)      # settled late, and PART 2 must not carry any
+    return out[0], out[1]
+
+
+# --- two-stage mutation -----------------------------------------------------
+#
+# Stage 1 writes the child PROBLEM in prose, with no program in front of it;
+# stage 2 writes that problem's generator, with the parent pair shown only as a
+# worked example of the statement-to-program mapping. Measured against asking
+# one call to mutate the parent program: child/parent source similarity fell
+# from 0.99 to 0.14, and the share of children declaring their parent's own
+# cell fell from 96% to 0%. Both follow from the same thing -- a base policy
+# shown a complete program to "mutate" reproduces it, and a base policy shown a
+# program it must not reproduce (because the target statement is already fixed
+# and different) does not.
+
+FAMILY_SYSTEM_PROMPT_FILE = "diff_problem_system_prompt.txt"
+FAMILY_USER_PROMPT_FILE = "diff_problem_user_prompt.txt"
+GENERATOR_SYSTEM_PROMPT_FILE = "gen_program_system_prompt.txt"
+GENERATOR_USER_PROMPT_FILE = "gen_program_user_prompt.txt"
+
+FAMILY_KEYS = ("STRUCTURAL MUTATION", "CHILD FAMILY", "GROUP", "SKILL")
+_FAMILY_KEY_ALT = "|".join(FAMILY_KEYS)
+
+
+def parse_family_plan(reply: str) -> dict[str, str] | None:
+    """The four fields of a stage-1 reply, or None if any is missing.
+
+    Takes the LAST value for each key that is not a leftover ``<...>``. A base
+    policy re-emits the template before answering it -- 13 of 24 replies opened
+    with the placeholder lines and only then wrote the real four -- so reading
+    the first match reports a complete reply as incomplete.
+    """
+    text = reply or ""
+    out: dict[str, str] = {}
+    for key in FAMILY_KEYS:
+        best = ""
+        for match in re.finditer(
+            rf"^[ \t]*{key}[ \t]*:[ \t]*(.+?)(?=^[ \t]*(?:{_FAMILY_KEY_ALT})[ \t]*:|\Z)",
+            text, re.M | re.S,
+        ):
+            value = match.group(1).strip()
+            if value and not value.startswith("<"):
+                best = value
+        if not best:
+            return None
+        out[key] = best
+    group = _first_token(out["GROUP"], GROUPS)
+    skill = _first_token(out["SKILL"], SKILLS)
+    if group is None or skill is None:
+        return None
+    out["GROUP"], out["SKILL"] = group, skill
+    return out
+
+
+def _first_token(value: str, vocabulary) -> str | None:
+    token = value.strip().strip("\"'").split()
+    token = token[0].strip(".,") if token else ""
+    return token if token in vocabulary else None
+
+
+def build_family_task(
+    parent: ProblemProgram,
+    *,
+    temperature: float | None = None,
+    top_p: float | None = None,
+) -> MutationTask:
+    """Stage 1: mutate the parent's problem FAMILY, in prose, with no program.
+
+    The parent goes in as its ``problem = ...`` f-string rather than as one
+    rendered instance. Shown concrete numbers a model changes the numbers --
+    85-89% of children were near-copies of the statement they were given, one
+    reporting its own mutation as "a different prime p and a different range".
+    Against the braces, substituting values is visibly not a change.
+    """
+    instance = _parent_problem_text(parent)
+    template = extract_problem_template(parent.source_code) or instance
+    system_prompt = _load_template(FAMILY_SYSTEM_PROMPT_FILE)
+    user_prompt = _render_template(
+        _load_template(FAMILY_USER_PROMPT_FILE),
+        {
+            "parent_template": template,
+            "parent_problem": instance,
+            "allowed_groups": _load_definitions(GROUP_DEFINITIONS_FILE),
+            "allowed_skills": _load_definitions(SKILL_DEFINITIONS_FILE),
+        },
+    )
+    return MutationTask(
+        op=MUTATION_OP,
+        prompt=f"{system_prompt}\n\n{user_prompt}",
+        parent=parent,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        stage="family",
+        temperature=temperature,
+        top_p=top_p,
+    )
+
+
+def build_generator_task(
+    parent: ProblemProgram,
+    plan: dict[str, str],
+    *,
+    temperature: float | None = None,
+    top_p: float | None = None,
+) -> MutationTask:
+    """Stage 2: write the generator for the fixed child family.
+
+    The parent's label lines are stripped from what the model sees. They would
+    only be copied -- every redaction tried (real labels, ``"..."``, the
+    skeleton placeholder, deletion) produced children whose tail was whatever
+    the parent's tail contained. The labels come from stage 1 and the caller
+    appends them, so they cannot be dropped and cannot disagree with the
+    problem they describe.
+    """
+    system_prompt = _load_template(GENERATOR_SYSTEM_PROMPT_FILE)
+    user_prompt = _render_template(
+        _load_template(GENERATOR_USER_PROMPT_FILE),
+        {
+            "parent_template": extract_problem_template(parent.source_code)
+            or _parent_problem_text(parent),
+            "parent_source": strip_label_declarations(
+                strip_module_docstring(parent.source_code)
+            ),
+            "new_problem": plan["CHILD FAMILY"],
+        },
+    )
+    return MutationTask(
+        op=MUTATION_OP,
+        prompt=f"{system_prompt}\n\n{user_prompt}",
+        parent=parent,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        stage="generator",
+        temperature=temperature,
+        top_p=top_p,
+    )

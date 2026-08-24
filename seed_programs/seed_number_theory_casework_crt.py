@@ -81,7 +81,7 @@ def generate(seed):
         f"x congruent to a modulo p; if x is congruent to 1 modulo 3, require "
         f"x^2 congruent to 4 modulo p; and if x is congruent to 2 modulo 3, "
         f"require x^2 congruent to g modulo p. Find the sum of all admissible "
-        f"integers x. State only the integer."
+        f"integers x."
     )
 
     return problem, str(answer)

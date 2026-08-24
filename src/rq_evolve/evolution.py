@@ -396,8 +396,8 @@ class RQEvolver:
             "dataset_size": len(self.dataset),
             "frontier_in": frontier_in,
             "frontier_out": len(self.last_frontier) - frontier_in,
-            "eval_seeds": self.evolution_config.eval_seeds,
-            "rollouts_per_seed": self.evolution_config.rollouts_per_seed,
+            "group_size": self.evolution_config.group_size,
+            "train_batch_target": self.evolution_config.train_batch_target,
             **dispersion_metrics,
             **replay_metrics,
             **judge_metrics,
@@ -542,7 +542,7 @@ class RQEvolver:
                 e["eval_instances"] = self.draw_instances(e["child"])
             pending = self.backend.generate_rollouts(
                 [inst for e in to_eval for inst in e["eval_instances"]],
-                n_rollouts=self.evolution_config.rollouts_per_seed,
+                n_rollouts=self.evolution_config.group_size,
             )
         finally:
             self.backend.end_session()
@@ -1044,7 +1044,7 @@ class RQEvolver:
         stream only moves forward, so a program that fails on some seeds is
         simply graded on fewer instances rather than on a re-drawn set.
         """
-        n = int(n_seeds or self.evolution_config.eval_seeds)
+        n = int(n_seeds or 1)
         instances: list[ProblemInstance] = []
         for seed in self.seed_stream.take(program.program_id, n):
             inst = program.execute(seed=seed)
@@ -1057,12 +1057,21 @@ class RQEvolver:
         programs: list[ProblemProgram],
         *,
         store_replay: bool = False,
+        instance_counts: list[int] | None = None,
     ) -> list[RQResult | None]:
-        """Score each program on n fresh seeds x m rollouts, one vLLM session.
+        """Score each program on ONE fresh instance x G rollouts, one session.
+
+        ``instance_counts`` may ask for more than one instance per program. The
+        extras exist only to fill the training batch when the frontier is
+        smaller than it (see :meth:`_allocate_instances`); **R_Q is always the
+        first instance alone**, so the fitness of a champion that filled three
+        slots means the same thing as one that filled one. All the instances go
+        to replay, because every rollout that was paid for should produce a
+        gradient.
 
         Every program's instances go into ONE flat rollout batch and are
-        regrouped afterwards, so n x m evaluation costs the same number of
-        wake/sleep cycles as the old single-instance path.
+        regrouped afterwards, so the evaluation costs the same number of
+        wake/sleep cycles regardless of how the instances are distributed.
 
         With ``store_replay`` the rollouts are kept in :attr:`replay` instead of
         being discarded, and become the solver's training batch. That is only
@@ -1073,8 +1082,9 @@ class RQEvolver:
         """
         if not programs:
             return []
+        counts = instance_counts or [1] * len(programs)
         per_program: list[list[ProblemInstance]] = [
-            self.draw_instances(p) for p in programs
+            self.draw_instances(p, n_seeds=k) for p, k in zip(programs, counts)
         ]
         flat = [inst for group in per_program for inst in group]
         if not flat:
@@ -1083,7 +1093,7 @@ class RQEvolver:
         self.backend.begin_session()
         try:
             pending = self.backend.generate_rollouts(
-                flat, n_rollouts=self.evolution_config.rollouts_per_seed
+                flat, n_rollouts=self.evolution_config.group_size
             )
         finally:
             self.backend.end_session()
@@ -1124,8 +1134,41 @@ class RQEvolver:
                 )
                 results.append(None)
                 continue
-            results.append(self._store_result(program, compute_rq_program(stats)))
+            # The FIRST instance is the measurement; any others were drawn to
+            # fill the batch. Scoring on all of them would make R_Q depend on
+            # how many slots a champion happened to be given.
+            results.append(self._store_result(program, compute_rq_program(stats[:1])))
         return results
+
+    def _allocate_instances(self, champions: list[ProblemProgram]) -> list[int]:
+        """One fresh instance each, then extra instances to the best champions.
+
+        The trainer needs ``train_batch_target`` prompts and the frontier is
+        routinely smaller than that (median 18 against a target of 16-32 over
+        the 8B run), so the shortfall is covered by drawing further FRESH seeds
+        from the highest-R_Q champions rather than by shrinking the batch.
+        Extra seeds are extra problems, not extra rollouts on the same problem
+        -- LILO found scaling the number of levels more effective than scaling
+        rollouts per level.
+
+        Ranked by the score each champion already carries, i.e. the previous
+        iteration's measurement. That is the same lag the batch selection uses:
+        ranking on the rollouts about to be trained on would condition the
+        sample on its own measurement noise.
+        """
+        n = len(champions)
+        counts = [1] * n
+        target = int(self.evolution_config.train_batch_target)
+        if n == 0 or target <= n:
+            return counts
+        order = sorted(
+            range(n),
+            key=lambda i: float(getattr(champions[i], "rq_score", 0.0) or 0.0),
+            reverse=True,
+        )
+        for j in range(target - n):
+            counts[order[j % n]] += 1
+        return counts
 
     def reevaluate_champions(self) -> None:
         """Refresh champion scores under the current backend.
@@ -1139,7 +1182,11 @@ class RQEvolver:
         # eps-fraction of its seed space is caught with probability
         # 1-(1-eps)^n per re-evaluation, so tail-overfitted generators leave the
         # archive within a few iterations instead of surviving on a lucky seed.
-        results = self.evaluate_programs(champions, store_replay=True)
+        results = self.evaluate_programs(
+            champions,
+            store_replay=True,
+            instance_counts=self._allocate_instances(champions),
+        )
 
         for champion, result in zip(champions, results):
             if result is None:

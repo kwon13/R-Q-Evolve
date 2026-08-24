@@ -79,7 +79,7 @@ def _request(entries):
 
 
 def _hook(buf):
-    return ReplayRolloutHook(buf, rollouts_per_seed=M)
+    return ReplayRolloutHook(buf, group_size=M)
 
 
 def test_a_fully_cached_batch_is_planned_from_the_buffer():
@@ -119,7 +119,7 @@ def test_a_batch_without_extra_info_falls_through():
 
 def test_a_rollout_n_that_does_not_divide_the_batch_falls_through():
     entries = [("a", 0, "q")]
-    hook = ReplayRolloutHook(_buffer(entries), rollouts_per_seed=3)
+    hook = ReplayRolloutHook(_buffer(entries), group_size=3)
     assert hook._plan(_request(entries)) is None
     assert hook.stats.misses["rollout_n_mismatch"] == 1
 

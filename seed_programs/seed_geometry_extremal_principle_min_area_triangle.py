@@ -137,7 +137,7 @@ def generate(seed):
         f"of which are collinear: {point_text}. Call a triangle admissible "
         f"if its three vertices belong to S and no other point of S lies "
         f"strictly inside it. Over all admissible triangles, find the "
-        f"minimum possible value of twice the area. State only the integer."
+        f"minimum possible value of twice the area."
     )
 
     return problem, str(answer)

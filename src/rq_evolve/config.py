@@ -20,22 +20,43 @@ class EvolutionConfig:
     seed_programs_dir: str = "seed_programs"
     inner_iterations: int = 8
     inner_iteration_batch_size: int = 4
-    # Fitness is estimated over n FRESH seeds x m rollouts per seed. n controls
-    # concentration (O(sqrt(1/n))) and m controls the estimator's bias
-    # (O(1/m)); n=5, m=2 is the same 10-rollout budget the old single-instance
-    # G=10 scoring spent. m >= 2 is not a preference: at m=1 the plug-in
-    # learnability is identically 0 for every program and R_Q is unidentifiable.
-    eval_seeds: int = 5
-    rollouts_per_seed: int = 2
+    # G: rollouts per instance, and the group the advantage baseline averages
+    # over. R_Q is estimated from ONE fresh instance x G rollouts and OVERWRITTEN
+    # every re-evaluation -- Dynamic MAP-Elites semantics, and the same choice
+    # LILO/SFL makes (Foster & Foerster 2025, Alg. 1: L_SFL rollouts per
+    # question, buffer refreshed every step, estimation trajectories REUSED as
+    # the training batch; they found refreshing less often overfits the buffer).
+    #
+    # The seed axis is gone: n=5 x m=2 spread the same 10 rollouts over five
+    # instances, which made every training group size 2, and a size-2 binary
+    # group is degenerate with probability >= 50% at ANY difficulty. Measured on
+    # the 8B run: replay_degenerate_frac 75-83%, i.e. four fifths of the update
+    # was exactly zero. At G=10 that falls to 0.2% at s=0.5 and 35% at s=0.9.
+    #
+    # G >= 2 is not a preference: at G=1 the plug-in learnability is identically
+    # 0 for every program and R_Q is unidentifiable.
+    group_size: int | None = None
+    # Prompts per training step. The frontier is smaller than this in practice
+    # (median 18, 10th pct 13 over 67 iterations of the 8B run), so when it
+    # falls short the highest-R_Q champions each contribute another FRESH
+    # instance until the batch is full. Those extra instances are training-only:
+    # R_Q stays a single-instance estimate so it means the same thing for every
+    # champion regardless of how many slots it happened to fill.
+    train_batch_target: int = 16
     # The trainer repeats each prompt actor_rollout_ref.rollout.n times before
     # generating, so a replayed group only lines up row-for-row when that n
     # equals m. Checked against the verl config at startup rather than left to
     # drift, because a mismatch silently disables replay.
     replay_requires_matching_rollout_n: bool = True
-    # Deprecated: the old single-instance group size. Kept so existing configs
-    # load; when set and the n/m pair is left at its default it is read as
-    # "spend this many rollouts", split as n = value // m.
+    # Deprecated: the old single-instance group size. Read as the rollout budget.
     num_rollouts: int | None = None
+    # Deprecated n x m spelling. Every config and snapshot on disk still carries
+    # it, and _dataclass_from_dict silently DROPS unknown keys, so without these
+    # the old runs would quietly load at the new defaults instead of their own
+    # budget. Resolved in __post_init__ into group_size = n * m, which keeps the
+    # rollout spend identical to what the config asked for.
+    eval_seeds: int | None = None
+    rollouts_per_seed: int | None = None
     verify_seeds: int = 5
     frontier_s_hat_range: tuple[float, float] = (0.1, 0.9)
     # Deprecated spelling, from before the notation matched the paper. Every
@@ -135,23 +156,25 @@ class EvolutionConfig:
     archive_binning: str = "grid"
 
     def __post_init__(self) -> None:
-        if self.rollouts_per_seed < 2:
+        if self.group_size is None:
+            # Legacy spellings, in the order they were introduced. n x m spent
+            # n*m rollouts per program; num_rollouts spent that many directly.
+            if self.rollouts_per_seed is not None:
+                self.group_size = int(self.rollouts_per_seed) * int(
+                    self.eval_seeds or 1
+                )
+            elif self.num_rollouts is not None:
+                self.group_size = int(self.num_rollouts)
+            else:
+                self.group_size = 10
+        if self.group_size < 2:
             raise ValueError(
-                "evolution.rollouts_per_seed (m) must be >= 2: at m=1 the "
-                "learnability estimate is identically 0 for every program, so "
-                "R_Q cannot be identified from the rollouts at all"
+                "evolution.group_size (G) must be >= 2: at G=1 the learnability "
+                "estimate is identically 0 for every program, so R_Q cannot be "
+                "identified from the rollouts at all"
             )
-        if self.eval_seeds < 1:
-            raise ValueError("evolution.eval_seeds (n) must be >= 1")
-        if self.replay_requires_matching_rollout_n and self.rollouts_per_seed < 2:
-            raise ValueError(
-                "replay needs evolution.rollouts_per_seed (m) >= 2 so the "
-                "per-instance LOO baseline has something to average over"
-            )
-        if self.num_rollouts is not None and self.eval_seeds == 5:
-            # A legacy config asked for one instance x num_rollouts. Spend the
-            # same budget on the hierarchy instead of silently changing cost.
-            self.eval_seeds = max(1, int(self.num_rollouts) // self.rollouts_per_seed)
+        if self.train_batch_target < 1:
+            raise ValueError("evolution.train_batch_target must be >= 1")
         if self.frontier_p_hat_range is not None:
             self.frontier_s_hat_range = tuple(
                 float(x) for x in self.frontier_p_hat_range

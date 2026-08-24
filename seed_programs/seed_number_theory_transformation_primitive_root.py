@@ -117,7 +117,7 @@ def generate(seed):
         f"Let p = {p}, and let g = {g} be a primitive root modulo p. "
         f"Let a be the residue congruent to g^{e} modulo p. "
         f"How many residue classes x modulo p satisfy "
-        f"x^{k} congruent to a modulo p? State only the integer."
+        f"x^{k} congruent to a modulo p?"
     )
 
     return problem, str(answer)

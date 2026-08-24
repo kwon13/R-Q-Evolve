@@ -82,28 +82,36 @@ class _Backend:
     def finalize_rollouts(self, pending): return pending.grouped
 
 
-def _evolver(backend, n=5, m=2):
+def _evolver(backend, group_size=2):
     return RQEvolver(
         archive=MAPElitesArchive(**asdict(ArchiveConfig())),
         backend=backend,
-        evolution_config=EvolutionConfig(eval_seeds=n, rollouts_per_seed=m),
+        evolution_config=EvolutionConfig(group_size=group_size),
     )
 
 
-def test_a_program_is_graded_on_n_distinct_fresh_instances():
-    backend = _Backend()
-    evolver = _evolver(backend, n=5, m=2)
-    result = evolver.evaluate_programs([ProblemProgram(source_code=HONEST)])[0]
+def test_r_q_is_one_fresh_instance_however_many_are_drawn():
+    """R_Q is a single-instance estimate, overwritten each re-evaluation.
 
-    assert result.num_seeds == 5
-    assert result.num_rollouts == 10          # n x m
-    assert len(set(backend.seen_problems)) == 5
+    ``instance_counts`` can ask for more instances to fill the training batch,
+    but those extras are training data only: scoring on them would make a
+    champion's fitness depend on how many batch slots it happened to be given.
+    """
+    backend = _Backend()
+    evolver = _evolver(backend, group_size=2)
+    result = evolver.evaluate_programs(
+        [ProblemProgram(source_code=HONEST)], instance_counts=[5]
+    )[0]
+
+    assert result.num_seeds == 1              # scored on the first instance
+    assert result.num_rollouts == 2           # G
+    assert len(set(backend.seen_problems)) == 5   # all five were rolled out
 
 
 def test_a_second_evaluation_uses_different_instances():
     """Re-scoring must not re-grade the instances the program already passed."""
     backend = _Backend()
-    evolver = _evolver(backend, n=3)
+    evolver = _evolver(backend)
     program = ProblemProgram(source_code=HONEST)
 
     evolver.evaluate_programs([program])
@@ -121,8 +129,14 @@ def test_a_seed_zero_special_case_no_longer_hides():
     actually lives.
     """
     backend = _Backend()
-    evolver = _evolver(backend, n=5)
-    evolver.evaluate_programs([ProblemProgram(source_code=TAIL_OVERFIT)])
+    evolver = _evolver(backend)
+    program = ProblemProgram(source_code=TAIL_OVERFIT)
+    # One instance per evaluation, so the tail is exposed ACROSS iterations
+    # rather than within one: the program is scored on its flattering seed
+    # once, and every re-evaluation after that draws from the branch it
+    # actually lives on. That is what makes overwriting R_Q safe.
+    for _ in range(5):
+        evolver.evaluate_programs([program])
 
     assert sum("genuinely open" in p for p in backend.seen_problems) == 1
     assert sum("trivial" in p for p in backend.seen_problems) == 4
@@ -130,12 +144,12 @@ def test_a_seed_zero_special_case_no_longer_hides():
 
 def test_the_cursor_is_persisted_and_restored(tmp_path):
     backend = _Backend()
-    evolver = _evolver(backend, n=3)
+    evolver = _evolver(backend)
     program = ProblemProgram(source_code=HONEST)
     evolver.archive.try_insert(program=program, u_value=1.0, rq_score=0.5)
-    evolver.evaluate_programs([program])
+    evolver.evaluate_programs([program], instance_counts=[3])
     evolver.save_state(tmp_path, iteration=0)
 
-    resumed = _evolver(_Backend(), n=3)
+    resumed = _evolver(_Backend())
     resumed.load_state(tmp_path)
     assert resumed.seed_stream.peek(program.program_id) == 3

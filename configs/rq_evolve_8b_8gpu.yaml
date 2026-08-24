@@ -24,7 +24,6 @@ evolution:
   # m MUST equal actor_rollout_ref.rollout.n below: replay hands the
   # re-scoring rollouts to the trainer as its batch, so the group the
   # RLOO baseline averages over IS these m rollouts.
-  eval_seeds: 5
   # n=5, m=2 -- the paper's Table B.1 default, and the same 10-rollout budget
   # per program the old single-instance G=10 scoring spent.
   #
@@ -36,7 +35,16 @@ evolution:
   # (O(sqrt(1/n))) and m the estimator's bias (O(1/m)); this budget spends it
   # on n. m >= 2 is not a preference: at m=1 the plug-in learnability is
   # identically 0 for every program and R_Q is unidentifiable.
-  rollouts_per_seed: 2
+  # G: rollouts per instance == actor_rollout_ref.rollout.n below.
+  # R_Q is one fresh instance x G rollouts, overwritten each
+  # re-evaluation (Dynamic MAP-Elites / LILO-SFL semantics).
+  group_size: 10
+  # Prompts per training step. The frontier is usually smaller than this
+  # (median 18 over the 8B run), so the shortfall is covered by drawing
+  # further FRESH seeds from the highest-R_Q champions -- extra problems,
+  # not extra rollouts on the same problem. LILO Sec 6.3: scaling the
+  # number of levels beat scaling rollouts per level.
+  train_batch_target: 32
   select_ignores_uncertainty: false
   select_ignores_variance: false
   verify_seeds: 5
@@ -167,12 +175,16 @@ verl_config:
       strategy: fsdp
       ppo_mini_batch_size: 32
       ppo_micro_batch_size: null
-      # 2, the value every 8B config here has settled on. Activation memory
-      # scales with hidden_size x micro-batch: at hidden 4096 a micro-batch of 4
-      # doubles the backward peak, and vLLM is resident throughout (it never
-      # sleeps, see free_cache_engine below), so that peak has ~50 GiB to live
-      # in, not the whole card.
-      ppo_micro_batch_size_per_gpu: 2
+      # 4 since 2026-08-24. The batch grew 5x when the group went from m=2 to
+      # G=10 (32 prompts x 10 rollouts = 320 sequences, 40 per GPU), so at a
+      # micro-batch of 2 the update is 20 accumulation passes instead of 4 and
+      # the per-pass launch overhead now dominates. Activation memory scales
+      # with hidden_size x micro-batch, and vLLM is resident throughout (it
+      # never sleeps, see free_cache_engine below) holding ~36 GiB, so the
+      # backward peak has ~20 GiB of headroom over the 40 GiB this reserved at
+      # micro-batch 2. If a step OOMs, drop back to 2 -- nothing else depends
+      # on this number.
+      ppo_micro_batch_size_per_gpu: 4
       use_dynamic_bsz: false
       # vLLM stays resident (enable_sleep_mode: false) holding ~36 GiB, leaving
       # <10 GiB for the actor forward. The unchunked entropy path materializes a
@@ -203,7 +215,7 @@ verl_config:
       mode: async
       temperature: 1.0
       top_p: 0.95
-      n: 2   # == evolution.rollouts_per_seed (m); replay requires it
+      n: 10  # == evolution.group_size (G); replay requires it
       tensor_model_parallel_size: 1
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096
@@ -218,6 +230,9 @@ verl_config:
       log_prob_micro_batch_size: null
       log_prob_micro_batch_size_per_gpu: 2
 
+  # Inert under algorithm.adv_estimator: grpo -- verl's need_critic() returns
+  # False for anything but gae when critic.enable is unset, so no critic worker
+  # is built and nothing below is read. Kept so switching back to gae works.
   critic:
     ppo_mini_batch_size: 32
     ppo_micro_batch_size: null
@@ -238,10 +253,21 @@ verl_config:
       enable: false
 
   algorithm:
-    adv_estimator: rloo
+    # GRPO with the group-std division removed (Dr.GRPO / RLOO form).
+    # This is a CONSISTENCY condition for R_Q, not a tuning choice:
+    # dividing by sqrt(Var[r]) 'removes the dependency of the expected
+    # gradient magnitude on learnability' (LILO Thm 3.1), and our archive
+    # fitness IS learnability (R_Q = L x U). Normalised, the curriculum
+    # could pick perfectly and the solver's gradient would not notice.
+    # Unnormalised, expected policy improvement is upper bounded by a
+    # quantity increasing linearly with learnability. RLOO's advantage is
+    # exactly k/(k-1) times this one, so the two differ only by a scale.
+    # Only the std term is dropped; length normalisation stays at verl's
+    # default loss_agg_mode.
+    adv_estimator: grpo
     use_kl_in_reward: false
     kl_penalty: low_var_kl
-    norm_adv_by_std_in_grpo: true
+    norm_adv_by_std_in_grpo: false
 
   trainer:
     total_epochs: 10000
@@ -256,9 +282,15 @@ verl_config:
     val_before_train: false
     test_freq: 32
     save_freq: 32
-    # Keep ONE checkpoint on disk (see rq_evolve_base.yaml for the sizing).
-    max_actor_ckpt_to_keep: 1
-    max_critic_ckpt_to_keep: 1
+    # Keep EVERY checkpoint. The old policy (keep 1, with the launch shell
+    # merging each 32-step actor/ to HF and then deleting only the actor)
+    # silently failed on the 2026-08-23 run: no merge ran, verl deleted on
+    # schedule, and the step-32/64/96 weights were lost unmerged. Deletion is
+    # now nobody's job: merge on demand with scripts/merge_fsdp_to_hf.py and
+    # remove an actor/ by hand only after its hf_merged/ exists.
+    # Sizing: 8B actor ~92G x 8 saves = ~736G; /home holds ~1T free.
+    max_actor_ckpt_to_keep: null
+    max_critic_ckpt_to_keep: null
     default_local_dir: ./rq_output/rq_evolve_8b_8gpu
     device: cuda
     resume_mode: auto

@@ -19,14 +19,64 @@ The generator must:
 
 Do not write GROUP or SKILL lines; they are added afterwards.
 
-Three worked transformations follow, in exactly the shape of the task. Read them for two things: the reference generator is a model of the CODE, never of the mathematics, and `check` always walks the stated domain by a route that shares no algebra with `answer`. That cross-check is the only thing proving the statement and the number describe the same mathematics, so a `check` that recomputes `answer` a second way is worth nothing.
+HOW ANSWER AND CHECK PAIR UP, BY SKILL. These are toy sketches of the two-route
+discipline, not problems to reuse: the answer route uses the skill, the check
+route never does.
+
+casework -- answer adds up the cases, check walks the whole domain unsplit:
+    answer = 2 * (m - t) if t < m else 0
+    check = sum(abs(x) > t for x in range(-m, m + 1))
+
+induction -- answer is the closed form, check runs the recurrence literally:
+    answer = 1 + (n - 1) * d
+    f = 1
+    for _ in range(n - 1):
+        f = f + d
+    check = f
+
+contradiction -- answer is the proven bound, check searches for anything longer:
+    answer = n            # a strictly decreasing chain from n has at most n terms
+    def longest(v):
+        return 1 + max((longest(w) for w in range(1, v)), default=0)
+    check = longest(n)
+
+invariant -- answer is the preserved quantity, check simulates the process in rng order:
+    answer = n * (n + 1) // 2
+    pool = list(range(1, n + 1))
+    while len(pool) > 1:
+        a = pool.pop(rng.randrange(len(pool)))
+        b = pool.pop(rng.randrange(len(pool)))
+        pool.append(a + b)
+    check = pool[0]
+
+extremal_principle -- answer is the sharp bound, check exhausts every configuration:
+    answer = sum(range(n, 0, -2))
+    check = max(sum(k + 1 for k in range(n) if mask >> k & 1)
+                for mask in range(1 << n) if not mask & (mask << 1))
+
+counting -- answer is the counting formula, check enumerates one by one:
+    answer = n * (n - 1) // 2
+    check = sum(1 for x in range(1, n + 1) for y in range(x + 1, n + 1))
+
+transformation -- answer counts in the transformed representation, check scans directly:
+    answer = sum(2 - (d * d == n) for d in range(1, int(n ** 0.5) + 1) if n % d == 0)
+    check = sum(1 for x in range(1, n + 1) if n % x == 0)
+
+construction -- answer constructs the object, check finds it by blind search:
+    answer = (b // a + 1) * a
+    x = b + 1
+    while x % a:
+        x += 1
+    check = x
+
+Four worked transformations follow, in exactly the shape of the task. Read them for two things: the reference generator is a model of the CODE, never of the mathematics, and `check` always walks the stated domain by a route that shares no algebra with `answer`. That cross-check is the only thing proving the statement and the number describe the same mathematics, so a `check` that recomputes `answer` a second way is worth nothing.
 
 
 WORKED EXAMPLE 1
 
 EXAMPLE -- this family
 
-Let N = {N}. How many positive divisors does N have? State only the integer.
+Let N = {N}. How many positive divisors does N have?
 
 is produced by this generator:
 ```python
@@ -44,15 +94,56 @@ def generate(seed):
     check = sum(N % d == 0 for d in range(1, N + 1))
     assert answer == check, f"answer={answer} check={check}"
 
-    problem = f"Let N = {N}. How many positive divisors does N have? State only the integer."
+    problem = f"Let N = {N}. How many positive divisors does N have?"
     return problem, str(answer)
 ```
 
 NOW WRITE THE GENERATOR FOR THIS FAMILY
 
-Let a = {a} and b = {b}, where a <= b. How many even integers x satisfy a <= x <= b? State only the integer.
+Count the primes p with {lower_limit} <= p <= {upper_limit}.
 
 CORRECT OUTPUT:
+```python
+import random
+
+def generate(seed):
+    rng = random.Random(seed)
+    lower_limit = rng.randint(10, 60)
+    upper_limit = lower_limit + rng.randint(20, 60)
+
+    def is_prime(k):
+        if k < 2:
+            return False
+        d = 2
+        while d * d <= k:
+            if k % d == 0:
+                return False
+            d += 1
+        return True
+
+    answer = sum(is_prime(k) for k in range(lower_limit, upper_limit + 1))
+
+    sieve = [True] * (upper_limit + 1)
+    sieve[0] = sieve[1] = False
+    for d in range(2, int(upper_limit ** 0.5) + 1):
+        if sieve[d]:
+            for m in range(d * d, upper_limit + 1, d):
+                sieve[m] = False
+    check = sum(sieve[k] for k in range(lower_limit, upper_limit + 1))
+    assert answer == check, f"answer={answer} check={check}"
+
+    problem = f"Count the primes p with {lower_limit} <= p <= {upper_limit}."
+    return problem, str(answer)
+```
+
+
+WORKED EXAMPLE 2
+
+EXAMPLE -- this family
+
+Let a = {a} and b = {b}, where a <= b. How many even integers x satisfy a <= x <= b?
+
+is produced by this generator:
 ```python
 import random
 
@@ -65,16 +156,97 @@ def generate(seed):
     check = sum(x % 2 == 0 for x in range(a, b + 1))
     assert answer == check, f"answer={answer} check={check}"
 
-    problem = f"Let a = {a} and b = {b}, where a <= b. How many even integers x satisfy a <= x <= b? State only the integer."
+    problem = f"Let a = {a} and b = {b}, where a <= b. How many even integers x satisfy a <= x <= b?"
+    return problem, str(answer)
+```
+
+NOW WRITE THE GENERATOR FOR THIS FAMILY
+
+From the integers 1 through {element_count}, a subset is chosen in which no two chosen integers are consecutive. Find the maximum possible sum of such a subset.
+
+CORRECT OUTPUT:
+```python
+import random
+
+def generate(seed):
+    rng = random.Random(seed)
+    element_count = rng.randint(8, 14)
+
+    answer = sum(range(element_count, 0, -2))
+
+    check = 0
+    for mask in range(1 << element_count):
+        if mask & (mask << 1):
+            continue
+        total = sum(k + 1 for k in range(element_count) if mask >> k & 1)
+        check = max(check, total)
+    assert answer == check, f"answer={answer} check={check}"
+
+    problem = f"From the integers 1 through {element_count}, a subset is chosen in which no two chosen integers are consecutive. Find the maximum possible sum of such a subset."
     return problem, str(answer)
 ```
 
 
-WORKED EXAMPLE 2
+WORKED EXAMPLE 3
 
 EXAMPLE -- this family
 
-How many binary strings of length {n} contain exactly {k} ones? State only the integer.
+Let n = {n}. Find the sum of the first n positive integers.
+
+is produced by this generator:
+```python
+import random
+
+def generate(seed):
+    rng = random.Random(seed)
+    n = rng.randint(5, 30)
+
+    answer = n * (n + 1) // 2
+    check = sum(range(1, n + 1))
+    assert answer == check, f"answer={answer} check={check}"
+
+    problem = f"Let n = {n}. Find the sum of the first n positive integers."
+    return problem, str(answer)
+```
+
+NOW WRITE THE GENERATOR FOR THIS FAMILY
+
+A walk starts at (0, 0) and ends at ({width}, {height}), moving one unit right or one unit up at each step. How many such walks are there?
+
+CORRECT OUTPUT:
+```python
+import random
+from math import comb
+
+def generate(seed):
+    rng = random.Random(seed)
+    width = rng.randint(3, 8)
+    height = rng.randint(3, 8)
+
+    answer = comb(width + height, width)
+
+    def walks(x, y):
+        if x == width and y == height:
+            return 1
+        total = 0
+        if x < width:
+            total += walks(x + 1, y)
+        if y < height:
+            total += walks(x, y + 1)
+        return total
+    check = walks(0, 0)
+    assert answer == check, f"answer={answer} check={check}"
+
+    problem = f"A walk starts at (0, 0) and ends at ({width}, {height}), moving one unit right or one unit up at each step. How many such walks are there?"
+    return problem, str(answer)
+```
+
+
+WORKED EXAMPLE 4
+
+EXAMPLE -- this family
+
+A box holds {n} numbered tokens. How many ways are there to take exactly {k} of them?
 
 is produced by this generator:
 ```python
@@ -90,64 +262,13 @@ def generate(seed):
     check = sum(bin(x).count("1") == k for x in range(1 << n))
     assert answer == check, f"answer={answer} check={check}"
 
-    problem = f"How many binary strings of length {n} contain exactly {k} ones? State only the integer."
+    problem = f"A box holds {n} numbered tokens. How many ways are there to take exactly {k} of them?"
     return problem, str(answer)
 ```
 
 NOW WRITE THE GENERATOR FOR THIS FAMILY
 
-There are {n} people and {n} distinct hats, one belonging to each person. In how many assignments does no person receive their own hat? State only the integer.
-
-CORRECT OUTPUT:
-```python
-import random
-from itertools import permutations
-
-def generate(seed):
-    rng = random.Random(seed)
-    n = rng.randint(4, 7)
-
-    d0, d1 = 1, 0
-    for m in range(2, n + 1):
-        d0, d1 = d1, (m - 1) * (d0 + d1)
-    answer = d1
-
-    check = sum(
-        all(p[i] != i for i in range(n))
-        for p in permutations(range(n))
-    )
-    assert answer == check, f"answer={answer} check={check}"
-
-    problem = f"There are {n} people and {n} distinct hats, one belonging to each person. In how many assignments does no person receive their own hat? State only the integer."
-    return problem, str(answer)
-```
-
-
-WORKED EXAMPLE 3
-
-EXAMPLE -- this family
-
-Let n = {n}. Find the sum of the first n positive integers. State only the integer.
-
-is produced by this generator:
-```python
-import random
-
-def generate(seed):
-    rng = random.Random(seed)
-    n = rng.randint(5, 30)
-
-    answer = n * (n + 1) // 2
-    check = sum(range(1, n + 1))
-    assert answer == check, f"answer={answer} check={check}"
-
-    problem = f"Let n = {n}. Find the sum of the first n positive integers. State only the integer."
-    return problem, str(answer)
-```
-
-NOW WRITE THE GENERATOR FOR THIS FAMILY
-
-Let A = (0, 0), B = ({a}, 0), and C = (0, {b}). How many lattice points lie strictly inside triangle ABC? State only the integer.
+Let A = (0, 0), B = ({a}, 0), and C = (0, {b}). How many lattice points lie strictly inside triangle ABC?
 
 CORRECT OUTPUT:
 ```python
@@ -168,6 +289,6 @@ def generate(seed):
     )
     assert answer == check, f"answer={answer} check={check}"
 
-    problem = f"Let A = (0, 0), B = ({a}, 0), and C = (0, {b}). How many lattice points lie strictly inside triangle ABC? State only the integer."
+    problem = f"Let A = (0, 0), B = ({a}, 0), and C = (0, {b}). How many lattice points lie strictly inside triangle ABC?"
     return problem, str(answer)
 ```

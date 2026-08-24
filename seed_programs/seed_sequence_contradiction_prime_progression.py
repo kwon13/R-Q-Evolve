@@ -77,7 +77,7 @@ def generate(seed):
         f"Let p = {p}. For each positive integer d, define an infinite "
         f"sequence by a_1 = p and a_(n+1) = a_n + d for every n >= 1. Find "
         f"the smallest index N such that a_N is composite for every choice "
-        f"of d. State only the integer."
+        f"of d."
     )
 
     return problem, str(answer)

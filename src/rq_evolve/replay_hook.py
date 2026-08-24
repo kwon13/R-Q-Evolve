@@ -81,9 +81,9 @@ class ReplayRolloutHook:
     wrapper disappears with the object.
     """
 
-    def __init__(self, buffer, *, rollouts_per_seed: int) -> None:
+    def __init__(self, buffer, *, group_size: int) -> None:
         self.buffer = buffer
-        self.rollouts_per_seed = int(rollouts_per_seed)
+        self.group_size = int(group_size)
         self.stats = ReplayServeStats()
         self._installed_on: Any = None
         self._original = None
@@ -228,7 +228,7 @@ class ReplayRolloutHook:
             )
             return None
 
-        n = self.rollouts_per_seed
+        n = self.group_size
         if size % n != 0:
             # The trainer repeats each prompt rollout.n times; if that does not
             # match m, the cached group cannot line up row-for-row.

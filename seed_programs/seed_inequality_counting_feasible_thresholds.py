@@ -58,7 +58,7 @@ def generate(seed):
         f"For each ordered pair of positive integers (s, t) with 2 <= s <= {n}, "
         f"call (s, t) feasible if there exist positive real numbers x and y "
         f"such that x + y = s and xy >= t. How many feasible ordered pairs "
-        f"(s, t) are there? State only the integer."
+        f"(s, t) are there?"
     )
 
     return problem, str(answer)

@@ -501,7 +501,7 @@ class VerlTrainerAdapter:
             )
             return
 
-        m = int(self.rq_config.evolution.rollouts_per_seed)
+        m = int(self.rq_config.evolution.group_size)
         rollout_n = int(
             ctx["verl_config"].actor_rollout_ref.rollout.n
             if "verl_config" in ctx
@@ -515,14 +515,14 @@ class VerlTrainerAdapter:
             raise ValueError(
                 "replay_training_batch requires "
                 f"actor_rollout_ref.rollout.n ({rollout_n}) == "
-                f"evolution.rollouts_per_seed ({m}). Set them equal, or turn "
+                f"evolution.group_size ({m}). Set them equal, or turn "
                 "off training_data.replay_training_batch to keep the separate "
                 "sampling pass."
             )
 
         from .replay_hook import ReplayRolloutHook
 
-        hook = ReplayRolloutHook(evolver.replay, rollouts_per_seed=m)
+        hook = ReplayRolloutHook(evolver.replay, group_size=m)
         if hook.install(manager):
             self.replay_hook = hook
             evolver.replay_hook = hook

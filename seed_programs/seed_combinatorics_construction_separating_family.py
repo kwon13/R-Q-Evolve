@@ -68,7 +68,7 @@ def generate(seed):
         f"Let U = {{1, 2, ..., {n}}}. A family F of subsets of U is called "
         f"separating if for every two distinct elements x and y of U, there "
         f"is a set A in F that contains exactly one of x and y. Find the "
-        f"minimum possible value of |F|. State only the integer."
+        f"minimum possible value of |F|."
     )
 
     return problem, str(answer)

@@ -51,7 +51,7 @@ def generate(seed):
         f"permutation in F_(m-1), create two new permutations by inserting m "
         f"either at the left end or at the right end. Let T be the sum of the "
         f"numbers of inversions over all permutations in F_{n}. Find the "
-        f"remainder when T is divided by 1000. State only the integer."
+        f"remainder when T is divided by 1000."
     )
 
     return problem, str(answer)

@@ -280,12 +280,18 @@ class _CountingBackend:
     def finalize_rollouts(self, pending): return pending.grouped
 
 
-def _loop_evolver(backend, n=3, m=2):
+def _loop_evolver(backend, group_size=2, batch=6):
+    """Two champions, ``batch`` prompts, G rollouts each.
+
+    ``train_batch_target`` above the champion count is the normal case -- the
+    frontier is routinely smaller than the batch -- so this also exercises the
+    fill: two champions divide six slots as three fresh instances each.
+    """
     return RQEvolver(
         archive=MAPElitesArchive(**asdict(ArchiveConfig())),
         backend=backend,
         evolution_config=EvolutionConfig(
-            eval_seeds=n, rollouts_per_seed=m,
+            group_size=group_size, train_batch_target=batch,
             inner_iterations=0, inner_iteration_batch_size=1,
             frontier_s_hat_range=(0.0, 1.0),
         ),
@@ -336,8 +342,9 @@ def test_the_loop_trains_only_on_rollouts_it_already_paid_for():
             (backend.rollouts_generated - before, list(evolver.dataset.snapshot()))
         )
 
-    # Every iteration spends exactly n x m per champion and not a rollout more.
-    assert {spend for spend, _ in per_iteration} == {2 * 3 * 2}
+    # Every iteration spends exactly train_batch_target x G and not a rollout
+    # more: six instances filled from two champions, two rollouts each.
+    assert {spend for spend, _ in per_iteration} == {6 * 2}
     # ...and every one of them yields a batch (iteration 0 via the warm-up
     # fallback, since nothing has a prior measurement to be selected on yet).
     assert [len(rows) for _, rows in per_iteration] == [6, 6, 6]

@@ -96,7 +96,7 @@ def generate(seed):
         f"Start with P(x) = {start}. In one move, P(x) may be replaced by "
         f"P(x+1) or by P(x-1), and any number of moves may be performed. "
         f"Exactly one of the following polynomials is reachable: "
-        f"{candidate_text}. Find its index. State only the integer."
+        f"{candidate_text}. Find its index."
     )
 
     return problem, str(answer)

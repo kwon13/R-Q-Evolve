@@ -68,7 +68,7 @@ def _tpl(name: str) -> str:
 # Stage 1 emits four fields. Two of them contain a space, so the lookahead
 # that ends one field has to know every header -- a header it does not list is
 # swallowed into the previous field's value.
-_KEYS = "STRUCTURAL MUTATION|CHILD FAMILY|GROUP|SKILL"
+_KEYS = "STRUCTURAL MUTATION|CHILD FAMILY|WHY FINITE|GROUP|SKILL"
 
 
 def _field(text: str, key: str) -> str:

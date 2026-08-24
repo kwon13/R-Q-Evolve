@@ -153,14 +153,43 @@ def test_the_system_prompts_are_read_from_disk_verbatim():
         assert "$" not in on_disk, "the system turn is not templated"
 
 
-def test_stage_one_asks_for_the_four_lines():
-    """The whole stage-1 contract is four labelled lines; the labels are
-    committed here, while the solution is still in view, and the harness
-    staples them onto the program afterwards (set_label_declarations)."""
+def test_stage_one_asks_for_its_labelled_lines():
+    """The labels are committed in stage 1, while the solution is still in
+    view, and the harness staples them onto the program afterwards
+    (set_label_declarations).
+
+    WHY FINITE is asked for but NOT required by the parser: 31% of archived
+    champions were judged ill-posed, nearly all of them a "find the maximum X"
+    whose bounding clause went missing in the mutation, and naming that clause
+    is the cheapest way to make the model notice. It stays optional because
+    stage-1 parse failures are already the largest single loss.
+    """
     system = build_family_task(_program()).messages[0]["content"]
-    for line in ("STRUCTURAL MUTATION:", "CHILD FAMILY:", "GROUP:", "SKILL:"):
+    for line in ("STRUCTURAL MUTATION:", "CHILD FAMILY:", "WHY FINITE:",
+                 "GROUP:", "SKILL:"):
         assert line in system, line
-    assert 'ending "State only the integer."' in system
+
+
+def test_the_finiteness_field_is_parsed_but_never_required():
+    from rq_evolve.prompts import parse_family_plan
+
+    without = parse_family_plan(
+        "STRUCTURAL MUTATION: a different target\n"
+        "CHILD FAMILY: Let n = {n}. How many? \n"
+        "GROUP: geometry\nSKILL: casework"
+    )
+    assert without is not None and "WHY FINITE" not in without
+
+    withit = parse_family_plan(
+        "STRUCTURAL MUTATION: a different target\n"
+        "CHILD FAMILY: Let n = {n}. How many? \n"
+        "WHY FINITE: the set of n items is finite\n"
+        "GROUP: geometry\nSKILL: casework"
+    )
+    # And the header must be a field boundary, or the prose is swallowed into
+    # CHILD FAMILY and silently becomes part of the child's problem statement.
+    assert withit["WHY FINITE"].startswith("the set of n items")
+    assert "WHY FINITE" not in withit["CHILD FAMILY"]
 
 
 def test_stage_two_states_the_shape_the_linter_enforces():

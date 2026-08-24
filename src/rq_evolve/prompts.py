@@ -422,12 +422,26 @@ FAMILY_USER_PROMPT_FILE = "diff_problem_user_prompt.txt"
 GENERATOR_SYSTEM_PROMPT_FILE = "gen_program_system_prompt.txt"
 GENERATOR_USER_PROMPT_FILE = "gen_program_user_prompt.txt"
 
+# What a stage-1 reply must carry for the child to be usable.
 FAMILY_KEYS = ("STRUCTURAL MUTATION", "CHILD FAMILY", "GROUP", "SKILL")
-_FAMILY_KEY_ALT = "|".join(FAMILY_KEYS)
+# Asked for, parsed when present, but NOT required. WHY FINITE makes the model
+# name the clause that bounds its own answer before it labels the problem --
+# 31% of archived champions were judged ill-posed, nearly all of them "find the
+# maximum X" with the clause that made X finite dropped somewhere in the
+# mutation. Requiring it would be the wrong trade: stage-1 parse failures are
+# already the largest single loss (230 mutation_failed of 2144 candidates), and
+# a fifth mandatory field buys more of them. The value is in writing it, not in
+# gating on it.
+OPTIONAL_FAMILY_KEYS = ("WHY FINITE",)
+# EVERY header the reply may contain, required or not. The lookahead that ends
+# one field has to know all of them: a header missing from this list is not a
+# boundary, so its whole line is swallowed into the previous field's value --
+# which would have quietly appended the finiteness prose to CHILD FAMILY.
+_FAMILY_KEY_ALT = "|".join(FAMILY_KEYS + OPTIONAL_FAMILY_KEYS)
 
 
 def parse_family_plan(reply: str) -> dict[str, str] | None:
-    """The four fields of a stage-1 reply, or None if any is missing.
+    """The stage-1 fields, or None if a REQUIRED one is missing.
 
     Takes the LAST value for each key that is not a leftover ``<...>``. A base
     policy re-emits the template before answering it -- 13 of 24 replies opened
@@ -453,6 +467,14 @@ def parse_family_plan(reply: str) -> dict[str, str] | None:
     if group is None or skill is None:
         return None
     out["GROUP"], out["SKILL"] = group, skill
+    for key in OPTIONAL_FAMILY_KEYS:
+        for match in re.finditer(
+            rf"^[ \t]*{key}[ \t]*:[ \t]*(.+?)(?=^[ \t]*(?:{_FAMILY_KEY_ALT})[ \t]*:|\Z)",
+            text, re.M | re.S,
+        ):
+            value = match.group(1).strip()
+            if value and not value.startswith("<"):
+                out[key] = value
     return out
 
 

@@ -43,8 +43,9 @@ fi
 
 set +u
 source /data1/yhoon113/miniforge3/etc/profile.d/conda.sh
-conda activate azr-bw-blackwell || { echo "[calib] conda activate failed" >&2; exit 1; }
+conda activate "${CONDA_ENV:-vllm}" || { echo "[calib] conda activate failed" >&2; exit 1; }
 set -u
+
 
 serve() {  # name, model, gpu, port
   local name=$1 model=$2 gpu=$3 port=$4

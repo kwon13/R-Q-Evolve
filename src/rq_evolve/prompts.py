@@ -405,6 +405,37 @@ def parse_declared_labels(reply: str) -> tuple[str | None, str | None]:
     return out[0], out[1]
 
 
+_INFERRED_LABEL = r"^[ \t>*_#-]*INFERRED_{key}[\s*_]*:[ \t]*(.*)$"
+
+
+def parse_inferred_labels(reply: str) -> tuple[str | None, str | None]:
+    """Read INFERRED_GROUP / INFERRED_SKILL off a stage-2 generator reply.
+
+    Stage 2 is asked to write the labels AFTER the code block, using the
+    ``INFERRED_`` prefix so they are distinct from any ``GROUP = "..."`` /
+    ``SKILL = "..."`` assignment lines in the code itself. The labels are a
+    blind re-derivation: stage 2 never sees stage 1's plan labels, so
+    agreement between the two is genuine cross-verification.
+
+    Returns ``(group, skill)`` where each is a vocabulary member or None.
+    """
+    text = reply or ""
+    out: list[str | None] = []
+    for key, vocabulary in (("GROUP", GROUPS), ("SKILL", SKILLS)):
+        found = None
+        for match in re.finditer(_INFERRED_LABEL.format(key=key), text, re.IGNORECASE | re.MULTILINE):
+            raw_val = match.group(1).strip()
+            # Clean decoration: backticks, quotes, asterisks, whitespace
+            token = raw_val.strip(" \t`'\"*_.:#").lower()
+            token = token.split()[0] if token.split() else ""
+            token = token.strip(" \t`'\"*_.:#,")
+            if token in vocabulary:
+                found = token  # last wins, same convention as parse_declared
+        out.append(found)
+    return out[0], out[1]
+
+
+
 # --- two-stage mutation -----------------------------------------------------
 #
 # Stage 1 writes the child PROBLEM in prose, with no program in front of it;
@@ -539,8 +570,19 @@ def build_generator_task(
     the parent's tail contained. The labels come from stage 1 and the caller
     appends them, so they cannot be dropped and cannot disagree with the
     problem they describe.
+
+    After the code block, the model is asked to output ``INFERRED_SKILL`` --
+    a blind re-derivation of the skill label from the code it just wrote.
+    The caller compares this against the stage-1 plan and rejects the child
+    when they disagree, catching implementation drift where the code is
+    easier to write than the problem is to solve.
     """
-    system_prompt = _load_template(GENERATOR_SYSTEM_PROMPT_FILE)
+    system_prompt = _render_template(
+        _load_template(GENERATOR_SYSTEM_PROMPT_FILE),
+        {
+            "skill_definitions": _load_definitions(SKILL_DEFINITIONS_FILE),
+        },
+    )
     user_prompt = _render_template(
         _load_template(GENERATOR_USER_PROMPT_FILE),
         {
@@ -564,3 +606,4 @@ def build_generator_task(
         temperature=temperature,
         top_p=top_p,
     )
+

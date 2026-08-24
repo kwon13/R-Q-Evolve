@@ -4,7 +4,7 @@ A family is a problem statement with parameters. Its generator draws those param
 
 In every one of them the reference generator is a model of the CODE and never of the mathematics: the new family asks a different question, so its parameters, its answer route and its check route are all its own. Reuse something from the reference only where it stays mathematically correct for the new family.
 
-Reply with exactly one fenced ```python block and nothing else.
+Reply with exactly one fenced ```python block, followed by exactly one label line described at the end of this prompt.
 
 The generator must:
 - define `generate(seed)` and return `problem, str(answer)`;
@@ -17,7 +17,7 @@ The generator must:
 - define or import everything it references;
 - run for seeds 0-4 in seconds and produce at least two distinct problem texts.
 
-Do not write GROUP or SKILL lines; they are added afterwards.
+Do not write GROUP or SKILL assignment lines inside the code block; they are added afterwards.
 
 HOW ANSWER AND CHECK PAIR UP, BY SKILL. These are toy sketches of the two-route
 discipline, not problems to reuse: the answer route uses the skill, the check
@@ -100,7 +100,7 @@ def generate(seed):
 
 NOW WRITE THE GENERATOR FOR THIS FAMILY
 
-Count the primes p with {lower_limit} <= p <= {upper_limit}.
+Let N = {positive_integer}. How many ordered pairs of positive integers (x, y) satisfy xy + x + y = N?
 
 CORRECT OUTPUT:
 ```python
@@ -108,33 +108,31 @@ import random
 
 def generate(seed):
     rng = random.Random(seed)
-    lower_limit = rng.randint(10, 60)
-    upper_limit = lower_limit + rng.randint(20, 60)
+    positive_integer = rng.randint(10, 80)
 
-    def is_prime(k):
-        if k < 2:
-            return False
-        d = 2
-        while d * d <= k:
-            if k % d == 0:
-                return False
-            d += 1
-        return True
+    # xy + x + y = N  <=>  (x + 1)(y + 1) = N + 1.
+    m = positive_integer + 1
 
-    answer = sum(is_prime(k) for k in range(lower_limit, upper_limit + 1))
+    answer = sum(
+        1
+        for d in range(2, m)
+        if m % d == 0
+    )
 
-    sieve = [True] * (upper_limit + 1)
-    sieve[0] = sieve[1] = False
-    for d in range(2, int(upper_limit ** 0.5) + 1):
-        if sieve[d]:
-            for m in range(d * d, upper_limit + 1, d):
-                sieve[m] = False
-    check = sum(sieve[k] for k in range(lower_limit, upper_limit + 1))
+    # Independent route: test positive integer pairs in the original equation.
+    check = 0
+    for x in range(1, positive_integer + 1):
+        for y in range(1, positive_integer + 1):
+            if x * y + x + y == positive_integer:
+                check += 1
+
     assert answer == check, f"answer={answer} check={check}"
 
-    problem = f"Count the primes p with {lower_limit} <= p <= {upper_limit}."
+    problem = f"Let N = {positive_integer}. How many ordered pairs of positive integers (x, y) satisfy xy + x + y = N?"
     return problem, str(answer)
 ```
+INFERRED_SKILL: transformation
+
 
 
 WORKED EXAMPLE 2
@@ -185,6 +183,8 @@ def generate(seed):
     problem = f"From the integers 1 through {element_count}, a subset is chosen in which no two chosen integers are consecutive. Find the maximum possible sum of such a subset."
     return problem, str(answer)
 ```
+INFERRED_SKILL: extremal_principle
+
 
 
 WORKED EXAMPLE 3
@@ -240,6 +240,8 @@ def generate(seed):
     problem = f"A walk starts at (0, 0) and ends at ({width}, {height}), moving one unit right or one unit up at each step. How many such walks are there?"
     return problem, str(answer)
 ```
+INFERRED_SKILL: counting
+
 
 
 WORKED EXAMPLE 4
@@ -268,27 +270,57 @@ def generate(seed):
 
 NOW WRITE THE GENERATOR FOR THIS FAMILY
 
-Let A = (0, 0), B = ({a}, 0), and C = (0, {b}). How many lattice points lie strictly inside triangle ABC?
+Let a = {left_endpoint}, b = {right_endpoint}, and d = {distance}, where a < b and d is a positive integer. How many integers x satisfy |x-a| + |x-b| = d?
 
 CORRECT OUTPUT:
 ```python
 import random
-from math import gcd
 
 def generate(seed):
     rng = random.Random(seed)
-    a = rng.randint(3, 10)
-    b = rng.randint(3, 10)
+    left_endpoint = rng.randint(-10, 5)
+    right_endpoint = left_endpoint + rng.randint(2, 10)
+    distance = rng.randint(1, 20)
 
-    answer = (a * b - a - b - gcd(a, b) + 2) // 2
+    gap = right_endpoint - left_endpoint
 
+    # Three genuinely different positions:
+    # x < a, a <= x <= b, and x > b.
+    if distance < gap:
+        answer = 0
+    elif distance == gap:
+        answer = gap + 1
+    elif (distance - gap) % 2 == 0:
+        answer = 2
+    else:
+        answer = 0
+
+    # Independent route: scan a range containing every possible solution.
+    lo = left_endpoint - distance - 1
+    hi = right_endpoint + distance + 1
     check = sum(
-        b * x + a * y < a * b
-        for x in range(1, a)
-        for y in range(1, b)
+        abs(x - left_endpoint) + abs(x - right_endpoint) == distance
+        for x in range(lo, hi + 1)
     )
+
     assert answer == check, f"answer={answer} check={check}"
 
-    problem = f"Let A = (0, 0), B = ({a}, 0), and C = (0, {b}). How many lattice points lie strictly inside triangle ABC?"
+    problem = (
+        f"Let a = {left_endpoint}, b = {right_endpoint}, and d = {distance}, "
+        f"where a < b and d is a positive integer. How many integers x satisfy "
+        f"|x-a| + |x-b| = d?"
+    )
     return problem, str(answer)
 ```
+INFERRED_SKILL: casework
+
+After the closing ``` of your code block, write exactly one line with the bare skill name:
+
+INFERRED_SKILL: <exact single label from the 8 allowed SKILLs below>
+
+Rules for INFERRED_SKILL:
+- Write ONLY the bare label word (e.g. "INFERRED_SKILL: casework" or "INFERRED_SKILL: counting").
+- Do NOT add markdown bold, asterisks, bullet points, phrases, or explanations.
+- Choose EXACTLY ONE from these 8 allowed SKILLs:
+$skill_definitions
+

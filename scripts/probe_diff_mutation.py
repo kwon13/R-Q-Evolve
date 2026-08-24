@@ -55,8 +55,13 @@ from rq_evolve.code_utils import (  # noqa: E402
 from rq_evolve.ast_contract import check_generator_contract  # noqa: E402
 from rq_evolve.concepts import GROUPS, SKILLS  # noqa: E402
 from rq_evolve.program import ProblemProgram  # noqa: E402
-from rq_evolve.prompts import _load_definitions  # noqa: E402
-from rq_evolve.prompts import GROUP_DEFINITIONS_FILE, SKILL_DEFINITIONS_FILE  # noqa: E402
+from rq_evolve.prompts import (  # noqa: E402
+    _load_definitions,
+    parse_inferred_labels,
+    GROUP_DEFINITIONS_FILE,
+    SKILL_DEFINITIONS_FILE,
+)
+
 
 TPL = ROOT / "prompt_templates"
 
@@ -111,7 +116,7 @@ def main() -> int:
     ap.add_argument("--top-p-a", type=float, default=0.95)
     ap.add_argument("--temperature-b", type=float, default=0.0)
     ap.add_argument("--top-p-b", type=float, default=1.0)
-    ap.add_argument("--max-tokens", type=int, default=4000)
+    ap.add_argument("--max-tokens", type=int, default=2048)
     ap.add_argument("--seed-dir", default="seed_programs")
     ap.add_argument("--out", default="rq_output/probe_diff")
     ap.add_argument("--show", type=int, default=0, help="print N full replies")
@@ -195,6 +200,11 @@ def main() -> int:
             parent_template=extract_problem_template(parent.source_code) or inst.problem,
         )
         row["raw_b"] = ask(sys_b, user, args.temperature_b, args.top_p_b)
+        _inf_g, inf_s = parse_inferred_labels(row["raw_b"])
+        row["stage1_skill"] = p["SKILL"]
+        row["inferred_skill"] = inf_s
+        row["skill_match"] = (p["SKILL"] == inf_s) if inf_s else False
+
         child_src = extract_generator_code(row["raw_b"])
         if child_src is None:
             row["stage_b"] = "no_code: no parseable generate() in the reply"
@@ -253,11 +263,26 @@ def main() -> int:
     if b_ok:
         print("       child/parent source similarity "
               f"{sum(r['parent_sim'] for r in b_ok)/len(b_ok):.2f}")
+    
+    # Self-Consistency Gate Reporting
+    b_with_skill = [r for r in b_ok if r.get("inferred_skill")]
+    b_matched = [r for r in b_ok if r.get("skill_match")]
+    b_mismatched = [r for r in b_ok if r.get("inferred_skill") and not r.get("skill_match")]
+    b_parse_failed = [r for r in b_ok if not r.get("inferred_skill")]
+
+    print(f"  G  Skill Consistency  {len(b_matched)}/{len(b_ok)} matches ({(len(b_matched)/len(b_ok)*100 if b_ok else 0):.1f}%)")
+    print(f"       mismatches: {len(b_mismatched)}, parse failed: {len(b_parse_failed)}")
+    if b_mismatched:
+        print("       Sample Mismatches (Stage 1 Plan != Stage 2 Inferred):")
+        for r in b_mismatched[:5]:
+            print(f"         - Stage 1: {r.get('stage1_skill')}  vs  Stage 2 Inferred: {r.get('inferred_skill')}")
+
     print(f"  V  verified           {len(v_ok)}/{n}")
     if v_ok:
         kept = sum(1 for r in v_ok if r.get("child_cell") == r["parent"])
         print(f"       still in the parent's cell: {kept}/{len(v_ok)}")
         cells = {r.get("child_cell") for r in v_ok}
+
         print(f"       distinct cells: {len(cells)}  {sorted(c for c in cells if c)}")
 
     fails = {}

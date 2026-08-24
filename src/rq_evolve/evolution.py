@@ -38,6 +38,7 @@ from .prompts import (
     build_family_task,
     build_generator_task,
     parse_declared_labels,
+    parse_inferred_labels,
     parse_family_plan,
     judge_accepts,
     parse_judge_verdict,
@@ -388,6 +389,19 @@ class RQEvolver:
             key = f"status_{report.status}"
             status_counts[key] = status_counts.get(key, 0) + 1
 
+        # Self-consistency gate (stage 1 vs stage 2 label agreement).
+        s2_match = getattr(self, "_stage2_gate_match", 0)
+        s2_mismatch = getattr(self, "_stage2_gate_mismatch", 0)
+        s2_parse_fail = getattr(self, "_stage2_gate_parse_fail", 0)
+        s2_total = s2_match + s2_mismatch
+        stage2_gate_metrics = {
+            "stage2_gate_match": s2_match,
+            "stage2_gate_mismatch": s2_mismatch,
+            "stage2_gate_parse_fail": s2_parse_fail,
+        }
+        if s2_total:
+            stage2_gate_metrics["stage2_gate_match_rate"] = s2_match / s2_total
+
         result = {
             "outer_iteration": outer_iteration,
             "attempted": attempted,
@@ -401,6 +415,7 @@ class RQEvolver:
             **dispersion_metrics,
             **replay_metrics,
             **judge_metrics,
+            **stage2_gate_metrics,
             **status_counts,
             **stats,
         }
@@ -669,6 +684,11 @@ class RQEvolver:
         rather than asked of stage 2, because the ONE thing every variant of
         this prompt got wrong was the file's tail: whatever the parent's last
         two lines contained is what the child's contained, including nothing.
+
+        When ``stage2_skill_gate`` is enabled, stage 2's reply also carries
+        ``INFERRED_GROUP`` and ``INFERRED_SKILL`` -- a blind re-derivation of
+        the labels from the code the model just wrote.  If either disagrees
+        with stage 1's plan, the child is rejected before execution.
         """
         family_tasks = [
             build_family_task(
@@ -694,17 +714,65 @@ class RQEvolver:
         ]
         gen_replies = self.backend.mutate(gen_tasks) if gen_tasks else []
 
+        # Self-consistency gate counters, reported in _report_metrics.
+        gate_match = 0
+        gate_mismatch = 0
+        gate_parse_fail = 0
+        gate_active = self.evolution_config.stage2_skill_gate
+
         tasks = list(family_tasks)
         outputs: list[str | None] = [None] * len(parents)
         for (i, _parent, plan), reply in zip(live, gen_replies):
             source = extract_generator_code(reply or "")
             if source is None:
                 continue
+
+            # --- Self-Consistency Gate (SKILL only) ---
+            # Stage 2 outputs INFERRED_SKILL AFTER the code block.  Compare
+            # against stage 1's plan SKILL.  The comparison uses the raw reply
+            # (which still has the label line), not the extracted source.
+            if gate_active:
+                _inf_group, inf_skill = parse_inferred_labels(reply or "")
+                events_list = getattr(self, "events", None)
+                if inf_skill is None:
+                    gate_parse_fail += 1
+                    if events_list is not None:
+                        events_list.append({
+                            "event": "stage2_skill_gate_parse_fail",
+                            "parent_id": _parent.program_id,
+                            "plan_skill": plan["SKILL"],
+                            "inferred_skill": inf_skill,
+                        })
+                    # Parse failure: allow through (don't penalise a model that
+                    # wrote valid code but mangled the label format).
+                elif inf_skill == plan["SKILL"]:
+                    gate_match += 1
+                else:
+                    gate_mismatch += 1
+                    if events_list is not None:
+                        events_list.append({
+                            "event": "stage2_skill_gate_mismatch",
+                            "parent_id": _parent.program_id,
+                            "plan_skill": plan["SKILL"],
+                            "inferred_skill": inf_skill,
+                        })
+                    # Reject: the code the model wrote does not match the
+                    # skill the problem was supposed to require.
+                    continue
+
+
+
             outputs[i] = set_label_declarations(source, plan["GROUP"], plan["SKILL"])
             # The task carried downstream is the one whose reply a self-fix
             # would have to repair: the generator call, not the family call.
             tasks[i] = gen_tasks[live.index((i, _parent, plan))]
+
+        # Store gate counters for _report_metrics.
+        self._stage2_gate_match = gate_match
+        self._stage2_gate_mismatch = gate_mismatch
+        self._stage2_gate_parse_fail = gate_parse_fail
         return tasks, outputs
+
 
     def _make_child_from_output(
         self,

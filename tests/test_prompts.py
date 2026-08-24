@@ -106,7 +106,7 @@ def test_the_parents_cell_never_reaches_either_stage():
     task = build_generator_task(parent, _plan())
     gen_user, gen_system = task.messages[1]["content"], task.messages[0]["content"]
     assert 'GROUP = "' not in gen_user and 'SKILL = "' not in gen_user
-    assert "Do not write GROUP or SKILL lines" in gen_system
+    assert "Do not write GROUP or SKILL assignment lines" in gen_system
 
 
 def test_the_parent_source_is_inlined_in_stage_two():
@@ -136,21 +136,24 @@ def test_both_stages_carry_the_single_operator():
         assert task.stage == stage
 
 
-def test_the_system_prompts_are_read_from_disk_verbatim():
-    """Verbatim really means verbatim: compare against the file, not a phrase."""
+def test_the_system_prompts_are_properly_rendered():
+    """Stage 1 is verbatim; Stage 2 renders skill definitions."""
     from rq_evolve.prompts import (
         FAMILY_SYSTEM_PROMPT_FILE,
         GENERATOR_SYSTEM_PROMPT_FILE,
         PROMPT_TEMPLATE_DIR,
     )
 
-    for filename, task in (
-        (FAMILY_SYSTEM_PROMPT_FILE, build_family_task(_program())),
-        (GENERATOR_SYSTEM_PROMPT_FILE, build_generator_task(_program(), _plan())),
-    ):
-        on_disk = (PROMPT_TEMPLATE_DIR / filename).read_text()
-        assert task.messages[0]["content"] == on_disk
-        assert "$" not in on_disk, "the system turn is not templated"
+    family_task = build_family_task(_program())
+    on_disk_family = (PROMPT_TEMPLATE_DIR / FAMILY_SYSTEM_PROMPT_FILE).read_text()
+    assert family_task.messages[0]["content"] == on_disk_family
+
+    gen_task = build_generator_task(_program(), _plan())
+    gen_system = gen_task.messages[0]["content"]
+    assert "$" not in gen_system
+    assert "INFERRED_SKILL:" in gen_system
+    for skill in SKILLS:
+        assert f"{skill}:" in gen_system
 
 
 def test_stage_one_asks_for_its_labelled_lines():
@@ -312,3 +315,20 @@ def test_labels_outside_the_vocabulary_are_not_invented():
 
     assert parse_declared_labels("GROUP: arithmetic\nSKILL: substitution") == (None, None)
     assert parse_declared_labels("no labels at all") == (None, None)
+
+
+def test_parse_inferred_labels_extracts_skill():
+    """Stage 2 outputs INFERRED_SKILL after the code block."""
+    from rq_evolve.prompts import parse_inferred_labels
+
+    reply = "```python\ndef generate(seed):\n    pass\n```\nINFERRED_SKILL: casework\n"
+    assert parse_inferred_labels(reply) == (None, "casework")
+
+    # With decoration and case
+    assert parse_inferred_labels("INFERRED_SKILL: `induction`") == (None, "induction")
+    assert parse_inferred_labels("INFERRED_SKILL: \"invariant\"") == (None, "invariant")
+    assert parse_inferred_labels("INFERRED_SKILL: extremal_principle") == (None, "extremal_principle")
+
+    # Invalid / missing
+    assert parse_inferred_labels("INFERRED_SKILL: unknown_technique") == (None, None)
+    assert parse_inferred_labels("```python\ncode\n```") == (None, None)

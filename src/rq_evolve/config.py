@@ -119,6 +119,14 @@ class EvolutionConfig:
     # invention and collapses to one child per parent at 0.
     generator_temperature: float = 0.0
     generator_top_p: float = 1.0
+    # Self-consistency gate: when two_stage_mutation is active, stage 2 is
+    # asked to output INFERRED_GROUP and INFERRED_SKILL after the code block.
+    # When this flag is True, a child whose inferred labels disagree with
+    # stage 1's plan is rejected before execution -- catching "implementation
+    # drift" where the code is easier to write than the problem is to solve.
+    # The gate is a zero-cost filter: it reuses the stage-2 reply and adds
+    # no extra LLM call.
+    stage2_skill_gate: bool = True
     # The judge is a measurement, so it is read greedily: any sampling noise
     # here shows up as label disagreement that the generator did not cause.
     judge_temperature: float = 0.0

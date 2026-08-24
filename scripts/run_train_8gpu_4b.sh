@@ -11,7 +11,7 @@
 set -uo pipefail
 
 ROOT=/data1/yhoon113/R-Q-Evolve
-CONFIG=${1:-${CONFIG:-configs/rq_evolve_8b_8gpu.yaml}}
+CONFIG=${1:-${CONFIG:-configs/rq_evolve_4b_8gpu.yaml}}
 cd "$ROOT"
 [ -f "$CONFIG" ] || { echo "[8gpu] no such config: $CONFIG" >&2; exit 1; }
 NAME=$(basename "$CONFIG" .yaml)
@@ -20,30 +20,15 @@ mkdir -p "$LOGDIR"
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
 
-# sm_120 (RTX PRO 6000 Blackwell) needs the cu128 stack; azr-bw's cu126 build
-# dies with "no kernel image is available". Activate rather than prepend PATH so
-# ninja/nvcc come with it -- verl JIT-compiles at startup.
-# `set -u` off across the activate: the env's binutils hook reads ADDR2LINE and
-# friends before setting them, so an unset-variable abort here is conda's bug,
-# not ours.
 set +u
 source /data1/yhoon113/miniforge3/etc/profile.d/conda.sh
-# Env name is per-machine: the Blackwell box has azr-bw-blackwell, this A100
-# host carries verl 0.7.1 in `vllm`. Override with CONDA_ENV rather than
-# editing this line, so the launcher stays the same file on both.
-conda activate "${CONDA_ENV:-azr-bw-blackwell}" || { echo "[8gpu] conda activate ${CONDA_ENV:-azr-bw-blackwell} failed" >&2; exit 1; }
+conda activate "${CONDA_ENV:-vllm}" || { echo "[8gpu] conda activate failed" >&2; exit 1; }
+export CUDA_HOME=/data1/yhoon113/cuda-12.8
+export PATH=/data1/yhoon113/cuda-12.8/bin:$PATH
+export LD_LIBRARY_PATH=/data1/yhoon113/cuda-12.8/lib64:${LD_LIBRARY_PATH:-}
+export LD_PRELOAD=/data1/yhoon113/miniforge3/envs/vllm/lib/libgomp.so.1
 set -u
 
-# verl aborts on a device-count mismatch rather than quietly using fewer GPUs,
-# but it aborts AFTER Ray and the model shards are up, which costs two minutes.
-want=$(tr ',' '\n' <<< "$CUDA_VISIBLE_DEVICES" | grep -c .)
-have=$(grep -oP '^\s+n_gpus_per_node:\s*\K\d+' "$CONFIG")
-if [[ "$want" != "$have" ]]; then
-  echo "[8gpu] CUDA_VISIBLE_DEVICES names $want devices, $CONFIG sets $have" >&2
-  exit 1
-fi
-
-# A killed run can leak a worker still holding ~40 GiB; the next launch then
 # OOMs during weight sync, minutes in, with a traceback that blames the wrong
 # thing. Refuse to start instead.
 leaked=$(nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader)

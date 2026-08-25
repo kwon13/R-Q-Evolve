@@ -398,6 +398,12 @@ class RQEvolver:
             "stage2_gate_match": s2_match,
             "stage2_gate_mismatch": s2_mismatch,
             "stage2_gate_parse_fail": s2_parse_fail,
+            # Flattened so one JSONL line carries the whole 8x8 matrix.
+            "stage2_confusion": {
+                f"{plan}->{inferred}": n
+                for (plan, inferred), n in
+                getattr(self, "_stage2_gate_confusion", {}).items()
+            },
         }
         if s2_total:
             stage2_gate_metrics["stage2_gate_match_rate"] = s2_match / s2_total
@@ -441,11 +447,17 @@ class RQEvolver:
         ("Evolution Candidate State") for the diagram and full status vocabulary.
         """
         parents: list[ProblemProgram] = []
+        targets: list[tuple[str, str] | None] = []
         for _ in range(batch_size):
             parent = self.archive.sample_parent()
             if parent is None:
                 return [CandidateReport(status="no_parent", op="none")]
             parents.append(parent)
+            targets.append(
+                self.archive.sample_target_cell()
+                if self.evolution_config.target_cell_injection
+                else None
+            )
 
         # One vLLM wake for the whole batch: the mutation generate and every
         # solver generate run while vLLM is awake; entropy (actor forward) is
@@ -458,7 +470,7 @@ class RQEvolver:
                     "templates (mutation_*_prompt.txt); set "
                     "evolution.two_stage_mutation: true"
                 )
-            tasks, outputs = self._mutate_in_two_stages(parents)
+            tasks, outputs = self._mutate_in_two_stages(parents, targets)
             entries: list[dict] = []
             # Repeats also happen WITHIN one batch: 32 parents are drawn with
             # replacement from a ~10-cell archive and mutation is near
@@ -469,7 +481,8 @@ class RQEvolver:
             # reported against it. They would have produced the same verdict:
             # the source is byte-identical and the judge is deterministic.
             in_flight: set[str] = set()
-            for task, output in zip(tasks, outputs):
+            gate_rejected = getattr(self, "_stage2_gate_rejected", {}) or {}
+            for idx, (task, output) in enumerate(zip(tasks, outputs)):
                 child, inst, reason, source = self._make_child_from_output(
                     task, output, in_flight=in_flight
                 )
@@ -524,6 +537,25 @@ class RQEvolver:
                                 if child
                                 else [],
                             }
+                        }
+                    )
+                elif idx in gate_rejected:
+                    # The stage-2 self-consistency gate dropped this child, so
+                    # `output` is None by construction. Reporting it as
+                    # "mutation_failed: empty model output" is what hid the
+                    # gate's real cost: 3,573 of the 4B run's 3,863
+                    # mutation_failed candidates were this, not a silent model.
+                    planned, inferred = gate_rejected[idx]
+                    entries.append(
+                        {
+                            "report": CandidateReport(
+                                status="stage2_gate_rejected",
+                                op=task.op,
+                                reason=(
+                                    f"stage-2 re-derived SKILL {inferred!r} "
+                                    f"from its own code; stage 1 planned {planned!r}"
+                                ),
+                            )
                         }
                     )
                 else:
@@ -671,8 +703,16 @@ class RQEvolver:
                     report.child_id, f"{report.status}: {report.reason}"
                 )
 
-    def _mutate_in_two_stages(self, parents):
-        """Problem first, program second: two batched calls instead of one.
+    def _mutate_in_two_stages(self, parents, targets=None):
+        """Problem first, program second: two calls instead of one.
+
+        The two stages are PIPELINED per parent when the backend supports it
+        (``mutate_pipelined``): a parent's stage-2 generator call goes out the
+        moment its own stage-1 plan lands, rather than after the slowest plan
+        in the batch. Both stages are also output-capped
+        (``evolution.family_max_output_tokens`` / ``generator_max_output_tokens``)
+        -- uncapped, each stage ran to data.max_response_length and a 32-parent
+        batch paid its worst sample twice per iteration.
 
         Returns ``(tasks, outputs)`` in the shape the single-call path returns,
         so everything downstream -- retries, judging, scoring, reporting -- is
@@ -690,39 +730,99 @@ class RQEvolver:
         the labels from the code the model just wrote.  If either disagrees
         with stage 1's plan, the child is rejected before execution.
         """
+        cfg = self.evolution_config
+        rotate = cfg.rotate_few_shots
+        targets = targets or [None] * len(parents)
         family_tasks = [
             build_family_task(
                 parent,
-                temperature=self.evolution_config.code_temperature,
-                top_p=self.evolution_config.code_top_p,
+                temperature=cfg.code_temperature,
+                top_p=cfg.code_top_p,
+                max_output_tokens=cfg.family_max_output_tokens,
+                target_cell=target,
+                rotate_shots=rotate,
             )
-            for parent in parents
+            for parent, target in zip(parents, targets)
         ]
-        family_replies = self.backend.mutate(family_tasks) if family_tasks else []
 
-        plans = [parse_family_plan(reply) for reply in family_replies]
+        def _stage_two(index: int, family_reply: str | None):
+            """Stage-1 reply -> (plan, stage-2 task), or (None, None)."""
+            plan = parse_family_plan(family_reply)
+            if plan is None:
+                return None, None
+            return plan, build_generator_task(
+                parents[index], plan,
+                temperature=cfg.generator_temperature,
+                top_p=cfg.generator_top_p,
+                max_output_tokens=cfg.generator_max_output_tokens,
+                rotate_shots=rotate,
+            )
+
+        plans: list[dict | None] = [None] * len(parents)
+        gen_task_by_i: dict[int, object] = {}
+        gen_reply_by_i: dict[int, str | None] = {}
+
+        # Preferred path: no barrier between the stages. A parent's stage-2 call
+        # is submitted the moment ITS stage-1 reply lands, so the batch never
+        # waits for the slowest plan before any generator starts. The blocking
+        # two-call path below is the fallback for backends without it (tests,
+        # dry runs) and is otherwise identical.
+        pipelined = (
+            family_tasks
+            and hasattr(self.backend, "mutate_pipelined")
+            and getattr(self.backend, "supports_pipelined_mutation", lambda: False)()
+        )
+        if pipelined:
+            stage_two_tasks: dict[int, object] = {}
+
+            def _build_stage_two(index: int, family_reply: str | None):
+                plan, task = _stage_two(index, family_reply)
+                plans[index] = plan
+                if task is not None:
+                    stage_two_tasks[index] = task
+                return task
+
+            _family_replies, gen_reply_by_i = self.backend.mutate_pipelined(
+                family_tasks, _build_stage_two
+            )
+            gen_task_by_i = stage_two_tasks
+        elif family_tasks:
+            family_replies = self.backend.mutate(family_tasks)
+            gen_tasks = []
+            order = []
+            for index, reply in enumerate(family_replies):
+                plan, task = _stage_two(index, reply)
+                plans[index] = plan
+                if task is not None:
+                    order.append(index)
+                    gen_tasks.append(task)
+            gen_task_by_i = dict(zip(order, gen_tasks))
+            gen_replies = self.backend.mutate(gen_tasks) if gen_tasks else []
+            gen_reply_by_i = dict(zip(order, gen_replies))
+
         self.stage_one_parsed = sum(1 for plan in plans if plan is not None)
-
-        live = [(i, parents[i], plan) for i, plan in enumerate(plans) if plan]
-        gen_tasks = [
-            build_generator_task(
-                parent, plan,
-                temperature=self.evolution_config.generator_temperature,
-                top_p=self.evolution_config.generator_top_p,
-            )
-            for _, parent, plan in live
-        ]
-        gen_replies = self.backend.mutate(gen_tasks) if gen_tasks else []
 
         # Self-consistency gate counters, reported in _report_metrics.
         gate_match = 0
         gate_mismatch = 0
         gate_parse_fail = 0
+        # (stage-1 plan SKILL -> stage-2 INFERRED_SKILL). The three counters
+        # above say HOW MANY children the gate killed; only this says WHICH
+        # labels it is unable to recover. Measured offline on 386 gated
+        # children, `invariant` came back 4 times and `construction` 4 -- the
+        # gate is largely reading stage-2's own worked examples, which
+        # demonstrate 4 of the 8 skills. That is invisible in a scalar.
+        gate_confusion: dict[tuple[str, str], int] = {}
         gate_active = self.evolution_config.stage2_skill_gate
 
         tasks = list(family_tasks)
         outputs: list[str | None] = [None] * len(parents)
-        for (i, _parent, plan), reply in zip(live, gen_replies):
+        gate_rejected: dict[int, tuple[str, str]] = {}
+        for i, plan in enumerate(plans):
+            if plan is None:
+                continue
+            _parent = parents[i]
+            reply = gen_reply_by_i.get(i)
             source = extract_generator_code(reply or "")
             if source is None:
                 continue
@@ -734,6 +834,9 @@ class RQEvolver:
             if gate_active:
                 _inf_group, inf_skill = parse_inferred_labels(reply or "")
                 events_list = getattr(self, "events", None)
+                gate_confusion[(plan["SKILL"], inf_skill or "PARSE_FAIL")] = (
+                    gate_confusion.get((plan["SKILL"], inf_skill or "PARSE_FAIL"), 0) + 1
+                )
                 if inf_skill is None:
                     gate_parse_fail += 1
                     if events_list is not None:
@@ -757,7 +860,11 @@ class RQEvolver:
                             "inferred_skill": inf_skill,
                         })
                     # Reject: the code the model wrote does not match the
-                    # skill the problem was supposed to require.
+                    # skill the problem was supposed to require. Recorded so the
+                    # report says "the gate killed it", not "the model returned
+                    # nothing" -- that mislabel hid 3,573 of the 4B run's 3,863
+                    # `mutation_failed` candidates behind "empty model output".
+                    gate_rejected[i] = (plan["SKILL"], inf_skill)
                     continue
 
 
@@ -765,12 +872,14 @@ class RQEvolver:
             outputs[i] = set_label_declarations(source, plan["GROUP"], plan["SKILL"])
             # The task carried downstream is the one whose reply a self-fix
             # would have to repair: the generator call, not the family call.
-            tasks[i] = gen_tasks[live.index((i, _parent, plan))]
+            tasks[i] = gen_task_by_i[i]
 
         # Store gate counters for _report_metrics.
         self._stage2_gate_match = gate_match
         self._stage2_gate_mismatch = gate_mismatch
         self._stage2_gate_parse_fail = gate_parse_fail
+        self._stage2_gate_confusion = gate_confusion
+        self._stage2_gate_rejected = gate_rejected
         return tasks, outputs
 
 
@@ -1488,7 +1597,7 @@ class RQEvolver:
         Unlike the archive (latest snapshot only), this is append-only, so the
         full evolution trajectory is preserved: per-iteration metrics plus every
         candidate report. ``CandidateReport.status`` is one of: no_parent,
-        mutation_failed, no_code, verify_failed, judge_rejected,
+        mutation_failed, stage2_gate_rejected, no_code, verify_failed, judge_rejected,
         judge_input_too_large, rollout_failed, s_hat_zero, rq_zero,
         inserted, rejected_non_elite (each with op, rq_score, s_hat,
         u_score; see docs/PIPELINE.md "Evolution Candidate State").

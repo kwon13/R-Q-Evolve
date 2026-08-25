@@ -100,6 +100,14 @@ evolution:
   # nothing to explore, and sampling only adds ways to mis-write it.
   generator_temperature: 0.0
   generator_top_p: 1.0
+  # Output caps for the two mutation calls. Unset, both inherit
+  # data.max_response_length (5000) -- the 4B 8-GPU run's stage-1/stage-2
+  # replies had p50 171/301 tokens, so a runaway cost ~20x the median reply.
+  # 2048 is the ceiling rq_output/gate_experiment ran stage 2 under, i.e. the
+  # one every prompt-side measurement was taken at. See EvolutionConfig in
+  # src/rq_evolve/config.py.
+  family_max_output_tokens: 2048
+  generator_max_output_tokens: 2048
 
 training_data:
   # The training batch IS the re-scoring rollouts; there is no separate
@@ -134,7 +142,12 @@ math_eval:
 async_rollout:
   streaming_enabled: true
   chunk_size: 1
-  max_in_flight_chunks: 8
+  # 32, not 8. At 8 this was the binding constraint on the run, not a margin:
+  # max_pending_chunks read exactly 8 in all 243 iterations of the 4B 8-GPU run,
+  # i.e. 80 sequences over 8 vLLM engines and 1,890 tok/s aggregate. See
+  # AsyncRolloutConfig.max_in_flight_chunks in src/rq_evolve/config.py for the
+  # concurrency/throughput measurement and the KV-cache budget behind 32.
+  max_in_flight_chunks: 32
   request_timeout_s: 900
   max_retries: 1
   verify_workers: 4
@@ -206,6 +219,11 @@ verl_config:
 
     ref:
       log_prob_micro_batch_size: null
+      # Deliberately still 2 while the 4B arm runs at 4. Same measurement
+      # applies (the log_prob passes are ~a third of training time), but 8B
+      # carries 2x the parameters and 1.6x the hidden size into the same
+      # forward, next to a resident vLLM at 0.45 utilization. Raise this only
+      # after the 4B run at 4 has survived a full 256 steps.
       log_prob_micro_batch_size_per_gpu: 2
       fsdp_config:
         param_offload: true

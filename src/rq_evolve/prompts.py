@@ -1,4 +1,5 @@
 import os
+import random
 import re
 from dataclasses import dataclass
 from functools import lru_cache
@@ -452,6 +453,119 @@ FAMILY_SYSTEM_PROMPT_FILE = "diff_problem_system_prompt.txt"
 FAMILY_USER_PROMPT_FILE = "diff_problem_user_prompt.txt"
 GENERATOR_SYSTEM_PROMPT_FILE = "gen_program_system_prompt.txt"
 GENERATOR_USER_PROMPT_FILE = "gen_program_user_prompt.txt"
+# Four authored WORKED EXAMPLEs for the skills the shipped stage-2 prompt never
+# demonstrates. Its own four answer INFERRED_SKILL with transformation /
+# extremal_principle / counting / casework, and measured over 376 gated children
+# those same four absorb 86.7% of everything stage 2 infers -- `invariant` came
+# back 4 times in 376 and `construction` 4. The gate is therefore reading its own
+# demo set more than the code. With the pool at eight, invariant's pass rate goes
+# 2% -> 17% and construction's 46% -> 43-71%.
+GENERATOR_EXTRA_EXAMPLES_FILE = "gen_program_extra_examples.txt"
+
+# --- few-shot rotation ------------------------------------------------------
+#
+# The stage-1 prompt's eight EXAMPLE blocks are fixed, and the policy copies them:
+# 20.4% of children on the base model, 25.6% after 224 RL steps, with EXAMPLE 8
+# (Mantel) alone accounting for 12-16% and holding a MAP cell outright. Showing a
+# random three of the eight per call breaks that attractor -- copying falls to
+# 10%, and no single example exceeds 2.5%. Stage-2's examples are NOT copied
+# (0.3%): it transcribes a fixed specification, so there is nothing to invent and
+# nothing to plagiarise. Its rotation buys label coverage instead.
+#
+# Neither rotation looks at the target cell. A stage-2 pool that always contained
+# the target skill's example would leak the answer into INFERRED_SKILL, and the
+# whole value of that gate is that it is a BLIND re-derivation. Measured both
+# ways: target-blind selection is not worse, it is slightly better (invariant
+# 17% vs 14%, 20 cells reached vs 17).
+_EXAMPLE_HEAD = re.compile(r"^EXAMPLE \d+ — (.+)$", re.M)
+_WORKED_HEAD = re.compile(r"^WORKED EXAMPLE \d+$", re.M)
+_SKETCH_HEAD = re.compile(
+    r"^(" + "|".join(SKILLS) + r") -- ", re.M
+)
+FAMILY_SHOTS_SHOWN = 3
+GENERATOR_SHOTS_SHOWN = 4
+
+
+def _split_family_system(text: str):
+    """(head, [example blocks], tail) for diff_problem_system_prompt.txt."""
+    hits = list(_EXAMPLE_HEAD.finditer(text))
+    if not hits:
+        return text, [], ""
+    head = text[: hits[0].start()]
+    blocks = []
+    for i, m in enumerate(hits):
+        end = hits[i + 1].start() if i + 1 < len(hits) else None
+        blocks.append(text[m.start(): end] if end else text[m.start():])
+    cut = blocks[-1].find("Now create a child family")
+    tail = blocks[-1][cut:] if cut >= 0 else ""
+    if cut >= 0:
+        blocks[-1] = blocks[-1][:cut]
+    return head, blocks, tail
+
+
+def _split_generator_system(text: str):
+    """(head, skill sketches, mid, worked examples, tail) for the stage-2 prompt."""
+    sm = list(_SKETCH_HEAD.finditer(text))
+    wm = list(_WORKED_HEAD.finditer(text))
+    if not sm or not wm:
+        return text, [], "", [], ""
+    head = text[: sm[0].start()]
+    sketches = []
+    for i, m in enumerate(sm):
+        end = sm[i + 1].start() if i + 1 < len(sm) else wm[0].start()
+        sketches.append(text[m.start(): end])
+    mid = text[sm[-1].start(): wm[0].start()][len(sketches[-1]):]
+    worked = []
+    for i, m in enumerate(wm):
+        end = wm[i + 1].start() if i + 1 < len(wm) else None
+        worked.append(text[m.start(): end] if end else text[m.start():])
+    cut = worked[-1].find("After the closing ```")
+    tail = worked[-1][cut:] if cut >= 0 else ""
+    if cut >= 0:
+        worked[-1] = worked[-1][:cut]
+    return head, sketches, mid, worked, tail
+
+
+def _extra_worked_blocks() -> list[str]:
+    try:
+        text = _load_template(GENERATOR_EXTRA_EXAMPLES_FILE)
+    except FileNotFoundError:
+        return []
+    hits = list(_WORKED_HEAD.finditer(text))
+    out = []
+    for i, m in enumerate(hits):
+        end = hits[i + 1].start() if i + 1 < len(hits) else None
+        out.append(text[m.start(): end] if end else text[m.start():])
+    return out
+
+
+def _renumber(blocks, pattern, label):
+    """Rewrite each block's ordinal so a rotated set still reads 1..N.
+
+    ``_EXAMPLE_HEAD`` captures the block's title ("EXAMPLE 3 - CONTRADICTION");
+    that has to survive, because the title is the only place stage 1 is told
+    which SKILL the block demonstrates.
+    """
+    out = []
+    for i, block in enumerate(blocks, 1):
+        def repl(m, i=i):
+            title = m.group(1) if m.re.groups else None
+            return f"{label} {i} \u2014 {title}" if title else f"{label} {i}"
+        out.append(pattern.sub(repl, block, count=1))
+    return out
+
+
+TARGET_CELL_BLOCK = """
+TARGET NICHE (the archive cell this child must land in):
+TARGET GROUP: $group
+TARGET SKILL: $skill
+
+The CHILD FAMILY you invent must belong to TARGET GROUP, and the decisive
+reasoning move of its shortest clean solution must be TARGET SKILL. Write the
+GROUP and SKILL lines as exactly these two values. If the parent family cannot
+be pushed into that niche, invent the child from scratch -- the niche matters,
+the parent does not.
+"""
 
 # What a stage-1 reply must carry for the child to be usable.
 FAMILY_KEYS = ("STRUCTURAL MUTATION", "CHILD FAMILY", "GROUP", "SKILL")
@@ -520,6 +634,10 @@ def build_family_task(
     *,
     temperature: float | None = None,
     top_p: float | None = None,
+    max_output_tokens: int | None = None,
+    target_cell: tuple[str, str] | None = None,
+    rotate_shots: bool = False,
+    rng: random.Random | None = None,
 ) -> MutationTask:
     """Stage 1: mutate the parent's problem FAMILY, in prose, with no program.
 
@@ -532,6 +650,15 @@ def build_family_task(
     instance = _parent_problem_text(parent)
     template = extract_problem_template(parent.source_code) or instance
     system_prompt = _load_template(FAMILY_SYSTEM_PROMPT_FILE)
+    rng = rng or random
+    if rotate_shots:
+        head, blocks, tail = _split_family_system(system_prompt)
+        if len(blocks) > FAMILY_SHOTS_SHOWN:
+            blocks = rng.sample(blocks, FAMILY_SHOTS_SHOWN)
+        else:
+            blocks = list(blocks)
+            rng.shuffle(blocks)
+        system_prompt = head + "".join(_renumber(blocks, _EXAMPLE_HEAD, "EXAMPLE")) + tail
     user_prompt = _render_template(
         _load_template(FAMILY_USER_PROMPT_FILE),
         {
@@ -541,6 +668,11 @@ def build_family_task(
             "allowed_skills": _load_definitions(SKILL_DEFINITIONS_FILE),
         },
     )
+    if target_cell is not None:
+        user_prompt = user_prompt + "\n" + _render_template(
+            TARGET_CELL_BLOCK,
+            {"group": target_cell[0], "skill": target_cell[1]},
+        )
     return MutationTask(
         op=MUTATION_OP,
         prompt=f"{system_prompt}\n\n{user_prompt}",
@@ -552,6 +684,7 @@ def build_family_task(
         stage="family",
         temperature=temperature,
         top_p=top_p,
+        max_output_tokens=max_output_tokens,
     )
 
 
@@ -561,6 +694,9 @@ def build_generator_task(
     *,
     temperature: float | None = None,
     top_p: float | None = None,
+    max_output_tokens: int | None = None,
+    rotate_shots: bool = False,
+    rng: random.Random | None = None,
 ) -> MutationTask:
     """Stage 2: write the generator for the fixed child family.
 
@@ -577,12 +713,27 @@ def build_generator_task(
     when they disagree, catching implementation drift where the code is
     easier to write than the problem is to solve.
     """
+    rng = rng or random
+    skill_definitions = _load_definitions(SKILL_DEFINITIONS_FILE)
+    if rotate_shots:
+        lines = [l for l in skill_definitions.strip().split("\n") if l.strip()]
+        rng.shuffle(lines)
+        skill_definitions = "\n".join(lines)
     system_prompt = _render_template(
         _load_template(GENERATOR_SYSTEM_PROMPT_FILE),
-        {
-            "skill_definitions": _load_definitions(SKILL_DEFINITIONS_FILE),
-        },
+        {"skill_definitions": skill_definitions},
     )
+    if rotate_shots:
+        head, sketches, mid, worked, tail = _split_generator_system(system_prompt)
+        if worked:
+            pool = list(worked) + _extra_worked_blocks()
+            shown = (rng.sample(pool, GENERATOR_SHOTS_SHOWN)
+                     if len(pool) > GENERATOR_SHOTS_SHOWN else list(pool))
+            rng.shuffle(shown)
+            rng.shuffle(sketches)
+            system_prompt = (head + "".join(sketches) + mid
+                             + "".join(_renumber(shown, _WORKED_HEAD, "WORKED EXAMPLE"))
+                             + tail)
     user_prompt = _render_template(
         _load_template(GENERATOR_USER_PROMPT_FILE),
         {
@@ -605,5 +756,6 @@ def build_generator_task(
         stage="generator",
         temperature=temperature,
         top_p=top_p,
+        max_output_tokens=max_output_tokens,
     )
 

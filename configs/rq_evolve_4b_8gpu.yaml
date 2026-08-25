@@ -102,6 +102,14 @@ evolution:
   # nothing to explore, and sampling only adds ways to mis-write it.
   generator_temperature: 0.0
   generator_top_p: 1.0
+  # Output caps for the two mutation calls. Unset, both inherit
+  # data.max_response_length (5000) -- the 4B 8-GPU run's stage-1/stage-2
+  # replies had p50 171/301 tokens, so a runaway cost ~20x the median reply.
+  # 2048 is the ceiling rq_output/gate_experiment ran stage 2 under, i.e. the
+  # one every prompt-side measurement was taken at. See EvolutionConfig in
+  # src/rq_evolve/config.py.
+  family_max_output_tokens: 2048
+  generator_max_output_tokens: 2048
 
 training_data:
   # The training batch IS the re-scoring rollouts; there is no separate
@@ -136,7 +144,12 @@ math_eval:
 async_rollout:
   streaming_enabled: true
   chunk_size: 1
-  max_in_flight_chunks: 8
+  # 32, not 8. At 8 this was the binding constraint on the run, not a margin:
+  # max_pending_chunks read exactly 8 in all 243 iterations of the 4B 8-GPU run,
+  # i.e. 80 sequences over 8 vLLM engines and 1,890 tok/s aggregate. See
+  # AsyncRolloutConfig.max_in_flight_chunks in src/rq_evolve/config.py for the
+  # concurrency/throughput measurement and the KV-cache budget behind 32.
+  max_in_flight_chunks: 32
   request_timeout_s: 900
   max_retries: 1
   verify_workers: 4
@@ -204,7 +217,20 @@ verl_config:
 
     ref:
       log_prob_micro_batch_size: null
-      log_prob_micro_batch_size_per_gpu: 2
+      # 4, not 2. The two log_prob passes are pure forward with no grad and no
+      # optimizer state, and they cost 2,388 s of the 4B 8-GPU run's 7,335 s of
+      # training time (ref 1,504 s + old_log_prob 884 s, from timing_s/* in
+      # rq_output/rq_evolve_4b_8gpu_logs). The 28.4 GB the run peaked at
+      # (perf/max_memory_reserved_gb) is the update_actor BACKWARD, not this
+      # pass, so the headroom next to vLLM's resident 0.38 x 80 GB is larger
+      # here than that number suggests.
+      #
+      # This is the one change in this pass that can OOM rather than just run
+      # slower, and the file already records a backward OOM at micro-batch 4
+      # when another user held 18 GiB on GPU 0. Revert BOTH of these to 2
+      # first if a run dies in compute_log_prob; it is worth ~3% of wall clock,
+      # nothing depends on it, and the machine is shared.
+      log_prob_micro_batch_size_per_gpu: 4
       fsdp_config:
         param_offload: true
 
@@ -226,7 +252,9 @@ verl_config:
       free_cache_engine: false
       enable_sleep_mode: false
       log_prob_micro_batch_size: null
-      log_prob_micro_batch_size_per_gpu: 2
+      # 4: the actor-side old_log_prob recompute. See the ref block above for
+      # the measurement and the revert condition -- these two move together.
+      log_prob_micro_batch_size_per_gpu: 4
 
   # Inert under algorithm.adv_estimator: grpo -- verl's need_critic() returns
   # False for anything but gae when critic.enable is unset, so no critic worker

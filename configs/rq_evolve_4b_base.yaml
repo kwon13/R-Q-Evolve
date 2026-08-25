@@ -80,7 +80,7 @@ math_eval:
 async_rollout:
   streaming_enabled: true
   chunk_size: 1
-  max_in_flight_chunks: 8
+  max_in_flight_chunks: 32
   request_timeout_s: 900
   max_retries: 1
   verify_workers: 4

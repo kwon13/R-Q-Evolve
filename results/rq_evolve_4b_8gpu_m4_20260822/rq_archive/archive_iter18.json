@@ -1,0 +1,353 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 8,
+      "total_niches": 48,
+      "coverage": 0.16666666666666666,
+      "group_coverage": 1.0,
+      "skill_coverage": 1.0,
+      "mean_rq": 0.03428412089771073,
+      "max_rq": 0.08288292475044727,
+      "total_insertions": 160,
+      "total_replacements": 8,
+      "total_selections": 576
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\n\ndef _is_prime(n):\n    if n < 2:\n        return False\n    if n % 2 == 0:\n        return n == 2\n    d = 3\n    while d * d <= n:\n        if n % d == 0:\n            return False\n        d += 2\n    return True\n\n\ndef _smallest_quadratic_nonresidue(p):\n    for g in range(2, p):\n        if pow(g, (p - 1) // 2, p) == p - 1:\n            return g\n    raise ValueError(\"no quadratic nonresidue found\")\n\n\ndef _crt_mod_3_p(r3, rp, p):\n    # Solve x ≡ r3 (mod 3), x ≡ rp (mod p).\n    # Since p is an odd prime different from 3, 3 is invertible modulo p.\n    t = ((rp - r3) * pow(3, -1, p)) % p\n    x = r3 + 3 * t\n    return 3 * p if x == 0 else x\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Small primes on purpose: the reasoning is the three residue classes\n    # mod 3 and one CRT lift each, and a larger p adds arithmetic without\n    # adding any of that.\n    primes = [p for p in range(5, 20) if _is_prime(p)]\n    p = rng.choice(primes)\n    a = rng.randint(2, p - 2)\n    g = _smallest_quadratic_nonresidue(p)\n\n    # Case 1: x ≡ 0 (mod 3).\n    # Then the additional condition is linear: x ≡ a (mod p),\n    # giving exactly one solution modulo 3p.\n    x0 = _crt_mod_3_p(0, a, p)\n\n    # Case 2: x ≡ 1 (mod 3).\n    # x^2 ≡ 4 (mod p) splits into x ≡ 2 or -2 (mod p),\n    # so two separate CRT solutions occur.\n    x1 = _crt_mod_3_p(1, 2, p)\n    x2 = _crt_mod_3_p(1, p - 2, p)\n\n    # Case 3: x ≡ 2 (mod 3).\n    # Since g is a quadratic nonresidue modulo p,\n    # x^2 ≡ g (mod p) has no solutions.\n    assert pow(g, (p - 1) // 2, p) == p - 1\n\n    answer = x0 + x1 + x2\n\n    # Independent route: inspect every integer in the stated range and apply\n    # exactly the condition belonging to its residue class modulo 3.\n    check = 0\n    for x in range(1, 3 * p + 1):\n        if x % 3 == 0:\n            valid = x % p == a\n        elif x % 3 == 1:\n            valid = pow(x, 2, p) == 4\n        else:\n            valid = pow(x, 2, p) == g\n\n        if valid:\n            check += x\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let p = {p}, let a = {a}, and let g = {g}, where g is a quadratic \"\n        f\"nonresidue modulo p. For integers x with 1 <= x <= {3 * p}, call x \"\n        f\"admissible as follows: if x is congruent to 0 modulo 3, require \"\n        f\"x congruent to a modulo p; if x is congruent to 1 modulo 3, require \"\n        f\"x^2 congruent to 4 modulo p; and if x is congruent to 2 modulo 3, \"\n        f\"require x^2 congruent to g modulo p. Find the sum of all admissible \"\n        f\"integers x. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"number_theory\"\nSKILL = \"casework\"",
+      "program_id": "8c1c896011b0",
+      "parent_id": "8c1c896011b0",
+      "generation": 5,
+      "s_hat": 0.06666666666666667,
+      "u_score": 0.15767124084134898,
+      "rq_score": 0.0069780861337979646,
+      "niche_group": 0,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "casework",
+        "judge": {
+          "accepted": true,
+          "reason": "",
+          "group": "number_theory",
+          "skill": "casework",
+          "group_evidence": "The problem involves integers x within a specific range and conditions based on congruences modulo 3 and p, which are related to quadratic residues and nonresidues.",
+          "skill_witness": "The solution requires handling different cases based on the value of x modulo 3, each with its own set of conditions.",
+          "closest_alternative": "none",
+          "why_not_alternative": "The problem does not involve a single overarching principle or transformation that applies uniformly across all cases.",
+          "failure_reason": "none"
+        },
+        "dispersion": 0.0026143790849673144,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0069780861337979646,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 5,
+          "z_sensitive_fraction": 1.0
+        },
+        "_behavior_sig_5": "aab8b7121a7f825c929e13b3c1a87efee901634298b994dfadb8589fb307a62a",
+        "_template_sig_5": "720e14bfcd110070c312bdf3b767e22f6bf6f30a21beb09f8790488ba7bddae4",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import math\nimport random\n\n# Cap on the exponent printed in the statement.\nK_MAX = 72\n\n\ndef _prime_factors(n):\n    factors = set()\n    d = 2\n\n    while d * d <= n:\n        while n % d == 0:\n            factors.add(d)\n            n //= d\n        d += 1\n\n    if n > 1:\n        factors.add(n)\n\n    return sorted(factors)\n\n\ndef _is_prime(n):\n    if n < 2:\n        return False\n\n    for d in range(2, math.isqrt(n) + 1):\n        if n % d == 0:\n            return False\n\n    return True\n\n\ndef _primitive_root(p):\n    factors = _prime_factors(p - 1)\n\n    for g in range(2, p):\n        if all(\n            pow(g, (p - 1) // q, p) != 1\n            for q in factors\n        ):\n            return g\n\n    raise ValueError(\"primitive root not found\")\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Draw the answer first, then a prime that can carry it.\n    #\n    # Picking p first and a divisor of p-1 second collapses the answers onto\n    # one value: p-1 is even for every odd prime, so 2 sits in the divisor list\n    # every single time while the larger divisors are only sometimes there.\n    # Cycling d over a fixed range and keeping only the primes with d | p-1\n    # covers the answers evenly instead.\n    d = 2 + (seed % 23)\n\n    primes = [\n        q\n        for q in range(47, 600)\n        if _is_prime(q) and (q - 1) % d == 0\n    ]\n    assert primes, f\"no prime p in range with {d} | p-1: widen the prime range\"\n    p = rng.choice(primes)\n\n    g = _primitive_root(p)\n\n    # Choose the cofactor u coprime to (p-1)/d, so that\n    # gcd(k, p-1) = d * gcd(u, (p-1)/d) = d.\n    #\n    # u > 1 is preferred: at u = 1 the exponent k printed in the statement IS\n    # the answer, and the problem can be answered by copying it instead of\n    # taking a gcd.\n    v = (p - 1) // d\n    u_options = [\n        u\n        for u in (2, 3, 5, 7, 11, 13)\n        if math.gcd(u, v) == 1 and d * u <= K_MAX and d * u < p - 1\n    ]\n    if not u_options:\n        u_options = [1]\n    u = rng.choice(u_options)\n    k = d * u\n\n    # Make the transformed linear congruence solvable:\n    #\n    #     x = g^r\n    #     x^k = g^e\n    #\n    # becomes\n    #\n    #     k r ≡ e (mod p-1).\n    #\n    # Since gcd(k, p-1) = d and d | e, this congruence\n    # has exactly d solutions modulo p-1.\n    e = d * rng.randint(1, (p - 2) // d)\n    a = pow(g, e, p)\n\n    assert math.gcd(k, p - 1) == d\n    assert e % d == 0\n\n    answer = d\n\n    # Independent route: test every residue class directly in the original\n    # multiplicative representation, without using exponent coordinates.\n    check = sum(\n        1\n        for x in range(p)\n        if pow(x, k, p) == a\n    )\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let p = {p}, and let g = {g} be a primitive root modulo p. \"\n        f\"Let a be the residue congruent to g^{e} modulo p. \"\n        f\"How many residue classes x modulo p satisfy \"\n        f\"x^{k} congruent to a modulo p? State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n",
+      "program_id": "093eb4c61965",
+      "parent_id": "",
+      "generation": 0,
+      "s_hat": 0.5666666666666667,
+      "u_score": 0.30529303215444087,
+      "rq_score": 0.08288292475044727,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "seed_number_theory_transformation_primitive_root.py",
+        "group": "number_theory",
+        "skill": "transformation",
+        "dispersion": -0.006286549707602326,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.08288292475044727,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 5,
+          "z_sensitive_fraction": 1.0
+        },
+        "_behavior_sig_5": "6dc664ad1c1d3d8df2854efffdfcf6f0b6f1b9157a13fc34e357b97ce9ba4314",
+        "_template_sig_5": "247c0a7045e5ac8623d172cfa4981e33fd7565c0c7e0e714cbd70d7704213a3e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # n is the only parameter, so its range is also the instance space. The\n    # upper end is kept where 2^(n-3) is still read straight off the closed\n    # form; much larger and the reduction mod 1000 becomes a cycle-finding\n    # puzzle of its own, stacked on top of the induction.\n    n = rng.randint(10, 30)\n\n    # Let S_1 = {(1)}. For m >= 2, every permutation in S_{m-1}\n    # produces two members of S_m by inserting m at the left end\n    # or at the right end.\n    #\n    # If U_m is the total inversion count over all permutations in S_m,\n    # then |S_{m-1}| = 2^(m-2), and:\n    #\n    #   U_m = 2 U_{m-1} + (m-1) 2^(m-2).\n    #\n    # The first term duplicates all old inversions into both children.\n    # A left insertion of m creates exactly m-1 new inversions,\n    # while a right insertion creates none.\n    #\n    # Inductively this gives:\n    #\n    #   U_m = m(m-1) 2^(m-3).\n    #\n    # U_n is asked modulo 1000 so the answer stays a short integer. The\n    # recursion is still the only way in -- the residue is read off the\n    # closed form.\n    answer = n * (n - 1) * (2 ** (n - 3)) % 1000\n\n    # Independent route: compute U_n directly from the recursive construction,\n    # without using the closed form.\n    family_size = 1\n    check = 0\n\n    for m in range(2, n + 1):\n        check = 2 * check + (m - 1) * family_size\n        family_size *= 2\n\n    check %= 1000\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let S_1 consist only of the permutation (1). For each integer m from \"\n        f\"2 through {n}, construct S_m from S_(m-1) as follows: for every \"\n        f\"permutation in S_(m-1), create two new permutations by inserting m \"\n        f\"either at the left end or at the right end. Let U be the sum of the \"\n        f\"numbers of inversions over all permutations in S_{n}. Find the \"\n        f\"remainder when U is divided by 1000. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"combinatorics\"\nSKILL = \"induction\"",
+      "program_id": "37645361945d",
+      "parent_id": "37645361945d",
+      "generation": 3,
+      "s_hat": 0.05,
+      "u_score": 0.4043263100087643,
+      "rq_score": 0.026323520019650458,
+      "niche_group": 1,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "induction",
+        "judge": {
+          "accepted": true,
+          "reason": "",
+          "group": "combinatorics",
+          "skill": "induction",
+          "group_evidence": "The problem involves permutations and the construction of sets S_m based on previous sets, which is a combinatorial process.",
+          "skill_witness": "The construction of S_m from S_(m-1) is a recursive process that builds upon the previous set, which is a key aspect of induction.",
+          "closest_alternative": "none",
+          "why_not_alternative": "The problem does not involve any of the other skills listed, as the construction process is the primary focus.",
+          "failure_reason": "none"
+        },
+        "dispersion": -0.0006578947368421056,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.026323520019650458,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.833
+        },
+        "_behavior_sig_5": "7b895d63b5d13bf45c16551e137d2c2dec25defa33acf0278cb0c4e1b6623763",
+        "_template_sig_5": "8dc602b342ad70b695ee230d1b9ba6d4651f8e6aec2019d07f74158f81bba51a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\n\ndef _separates(n, family):\n    for x in range(n):\n        for y in range(x + 1, n):\n            if not any((x in subset) != (y in subset) for subset in family):\n                return False\n    return True\n\n\ndef _bit_family(n, r):\n    # For each of the r bit positions, the subset of elements whose index\n    # carries a 1 there.\n    return [\n        {\n            x\n            for x in range(n)\n            if ((x >> bit) & 1) == 1\n        }\n        for bit in range(r)\n    ]\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Draw the size of the answer first, then a ground set inside that band.\n    # Sampling n uniformly instead would pile almost every instance onto the\n    # one or two values of ceil(log_2 n) that a wide interval of n maps to.\n    width = rng.randint(3, 10)\n    n = rng.randint((1 << (width - 1)) + 1, 1 << width)\n\n    # Intended route: two counting bounds that meet.\n    #\n    # Lower bound:\n    # With r subsets, each element of U carries an r-bit membership pattern.\n    # Two elements that some set separates have different patterns, so all n\n    # patterns are distinct and n <= 2^r.\n    #\n    # Construction:\n    # Give the n elements distinct r-bit strings. For each bit position j,\n    # take the subset of elements whose j-th bit is 1. Two distinct elements\n    # differ in some bit, and that bit's subset separates them.\n    #\n    # Therefore r = ceil(log_2 n).\n    answer = (n - 1).bit_length()\n\n    # Independent route: assume nothing about where the threshold sits. Walk r\n    # upward from zero and put each family through the pairwise separation\n    # test the problem states, taking the first r that passes.\n    #\n    # The scan does not skip ahead to the counting bound. Below the threshold\n    # the test genuinely fails -- two elements whose indices agree in the low\n    # r bits collide -- so this route locates the threshold by testing pairs\n    # rather than by reusing the inequality n <= 2^r.\n    check = None\n\n    for r in range(n + 1):\n        if _separates(n, _bit_family(n, r)):\n            check = r\n            break\n\n    assert check is not None\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let U = {{1, 2, ..., {n}}}. A family F of subsets of U is called \"\n        f\"separating if for every two distinct elements x and y of U, there \"\n        f\"is a set A in F that contains exactly one of x and y. Find the \"\n        f\"minimum possible value of |F|. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"combinatorics\"\nSKILL = \"construction\"\n",
+      "program_id": "4fbb59495d8b",
+      "parent_id": "",
+      "generation": 0,
+      "s_hat": 0.75,
+      "u_score": 0.4117908552289009,
+      "rq_score": 0.08212953706582386,
+      "niche_group": 1,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "seed_combinatorics_construction_separating_family.py",
+        "group": "combinatorics",
+        "skill": "construction",
+        "dispersion": 0.011574074074074084,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.08212953706582386,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 1.0
+        },
+        "_behavior_sig_5": "eb5122ef00bb096276b4cb9b89407117a521ec50659281d350a61e96b745ed36",
+        "_template_sig_5": "c6ccc2921419634f57aa206e6ea7c66eb88ba18646f5a36000fcb1c1a9380480",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\n\ndef _is_prime(n):\n    if n < 2:\n        return False\n    if n % 2 == 0:\n        return n == 2\n\n    d = 3\n    while d * d <= n:\n        if n % d == 0:\n            return False\n        d += 2\n\n    return True\n\n\n# How far the witness search on the check route is allowed to look for a\n# common difference that keeps one term prime. Every index below the answer\n# is escapable, and in practice by a very small d; the cap only stops the\n# search running forever at the index where no d works at all.\nWITNESS_SEARCH = 400\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Small primes: the contradiction (a_{p+1} = p(d+1)) is identical at any\n    # p, and a large p only lengthens the ruling-out of smaller indices. The\n    # answer is p + 1, so p is the only thing that varies; the upper end is\n    # what keeps a one-parameter family from collapsing onto a handful of\n    # distinct statements while the arithmetic stays small.\n    primes = [\n        p for p in range(5, 40)\n        if _is_prime(p)\n    ]\n    p = rng.choice(primes)\n\n    # Intended route: a contradiction covering an unbounded family of d.\n    #\n    # Fix any d >= 1. The sequence is a_N = p + (N - 1) * d, so\n    #\n    #   a_{p+1} = p + p * d = p * (d + 1),\n    #\n    # a proper multiple of p and therefore composite -- for every d at once.\n    # No finite search over d could ever establish that.\n    #\n    # No smaller index survives. For 2 <= N <= p the gap N - 1 lies in\n    # [1, p - 1], so gcd(p, N - 1) = 1 and Dirichlet puts infinitely many\n    # primes in {p + (N - 1) * d : d >= 1}; and a_1 = p is prime outright.\n    # Every index up to p thus has some d that keeps its term prime, so p + 1\n    # is the first index no choice of d can escape.\n    answer = p + 1\n\n    # Independent route: factor nothing. Walk the index upward and try to\n    # exhibit a d that keeps that one term prime, stopping at the first index\n    # for which the search turns up no witness at all.\n    check = None\n\n    for index in range(1, p + 2):\n        witness = None\n\n        for d in range(1, WITNESS_SEARCH + 1):\n            if _is_prime(p + (index - 1) * d):\n                witness = d\n                break\n\n        if witness is None:\n            check = index\n            break\n\n    assert check is not None\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let p = {p}. For each positive integer d, define an infinite \"\n        f\"sequence by a_1 = p and a_(n+1) = a_n + d for every n >= 1. Find \"\n        f\"the smallest index N such that a_N is composite for every choice \"\n        f\"of d. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"sequence\"\nSKILL = \"contradiction\"\n",
+      "program_id": "0a6e6fac9341",
+      "parent_id": "",
+      "generation": 0,
+      "s_hat": 0.1833333333333333,
+      "u_score": 0.22620233582953614,
+      "rq_score": 0.02637858284223411,
+      "niche_group": 2,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "seed_sequence_contradiction_prime_progression.py",
+        "group": "sequence",
+        "skill": "contradiction",
+        "dispersion": -0.03630952380952382,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.02637858284223411,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.75
+        },
+        "_behavior_sig_5": "8557c888f926438b7803f7bcac5c9d33a6697069484b1975f14e57a55173076c",
+        "_template_sig_5": "2ac3a310bcd827c0d1bff5ec80696799ff655780ed92e443a4844a71ca7b957a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\n\ndef _shift_quadratic(b, c, t):\n    # If P(x) = x^2 + bx + c, then P(x+t) has coefficients\n    # x^2 + (b+2t)x + (c+bt+t^2).\n    return b + 2 * t, c + b * t + t * t\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    b = rng.randint(-12, 12)\n    c = rng.randint(-20, 30)\n\n    # Every move P(x) -> P(x+1) or P(x-1) preserves the discriminant\n    # b^2 - 4c. Conversely, two monic integer quadratics with the same\n    # discriminant have linear coefficients of the same parity, so one is\n    # an integer translate of the other.\n    invariant = b * b - 4 * c\n\n    shifts = rng.sample(\n        [t for t in range(-8, 9) if t != 0],\n        5,\n    )\n    target_slot = rng.randrange(5)\n\n    candidates = []\n\n    for i, t in enumerate(shifts):\n        qb, qc = _shift_quadratic(b, c, t)\n\n        if i != target_slot:\n            # Perturb only the constant term, which changes the discriminant\n            # by a nonzero multiple of 4 and therefore leaves the orbit.\n            delta = rng.choice([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])\n            qc += delta\n\n        candidates.append((qb, qc))\n\n    # Intended route: the reachable candidate is exactly the one preserving\n    # the discriminant.\n    matching = [\n        i + 1\n        for i, (qb, qc) in enumerate(candidates)\n        if qb * qb - 4 * qc == invariant\n    ]\n\n    assert len(matching) == 1\n    answer = matching[0]\n\n    # Independent route: directly perform the allowed moves in coefficient\n    # space, without using the discriminant.\n    reachable = {(b, c)}\n\n    for _ in range(8):\n        next_states = set(reachable)\n\n        for rb, rc in reachable:\n            # P(x+1)\n            next_states.add(\n                (rb + 2, rc + rb + 1)\n            )\n\n            # P(x-1)\n            next_states.add(\n                (rb - 2, rc - rb + 1)\n            )\n\n        reachable = next_states\n\n    reached_indices = [\n        i + 1\n        for i, candidate in enumerate(candidates)\n        if candidate in reachable\n    ]\n\n    assert len(reached_indices) == 1\n    check = reached_indices[0]\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def poly_text(qb, qc):\n        linear = f\"+ {qb}x\" if qb >= 0 else f\"- {abs(qb)}x\"\n        constant = f\"+ {qc}\" if qc >= 0 else f\"- {abs(qc)}\"\n        return f\"x^2 {linear} {constant}\"\n\n    start = poly_text(b, c)\n\n    candidate_text = \"; \".join(\n        f\"Q_{i + 1}(x) = {poly_text(qb, qc)}\"\n        for i, (qb, qc) in enumerate(candidates)\n    )\n\n    problem = (\n        f\"Start with P(x) = {start}. In one move, P(x) may be replaced by \"\n        f\"P(x+1) or by P(x-1), and any number of moves may be performed. \"\n        f\"Exactly one of the following polynomials is reachable: \"\n        f\"{candidate_text}. Find its index. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"invariant\"",
+      "program_id": "f3f20722a2d7",
+      "parent_id": "",
+      "generation": 0,
+      "s_hat": 0.15,
+      "u_score": 0.29170877138773604,
+      "rq_score": 0.017795631879319745,
+      "niche_group": 3,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "seed_algebra_invariant_discriminant_orbit.py",
+        "group": "algebra",
+        "skill": "invariant",
+        "dispersion": 0.019298245614035092,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.017795631879319745,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 4,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.92
+        },
+        "_behavior_sig_5": "3757fe7d805c24bda6d9ad585622c4869be0dcee7551fb71f6a449320f712599",
+        "_template_sig_5": "5f8c0fa37a66a887d7df84022e2dc5bd9495889b7bd2ea82ac1e50a3942a6d03",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nfrom itertools import combinations\n\nMAX_ATTEMPTS = 200\n\n\ndef _cross(a, b, c):\n    return (\n        (b[0] - a[0]) * (c[1] - a[1])\n        - (b[1] - a[1]) * (c[0] - a[0])\n    )\n\n\ndef _digit_runs(text):\n    # Every maximal run of digits in the rendered text. The answer must not be\n    # one of them: lint_problem_instance rejects an instance whose answer shows\n    # up as a standalone number in the statement, and a doubled area lands in\n    # the same range as the coordinates it was computed from.\n    runs = set()\n    current = \"\"\n\n    for ch in text:\n        if ch.isdigit():\n            current += ch\n        elif current:\n            runs.add(current)\n            current = \"\"\n\n    if current:\n        runs.add(current)\n\n    return runs\n\n\ndef _strictly_inside(p, a, b, c):\n    s1 = _cross(a, b, p)\n    s2 = _cross(b, c, p)\n    s3 = _cross(c, a, p)\n\n    return (\n        (s1 > 0 and s2 > 0 and s3 > 0)\n        or (s1 < 0 and s2 < 0 and s3 < 0)\n    )\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # The extremal argument does not depend on n, so n stays where the triple\n    # count is still inspectable by hand: C(7,3) = 35. A larger set turns the\n    # question into an exhaustive search over triples instead of the argument\n    # the problem is meant to test.\n    n = rng.randint(5, 7)\n\n    for _ in range(MAX_ATTEMPTS):\n        # Build a point set in general position.\n        # A new point is accepted only if it is distinct and creates\n        # no collinear triple with previously accepted points.\n        points = []\n\n        while len(points) < n:\n            p = (\n                rng.randint(-15, 15),\n                rng.randint(-15, 15),\n            )\n\n            if p in points:\n                continue\n\n            if any(\n                _cross(a, b, p) == 0\n                for a, b in combinations(points, 2)\n            ):\n                continue\n\n            points.append(p)\n\n        # Intended route: show the emptiness condition is vacuous at the\n        # optimum, then drop it.\n        #\n        # Let T be a triangle of least area among ALL triangles with vertices\n        # in S. No point P of S can lie strictly inside T: joining P to the\n        # three vertices of T splits T into three triangles of positive area,\n        # each strictly smaller than T and each with its vertices in S,\n        # contradicting the minimality of T.\n        #\n        # So the unconstrained minimum is already attained by an empty\n        # triangle, and the constrained minimum the problem asks for equals\n        # it. That turns the question into a plain minimum over all triples --\n        # no interior test is ever performed on this route.\n        answer = min(\n            abs(_cross(points[i], points[j], points[k]))\n            for i, j, k in combinations(range(n), 3)\n        )\n\n        point_text = \", \".join(\n            f\"({x}, {y})\"\n            for x, y in points\n        )\n\n        # Redraw when the doubled area happens to be printed as one of the\n        # coordinates, or as the size of the set.\n        if str(answer) in _digit_runs(point_text) | {str(n)}:\n            continue\n\n        break\n    else:\n        raise ValueError(\"no point set whose answer stays out of the statement\")\n\n    # Independent route: take the emptiness condition literally. Enumerate the\n    # triples, run the interior test on each one, discard every triangle that\n    # contains another point of S, and minimise over what survives.\n    check = None\n\n    for i, j, k in combinations(range(n), 3):\n        a = points[i]\n        b = points[j]\n        c = points[k]\n\n        if any(\n            _strictly_inside(points[r], a, b, c)\n            for r in range(n)\n            if r not in (i, j, k)\n        ):\n            continue\n\n        area2 = abs(_cross(a, b, c))\n\n        if check is None or area2 < check:\n            check = area2\n\n    assert check is not None\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let S be the following set of {n} points in the plane, no three \"\n        f\"of which are collinear: {point_text}. Call a triangle admissible \"\n        f\"if its three vertices belong to S and no other point of S lies \"\n        f\"strictly inside it. Over all admissible triangles, find the \"\n        f\"minimum possible value of twice the area. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"geometry\"\nSKILL = \"extremal_principle\"\n",
+      "program_id": "3af9d264196c",
+      "parent_id": "",
+      "generation": 0,
+      "s_hat": 0.21666666666666665,
+      "u_score": 0.2547765843570232,
+      "rq_score": 0.01970713088909785,
+      "niche_group": 4,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "seed_geometry_extremal_principle_min_area_triangle.py",
+        "group": "geometry",
+        "skill": "extremal_principle",
+        "dispersion": 0.07540849673202614,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.01970713088909785,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 2,
+          "distinct_answers": 5,
+          "z_sensitive_fraction": 0.8
+        },
+        "_behavior_sig_5": "76ccd68dd26cdc51d8a086ca8f84b1df6fede3ef044c5524114f39368f3640d0",
+        "_template_sig_5": "f9ab17b72d35c2280303fe3677956db572775fb6f646c9a81497830596bd7a78",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # n is the only parameter, so its range is also the whole instance space:\n    # 31 distinct statements. The reasoning is AM-GM then a parity split,\n    # which a wider range would not change -- it would only make the count\n    # longer to write down.\n    n = rng.randint(10, 40)\n\n    # For a fixed integer s >= 2, consider positive real x, y with x + y = s.\n    # By AM-GM,\n    #\n    #     xy <= (s/2)^2,\n    #\n    # with equality at x = y = s/2.\n    #\n    # Therefore an integer t >= 1 is feasible for this s iff\n    #\n    #     t <= floor(s^2 / 4).\n    #\n    # We must count\n    #\n    #     sum_{s=2}^n floor(s^2 / 4).\n    #\n    # Split s by parity:\n    #\n    #   s = 2r     -> floor(s^2/4) = r^2\n    #   s = 2r + 1 -> floor(s^2/4) = r(r+1)\n    #\n    # and evaluate the two sums in closed form.\n    m = n // 2\n\n    if n % 2 == 0:\n        answer = m * (m + 1) * (4 * m - 1) // 6\n    else:\n        answer = m * (m + 1) * (4 * m + 5) // 6\n\n    # Independent route: enumerate the integer pairs (s, t), and test\n    # feasibility through the quadratic inequality\n    #\n    #     x(s-x) >= t.\n    #\n    # Such a real x exists exactly when the quadratic\n    # x^2 - sx + t <= 0 has nonnegative discriminant.\n    check = 0\n\n    for s in range(2, n + 1):\n        for t in range(1, s * s // 4 + 1):\n            if s * s - 4 * t >= 0:\n                check += 1\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"For each ordered pair of positive integers (s, t) with 2 <= s <= {n}, \"\n        f\"call (s, t) feasible if there exist positive real numbers x and y \"\n        f\"such that x + y = s and xy >= t. How many feasible ordered pairs \"\n        f\"(s, t) are there? State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"inequality\"\nSKILL = \"counting\"",
+      "program_id": "a0a7433dec8f",
+      "parent_id": "",
+      "generation": 0,
+      "s_hat": 0.15,
+      "u_score": 0.11785763191680113,
+      "rq_score": 0.012077553601314624,
+      "niche_group": 5,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "seed_inequality_counting_feasible_thresholds.py",
+        "group": "inequality",
+        "skill": "counting",
+        "dispersion": 0.017592592592592597,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.012077553601314624,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.857
+        },
+        "_behavior_sig_5": "1a9505dc283b13bbcb1cc8aae06af1a3310ab1494c0e22d7628137a509d7b8d3",
+        "_template_sig_5": "236090b5dd7b6833081568b4a9e139798e5aeba2a152e53591c96976f4e97854",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

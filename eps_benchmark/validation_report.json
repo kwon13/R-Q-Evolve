@@ -1,0 +1,101 @@
+{
+  "status": "pass",
+  "validated_at": "2026-08-24T15:52:30+00:00",
+  "validator_sha256": "b27a537696cd2588888cfdc04f8b77add340b5645ac9272c9c3df31619851ce7",
+  "validation_python_version": "3.14.4",
+  "build_environment": {
+    "python_version": "3.14.4",
+    "rq_evolve_git_head": "8d039c8ec79450d596e04281c5a9cd6a4a70b0b1",
+    "artifact_integrity_sha256": "c4e75ca833aa57c6721f4f9170c53d11d491e76d3f02508806a190d8ac62a929",
+    "builder_sha256": "5714a915a6c9980272771598cef371ef666c1b41da88c5561867ec70647e8e2f",
+    "validator_sha256": "b27a537696cd2588888cfdc04f8b77add340b5645ac9272c9c3df31619851ce7",
+    "rq_evolve_module_sha256": {
+      "src/rq_evolve/ast_contract.py": "372d7aa422eecd8469dcab9f892b6291a57902be2c5cdfff3e693d7967b193c0",
+      "src/rq_evolve/code_utils.py": "016d71b7de7ae5cbaedf422faa9ee4ac0b28e1155fa5700b7a903e306057ed2a",
+      "src/rq_evolve/concepts.py": "b2541a1366f97a5b9af9ba49ecaf6061e9b5ea7741a5f0177b02e572fdcec162",
+      "src/rq_evolve/evolved_performance.py": "60de8acf903402f61f2dfe75256af387da62f6b5cb77ccc75098c9d4d3332d0d",
+      "src/rq_evolve/program.py": "0d28e1de2b33a86e6fbb9899de4e848dd1dbe22afe5440055cad194ca69fd3ec"
+    }
+  },
+  "benchmark": "evolved_performance_group_balanced_ood_v2",
+  "benchmark_sha256": "7094ddcde5f2dc08211d65e8b992f928187cae6789df0eb84dce0bcf61375537",
+  "artifact_sha256": "4ae707a98277227607881e2ad6dcbdef3ec97048ff329ce99dfcea793ad8f8d3",
+  "num_examples": 480,
+  "num_programs": 12,
+  "deterministic_rebuild_rows": 480,
+  "group_counts": {
+    "algebra": 80,
+    "combinatorics": 80,
+    "geometry": 80,
+    "inequality": 80,
+    "number_theory": 80,
+    "sequence": 80
+  },
+  "program_counts": {
+    "algebra_01_rank_one_determinant": 40,
+    "algebra_quadratic_root_product_resultant": 40,
+    "combinatorics_complete_tripartite_spanning_trees": 40,
+    "combinatorics_labeled_trees_exact_leaves": 40,
+    "geometry_circle_chord_regions": 40,
+    "geometry_descartes_circle_curvature": 40,
+    "inequality_boxed_cubic_concentration": 40,
+    "inequality_expanded_even_quartic": 40,
+    "number_theory_binomial_prime_valuation": 40,
+    "number_theory_gcd_sum": 40,
+    "sequence_01_repeated_root_recurrence": 40,
+    "sequence_quadratic_double_angle_modulo": 40
+  },
+  "unique_normalized_problems": 480,
+  "integer_answers": 480,
+  "answer_token_leaks": 0,
+  "source_reexecutions": 480,
+  "reference_overlap_audit": {
+    "source_or_program_id_reuse": 0,
+    "exact_problem_text_overlaps": 0,
+    "corpora": {
+      "current_seed_programs": {
+        "source_programs": 8,
+        "seed_ranges": [
+          [
+            0,
+            79
+          ],
+          [
+            5000000,
+            5000079
+          ]
+        ],
+        "executed_instances": 1280,
+        "unique_normalized_problems": 700,
+        "execution_failures": 0,
+        "exact_problem_text_overlaps": 0,
+        "numeric_masked_template_overlaps": 0
+      },
+      "legacy_structural_ood_v2": {
+        "source_programs": 6,
+        "seed_ranges": [
+          [
+            0,
+            79
+          ],
+          [
+            5000000,
+            5000079
+          ]
+        ],
+        "executed_instances": 960,
+        "unique_normalized_problems": 896,
+        "execution_failures": 0,
+        "exact_problem_text_overlaps": 0,
+        "numeric_masked_template_overlaps": 0
+      }
+    },
+    "limitation": "A zero exact-overlap count is not proof of semantic independence; the family-level structural audit is documented in README.md."
+  },
+  "committed_benchmark_overlap_audit": {
+    "benchmark_files_scanned": 5,
+    "rows_scanned": 2672,
+    "exact_problem_text_overlaps": 0,
+    "numeric_masked_template_overlaps": 0
+  }
+}

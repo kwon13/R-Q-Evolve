@@ -1,10 +1,31 @@
 import importlib.util
+import itertools
 import json
 import math
 import os
 import random
 import resource
 import sys
+
+# Names the model writes without importing. `comb` alone killed 370 candidates on
+# the 4B run -- 3 of the 4 stage-2 worked examples open with a bare
+# `import random`, so the file's first line is emitted long before the model
+# knows it will need `comb`, and there is no going back to add the import.
+# Injecting the names is the same move `math` and `random` already get below;
+# re-running the 400 dead sources with these bound recovered 32.5% of them
+# outright (the rest failed their own assert, i.e. the maths was wrong anyway).
+_PRELUDE_NAMES = {
+    "comb": math.comb,
+    "factorial": math.factorial,
+    "perm": math.perm,
+    "gcd": math.gcd,
+    "lcm": math.lcm,
+    "isqrt": math.isqrt,
+    "combinations": itertools.combinations,
+    "permutations": itertools.permutations,
+    "product": itertools.product,
+    "accumulate": itertools.accumulate,
+}
 
 ALLOWED_IMPORT_ROOTS = {
     "collections",
@@ -44,7 +65,8 @@ def _run(source: str, seed: int):
     spec = importlib.util.spec_from_loader("rq_generated_program", loader=None)
     module = importlib.util.module_from_spec(spec)
     module.__dict__.update(
-        {"__builtins__": safe_builtins, "math": math, "random": random}
+        {"__builtins__": safe_builtins, "math": math, "random": random,
+         **_PRELUDE_NAMES}
     )
 
     exec(source, module.__dict__)
@@ -60,11 +82,33 @@ def _run(source: str, seed: int):
     return {"problem": problem, "answer": answer}
 
 
+def _warm_imports() -> None:
+    """Pay the expensive allowed imports at STARTUP, not inside a timed call.
+
+    `sympy` is the only allowed root that costs real time to import: measured
+    1,491 ms on the first call in a fresh worker against 1.1 ms once cached.
+    The worker is shared and respawned after every kill, so a lazily imported
+    sympy lands inside whichever program happens to be the first sympy user
+    after a respawn -- and under the tight steady-state budget the client now
+    uses, that program would be killed as a runaway, respawning the worker and
+    putting the next sympy program in exactly the same position. Importing here
+    moves the cost under the client's one-off cold-start budget instead.
+    """
+    try:
+        import sympy  # noqa: F401
+    except Exception:
+        # Not installed -> `guarded_import` will raise for the program that
+        # actually wants it, which is the pre-existing behaviour.
+        pass
+
+
 def main() -> None:
     try:
         resource.setrlimit(resource.RLIMIT_AS, (_MEM_LIMIT_BYTES, _MEM_LIMIT_BYTES))
     except Exception:
         pass
+
+    _warm_imports()
 
     # fd dance: the ORIGINAL stdout (the pipe back to the parent) becomes the
     # private protocol channel; fd 1 and Python-level sys.stdout are redirected to

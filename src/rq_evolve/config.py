@@ -119,6 +119,34 @@ class EvolutionConfig:
     # invention and collapses to one child per parent at 0.
     generator_temperature: float = 0.0
     generator_top_p: float = 1.0
+    # Per-stage output caps for the mutation calls. Left unset these fall back
+    # to data.max_response_length (5,000 on the live configs), which is what the
+    # 4B 8-GPU run did.
+    #
+    # Measured with the run's own tokenizer over 400 stage-1/stage-2 pairs per
+    # policy (rq_output/gate_experiment/raw_baseline*.jsonl):
+    #
+    #   stage 1 (plan, prose):  p50 171 tok, p90 246,  4.0-7.5% run away
+    #   stage 2 (generator):    p50 301 tok, p90 755,  4.0-4.5% exceed 1024
+    #
+    # So a runaway is ~20x the median reply, and over 32 parents there is a 92%
+    # (stage 1) / 77% (stage 2) chance of at least one per iteration.
+    #
+    # 2048 rather than something tighter, for two reasons. It is the cap the
+    # gate experiment itself ran stage 2 under, so every number the prompt work
+    # rests on -- empty-cell survival, target compliance, few-shot copying --
+    # was measured with exactly this ceiling; tightening it would put the
+    # science on an untested setting to buy time. And the barrier this was
+    # originally sized against is gone: `mutate_pipelined` submits per parent,
+    # so a runaway now occupies one slot out of ~32 instead of holding up the
+    # whole stage. What is left to win is that slot's own time, 5,000 -> 2,048,
+    # and 0% of the measured replies reach even 2,048 on their own.
+    #
+    # A truncated stage 2 fails `extract_generator_code` and is reported as a
+    # mutation failure -- already the outcome for ~50% of candidates -- so the
+    # downside is noise in an existing channel, not a new failure mode.
+    family_max_output_tokens: int | None = 2048
+    generator_max_output_tokens: int | None = 2048
     # Self-consistency gate: when two_stage_mutation is active, stage 2 is
     # asked to output INFERRED_GROUP and INFERRED_SKILL after the code block.
     # When this flag is True, a child whose inferred labels disagree with
@@ -127,6 +155,27 @@ class EvolutionConfig:
     # The gate is a zero-cost filter: it reuses the stage-2 reply and adds
     # no extra LLM call.
     stage2_skill_gate: bool = True
+    # Name the (GROUP, SKILL) cell each child must land in, drawn uniformly over
+    # the whole 48-cell grid (archive.sample_target_cell). Without it the child's
+    # descriptor is whatever stage 1 happens to declare, and stage 1's prior is
+    # collapsed: 89% of gated children of the 4B run declared `combinatorics`,
+    # 65% `counting`, and only 16 of 7,776 candidates ever aimed at a free cell.
+    # Measured over 400 attempts per arm on both qwen3-4b-base and the run's own
+    # step-224 policy, injection takes empty-cell survival from 1.0% / 0.2% to
+    # 15-19% and distinct new cells per 32-attempt iteration from 0.00 to
+    # 0.64-0.96. Target SKILL compliance is 96-99%, GROUP 61-78%.
+    target_cell_injection: bool = True
+    # Show a random 3 of stage 1's 8 EXAMPLE blocks and a random 4 of stage 2's
+    # 8 WORKED EXAMPLEs (its shipped 4 plus gen_program_extra_examples.txt),
+    # reshuffled per call. Stage 1's fixed set is copied verbatim into children
+    # 20.4% of the time on base and 25.6% after 224 RL steps -- EXAMPLE 8
+    # (Mantel's theorem) alone was 12-16% and held a MAP cell. Rotation halves
+    # that to 10% and flattens the distribution. Stage 2's rotation is for label
+    # coverage, not plagiarism: its examples are copied 0.3% of the time because
+    # it transcribes a fixed specification. Neither rotation consults the target
+    # cell -- stage 2's INFERRED_SKILL has to stay a blind re-derivation or the
+    # gate verifies nothing.
+    rotate_few_shots: bool = True
     # The judge is a measurement, so it is read greedily: any sampling noise
     # here shows up as label disagreement that the generator did not cause.
     judge_temperature: float = 0.0
@@ -183,6 +232,10 @@ class EvolutionConfig:
             )
         if self.train_batch_target < 1:
             raise ValueError("evolution.train_batch_target must be >= 1")
+        for name in ("family_max_output_tokens", "generator_max_output_tokens"):
+            value = getattr(self, name)
+            if value is not None and int(value) < 1:
+                raise ValueError(f"evolution.{name} must be >= 1 or null")
         if self.frontier_p_hat_range is not None:
             self.frontier_s_hat_range = tuple(
                 float(x) for x in self.frontier_p_hat_range
@@ -326,7 +379,29 @@ class AsyncRolloutConfig:
     # chunk, so its verification starts the moment its own rollouts finish.
     chunk_size: int = 1
     # Backpressure: max chunks outstanding in the rollout engine at once.
-    max_in_flight_chunks: int = 8
+    #
+    # 32, not 8. At 8 this was the binding constraint on the whole run, not a
+    # safety margin: `max_pending_chunks` read exactly 8 in all 243 iterations
+    # of the 4B 8-GPU run (rq_output/rq_evolve_4b_8gpu), i.e. the scheduler sat
+    # at the cap every moment it had work. 8 chunks x G=10 = 80 sequences over
+    # 8 vLLM engines is 10 per engine, and the phase delivered 1,890 tok/s
+    # aggregate (236 tok/s per A100). Measured on one resident qwen3-4b-base
+    # server (2 GPUs, DP=2), throughput against concurrency is 807 tok/s at 8,
+    # 6,073 at 80, and 12,642 at 320 -- the 8-GPU evolve phase was running
+    # slower than two GPUs at concurrency ~30.
+    #
+    # There is KV room by a wide margin: gpu_memory_utilization 0.38 leaves
+    # ~20 GB of cache per engine and Qwen3-4B costs 144 KB/token, so ~138k
+    # cached tokens -- >100 concurrent sequences per engine at the ~1.1k tokens
+    # a solver rollout actually uses. An outer iteration only submits ~37
+    # chunks in total, so 32 puts essentially the whole iteration in flight and
+    # hands admission control to vLLM's own scheduler, which is the component
+    # that is supposed to do it (it admits by free blocks and queues the rest).
+    #
+    # Staleness is unaffected: weights are pushed once per evolve phase
+    # (`sync_weights`) and `_wake` already asserts no chunk is in flight during
+    # a sync, so every chunk in a phase sees the same policy at any cap.
+    max_in_flight_chunks: int = 32
     # Per-chunk wall-clock budget (covers queueing + generation of the chunk's
     # slowest sample). On expiry the chunk is retried up to max_retries times,
     # then recorded as a failure with reason "timeout" -- never silently dropped.

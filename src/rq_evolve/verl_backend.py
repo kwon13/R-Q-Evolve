@@ -1,3 +1,6 @@
+import time as _time
+from collections import deque
+
 import numpy as np
 import torch
 import verl.utils.torch_functional as verl_F
@@ -113,6 +116,163 @@ class VerlPolicyBackend(EvolutionBackend):
             self.tokenizer.decode(row.tolist(), skip_special_tokens=True)
             for row in responses
         ]
+
+    def supports_pipelined_mutation(self) -> bool:
+        """True when stage-2 calls can be submitted per parent, not per batch.
+
+        Needs the agent-loop workers: they are asyncio Ray actors that accept an
+        arbitrary-size DataProto, so a single prompt can be submitted on its own
+        with no divisor padding (same property ``RayAgentLoopTransport`` relies
+        on for streamed rollouts).
+        """
+        trainer = self.trainer
+        manager = getattr(trainer, "async_rollout_manager", None) if trainer else None
+        return bool(getattr(manager, "agent_loop_workers", None))
+
+    def mutate_pipelined(self, stage1_tasks, stage2_builder, *, max_in_flight=None):
+        """Two-stage mutation with NO barrier between the stages.
+
+        ``mutate()`` blocks on the whole batch, so the two-stage mutation paid
+        its slowest sample twice per iteration: over 32 parents the chance that
+        at least one reply runs away is 92% (stage 1) and 77% (stage 2), and
+        only 27-32% of the measured wait was doing work. Here each prompt is a
+        separate submission, and ``stage2_builder(index, reply)`` is called as
+        soon as THAT parent's stage-1 reply lands -- its generator call is
+        queued immediately, while other parents are still planning.
+
+        ``stage2_builder`` returns a ``MutationTask`` to run stage 2 for that
+        parent, or None to stop there (unparseable plan). Returns
+        ``(stage1_replies, stage2_reply_by_index)``: the first is a list aligned
+        with ``stage1_tasks``, the second a dict keyed by the same index and
+        holding only the parents whose stage 2 actually ran. A failed or
+        timed-out request yields None, which downstream reads as a mutation
+        failure -- exactly what an unparseable reply already produced.
+        """
+        import ray
+
+        n = len(stage1_tasks)
+        stage1_replies: list[str | None] = [None] * n
+        stage2_replies: dict[int, str | None] = {}
+        if n == 0:
+            return stage1_replies, stage2_replies
+
+        trainer = self._require_trainer()
+        workers = list(trainer.async_rollout_manager.agent_loop_workers)
+        if not workers:
+            raise RuntimeError("no agent_loop_workers to submit mutation prompts to")
+        cfg = self._async_cfg
+        if max_in_flight is None:
+            max_in_flight = int(getattr(cfg, "max_in_flight_chunks", 32) or 32)
+        max_in_flight = max(1, int(max_in_flight))
+        timeout_s = float(getattr(cfg, "request_timeout_s", 900.0) or 900.0)
+
+        opened_session = not self._session_active
+        if opened_session:
+            self._wake()
+        # Same invariant the streamed rollout path carries: a weight sync while
+        # requests are outstanding would split one mutation batch across two
+        # policies. `_wake` asserts on this flag, so an overlap mode that tried
+        # it would fail loudly instead of quietly mixing versions.
+        self._streaming_in_flight = True
+        try:
+            rr = 0
+            # (stage, index) -> submitted at; stage 2 is pushed to the FRONT so
+            # a parent that has a plan finishes before new plans are started.
+            todo: deque = deque((1, i) for i in range(n))
+            pending: dict = {}
+            deadlines: dict = {}
+
+            def _submit(stage: int, index: int, task) -> None:
+                nonlocal rr
+                handle = workers[rr % len(workers)].generate_sequences.remote(
+                    self._mutation_gen_batch(task)
+                )
+                rr += 1
+                pending[handle] = (stage, index)
+                deadlines[handle] = _time.monotonic() + timeout_s
+
+            stage2_tasks: dict[int, MutationTask] = {}
+            while todo or pending:
+                while todo and len(pending) < max_in_flight:
+                    stage, index = todo.popleft()
+                    _submit(
+                        stage,
+                        index,
+                        stage1_tasks[index] if stage == 1 else stage2_tasks[index],
+                    )
+                if not pending:
+                    continue
+                ready, _ = ray.wait(list(pending), num_returns=1, timeout=1.0)
+                for handle in ready:
+                    stage, index = pending.pop(handle)
+                    deadlines.pop(handle, None)
+                    try:
+                        reply = self._decode_single_response(ray.get(handle))
+                    except Exception:
+                        reply = None
+                    if stage == 2:
+                        stage2_replies[index] = reply
+                        continue
+                    stage1_replies[index] = reply
+                    task = stage2_builder(index, reply)
+                    if task is not None:
+                        stage2_tasks[index] = task
+                        todo.appendleft((2, index))
+                now = _time.monotonic()
+                for handle, when in list(deadlines.items()):
+                    if now <= when:
+                        continue
+                    stage, index = pending.pop(handle)
+                    del deadlines[handle]
+                    try:
+                        ray.cancel(handle, force=False)
+                    except Exception:
+                        pass
+                    if stage == 2:
+                        stage2_replies[index] = None
+                    else:
+                        # No plan -> no generator call for this parent, which is
+                        # what an unparseable stage-1 reply already means.
+                        stage2_builder(index, None)
+        finally:
+            self._streaming_in_flight = False
+            if opened_session:
+                self._sleep()
+        return stage1_replies, stage2_replies
+
+    def _mutation_gen_batch(self, task: MutationTask):
+        """One-row generation DataProto for a single mutation prompt."""
+        messages = getattr(task, "messages", None)
+        batch = self._make_prompt_batch(
+            [task.prompt], messages=[messages] if messages else None
+        )
+        gen_batch = batch.pop(
+            batch_keys=["input_ids", "attention_mask", "position_ids"],
+            non_tensor_batch_keys=[
+                "raw_prompt_ids",
+                "raw_prompt",
+                "data_source",
+                "reward_model",
+            ],
+        )
+        if task.max_output_tokens is not None:
+            gen_batch.meta_info["max_tokens"] = max(1, int(task.max_output_tokens))
+        if task.temperature is not None:
+            gen_batch.meta_info["temperature"] = max(0.0, float(task.temperature))
+        if task.top_p is not None:
+            top_p_value = float(task.top_p)
+            if not 0.0 < top_p_value <= 1.0:
+                raise ValueError("top_p must be in (0, 1]")
+            gen_batch.meta_info["top_p"] = top_p_value
+        return gen_batch
+
+    def _decode_single_response(self, output) -> str | None:
+        responses = output.batch.get("responses") if output is not None else None
+        if responses is None or len(responses) == 0:
+            return None
+        return self._require_tokenizer().decode(
+            responses[0].tolist(), skip_special_tokens=True
+        )
 
     # ------------------------------------------------------------------
     # Phase sessions: keep vLLM awake across a batch of generate calls and

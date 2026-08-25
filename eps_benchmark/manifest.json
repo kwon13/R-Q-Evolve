@@ -1,0 +1,364 @@
+{
+  "schema_version": 1,
+  "benchmark": "evolved_performance_group_balanced_ood_v2",
+  "created_at": "2026-08-24T00:00:00+09:00",
+  "benchmark_sha256": "7094ddcde5f2dc08211d65e8b992f928187cae6789df0eb84dce0bcf61375537",
+  "num_examples": 480,
+  "num_programs": 12,
+  "examples_per_program": 40,
+  "seed_start": 5000000,
+  "selection": "For each of 12 held-out programs, take the first 40 globally unique (normalized problem, integer answer) instances from sequential seeds starting at 5000000.",
+  "programs": [
+    {
+      "program_name": "algebra_01_rank_one_determinant",
+      "program_id": "199e32ea77fb",
+      "program_sha256": "39a381200bb7ea95610f49f6825f1f57d429cfed0364ab1011a1d7c058d9f024",
+      "group": "algebra",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    },
+    {
+      "program_name": "algebra_quadratic_root_product_resultant",
+      "program_id": "808b08bad46a",
+      "program_sha256": "14fed8ffc8f1c11755c45089e8c2ad24afbcaff2226711f4f1b0ee9c0f8511b8",
+      "group": "algebra",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    },
+    {
+      "program_name": "combinatorics_complete_tripartite_spanning_trees",
+      "program_id": "32f2c8a27066",
+      "program_sha256": "a2b4df2fe788f01e5584cef14fc42ded6a3711ec43822d3b826153d76449bb63",
+      "group": "combinatorics",
+      "skill": "counting",
+      "num_examples": 40,
+      "seeds_scanned": 92
+    },
+    {
+      "program_name": "combinatorics_labeled_trees_exact_leaves",
+      "program_id": "f89e66c2ea6c",
+      "program_sha256": "660de2cbf7398f9acdd276e9e9609845a388d223aa56cb715c0d9a139881c06f",
+      "group": "combinatorics",
+      "skill": "counting",
+      "num_examples": 40,
+      "seeds_scanned": 107
+    },
+    {
+      "program_name": "geometry_circle_chord_regions",
+      "program_id": "a2e3560c1fbc",
+      "program_sha256": "574b13a89e8d6098829c493a0fcf9b204d17e82b93f58e370656cba0323f5893",
+      "group": "geometry",
+      "skill": "counting",
+      "num_examples": 40,
+      "seeds_scanned": 48
+    },
+    {
+      "program_name": "geometry_descartes_circle_curvature",
+      "program_id": "e940a42de3f4",
+      "program_sha256": "6a81ada790b8490422a6c6791ee022c32727829b6d4d0050ed76ebfde2be1f4d",
+      "group": "geometry",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 41
+    },
+    {
+      "program_name": "inequality_boxed_cubic_concentration",
+      "program_id": "4d4a25fc1449",
+      "program_sha256": "c3567085a0c9b3bdd0cb09ca4b83afa68388f4c5e4aedfe496019f917d11552f",
+      "group": "inequality",
+      "skill": "extremal_principle",
+      "num_examples": 40,
+      "seeds_scanned": 41
+    },
+    {
+      "program_name": "inequality_expanded_even_quartic",
+      "program_id": "4e2e53ac8050",
+      "program_sha256": "a329bba7f3e20e82c3a2c520df4f616422d6e0734d79cb7a377f574217cd8503",
+      "group": "inequality",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    },
+    {
+      "program_name": "number_theory_binomial_prime_valuation",
+      "program_id": "8d77e1891d27",
+      "program_sha256": "c065a48be3d5dc398b03ad906a7bfb98ecc1bf4f79d1dfdf617ac69ae5a1ea58",
+      "group": "number_theory",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 41
+    },
+    {
+      "program_name": "number_theory_gcd_sum",
+      "program_id": "2353b4ee2b69",
+      "program_sha256": "201d19850c515f37ace91472085a563d5ac9eab8b6300e15938b1a53daf6d532",
+      "group": "number_theory",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 41
+    },
+    {
+      "program_name": "sequence_01_repeated_root_recurrence",
+      "program_id": "b94125e61b80",
+      "program_sha256": "4bb68372bdf7d730e70859f9fd2cce4ed2541107910ba1e46e07bbd0d5792019",
+      "group": "sequence",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    },
+    {
+      "program_name": "sequence_quadratic_double_angle_modulo",
+      "program_id": "c8d8a1b651f9",
+      "program_sha256": "7492577b407b52c9efbb563a1bdc1a9f98d19407e237f04a325a9847c5bbd42a",
+      "group": "sequence",
+      "skill": "transformation",
+      "num_examples": 40,
+      "seeds_scanned": 40
+    }
+  ],
+  "artifact_schema": "group_balanced_ood_v1",
+  "artifact_sha256": "4ae707a98277227607881e2ad6dcbdef3ec97048ff329ce99dfcea793ad8f8d3",
+  "locked_row_fields": [
+    "benchmark",
+    "sample_id",
+    "program_name",
+    "program_id",
+    "program_sha256",
+    "group",
+    "skill",
+    "seed",
+    "problem",
+    "answer",
+    "instance_sha256",
+    "index"
+  ],
+  "balance": {
+    "groups": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "programs_per_group": 2,
+    "examples_per_program": 40,
+    "examples_per_group": 80,
+    "group_counts": {
+      "algebra": 80,
+      "combinatorics": 80,
+      "geometry": 80,
+      "inequality": 80,
+      "number_theory": 80,
+      "sequence": 80
+    }
+  },
+  "score_equivalence": "Because all 12 programs have 40 rows and every GROUP has two programs, macro-program accuracy = macro-GROUP accuracy = micro accuracy.",
+  "distribution": "Evaluation-only generator sources distinct from the eight current seed sources; no Seed-ID half.",
+  "generator_inventory": [
+    {
+      "program_name": "algebra_01_rank_one_determinant",
+      "program_id": "199e32ea77fb",
+      "program_sha256": "39a381200bb7ea95610f49f6825f1f57d429cfed0364ab1011a1d7c058d9f024",
+      "group": "algebra",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "algebra_quadratic_root_product_resultant",
+      "program_id": "808b08bad46a",
+      "program_sha256": "14fed8ffc8f1c11755c45089e8c2ad24afbcaff2226711f4f1b0ee9c0f8511b8",
+      "group": "algebra",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "combinatorics_complete_tripartite_spanning_trees",
+      "program_id": "32f2c8a27066",
+      "program_sha256": "a2b4df2fe788f01e5584cef14fc42ded6a3711ec43822d3b826153d76449bb63",
+      "group": "combinatorics",
+      "skill": "counting"
+    },
+    {
+      "program_name": "combinatorics_labeled_trees_exact_leaves",
+      "program_id": "f89e66c2ea6c",
+      "program_sha256": "660de2cbf7398f9acdd276e9e9609845a388d223aa56cb715c0d9a139881c06f",
+      "group": "combinatorics",
+      "skill": "counting"
+    },
+    {
+      "program_name": "geometry_circle_chord_regions",
+      "program_id": "a2e3560c1fbc",
+      "program_sha256": "574b13a89e8d6098829c493a0fcf9b204d17e82b93f58e370656cba0323f5893",
+      "group": "geometry",
+      "skill": "counting"
+    },
+    {
+      "program_name": "geometry_descartes_circle_curvature",
+      "program_id": "e940a42de3f4",
+      "program_sha256": "6a81ada790b8490422a6c6791ee022c32727829b6d4d0050ed76ebfde2be1f4d",
+      "group": "geometry",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "inequality_boxed_cubic_concentration",
+      "program_id": "4d4a25fc1449",
+      "program_sha256": "c3567085a0c9b3bdd0cb09ca4b83afa68388f4c5e4aedfe496019f917d11552f",
+      "group": "inequality",
+      "skill": "extremal_principle"
+    },
+    {
+      "program_name": "inequality_expanded_even_quartic",
+      "program_id": "4e2e53ac8050",
+      "program_sha256": "a329bba7f3e20e82c3a2c520df4f616422d6e0734d79cb7a377f574217cd8503",
+      "group": "inequality",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "number_theory_binomial_prime_valuation",
+      "program_id": "8d77e1891d27",
+      "program_sha256": "c065a48be3d5dc398b03ad906a7bfb98ecc1bf4f79d1dfdf617ac69ae5a1ea58",
+      "group": "number_theory",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "number_theory_gcd_sum",
+      "program_id": "2353b4ee2b69",
+      "program_sha256": "201d19850c515f37ace91472085a563d5ac9eab8b6300e15938b1a53daf6d532",
+      "group": "number_theory",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "sequence_01_repeated_root_recurrence",
+      "program_id": "b94125e61b80",
+      "program_sha256": "4bb68372bdf7d730e70859f9fd2cce4ed2541107910ba1e46e07bbd0d5792019",
+      "group": "sequence",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "sequence_quadratic_double_angle_modulo",
+      "program_id": "c8d8a1b651f9",
+      "program_sha256": "7492577b407b52c9efbb563a1bdc1a9f98d19407e237f04a325a9847c5bbd42a",
+      "group": "sequence",
+      "skill": "transformation"
+    }
+  ],
+  "reference_seed_program_count": 8,
+  "reference_seed_inventory": [
+    {
+      "program_name": "seed_algebra_invariant_discriminant_orbit",
+      "program_id": "81e03382a0ae",
+      "program_sha256": "dc90ae589fc3929271e82f72a9e0386926850bd828249e052d2afd64c4404c79",
+      "group": "algebra",
+      "skill": "invariant"
+    },
+    {
+      "program_name": "seed_combinatorics_construction_separating_family",
+      "program_id": "e0d38c29bcee",
+      "program_sha256": "4a8d07d40bb9cb9b71c4059a2cd7d6a50fef4fc092c28eb93e0ed31c24e850bb",
+      "group": "combinatorics",
+      "skill": "construction"
+    },
+    {
+      "program_name": "seed_combinatorics_induction_inversion_family",
+      "program_id": "1fde9c31cbd1",
+      "program_sha256": "450f1deac50255af61c00fbf073995edcad9fc58fc5c236f2fb0652296425144",
+      "group": "combinatorics",
+      "skill": "induction"
+    },
+    {
+      "program_name": "seed_geometry_extremal_principle_min_area_triangle",
+      "program_id": "750789036bea",
+      "program_sha256": "9f5109934227652e00d517f1a84d0395ff5f12c4ac1070f9c3018cff7fff2d47",
+      "group": "geometry",
+      "skill": "extremal_principle"
+    },
+    {
+      "program_name": "seed_inequality_counting_feasible_thresholds",
+      "program_id": "6a379d101c1e",
+      "program_sha256": "fb875bf41e59b482803857920906a9856ac6d8621d4788180822f4fbb5c90ca7",
+      "group": "inequality",
+      "skill": "counting"
+    },
+    {
+      "program_name": "seed_number_theory_casework_crt",
+      "program_id": "927353065f8b",
+      "program_sha256": "acd5974806295eee308124ca9fbd76f2c9819bf97acd4db40a335a21e1bef6bf",
+      "group": "number_theory",
+      "skill": "casework"
+    },
+    {
+      "program_name": "seed_number_theory_transformation_primitive_root",
+      "program_id": "4a30ab4855c3",
+      "program_sha256": "7a459b590cc66bda5de7908cf1eb1ee1b33250d5b5b7294f273f344a7e126362",
+      "group": "number_theory",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "seed_sequence_contradiction_prime_progression",
+      "program_id": "0172a974da75",
+      "program_sha256": "f7d3d292951bb54a70392df9ff63c96fe3e0f48e2ee9c388ab2675dc676501f4",
+      "group": "sequence",
+      "skill": "contradiction"
+    }
+  ],
+  "legacy_challenge_program_count": 6,
+  "legacy_challenge_inventory": [
+    {
+      "program_name": "01_weighted_binary_recurrence",
+      "program_id": "b1d6cd8408c2",
+      "program_sha256": "92d447ccaada6c0643fa1a36483053f074faa8ca75469995072c1a8fd46dd265",
+      "group": "sequence",
+      "skill": "induction"
+    },
+    {
+      "program_name": "02_symmetric_power_sum_three",
+      "program_id": "62fb270e1e05",
+      "program_sha256": "f3f9ce913e065b75747c8a0bfbb69a36c50f7b407c0a8992b213093c54bede6f",
+      "group": "algebra",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "03_shifted_quadratic_minimum",
+      "program_id": "dec50e3c339c",
+      "program_sha256": "bda138d5248a3abd1d1251b2d50b1eb80d4f6b5928f0bd34902110551cbf02d4",
+      "group": "inequality",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "04_three_level_power_tower",
+      "program_id": "9f8941ca8ed2",
+      "program_sha256": "f38eedf2e6edf849b775ec07f352a981a118b1fc58b52c3b42cf582ab4d9d30b",
+      "group": "number_theory",
+      "skill": "transformation"
+    },
+    {
+      "program_name": "05_banded_lattice_paths",
+      "program_id": "53c9489fdf8e",
+      "program_sha256": "a6fbddf2fbb9933d456a8ec13cf27a056921b702a6466348905154c1144cde90",
+      "group": "combinatorics",
+      "skill": "counting"
+    },
+    {
+      "program_name": "06_weighted_absolute_centers",
+      "program_id": "5f4f2fab19cd",
+      "program_sha256": "0b142204fa75d5572fd8398da6dd00f2a5da5598affb83cab70f5e7eea0f5805",
+      "group": "algebra",
+      "skill": "casework"
+    }
+  ],
+  "provenance": {
+    "python_version": "3.14.4",
+    "rq_evolve_git_head": "8d039c8ec79450d596e04281c5a9cd6a4a70b0b1",
+    "artifact_integrity_sha256": "c4e75ca833aa57c6721f4f9170c53d11d491e76d3f02508806a190d8ac62a929",
+    "builder_sha256": "5714a915a6c9980272771598cef371ef666c1b41da88c5561867ec70647e8e2f",
+    "validator_sha256": "b27a537696cd2588888cfdc04f8b77add340b5645ac9272c9c3df31619851ce7",
+    "rq_evolve_module_sha256": {
+      "src/rq_evolve/ast_contract.py": "372d7aa422eecd8469dcab9f892b6291a57902be2c5cdfff3e693d7967b193c0",
+      "src/rq_evolve/code_utils.py": "016d71b7de7ae5cbaedf422faa9ee4ac0b28e1155fa5700b7a903e306057ed2a",
+      "src/rq_evolve/concepts.py": "b2541a1366f97a5b9af9ba49ecaf6061e9b5ea7741a5f0177b02e572fdcec162",
+      "src/rq_evolve/evolved_performance.py": "60de8acf903402f61f2dfe75256af387da62f6b5cb77ccc75098c9d4d3332d0d",
+      "src/rq_evolve/program.py": "0d28e1de2b33a86e6fbb9899de4e848dd1dbe22afe5440055cad194ca69fd3ec"
+    }
+  }
+}

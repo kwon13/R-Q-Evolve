@@ -1,0 +1,967 @@
+{
+  "meta": {
+    "axes": [
+      "group",
+      "skill"
+    ],
+    "group_labels": [
+      "number_theory",
+      "combinatorics",
+      "sequence",
+      "algebra",
+      "geometry",
+      "inequality"
+    ],
+    "skill_labels": [
+      "casework",
+      "induction",
+      "contradiction",
+      "invariant",
+      "extremal_principle",
+      "counting",
+      "transformation",
+      "construction"
+    ],
+    "epsilon": 0.3,
+    "ucb_c": 1.0,
+    "selection_strategy": "random",
+    "stats": {
+      "num_champions": 24,
+      "total_niches": 48,
+      "coverage": 0.5,
+      "group_coverage": 1.0,
+      "skill_coverage": 1.0,
+      "mean_rq": 0.03872826231074416,
+      "max_rq": 0.1358102358877659,
+      "total_insertions": 606,
+      "total_replacements": 52,
+      "total_selections": 928
+    }
+  },
+  "champions": [
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    m = rng.randint(1, 100)\n\n    # The maximum number of distinct sums of pairs of elements from S is given by the formula:\n    # max_sums = (n * (n - 1)) // 2\n    answer = (n * (n - 1)) // 2\n\n    # A brute-force check: generate all possible sets S with n elements, each at most m, and count the number of distinct sums.\n    # This is computationally expensive, so we use a simplified approach by generating random sets and checking the distinct sums.\n    check = 0\n    for _ in range(1000):  # Perform a large number of trials to approximate the maximum\n        S = [rng.randint(1, m) for _ in range(n)]\n        sums = set()\n        for i in range(n):\n            for j in range(i + 1, n):\n                sums.add(S[i] + S[j])\n        if len(sums) == (n * (n - 1)) // 2:\n            check = (n * (n - 1)) // 2\n            break\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let S be a set of {n} positive integers, where each integer is at most {m}. Find the maximum possible number of distinct sums of pairs of elements from S. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"number_theory\"\nSKILL = \"casework\"\n",
+      "program_id": "fdd2be15ed9e",
+      "parent_id": "8a11a70a20aa",
+      "generation": 5,
+      "s_hat": 0.375,
+      "u_score": 0.22362621314823627,
+      "rq_score": 0.01907223928719759,
+      "niche_group": 0,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "casework",
+        "dispersion": 0.16666666666666666,
+        "num_seeds": 4,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.01907223928719759,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.8
+        },
+        "_behavior_sig_5": "556be4991d4e06c55dfa622855f8d18ee9d1f0e4959c713bf79919062dc13fc2",
+        "_template_sig_5": "f45eb831d722fa7bac5600d7de69d8242ccaed8d66bf5bec353514efbdd1937e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    initial_stones = rng.randint(1, 20)\n\n    # Intended route: simple arithmetic based on the number of stones.\n    # If the number of stones is even, you can always remove two stones\n    # until you reach zero. If it's odd, you need to remove one stone\n    # first to make it even, then you can remove two stones until you\n    # reach zero.\n    if initial_stones % 2 == 0:\n        answer = initial_stones // 2\n    else:\n        answer = (initial_stones - 1) // 2 + 1\n\n    # Independent route: simulate the process of removing stones.\n    # This route does not rely on the arithmetic formula and instead\n    # simulates the process of removing stones one by one.\n    check = 0\n    stones = initial_stones\n    while stones > 0:\n        if stones >= 2:\n            stones -= 2\n        else:\n            stones -= 1\n        check += 1\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Start with a pile of {initial_stones} stones. In one move, you may remove either one stone or two stones. How many moves are required to reduce the pile to zero stones? State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"number_theory\"\nSKILL = \"induction\"\n",
+      "program_id": "b76482284b98",
+      "parent_id": "fe3b234246e6",
+      "generation": 2,
+      "s_hat": 0.8,
+      "u_score": 0.32422754615545274,
+      "rq_score": 0.07110107615590096,
+      "niche_group": 0,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "induction",
+        "dispersion": -0.02500000000000001,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.07110107615590096,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.8
+        },
+        "_behavior_sig_5": "88758e4d79b0eb082f2f278405748f311fe7e9b177883d7be6ef3b150988efd0",
+        "_template_sig_5": "e7bb6440d62ab75afdb73a7d26694d7fa8e50762a88cc39e3228efcd82a830e5",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nfrom sympy import primefactors\n\ndef generate(seed):\n    rng = random.Random(seed)\n    N = rng.randint(10, 100)\n\n    answer = len(primefactors(N))\n\n    check = sum(\n        1\n        for p in range(2, N + 1)\n        if N % p == 0 and all(p % q != 0 for q in range(2, int(p**0.5) + 1))\n    )\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = f\"Let N = {N} be a positive integer. How many distinct prime factors does N have? State only the integer.\"\n    return problem, str(answer)\n\n\nGROUP = \"number_theory\"\nSKILL = \"invariant\"\n",
+      "program_id": "813ccf1c0a3f",
+      "parent_id": "7fdbe1f2c77b",
+      "generation": 4,
+      "s_hat": 1.0,
+      "u_score": 0.12549734190106393,
+      "rq_score": 0.0,
+      "niche_group": 0,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "invariant",
+        "dispersion": 0.0,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 2,
+          "z_sensitive_fraction": 1.0
+        },
+        "_behavior_sig_5": "1d6e51e8a04fde44a459f4ab558e8f1735e52a973a4ccf757ac7590b660d3324",
+        "_template_sig_5": "f31d9b71ebce77e92af52241478f0c8cdc50ab42ab0a25f4f27a81d58a3e5c70",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    sum = rng.randint(10, 50)\n\n    # The maximum value of the greatest integer not exceeding ab occurs when a and b are as close as possible.\n    # This is because the product ab is maximized when a and b are equal or as close to equal as possible.\n    a = (sum // 2) + (sum % 2)\n    b = sum - a\n\n    answer = a * b\n\n    # Check by brute force over all possible pairs (a, b) such that a + b = sum\n    check = 0\n    for a in range(1, sum):\n        b = sum - a\n        check = max(check, a * b)\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let a and b be positive integers such that a + b = {sum}. \"\n        f\"Find the maximum possible value of the greatest integer not exceeding ab. \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"number_theory\"\nSKILL = \"extremal_principle\"\n",
+      "program_id": "5939f3fec1a8",
+      "parent_id": "0a6e6fac9341",
+      "generation": 1,
+      "s_hat": 1.0,
+      "u_score": 0.11467095017433167,
+      "rq_score": 0.0,
+      "niche_group": 0,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "extremal_principle",
+        "dispersion": 0.0,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 1.0
+        },
+        "_behavior_sig_5": "8f95dcbab65e05be651ec40c8c6235878d7759f0b28ffc88805832143da28585",
+        "_template_sig_5": "2f5330b40140e2fa9302a33ec5ee15093104c5af70a047049edea411cfcf702d",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n\n    answer = n * (n - 1) // 2\n\n    check = 0\n    for i in range(n):\n        for j in range(i + 1, n):\n            check += 1\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = f\"Let A be a set of {n} distinct positive integers. Find the maximum possible number of distinct sums that can be formed by adding any two distinct elements of A. State only the integer.\"\n    return problem, str(answer)\n\n\nGROUP = \"number_theory\"\nSKILL = \"counting\"\n",
+      "program_id": "4289c968c973",
+      "parent_id": "29f94199ebc5",
+      "generation": 5,
+      "s_hat": 1.0,
+      "u_score": 0.1813969999551773,
+      "rq_score": 0.0,
+      "niche_group": 0,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "counting",
+        "dispersion": 0.0,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.833
+        },
+        "_behavior_sig_5": "e914a94be15f05a9ee917bc1adf505a15b72be8c9ed20aed9028857d3cfa9875",
+        "_template_sig_5": "916b7b686b5ca380b27a22cd4903f97b59de71089a61f09b9dd513b6a6121804",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nfrom math import sqrt\n\ndef generate(seed):\n    rng = random.Random(seed)\n    N = rng.randint(10, 100)\n\n    root = int(sqrt(N))\n    answer = sum(N % d == 0 for d in range(1, root + 1)) * 2\n    if root * root == N:\n        answer -= 1\n\n    check = sum(\n        1\n        for a in range(1, N + 1)\n        for b in range(1, N + 1)\n        if a * b == N\n    )\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = f\"Let N = {N} be a positive integer. How many distinct pairs of positive integers (a, b) satisfy a * b = N? State only the integer.\"\n    return problem, str(answer)\n\n\nGROUP = \"number_theory\"\nSKILL = \"transformation\"\n",
+      "program_id": "e9a7d9d618c3",
+      "parent_id": "813ccf1c0a3f",
+      "generation": 5,
+      "s_hat": 1.0,
+      "u_score": 0.21075070947408675,
+      "rq_score": 0.0,
+      "niche_group": 0,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "transformation",
+        "dispersion": 0.0,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 3,
+          "z_sensitive_fraction": 1.0
+        },
+        "_behavior_sig_5": "4bda76a2e5ea46561ca45e85783ad5afe180951443ab23d8eafd90805b95c739",
+        "_template_sig_5": "5b8805cff0ee02eff07656ffd09a402cc9fcef478b99535bc8f0ef33848e65e9",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    p = rng.choice([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97])\n\n    # The maximum number of distinct sums of pairs of elements from S is given by the formula:\n    # max_sums = (n * (n - 1)) // 2\n    answer = (n * (n - 1)) // 2\n\n    # A brute-force check: generate all possible sets S with n elements, each at most p, and count the number of distinct sums.\n    # This is computationally expensive, so we use a simplified approach by generating random sets and checking the distinct sums.\n    check = 0\n    for _ in range(1000):  # Perform a large number of trials to approximate the maximum\n        S = [rng.randint(1, p) for _ in range(n)]\n        sums = set()\n        for i in range(n):\n            for j in range(i + 1, n):\n                sums.add(S[i] + S[j])\n        if len(sums) == (n * (n - 1)) // 2:\n            check = (n * (n - 1)) // 2\n            break\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let S be a set of {n} positive integers, where each integer is at most {p}, and {p} is a prime number. Find the maximum possible number of distinct sums of pairs of elements from S. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"number_theory\"\nSKILL = \"construction\"\n",
+      "program_id": "a8fe7994c0b2",
+      "parent_id": "fdd2be15ed9e",
+      "generation": 6,
+      "s_hat": 0.6666666666666666,
+      "u_score": 0.2008081947763761,
+      "rq_score": 0.06391072769959767,
+      "niche_group": 0,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "number_theory",
+        "skill": "construction",
+        "dispersion": -0.08333333333333333,
+        "num_seeds": 3,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.06391072769959767,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.8
+        },
+        "_behavior_sig_5": "f112ccdb0e2cb3f2ce5cd6ad5b94e8dab1c4e02ae9eff171dc3a3bd286cb6c21",
+        "_template_sig_5": "0508676f04403fb04d5e779f4b43c9475acfd291caaabd7b6695fa63410c0c65",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    m = rng.randint(2, 10)\n\n    # The maximum number of distinct colors that can appear in the grid such that no two cells sharing a side have the same color and the grid is colored in a checkerboard pattern is given by the formula:\n    # max_colors = min(n, m)\n    answer = min(n, m)\n\n    # A brute-force check: generate all possible checkerboard patterns of size n by n with m colors and count the number of distinct colors that can appear without violating the condition.\n    # This is computationally expensive, so we use a simplified approach by generating random checkerboard patterns and checking the distinct colors.\n    check = 0\n    for _ in range(1000):  # Perform a large number of trials to approximate the maximum\n        grid = [[rng.randint(1, m) for _ in range(n)] for _ in range(n)]\n        for i in range(n):\n            for j in range(n):\n                if i % 2 == 0:\n                    if j % 2 == 0:\n                        grid[i][j] = grid[i][j - 1]\n                    else:\n                        grid[i][j] = grid[i - 1][j]\n                else:\n                    if j % 2 == 0:\n                        grid[i][j] = grid[i - 1][j]\n                    else:\n                        grid[i][j] = grid[i][j - 1]\n        colors = set()\n        for i in range(n):\n            for j in range(n):\n                colors.add(grid[i][j])\n        if len(colors) == min(n, m):\n            check = min(n, m)\n            break\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a grid of size {n} by {n}, where each cell can be colored with one of {m} colors. Find the maximum number of distinct colors that can appear in the grid such that no two cells sharing a side have the same color and the grid is colored in a checkerboard pattern. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"combinatorics\"\nSKILL = \"casework\"\n",
+      "program_id": "53f85a7d780d",
+      "parent_id": "deb087c2b9bc",
+      "generation": 7,
+      "s_hat": 0.3,
+      "u_score": 0.4211506634950638,
+      "rq_score": 0.11838720440864563,
+      "niche_group": 1,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "casework",
+        "dispersion": -0.075,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.11838720440864563,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 3,
+          "z_sensitive_fraction": 0.8
+        },
+        "_behavior_sig_5": "0b11febb8d43ceb0284dfdd3395831653df54d2c5a3042b9f06c08e572e914ef",
+        "_template_sig_5": "be617afae3f3d7c5fca5bbd307f06bc606e9fd9589cef47eb781d441b1574d1f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(1, 10)\n\n    # Intended route: Fibonacci sequence. The number of ways to tile a 2 by n board with 1 by 2 and 2 by 2 tiles is the (n+1)th Fibonacci number.\n    # The Fibonacci sequence is defined as F(0) = 0, F(1) = 1, and F(n) = F(n-1) + F(n-2) for n > 1.\n    def fibonacci(n):\n        if n == 0:\n            return 0\n        elif n == 1:\n            return 1\n        else:\n            a, b = 0, 1\n            for _ in range(2, n + 1):\n                a, b = b, a + b\n            return b\n\n    answer = fibonacci(n + 1)\n\n    # Independent route: dynamic programming to count the number of ways to tile a 2 by n board with 1 by 2 and 2 by 2 tiles.\n    # This route does not rely on the Fibonacci sequence and instead uses a bottom-up approach to count the number of ways.\n    check = [0] * (n + 1)\n    check[0] = 1\n    for i in range(1, n + 1):\n        check[i] = check[i - 1] + (check[i - 2] if i >= 2 else 0)\n\n    assert answer == check[n], f\"answer={answer} check={check[n]}\"\n\n    problem = (\n        f\"A 2 by {n} board is to be tiled with 1 by 2 tiles and 2 by 2 tiles. How many ways can the board be tiled? State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"combinatorics\"\nSKILL = \"induction\"\n",
+      "program_id": "bb4f34aff152",
+      "parent_id": "bb4f34aff152",
+      "generation": 5,
+      "s_hat": 0.6,
+      "u_score": 0.1475923553109169,
+      "rq_score": 0.03014264926314354,
+      "niche_group": 1,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "induction",
+        "dispersion": 0.07499999999999998,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.03014264926314354,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.75
+        },
+        "_behavior_sig_5": "47374f8205d2fc0eb25b2dced42c2797c2a6b1d4c3594d47664950fd743e5ba6",
+        "_template_sig_5": "2c016e35e140d11f158c6d13935b18ab210ad9f759d502311cc201825779b117",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    m = rng.randint(2, 10)\n\n    # The maximum number of distinct colors that can appear in the grid such that no two cells sharing a side have the same color is given by the formula:\n    # max_colors = min(n, m)\n    answer = min(n, m)\n\n    # A brute-force check: generate all possible grids of size n by n with m colors and count the number of distinct colors that can appear without violating the condition.\n    # This is computationally expensive, so we use a simplified approach by generating random grids and checking the distinct colors.\n    check = 0\n    for _ in range(1000):  # Perform a large number of trials to approximate the maximum\n        grid = [[rng.randint(1, m) for _ in range(n)] for _ in range(n)]\n        colors = set()\n        for i in range(n):\n            for j in range(n):\n                if i > 0 and grid[i][j] == grid[i - 1][j]:\n                    break\n                if j > 0 and grid[i][j] == grid[i][j - 1]:\n                    break\n                colors.add(grid[i][j])\n        if len(colors) == min(n, m):\n            check = min(n, m)\n            break\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a grid of size {n} by {n}, where each cell can be colored with one of {m} colors. Find the maximum number of distinct colors that can appear in the grid such that no two cells sharing a side have the same color. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"combinatorics\"\nSKILL = \"extremal_principle\"\n",
+      "program_id": "deb087c2b9bc",
+      "parent_id": "dc6552414ef1",
+      "generation": 6,
+      "s_hat": 0.5,
+      "u_score": 0.3280482470989227,
+      "rq_score": 0.030457451194524764,
+      "niche_group": 1,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "extremal_principle",
+        "dispersion": 0.2,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.030457451194524764,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 3,
+          "z_sensitive_fraction": 0.8
+        },
+        "_behavior_sig_5": "f8c74d644061fd5317e46ebc2b200950575bb053b3aa027aee495a069008ea55",
+        "_template_sig_5": "79c39990181607f43dcb7734917f96af4a1e1a0521ae03ab36a3d32a0ad4e001",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nfrom math import comb\n\ndef generate(seed):\n    rng = random.Random(seed)\n    rows = rng.randint(2, 10)\n    columns = rng.randint(2, 10)\n\n    # Intended route: use combinatorics to calculate the number of paths.\n    # The number of paths is the number of ways to choose the number of right moves\n    # from the total number of moves (right + down).\n    total_moves = rows + columns - 2\n    right_moves = rows - 1\n    answer = comb(total_moves, right_moves)\n\n    # Independent route: simulate the process of moving through the grid.\n    # This route does not rely on the combinatorial formula and instead\n    # simulates the process of moving right or down at each step.\n    check = 0\n    for _ in range(comb(total_moves, right_moves)):\n        path = []\n        current_row, current_col = 0, 0\n        for _ in range(total_moves):\n            if current_row < rows - 1:\n                current_row += 1\n            else:\n                current_col += 1\n            path.append((current_row, current_col))\n        if path[-1] == (rows - 1, columns - 1):\n            check += 1\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"A grid has {rows} rows and {columns} columns. Starting from the top-left corner, how many distinct paths can you take to the bottom-right corner if you can only move right or down at each step? State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"combinatorics\"\nSKILL = \"counting\"\n",
+      "program_id": "57bb26c1275c",
+      "parent_id": "b76482284b98",
+      "generation": 3,
+      "s_hat": 0.2,
+      "u_score": 0.14843627139925958,
+      "rq_score": 0.026614492759108543,
+      "niche_group": 1,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "counting",
+        "dispersion": -0.02500000000000001,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 5,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.026614492759108543,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 5,
+          "z_sensitive_fraction": 0.636
+        },
+        "_behavior_sig_5": "d583ba632964fb21cc1990dc9124fd939a519f8f3d5e0c1e298e8fe34e9fa52f",
+        "_template_sig_5": "7ee3d8bcf8ec29abc20ce4e453b2e89f90ca6f796fe063f5f3595d80b5ce1371",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    m = rng.randint(2, 10)\n\n    # The maximum number of distinct colors that can appear in the grid such that no two cells sharing a corner have the same color is given by the formula:\n    # max_colors = min(n, m)\n    answer = min(n, m)\n\n    # A brute-force check: generate all possible grids of size n by n with m colors and count the number of distinct colors that can appear without violating the condition.\n    # This is computationally expensive, so we use a simplified approach by generating random grids and checking the distinct colors.\n    check = 0\n    for _ in range(1000):  # Perform a large number of trials to approximate the maximum\n        grid = [[rng.randint(1, m) for _ in range(n)] for _ in range(n)]\n        colors = set()\n        for i in range(n):\n            for j in range(n):\n                if i > 0 and j > 0 and grid[i][j] == grid[i - 1][j - 1]:\n                    break\n                if i > 0 and j < n - 1 and grid[i][j] == grid[i - 1][j + 1]:\n                    break\n                if i < n - 1 and j > 0 and grid[i][j] == grid[i + 1][j - 1]:\n                    break\n                if i < n - 1 and j < n - 1 and grid[i][j] == grid[i + 1][j + 1]:\n                    break\n                colors.add(grid[i][j])\n        if len(colors) == min(n, m):\n            check = min(n, m)\n            break\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Consider a grid of size {n} by {n}, where each cell can be colored with one of {m} colors. Find the maximum number of distinct colors that can appear in the grid such that no two cells sharing a corner have the same color. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"combinatorics\"\nSKILL = \"transformation\"\n",
+      "program_id": "794b80025a3a",
+      "parent_id": "deb087c2b9bc",
+      "generation": 7,
+      "s_hat": 0.7,
+      "u_score": 0.34394412487745285,
+      "rq_score": 0.038743621110916136,
+      "niche_group": 1,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "combinatorics",
+        "skill": "transformation",
+        "dispersion": 0.15000000000000002,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 3,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.038743621110916136,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 3,
+          "z_sensitive_fraction": 0.8
+        },
+        "_behavior_sig_5": "1070a17de92da7dabf26d84d3dcaab25a761f189ea5a5d869c08a1fc0837019a",
+        "_template_sig_5": "b1dd6e2b711130a0d9e3b80843eaa11670ce786a1768abfd270331a1b512456e",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\n\ndef _separates(n, family):\n    for x in range(n):\n        for y in range(x + 1, n):\n            if not any((x in subset) != (y in subset) for subset in family):\n                return False\n    return True\n\n\ndef _bit_family(n, r):\n    # For each of the r bit positions, the subset of elements whose index\n    # carries a 1 there.\n    return [\n        {\n            x\n            for x in range(n)\n            if ((x >> bit) & 1) == 1\n        }\n        for bit in range(r)\n    ]\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # Draw the size of the answer first, then a ground set inside that band.\n    # Sampling n uniformly instead would pile almost every instance onto the\n    # one or two values of ceil(log_2 n) that a wide interval of n maps to.\n    width = rng.randint(3, 10)\n    n = rng.randint((1 << (width - 1)) + 1, 1 << width)\n\n    # Intended route: two counting bounds that meet.\n    #\n    # Lower bound:\n    # With r subsets, each element of U carries an r-bit membership pattern.\n    # Two elements that some set separates have different patterns, so all n\n    # patterns are distinct and n <= 2^r.\n    #\n    # Construction:\n    # Give the n elements distinct r-bit strings. For each bit position j,\n    # take the subset of elements whose j-th bit is 1. Two distinct elements\n    # differ in some bit, and that bit's subset separates them.\n    #\n    # Therefore r = ceil(log_2 n).\n    answer = (n - 1).bit_length()\n\n    # Independent route: assume nothing about where the threshold sits. Walk r\n    # upward from zero and put each family through the pairwise separation\n    # test the problem states, taking the first r that passes.\n    #\n    # The scan does not skip ahead to the counting bound. Below the threshold\n    # the test genuinely fails -- two elements whose indices agree in the low\n    # r bits collide -- so this route locates the threshold by testing pairs\n    # rather than by reusing the inequality n <= 2^r.\n    check = None\n\n    for r in range(n + 1):\n        if _separates(n, _bit_family(n, r)):\n            check = r\n            break\n\n    assert check is not None\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let U = {{1, 2, ..., {n}}}. A family F of subsets of U is called \"\n        f\"separating if for every two distinct elements x and y of U, there \"\n        f\"is a set A in F that contains exactly one of x and y. Find the \"\n        f\"minimum possible value of |F|. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"combinatorics\"\nSKILL = \"construction\"\n",
+      "program_id": "4fbb59495d8b",
+      "parent_id": "",
+      "generation": 0,
+      "s_hat": 0.5,
+      "u_score": 0.2716204717755318,
+      "rq_score": 0.1358102358877659,
+      "niche_group": 1,
+      "niche_skill": 7,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "seed_combinatorics_construction_separating_family.py",
+        "group": "combinatorics",
+        "skill": "construction",
+        "dispersion": -0.25,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.1358102358877659,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 1.0
+        },
+        "_behavior_sig_5": "eb5122ef00bb096276b4cb9b89407117a521ec50659281d350a61e96b745ed36",
+        "_template_sig_5": "c6ccc2921419634f57aa206e6ea7c66eb88ba18646f5a36000fcb1c1a9380480",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    initial_stones = rng.randint(1, 20)\n\n    # Intended route: the maximum number of moves is achieved by always removing the smallest number of stones (one stone) until the pile is reduced to zero.\n    answer = initial_stones\n\n    # Independent route: simulate the process of removing stones by always removing one stone at a time.\n    # This route does not rely on the arithmetic formula and instead\n    # simulates the process of removing stones one by one.\n    check = 0\n    stones = initial_stones\n    while stones > 0:\n        stones -= 1\n        check += 1\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let S be a set of {initial_stones} stones. In one move, you may remove either one stone, two stones, or three stones, but you must remove stones in a pattern where the number of stones removed in each move forms a strictly increasing sequence. What is the maximum number of moves possible to reduce the set to zero stones? State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"sequence\"\nSKILL = \"casework\"\n",
+      "program_id": "f58a601d7287",
+      "parent_id": "4ec44ac7a333",
+      "generation": 6,
+      "s_hat": 0.2,
+      "u_score": 0.35218397378921507,
+      "rq_score": 0.06712203919887542,
+      "niche_group": 2,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "casework",
+        "dispersion": -0.02500000000000001,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.06712203919887542,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.8
+        },
+        "_behavior_sig_5": "043cea7b4a7087374e7ead085d00cef871f4ac9155417ca36cdaf2aaafacc134",
+        "_template_sig_5": "f684378de02ad2bd88b45a92873d950386d1fef86f53742aa0dac7e31f77a899",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    initial_stones = rng.randint(1, 20)\n\n    # Intended route: the maximum number of moves is achieved by always removing the smallest number of stones (one stone) until the pile is reduced to zero.\n    answer = initial_stones\n\n    # Independent route: simulate the process of removing stones by always removing one stone at a time.\n    # This route does not rely on the arithmetic formula and instead\n    # simulates the process of removing stones one by one.\n    check = 0\n    stones = initial_stones\n    while stones > 0:\n        stones -= 1\n        check += 1\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let S be a set of {initial_stones} stones. In one move, you may remove either one stone, two stones, or three stones. What is the maximum number of moves possible to reduce the set to zero stones? State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"sequence\"\nSKILL = \"induction\"\n",
+      "program_id": "4ec44ac7a333",
+      "parent_id": "741834567b16",
+      "generation": 5,
+      "s_hat": 0.8,
+      "u_score": 0.3131239578127861,
+      "rq_score": 0.060472562164068225,
+      "niche_group": 2,
+      "niche_skill": 1,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "induction",
+        "dispersion": -0.02500000000000001,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.060472562164068225,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.8
+        },
+        "_behavior_sig_5": "e331ed2fd689549abe407687258350131fe0afe30cf2ea80cfbbe8c2de5d8d1e",
+        "_template_sig_5": "275544f70a9f100cbb55bd948fb464eb77fff2eb0c08c94b4b6ced380dc992e2",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    first_integer = rng.randint(1, 10)\n    second_integer = rng.randint(1, 10)\n\n    # The maximum value of the greatest integer not exceeding ab occurs when a and b are as close as possible.\n    # This is because the product ab is maximized when a and b are equal or as close to equal as possible.\n    a = (first_integer + second_integer) // 2\n    b = (first_integer + second_integer) - a\n\n    answer = a * b\n\n    # Check by brute force over all possible pairs (a, b) such that a + b = sum\n    check = 0\n    for a in range(1, first_integer + second_integer):\n        b = first_integer + second_integer - a\n        check = max(check, a * b)\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Start with positive integers a = {first_integer} and b = {second_integer}. \"\n        f\"While a < b, replace a with a + 1 and b with b - 1. \"\n        f\"Find the maximum possible value of the greatest integer not exceeding ab. \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"sequence\"\nSKILL = \"contradiction\"\n",
+      "program_id": "93d6dd01615d",
+      "parent_id": "5939f3fec1a8",
+      "generation": 2,
+      "s_hat": 0.7,
+      "u_score": 0.22159372568130492,
+      "rq_score": 0.025510368496179582,
+      "niche_group": 2,
+      "niche_skill": 2,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "contradiction",
+        "dispersion": 0.15000000000000002,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.025510368496179582,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 1.0
+        },
+        "_behavior_sig_5": "06c5f3a786ef663ef91ff102de231559e759b0d43d23369c021bf6dca469b572",
+        "_template_sig_5": "d416d0b904de6e0f6153c0fa7a5faacd6345cdbfbbb37c7d0158b191e7e342cb",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    first_integer = rng.randint(1, 10)\n    second_integer = rng.randint(1, 10)\n\n    # The number of distinct sequences of moves to reach a terminal state where both numbers are equal\n    # is given by the number of ways to arrange the moves, which is the number of distinct pairs (a, b)\n    # such that a + b = first_integer + second_integer and a <= b.\n    total_sum = first_integer + second_integer\n    answer = total_sum // 2\n\n    # Check by brute force over all possible pairs (a, b) such that a + b = total_sum and a <= b\n    check = 0\n    for a in range(1, total_sum // 2 + 1):\n        b = total_sum - a\n        if a <= b:\n            check += 1\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Start with positive integers a = {first_integer} and b = {second_integer}. \"\n        f\"In each move, replace the larger of the two numbers by the positive difference of the two. \"\n        f\"How many distinct sequences of moves can lead to a terminal state where both numbers are equal? \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"sequence\"\nSKILL = \"counting\"\n",
+      "program_id": "9a1e0f7b9e8d",
+      "parent_id": "5939f3fec1a8",
+      "generation": 2,
+      "s_hat": 0.0,
+      "u_score": 0.24785835593938826,
+      "rq_score": 0.0,
+      "niche_group": 2,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "sequence",
+        "skill": "counting",
+        "dispersion": 0.0,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.875
+        },
+        "_behavior_sig_5": "062e09e5d97d746682943535903b87b6c68928bc7cc3e48887d8c9b610f707cd",
+        "_template_sig_5": "2f09d3db5c6cac76c29a0e0e3769e9350d7016abd26c66616e8148f59011a04a",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\n\ndef _shift_quadratic(b, c, t):\n    # If P(x) = x^2 + bx + c, then P(x+t) has coefficients\n    # x^2 + (b+2t)x + (c+bt+t^2).\n    return b + 2 * t, c + b * t + t * t\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    b = rng.randint(-12, 12)\n    c = rng.randint(-20, 30)\n\n    # Every move P(x) -> P(x+1) or P(x-1) preserves the discriminant\n    # b^2 - 4c. Conversely, two monic integer quadratics with the same\n    # discriminant have linear coefficients of the same parity, so one is\n    # an integer translate of the other.\n    invariant = b * b - 4 * c\n\n    shifts = rng.sample(\n        [t for t in range(-8, 9) if t != 0],\n        5,\n    )\n    target_slot = rng.randrange(5)\n\n    candidates = []\n\n    for i, t in enumerate(shifts):\n        qb, qc = _shift_quadratic(b, c, t)\n\n        if i != target_slot:\n            # Perturb only the constant term, which changes the discriminant\n            # by a nonzero multiple of 4 and therefore leaves the orbit.\n            delta = rng.choice([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])\n            qc += delta\n\n        candidates.append((qb, qc))\n\n    # Intended route: the reachable candidate is exactly the one preserving\n    # the discriminant.\n    matching = [\n        i + 1\n        for i, (qb, qc) in enumerate(candidates)\n        if qb * qb - 4 * qc == invariant\n    ]\n\n    assert len(matching) == 1\n    answer = matching[0]\n\n    # Independent route: directly perform the allowed moves in coefficient\n    # space, without using the discriminant.\n    reachable = {(b, c)}\n\n    for _ in range(8):\n        next_states = set(reachable)\n\n        for rb, rc in reachable:\n            # P(x+1)\n            next_states.add(\n                (rb + 2, rc + rb + 1)\n            )\n\n            # P(x-1)\n            next_states.add(\n                (rb - 2, rc - rb + 1)\n            )\n\n        reachable = next_states\n\n    reached_indices = [\n        i + 1\n        for i, candidate in enumerate(candidates)\n        if candidate in reachable\n    ]\n\n    assert len(reached_indices) == 1\n    check = reached_indices[0]\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    def poly_text(qb, qc):\n        linear = f\"+ {qb}x\" if qb >= 0 else f\"- {abs(qb)}x\"\n        constant = f\"+ {qc}\" if qc >= 0 else f\"- {abs(qc)}\"\n        return f\"x^2 {linear} {constant}\"\n\n    start = poly_text(b, c)\n\n    candidate_text = \"; \".join(\n        f\"Q_{i + 1}(x) = {poly_text(qb, qc)}\"\n        for i, (qb, qc) in enumerate(candidates)\n    )\n\n    problem = (\n        f\"Start with P(x) = {start}. In one move, P(x) may be replaced by \"\n        f\"P(x+1) or by P(x-1), and any number of moves may be performed. \"\n        f\"Exactly one of the following polynomials is reachable: \"\n        f\"{candidate_text}. Find its index. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"invariant\"",
+      "program_id": "f3f20722a2d7",
+      "parent_id": "",
+      "generation": 0,
+      "s_hat": 0.7,
+      "u_score": 0.18488276973366738,
+      "rq_score": 0.030053958296775818,
+      "niche_group": 3,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "seed_algebra_invariant_discriminant_orbit.py",
+        "group": "algebra",
+        "skill": "invariant",
+        "dispersion": 0.14444444444444446,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.030053958296775818,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 4,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.92
+        },
+        "_behavior_sig_5": "3757fe7d805c24bda6d9ad585622c4869be0dcee7551fb71f6a449320f712599",
+        "_template_sig_5": "5f8c0fa37a66a887d7df84022e2dc5bd9495889b7bd2ea82ac1e50a3942a6d03",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    sum = rng.randint(5, 20)\n\n    # The maximum value of the greatest integer not exceeding xy occurs when x and y are as close as possible.\n    # This is because the product xy is maximized when x and y are equal or as close to equal as possible.\n    x = sum // 2\n    y = sum - x\n\n    answer = x * y\n\n    # Check by brute force over all possible pairs (x, y) such that x + y = sum\n    check = 0\n    for x in range(1, sum):\n        y = sum - x\n        check = max(check, x * y)\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let x and y be positive real numbers satisfying x + y = s = {sum}, where s is a positive integer. \"\n        f\"Find the maximum possible value of the greatest integer not exceeding xy. \"\n        f\"State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"extremal_principle\"\n",
+      "program_id": "4846d53a9ea2",
+      "parent_id": "93d6dd01615d",
+      "generation": 3,
+      "s_hat": 1.0,
+      "u_score": 0.13744813427329064,
+      "rq_score": 0.0,
+      "niche_group": 3,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "extremal_principle",
+        "dispersion": 0.0,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 1.0
+        },
+        "_behavior_sig_5": "3afdbf35c5861da3e495d085185c730b9d6417987d7551092ef907bc51630b7b",
+        "_template_sig_5": "89734ca0a25db3c86973409177a5663fa621735d957a4aa95a0d18e7cd25545f",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\nfrom sympy import symbols, solve\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(2, 5)\n    x = symbols('x')\n    coefficients = [rng.randint(-10, 10) for _ in range(n)]\n    P = sum(coeff * x**i for i, coeff in enumerate(coefficients))\n    roots = solve(P, x)\n    answer = len([root for root in roots if root.is_integer])\n\n    check = sum(\n        1\n        for i in range(-10, 11)\n        if P.subs(x, i) == 0\n    )\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = f\"Let P(x) = x^{n} + {coefficients[-1]}x^{n-1} + ... + {coefficients[1]}x + {coefficients[0]} be a polynomial with integer coefficients. How many distinct integer roots does P(x) have? State only the integer.\"\n    return problem, str(answer)\n\n\nGROUP = \"algebra\"\nSKILL = \"transformation\"\n",
+      "program_id": "7fdbe1f2c77b",
+      "parent_id": "08c28779d68f",
+      "generation": 3,
+      "s_hat": 0.3,
+      "u_score": 0.16133455261588098,
+      "rq_score": 0.04947024807333946,
+      "niche_group": 3,
+      "niche_skill": 6,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "algebra",
+        "skill": "transformation",
+        "dispersion": -0.075,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 2,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.04947024807333946,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 2,
+          "z_sensitive_fraction": 0.875
+        },
+        "_behavior_sig_5": "70e576b90f1e7dbab6169f9c91e0e3ada8d83b58f2b7b26aa20a7f5620aebf5a",
+        "_template_sig_5": "6072924cfb9472e63f5b9e0c7cf112128d778dcb0a67f8a56d6810620fd9335c",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    m = rng.randint(1, 100)\n\n    # The maximum number of distinct distances determined by pairs of points from P is given by the formula:\n    # max_distances = (n * (n - 1)) // 2\n    answer = (n * (n - 1)) // 2\n\n    # A brute-force check: generate all possible sets P with n points, each with integer coordinates at most m, and count the number of distinct distances.\n    # This is computationally expensive, so we use a simplified approach by generating random sets and checking the distinct distances.\n    check = 0\n    for _ in range(1000):  # Perform a large number of trials to approximate the maximum\n        P = [(rng.randint(1, m), rng.randint(1, m)) for _ in range(n)]\n        distances = set()\n        for i in range(n):\n            for j in range(i + 1, n):\n                x1, y1 = P[i]\n                x2, y2 = P[j]\n                distance = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5\n                distances.add(distance)\n        if len(distances) == (n * (n - 1)) // 2:\n            check = (n * (n - 1)) // 2\n            break\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let P be a set of {n} points in the plane, where each point has integer coordinates with both coordinates at most {m}. Find the maximum possible number of distinct distances determined by pairs of points from P. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"geometry\"\nSKILL = \"casework\"\n",
+      "program_id": "c839689fd5cb",
+      "parent_id": "dc6552414ef1",
+      "generation": 6,
+      "s_hat": 0.6,
+      "u_score": 0.2616614684462547,
+      "rq_score": 0.10796903818845749,
+      "niche_group": 4,
+      "niche_skill": 0,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "casework",
+        "dispersion": -0.15000000000000002,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.10796903818845749,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.867
+        },
+        "_behavior_sig_5": "f69bba132982eafd5796172c9230b80e40357c4debc21fa710180cbc48032fc9",
+        "_template_sig_5": "9a6689f8ec34825bb26fa1f5c86aafac5aff3f6bb3ed72cc25101ad22d761f81",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n    m = rng.randint(1, 100)\n\n    # The maximum number of distinct slopes determined by pairs of lines from L is given by the formula:\n    # max_slopes = (n * (n - 1)) // 2\n    answer = (n * (n - 1)) // 2\n\n    # A brute-force check: generate all possible sets L with n lines, each with integer coefficients at most m, and count the number of distinct slopes.\n    # This is computationally expensive, so we use a simplified approach by generating random sets and checking the distinct slopes.\n    check = 0\n    for _ in range(1000):  # Perform a large number of trials to approximate the maximum\n        L = [(rng.randint(1, m), rng.randint(1, m)) for _ in range(n)]\n        slopes = set()\n        for i in range(n):\n            for j in range(i + 1, n):\n                a1, b1 = L[i]\n                a2, b2 = L[j]\n                if a1 != a2:\n                    slope = (b2 - b1) / (a2 - a1)\n                    slopes.add(slope)\n        if len(slopes) == (n * (n - 1)) // 2:\n            check = (n * (n - 1)) // 2\n            break\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let L be a set of {n} lines in the plane, where each line has integer coefficients with both coefficients at most {m}. Find the maximum possible number of distinct slopes determined by pairs of lines from L. State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"geometry\"\nSKILL = \"invariant\"\n",
+      "program_id": "dc6552414ef1",
+      "parent_id": "f3237b1c9fc9",
+      "generation": 5,
+      "s_hat": 0.2,
+      "u_score": 0.28389157354831696,
+      "rq_score": 0.05464038327336311,
+      "niche_group": 4,
+      "niche_skill": 3,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "invariant",
+        "dispersion": -0.03611111111111112,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.05464038327336311,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.867
+        },
+        "_behavior_sig_5": "c72077da8d8ea682fc8f3f3c9ef4786c299833589f973834de36710f797b184c",
+        "_template_sig_5": "21eb27a498138b00ee3b1370d85b41c598d9b18a01547cb1c3d09e67ffd11891",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\ndef generate(seed):\n    rng = random.Random(seed)\n    n = rng.randint(3, 10)\n\n    answer = n * (n - 1) // 2\n\n    check = 0\n    for i in range(n):\n        for j in range(i + 1, n):\n            check += 1\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = f\"Let S be a set of {n} distinct points in the plane, no three of which are collinear. Find the maximum possible number of distinct distances that can be formed by connecting any two distinct points of S. State only the integer.\"\n    return problem, str(answer)\n\n\nGROUP = \"geometry\"\nSKILL = \"extremal_principle\"\n",
+      "program_id": "29f94199ebc5",
+      "parent_id": "8e59e948848e",
+      "generation": 4,
+      "s_hat": 1.0,
+      "u_score": 0.21240328699350358,
+      "rq_score": 0.0,
+      "niche_group": 4,
+      "niche_skill": 4,
+      "last_reeval_step": -1,
+      "metadata": {
+        "op": "mutate",
+        "ast_contract": {
+          "verdict": "clean",
+          "findings": []
+        },
+        "group": "geometry",
+        "skill": "extremal_principle",
+        "dispersion": 0.0,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.833
+        },
+        "_behavior_sig_5": "8a5f1f3f6a74eef7f69d1bbd02ea0a7f62284202c85ff0438b84bbaa65a6d3d6",
+        "_template_sig_5": "8a123a4faa2df77b4354237882a201a565d022f9cc23459779331e1c6877dc85",
+        "archive_status": "champion"
+      }
+    },
+    {
+      "source_code": "import random\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    # n is the only parameter, so its range is also the whole instance space:\n    # 31 distinct statements. The reasoning is AM-GM then a parity split,\n    # which a wider range would not change -- it would only make the count\n    # longer to write down.\n    n = rng.randint(10, 40)\n\n    # For a fixed integer s >= 2, consider positive real x, y with x + y = s.\n    # By AM-GM,\n    #\n    #     xy <= (s/2)^2,\n    #\n    # with equality at x = y = s/2.\n    #\n    # Therefore an integer t >= 1 is feasible for this s iff\n    #\n    #     t <= floor(s^2 / 4).\n    #\n    # We must count\n    #\n    #     sum_{s=2}^n floor(s^2 / 4).\n    #\n    # Split s by parity:\n    #\n    #   s = 2r     -> floor(s^2/4) = r^2\n    #   s = 2r + 1 -> floor(s^2/4) = r(r+1)\n    #\n    # and evaluate the two sums in closed form.\n    m = n // 2\n\n    if n % 2 == 0:\n        answer = m * (m + 1) * (4 * m - 1) // 6\n    else:\n        answer = m * (m + 1) * (4 * m + 5) // 6\n\n    # Independent route: enumerate the integer pairs (s, t), and test\n    # feasibility through the quadratic inequality\n    #\n    #     x(s-x) >= t.\n    #\n    # Such a real x exists exactly when the quadratic\n    # x^2 - sx + t <= 0 has nonnegative discriminant.\n    check = 0\n\n    for s in range(2, n + 1):\n        for t in range(1, s * s // 4 + 1):\n            if s * s - 4 * t >= 0:\n                check += 1\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"For each ordered pair of positive integers (s, t) with 2 <= s <= {n}, \"\n        f\"call (s, t) feasible if there exist positive real numbers x and y \"\n        f\"such that x + y = s and xy >= t. How many feasible ordered pairs \"\n        f\"(s, t) are there? State only the integer.\"\n    )\n\n    return problem, str(answer)\n\n\nGROUP = \"inequality\"\nSKILL = \"counting\"",
+      "program_id": "a0a7433dec8f",
+      "parent_id": "",
+      "generation": 0,
+      "s_hat": 0.2,
+      "u_score": 0.05238693226128817,
+      "rq_score": 0.0,
+      "niche_group": 5,
+      "niche_skill": 5,
+      "last_reeval_step": -1,
+      "metadata": {
+        "source_file": "seed_inequality_counting_feasible_thresholds.py",
+        "group": "inequality",
+        "skill": "counting",
+        "dispersion": 0.2,
+        "num_seeds": 5,
+        "validity_check": {
+          "passed": true,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
+          "n_valid": 5,
+          "n_total": 5,
+          "rq_score_at_check": 0.0,
+          "constancy_passed": true,
+          "constancy_reason": "",
+          "canonical_templates": 1,
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.857
+        },
+        "_behavior_sig_5": "1a9505dc283b13bbcb1cc8aae06af1a3310ab1494c0e22d7628137a509d7b8d3",
+        "_template_sig_5": "236090b5dd7b6833081568b4a9e139798e5aeba2a152e53591c96976f4e97854",
+        "archive_status": "champion"
+      }
+    }
+  ]
+}

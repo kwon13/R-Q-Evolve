@@ -36,6 +36,11 @@ class _SandboxClient:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._proc: subprocess.Popen | None = None
+        # False until this worker has answered once. The first request after a
+        # spawn also pays interpreter startup and the worker's `_warm_imports`
+        # (sympy: ~1.5 s), so it gets `cold_timeout` and every later request
+        # gets the tight steady-state `timeout`.
+        self._warm = False
 
     def _spawn(self) -> None:
         self._proc = subprocess.Popen(
@@ -46,6 +51,7 @@ class _SandboxClient:
             text=True,
             bufsize=1,
         )
+        self._warm = False
 
     def _kill(self) -> None:
         if self._proc is not None:
@@ -55,18 +61,27 @@ class _SandboxClient:
             except Exception:
                 pass
             self._proc = None
+        self._warm = False
 
-    def run(self, source: str, seed: int, timeout: float) -> dict:
+    def run(
+        self, source: str, seed: int, timeout: float, cold_timeout: float
+    ) -> dict:
         """Return ``{"ok": True, "problem", "answer"}`` or ``{"ok": False, ...}``.
 
         Failures carry ``error_type``/``error`` so a caller can tell a child's
         own AssertionError -- its cross-check catching a real problem/answer
         mismatch -- from broken code, a guarded import, or a timeout.
+
+        Two budgets, because they measure different things: ``cold_timeout``
+        covers the first request a freshly spawned worker answers (process
+        startup + `_warm_imports`), ``timeout`` covers every later one, where
+        the only thing left to wait for is the generated program itself.
         """
         with self._lock:
             try:
                 if self._proc is None or self._proc.poll() is not None:
                     self._spawn()
+                budget = float(timeout if self._warm else max(timeout, cold_timeout))
                 self._proc.stdin.write(
                     json.dumps({"source": source, "seed": seed}) + "\n"
                 )
@@ -76,13 +91,14 @@ class _SandboxClient:
                 return {"ok": False, "error_type": "SandboxWriteError",
                         "error": str(exc)[:200]}
 
-            ready, _, _ = select.select([self._proc.stdout], [], [], timeout)
+            ready, _, _ = select.select([self._proc.stdout], [], [], budget)
             if not ready:
                 # Overran the budget -> the worker is wedged in C-level work.
                 # Kill it; the next call respawns a clean one.
                 self._kill()
                 return {"ok": False, "error_type": "Timeout",
-                        "error": f"no result within {timeout}s"}
+                        "error": f"no result within {budget}s"}
+            self._warm = True
             line = self._proc.stdout.readline()
             if not line:  # worker died mid-request (e.g. MemoryError-killed)
                 self._kill()
@@ -228,7 +244,9 @@ class ProblemProgram:
         """LEGACY. See :meth:`declared_concept_type` for the inert-comparison caveat."""
         return self.metadata.get("concept_type") or self.declared_concept_type()
 
-    def execute(self, seed: int, timeout: float = 5.0) -> ProblemInstance | None:
+    def execute(
+        self, seed: int, timeout: float = 1.0, cold_timeout: float = 15.0
+    ) -> ProblemInstance | None:
         """Run ``generate(seed)`` in a hard-killable sandbox subprocess.
 
         The import-guarded namespace and builtin blocklist live in
@@ -238,8 +256,17 @@ class ProblemProgram:
         instead of wedging the trainer. Any failure -- bad program, timeout,
         worker crash -- comes back as None, exactly as the old in-process path
         signalled it.
+
+        ``timeout`` is 1.0, not the 5.0 it used to be. Re-running the 4B run's
+        22 surviving champions x 5 seeds through this path costs 0.6 ms per
+        execute, so the four extra seconds only ever bought waiting time on a
+        runaway -- and the 4B run hit 246 of those, all serialised behind the
+        single global worker. What the old value was really covering was
+        cold start, which now has its own budget: ``cold_timeout`` applies to
+        the first request a freshly spawned worker answers (measured 1.5 s,
+        nearly all of it the worker's eager `import sympy`).
         """
-        resp = _SANDBOX.run(self.source_code, seed, timeout)
+        resp = _SANDBOX.run(self.source_code, seed, timeout, cold_timeout)
         if not resp.get("ok"):
             # Kept for the caller that wants to know WHY, without changing the
             # None-on-failure contract every existing call site relies on.

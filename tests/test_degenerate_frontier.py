@@ -19,7 +19,7 @@ from rq_evolve.config import EvolutionConfig, TrainingDataConfig
 from rq_evolve.dataset import build_replay_training_examples
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.program import ProblemInstance, ProblemProgram
-from rq_evolve.replay import LaggedScoreboard, RolloutReplayBuffer
+from rq_evolve.replay import PreviousRQScoreboard, RolloutReplayBuffer
 
 BAND = (0.0, 1.0)
 
@@ -69,7 +69,7 @@ class _Replay:
         return [self._Group(pid)]
 
 
-class _Lagged:
+class _PreviousRQ:
     def selection_score(self, pid, iteration):
         return 0.5
 
@@ -94,7 +94,7 @@ def test_the_band_normally_excludes_degenerate_champions():
     rows = build_replay_training_examples(
         champs,
         replay=_Replay(c.program_id for c in champs),
-        lagged=_Lagged(),
+        previous_rq=_PreviousRQ(),
         iteration=2,
         frontier_s_hat_range=BAND,
     )
@@ -107,7 +107,7 @@ def test_an_all_degenerate_archive_yields_nothing_under_the_band():
     rows = build_replay_training_examples(
         champs,
         replay=_Replay(c.program_id for c in champs),
-        lagged=_Lagged(),
+        previous_rq=_PreviousRQ(),
         iteration=2,
         frontier_s_hat_range=BAND,
     )
@@ -119,7 +119,7 @@ def test_allow_degenerate_keeps_the_dataloader_non_empty():
     rows = build_replay_training_examples(
         champs,
         replay=_Replay(c.program_id for c in champs),
-        lagged=_Lagged(),
+        previous_rq=_PreviousRQ(),
         iteration=2,
         frontier_s_hat_range=BAND,
         allow_degenerate=True,
@@ -148,7 +148,7 @@ def _evolver_with(champs) -> RQEvolver:
     for c in champs:
         archive.try_insert(c, c.u_score, c.rq_score)
     ev.replay = _Replay(c.program_id for c in champs)
-    ev.lagged = _Lagged()
+    ev.previous_rq = _PreviousRQ()
     ev.current_iteration = 5
     return ev
 

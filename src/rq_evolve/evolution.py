@@ -33,7 +33,7 @@ from .openai_evaluator import (
 )
 from .reward import grader_stats
 from .program import ProblemInstance, ProblemProgram
-from .replay import LaggedScoreboard, RolloutReplayBuffer
+from .replay import PreviousRQScoreboard, RolloutReplayBuffer
 from .seed_stream import SeedStream
 from .prompts import (
     build_relabel_task,
@@ -138,7 +138,7 @@ class RQEvolver:
     # Which elites train is decided by PAST scores; what they train on is this
     # iteration's rollouts. Scoring and selecting on the same draw would keep
     # whichever elite's measurement noise landed high.
-    lagged: LaggedScoreboard = field(default_factory=LaggedScoreboard)
+    previous_rq: PreviousRQScoreboard = field(default_factory=PreviousRQScoreboard)
     # program_id -> why it was rejected, for every child that ever failed a gate.
     #
     # Mutation is a near-deterministic function of (prompt, parent) and parents
@@ -154,8 +154,6 @@ class RQEvolver:
     # behaviour/template duplicate check.
     rejected_children: dict[str, str] = field(default_factory=dict)
 
-    def __post_init__(self) -> None:
-        self.lagged.ewma_alpha = float(self.training_config.lagged_selection_ewma)
     events: list[dict] = field(default_factory=list)
     # Candidate reports from the most recent run_outer_iteration, exposed so the
     # sampler can persist them to the per-step evolution log.
@@ -213,9 +211,9 @@ class RQEvolver:
             if result is None:
                 continue
             # Bootstrap counts as iteration -1. Without it every seed would be
-            # "first scored this iteration" at t=0, the lagged filter would
+            # "first scored this iteration" at t=0, the previous-score filter would
             # exclude all of them, and the first training batch would be empty.
-            self.lagged.record(program.program_id, -1, result.rq_score)
+            self.previous_rq.record(program.program_id, -1, result.rq_score)
             if self.archive.try_insert(
                 program=program,
                 u_value=result.u_score,
@@ -422,7 +420,7 @@ class RQEvolver:
 
         # Freeze the population whose CURRENT rollouts may train this update
         # before mutation changes the archive.  Selection is based on scores
-        # known before those rollouts (LaggedScoreboard), the current s_hat is
+        # known before those rollouts (PreviousRQScoreboard), the current s_hat is
         # only a zero-advantage gate, and the payload is this iteration's replay.
         # A child inserted below therefore becomes eligible at the next outer
         # iteration instead of displacing a measured incumbent from the batch
@@ -767,7 +765,7 @@ class RQEvolver:
                 # The candidate was measured under theta_t.  Recording that
                 # score now makes it a PAST score at t+1, so a new child waits
                 # exactly one update before it can train (not two).
-                self.lagged.record(
+                self.previous_rq.record(
                     child.program_id, self.current_iteration, result.rq_score
                 )
             if inserted:
@@ -1474,7 +1472,7 @@ class RQEvolver:
         correct for the re-scoring pass: those rollouts come from the same
         theta_t that the following update starts from, so training on them is
         on-policy. Candidate scoring passes ``False`` -- a child inserted this
-        iteration has no lagged score yet and does not train until the next one.
+        iteration has no previous score yet and does not train until the next one.
         """
         if not programs:
             return []
@@ -1537,7 +1535,7 @@ class RQEvolver:
         return results
 
     def _allocate_instances(self, champions: list[ProblemProgram]) -> list[int]:
-        """One fresh instance each, then extras by the lagged selection score.
+        """One fresh instance each, then extras by the previous raw R_Q.
 
         The trainer needs ``train_batch_target`` prompts and the frontier is
         routinely smaller than that (median 18 against a target of 16-32 over
@@ -1547,10 +1545,10 @@ class RQEvolver:
         -- LILO found scaling the number of levels more effective than scaling
         rollouts per level.
 
-        Ranked by the same past-only EWMA used to build the training batch.
+        Ranked by the same previous raw R_Q used to build the training batch.
         ``program.rq_score`` is deliberately not the ranking key: it is only
-        the most recent raw draw, whereas ``LaggedScoreboard`` is the declared
-        cumulative priority and excludes the current iteration by construction.
+        overwritten by the current re-score before the batch is built, whereas
+        ``PreviousRQScoreboard`` preserves exactly the t-1 value without an EWMA.
 
         THE SHORTFALL IS COUNTED OVER FRONTIER CHAMPIONS, NOT ALL OF THEM, and
         that distinction is the whole point of this function. Only a champion
@@ -1586,7 +1584,7 @@ class RQEvolver:
         if target <= len(pool):
             return counts
         past_scores = {
-            i: self.lagged.selection_score(
+            i: self.previous_rq.selection_score(
                 champions[i].program_id, self.current_iteration
             )
             for i in pool
@@ -1666,7 +1664,7 @@ class RQEvolver:
             # Recorded BEFORE the archive moves, so the score is attributed to
             # the iteration that measured it regardless of what happens to the
             # champion's cell afterwards.
-            self.lagged.record(
+            self.previous_rq.record(
                 champion.program_id, self.current_iteration, result.rq_score
             )
             self.archive.remove_program(champion.program_id)
@@ -1795,7 +1793,7 @@ class RQEvolver:
             examples = build_replay_training_examples(
                 champions,
                 replay=self.replay,
-                lagged=self.lagged,
+                previous_rq=self.previous_rq,
                 iteration=self.current_iteration,
                 frontier_s_hat_range=self.evolution_config.frontier_s_hat_range,
                 training_budget=replay_budget,
@@ -1809,7 +1807,9 @@ class RQEvolver:
                 # an empty dataloader. The lag re-engages the moment any
                 # champion carries history again.
                 if champions and all(
-                    self.lagged.selection_score(c.program_id, self.current_iteration)
+                    self.previous_rq.selection_score(
+                        c.program_id, self.current_iteration
+                    )
                     is None
                     for c in champions
                 ):
@@ -1823,7 +1823,7 @@ class RQEvolver:
                     examples = build_replay_training_examples(
                         champions,
                         replay=self.replay,
-                        lagged=self.lagged,
+                        previous_rq=self.previous_rq,
                         iteration=self.current_iteration,
                         frontier_s_hat_range=(
                             self.evolution_config.frontier_s_hat_range
@@ -1854,7 +1854,7 @@ class RQEvolver:
                 examples = build_replay_training_examples(
                     champions,
                     replay=self.replay,
-                    lagged=self.lagged,
+                    previous_rq=self.previous_rq,
                     iteration=self.current_iteration,
                     frontier_s_hat_range=self.evolution_config.frontier_s_hat_range,
                     training_budget=replay_budget,
@@ -1932,7 +1932,7 @@ class RQEvolver:
                     "instances_per_program": self.training_config.instances_per_program,
                     "used_seeds": used,
                     "seed_cursor": self.seed_stream.to_dict(),
-                    "lagged_scores": self.lagged.to_dict(),
+                    "previous_rq_scores": self.previous_rq.to_dict(),
                     "rejected_children": self.rejected_children,
                     # Per-skill YES-bias, learned across iterations. A cold
                     # start re-learns it from the first batch alone, and the
@@ -2018,9 +2018,11 @@ class RQEvolver:
                 pid: set(seeds)
                 for pid, seeds in payload.get("used_seeds", {}).items()
             }
-            self.lagged = LaggedScoreboard.from_dict(
-                payload.get("lagged_scores"),
-                ewma_alpha=float(self.training_config.lagged_selection_ewma),
+            self.previous_rq = PreviousRQScoreboard.from_dict(
+                # Pre-migration archives used the key ``lagged_scores``.
+                # Accept it for offline inspection; changed training semantics
+                # still require a fresh run rather than checkpoint resume.
+                payload.get("previous_rq_scores") or payload.get("lagged_scores"),
             )
             self.rejected_children = dict(payload.get("rejected_children") or {})
             offsets = payload.get("skill_offsets")

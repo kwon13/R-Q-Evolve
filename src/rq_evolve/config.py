@@ -331,9 +331,9 @@ class TrainingDataConfig:
     # theta_t the following update starts from, so they are on-policy for
     # exactly that update -- and the pass they replace cost the same again.
     replay_training_batch: bool = True
-    # Selection lag: an elite's place in the batch is decided by an EWMA of its
-    # PAST R_Q, never by the rollouts it is about to train on.
-    lagged_selection_ewma: float = 0.5
+    # Selection lag: an elite's place in the batch is decided by its exact raw
+    # R_Q from the previous iteration, never by the rollouts it is about to
+    # train on. Scores from different policies are deliberately not averaged.
     instances_per_program: int = 8
     training_budget: int | None = None
     strict_anti_reuse: bool = True

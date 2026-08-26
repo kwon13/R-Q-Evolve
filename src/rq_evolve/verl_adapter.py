@@ -1287,9 +1287,9 @@ class VerlTrainerAdapter:
             # nothing to build from and the run dies on an empty dataset.
             result = evolver.evaluate_programs([program], store_replay=True)[0]
             if result is not None:
-                # Bootstrap is iteration -1: without a lagged score the seeds
+                # Bootstrap is iteration -1: without a previous score the seeds
                 # would all be ineligible at t=0 and the first batch empty.
-                evolver.lagged.record(program.program_id, -1, result.rq_score)
+                evolver.previous_rq.record(program.program_id, -1, result.rq_score)
             if result is None:
                 print(
                     f"[RQ-Evolve] seed eval failed (all rollouts rejected): "
@@ -1314,7 +1314,7 @@ class VerlTrainerAdapter:
             f"GROUP x SKILL grid"
         )
         # warmup: the seed scores were taken at bootstrap, so there is no
-        # earlier iteration to lag against. Every later refresh is lagged.
+        # earlier iteration to select from. Every later refresh uses t-1 R_Q.
         evolver.refresh_dataset(warmup=True)
         if len(evolver.dataset.snapshot()) == 0:
             raise RuntimeError("bootstrap archive produced an empty training dataset")

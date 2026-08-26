@@ -55,7 +55,8 @@ training_data:
   replay_training_batch: true
   instances_per_program: 8
   # Replay selection is a prompt-slot budget. Every incumbent is re-scored,
-  # but only the 32 highest past-EWMA R_Q rows that are non-degenerate NOW can
+  # but only the 32 highest previous-iteration raw R_Q rows that are
+  # non-degenerate NOW can
   # enter this update. Keeping this explicit prevents dataloader shuffle from
   # turning an overfull (>32) frontier into random rather than R_Q priority.
   training_budget: 32

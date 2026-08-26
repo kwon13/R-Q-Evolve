@@ -12,13 +12,14 @@ importantly, three mismatches with it:
   * every instance trained on is an instance that was measured -- a tail
     instance the evaluation never saw cannot reach the batch.
 
-**Selection is deliberately lagged.** Scoring and training on the same rollouts
-conditions the training sample on the selection event: an elite whose
+**Selection is deliberately one step behind.** Scoring and training on the same
+rollouts conditions the training sample on the selection event: an elite whose
 measurement noise happened to land high is the one kept, which biases the
 update even though each individual baseline is unbiased. Choosing WHICH elites
-train from the previous iteration's scores, while training on THIS iteration's
-rollouts, breaks that coupling at first order and costs only a one-iteration lag
-in the selection signal -- no extra rollouts. See ``LaggedScoreboard``.
+train from the exact score measured in the previous iteration, while training
+on THIS iteration's rollouts, breaks that coupling at first order and costs one
+iteration of delay -- no extra rollouts and no temporal averaging. See
+``PreviousRQScoreboard``.
 """
 
 from __future__ import annotations
@@ -121,17 +122,18 @@ class RolloutReplayBuffer:
 
 
 @dataclass
-class LaggedScoreboard:
-    """Per-program R_Q from PAST iterations, used to pick who trains now.
+class PreviousRQScoreboard:
+    """The immediately previous raw R_Q for each program.
 
     ``record`` is called with each iteration's fresh score; ``selection_score``
-    returns only what was known BEFORE the current iteration. A program first
-    scored this iteration has no lagged score and returns None -- by design, it
-    joins the training set from the next iteration onward.
+    returns the most recent score known BEFORE the current iteration. Scores
+    from different policies are never averaged: R_Q is defined relative to one
+    current policy, so an EWMA would change the target into temporal frontierness.
+    A program first scored this iteration returns None and joins training in the
+    next iteration.
     """
 
-    ewma_alpha: float = 0.5
-    # program_id -> (iteration last recorded, EWMA including it, EWMA before it).
+    # program_id -> (iteration last recorded, raw score there, raw score before it).
     #
     # The third slot is what makes the lag work regardless of call order. Within
     # one outer iteration the re-scoring records THIS iteration's score before
@@ -153,11 +155,10 @@ class LaggedScoreboard:
             before = previous[2]
         else:
             before = previous[1]
-            value = self.ewma_alpha * value + (1.0 - self.ewma_alpha) * previous[1]
         self.history[program_id] = (iteration, value, before)
 
     def selection_score(self, program_id: str, iteration: int) -> float | None:
-        """The program's EWMA as of the end of iteration ``iteration - 1``.
+        """The program's raw R_Q as of the end of iteration ``iteration - 1``.
 
         None means "not eligible yet": either the program has never been scored,
         or its first score is the one taken this iteration. Both are the same
@@ -176,8 +177,8 @@ class LaggedScoreboard:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict | None, ewma_alpha: float = 0.5) -> "LaggedScoreboard":
-        board = cls(ewma_alpha=ewma_alpha)
+    def from_dict(cls, payload: dict | None) -> "PreviousRQScoreboard":
+        board = cls()
         for pid, entry in (payload or {}).items():
             try:
                 before = float(entry[2]) if len(entry) > 2 and entry[2] is not None else None

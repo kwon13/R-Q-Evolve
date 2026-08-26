@@ -426,7 +426,7 @@ class VerlDynamicDataset:
         # drop_last=True with a fixed batch size, so when the replay set is
         # shorter than one batch the tail indices must wrap onto real rows --
         # and `item % len(rows)` alone always wraps onto rows 0, 1, ... which
-        # are the highest-lagged-R_Q elite's first instances. Measured: 15 rows
+        # are the highest-previous-R_Q elite's first instances. Measured: 15 rows
         # into a 32-row batch gave rows 0 and 1 three slots and every other row
         # two, every iteration, purely because 32 % 15 == 2. Rotating the start
         # spreads that surplus over the whole set instead of pinning it to one
@@ -501,14 +501,14 @@ def build_replay_training_examples(
     champions,
     *,
     replay,
-    lagged,
+    previous_rq,
     iteration: int,
     frontier_s_hat_range: tuple[float, float],
     training_budget: int | None = None,
     warmup: bool = False,
     allow_degenerate: bool = False,
 ) -> list[dict]:
-    """The training set: this iteration's re-scoring rollouts, lagged-selected.
+    """Current re-scoring rollouts selected by the previous raw R_Q.
 
     There is no sampling pass. Each elite contributes exactly the instances the
     re-scoring already rolled out, so every instance trained on is an instance
@@ -520,13 +520,13 @@ def build_replay_training_examples(
     the sample on the selection event: the elite whose measurement noise
     happened to land high is the one kept, which biases the update even though
     each per-instance baseline is individually unbiased. The lag breaks that at
-    first order and costs no extra rollouts. An elite with no lagged score --
+    first order and costs no extra rollouts. An elite with no previous score --
     inserted this iteration -- simply waits one iteration.
     """
     low, high = frontier_s_hat_range
     ranked: list[tuple[float, object]] = []
     for champion in champions:
-        score = lagged.selection_score(champion.program_id, iteration)
+        score = previous_rq.selection_score(champion.program_id, iteration)
         if warmup and score is None:
             # The one pass with nothing to lag against. Bootstrap scores every
             # seed under theta_0, which is exactly the weights the first update
@@ -570,7 +570,7 @@ def build_replay_training_examples(
                     "u_score": champion.u_score,
                     "group_bin": int(getattr(champion, "niche_group", -1)),
                     "skill_bin": int(getattr(champion, "niche_skill", -1)),
-                    "lagged_rq": score,
+                    "previous_rq": score,
                     "replay_rollouts": group.size,
                 }
             )

@@ -1,4 +1,4 @@
-"""Phase 2: measurement-as-training, lagged selection, and the constancy gate."""
+"""Measurement-as-training, previous-R_Q selection, and the constancy gate."""
 
 from dataclasses import asdict
 
@@ -11,7 +11,7 @@ from rq_evolve.constancy import check_constancy, z_sensitive_fraction
 from rq_evolve.dataset import build_replay_training_examples
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.program import ProblemInstance, ProblemProgram
-from rq_evolve.replay import LaggedScoreboard, RolloutReplayBuffer
+from rq_evolve.replay import PreviousRQScoreboard, RolloutReplayBuffer
 
 GEN = (
     "def generate(seed):\n"
@@ -79,28 +79,28 @@ def test_degenerate_groups_are_counted_not_silently_carried():
     assert stats["replay_degenerate_frac"] == pytest.approx(0.5)
 
 
-# --- lagged selection -------------------------------------------------------
+# --- previous-iteration selection ------------------------------------------
 
 
-def test_a_program_first_scored_this_iteration_has_no_lagged_score():
+def test_a_program_first_scored_this_iteration_has_no_previous_score():
     """Newly inserted elites wait one iteration; that IS the winner's-curse break."""
-    board = LaggedScoreboard()
+    board = PreviousRQScoreboard()
     board.record("p", 0, 1.0)
     assert board.selection_score("p", 0) is None
     assert board.selection_score("p", 1) == pytest.approx(1.0)
 
 
-def test_the_lagged_score_is_an_ewma_of_past_iterations():
-    board = LaggedScoreboard(ewma_alpha=0.5)
+def test_selection_uses_the_immediately_previous_raw_rq():
+    board = PreviousRQScoreboard()
     board.record("p", 0, 1.0)
     board.record("p", 1, 0.0)
-    assert board.selection_score("p", 2) == pytest.approx(0.5)
+    assert board.selection_score("p", 2) == pytest.approx(0.0)
 
 
 def test_the_scoreboard_survives_a_round_trip():
-    board = LaggedScoreboard(ewma_alpha=0.25)
+    board = PreviousRQScoreboard()
     board.record("p", 3, 0.8)
-    restored = LaggedScoreboard.from_dict(board.to_dict(), ewma_alpha=0.25)
+    restored = PreviousRQScoreboard.from_dict(board.to_dict())
     assert restored.selection_score("p", 4) == pytest.approx(0.8)
 
 
@@ -116,13 +116,13 @@ def _champion(pid, s_hat, rq):
 def test_the_batch_is_the_stored_rollouts_and_nothing_else():
     """No sampling pass: every instance trained on is one that was measured."""
     buf = RolloutReplayBuffer(); buf.begin_iteration(1)
-    board = LaggedScoreboard(); board.record("p", 0, 0.5)
+    board = PreviousRQScoreboard(); board.record("p", 0, 0.5)
     champ = _champion("p", 0.5, 0.5)
     for z in (11, 12, 13):
         buf.store("p", _inst(z), _rollouts(True, False))
 
     rows = build_replay_training_examples(
-        [champ], replay=buf, lagged=board, iteration=1,
+        [champ], replay=buf, previous_rq=board, iteration=1,
         frontier_s_hat_range=(0.0, 1.0),
     )
     assert [r["seed"] for r in rows] == [11, 12, 13]
@@ -134,7 +134,7 @@ def test_an_elite_with_no_lagged_score_does_not_train_yet():
     buf.store("fresh", _inst(0, "fresh"), _rollouts(True, False))
     rows = build_replay_training_examples(
         [_champion("fresh", 0.5, 0.5)],
-        replay=buf, lagged=LaggedScoreboard(), iteration=0,
+        replay=buf, previous_rq=PreviousRQScoreboard(), iteration=0,
         frontier_s_hat_range=(0.0, 1.0),
     )
     assert rows == []
@@ -144,25 +144,25 @@ def test_a_currently_degenerate_elite_is_dropped_even_with_a_good_past_score():
     """Selected on the past, but the batch would be all-zero advantage now."""
     buf = RolloutReplayBuffer(); buf.begin_iteration(1)
     buf.store("p", _inst(0), _rollouts(True, True))
-    board = LaggedScoreboard(); board.record("p", 0, 9.0)
+    board = PreviousRQScoreboard(); board.record("p", 0, 9.0)
     rows = build_replay_training_examples(
         [_champion("p", 1.0, 0.0)],   # s_hat = 1.0 -> outside the frontier band
-        replay=buf, lagged=board, iteration=1,
+        replay=buf, previous_rq=board, iteration=1,
         frontier_s_hat_range=(0.0, 1.0),
     )
     assert rows == []
 
 
-def test_the_batch_is_ordered_by_the_lagged_score():
+def test_the_batch_is_ordered_by_the_previous_raw_rq():
     buf = RolloutReplayBuffer(); buf.begin_iteration(1)
-    board = LaggedScoreboard()
+    board = PreviousRQScoreboard()
     champs = []
     for pid, past in (("low", 0.1), ("high", 0.9), ("mid", 0.5)):
         buf.store(pid, _inst(0, pid), _rollouts(True, False))
         board.record(pid, 0, past)
         champs.append(_champion(pid, 0.5, 0.5))
     rows = build_replay_training_examples(
-        champs, replay=buf, lagged=board, iteration=1,
+        champs, replay=buf, previous_rq=board, iteration=1,
         frontier_s_hat_range=(0.0, 1.0),
     )
     assert [r["program_id"] for r in rows] == ["high", "mid", "low"]
@@ -171,14 +171,14 @@ def test_the_batch_is_ordered_by_the_lagged_score():
 def test_the_batch_budget_binds_before_dataloader_shuffle():
     """An overfull frontier must be top-k by past R_Q, not random after shuffle."""
     buf = RolloutReplayBuffer(); buf.begin_iteration(1)
-    board = LaggedScoreboard()
+    board = PreviousRQScoreboard()
     champs = []
     for pid, past in (("low", 0.1), ("high", 0.9), ("mid", 0.5)):
         buf.store(pid, _inst(0, pid), _rollouts(True, False))
         board.record(pid, 0, past)
         champs.append(_champion(pid, 0.5, 0.5))
     rows = build_replay_training_examples(
-        champs, replay=buf, lagged=board, iteration=1,
+        champs, replay=buf, previous_rq=board, iteration=1,
         frontier_s_hat_range=(0.0, 1.0), training_budget=2,
     )
     assert [r["program_id"] for r in rows] == ["high", "mid"]
@@ -315,19 +315,19 @@ def _loop_evolver(backend, group_size=2, batch=6):
     )
 
 
-def test_extra_instances_use_the_same_lagged_ewma_as_batch_selection():
+def test_extra_instances_use_the_same_previous_raw_rq_as_batch_selection():
     backend = _CountingBackend()
     evolver = _loop_evolver(backend, batch=3)
     low_past = _champion("low-past", 0.5, 99.0)
     high_past = _champion("high-past", 0.5, 0.01)
     evolver.current_iteration = 2
-    evolver.lagged.record(low_past.program_id, 1, 0.1)
-    evolver.lagged.record(high_past.program_id, 1, 0.9)
+    evolver.previous_rq.record(low_past.program_id, 1, 0.1)
+    evolver.previous_rq.record(high_past.program_id, 1, 0.9)
 
     counts = evolver._allocate_instances([low_past, high_past])
 
     assert counts == [1, 2], (
-        "raw rq_score and lagged priority disagree; allocation must follow lagged R_Q"
+        "current rq_score and previous priority disagree; allocation must follow t-1 R_Q"
     )
 
 
@@ -342,7 +342,7 @@ def test_training_pool_is_frozen_before_mutation_changes_the_archive():
         _inst(7, incumbent.program_id),
         _rollouts(True, False),
     )
-    evolver.lagged.record(incumbent.program_id, 1, 0.4)
+    evolver.previous_rq.record(incumbent.program_id, 1, 0.4)
 
     # The live archive may no longer contain the incumbent after mutation.
     # The current update must still consume the rollout measured before that
@@ -459,7 +459,7 @@ def test_instances_are_never_reused_across_iterations():
 
 
 def test_a_cold_resume_falls_back_to_warmup_rather_than_an_empty_batch():
-    """An archive restored without lagged history has nothing to lag against.
+    """An archive restored without previous-score history needs a first batch.
 
     Handing verl an empty dataloader kills the run; falling back to the current
     scores is the same call bootstrap makes, and the lag re-engages as soon as
@@ -468,7 +468,7 @@ def test_a_cold_resume_falls_back_to_warmup_rather_than_an_empty_batch():
     backend = _CountingBackend()
     evolver = _loop_evolver(backend)
     program = _seeded(evolver, "A", "algebra")
-    evolver.lagged.history.clear()          # what a pre-scoreboard snapshot looks like
+    evolver.previous_rq.history.clear()     # what a pre-scoreboard snapshot looks like
 
     evolver.run_outer_iteration(0)
 

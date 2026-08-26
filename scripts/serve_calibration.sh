@@ -46,6 +46,19 @@ source /data1/yhoon113/miniforge3/etc/profile.d/conda.sh
 conda activate "${CONDA_ENV:-vllm}" || { echo "[calib] conda activate failed" >&2; exit 1; }
 set -u
 
+# Both servers died in EngineCore startup on 2026-08-24 08:39 -- neither ever
+# served a request, so scripts/calibrate_seeds.py had never produced a single
+# measurement and the seed corpus went into a training run uncalibrated. The
+# logs pointed at the ninja JIT build of FlashInfer's top-k/top-p sampling
+# kernels; the precise cause was NOT established before those logs were
+# overwritten by the first successful start on 2026-08-25, so do not trust a
+# root-cause story here -- only that this switch fixes it.
+#
+# It is the same switch src/rq_evolve/vllm_runtime.py flips via
+# configure_vllm_sampler_backend("pytorch"), which is why probe_seed_solvability
+# and the eval scripts always worked and this one did not.
+export VLLM_USE_FLASHINFER_SAMPLER=0
+
 
 serve() {  # name, model, gpu, port
   local name=$1 model=$2 gpu=$3 port=$4
@@ -65,8 +78,11 @@ serve() {  # name, model, gpu, port
   echo "$!" > "$LOGDIR/$name.pid"
 }
 
-serve qwen3-4b-base /data1/yhoon113/qwen3-4b-base 0 "$PORT_4B"
-serve qwen3-8b-base /data1/yhoon113/qwen3-8b-base 1 "$PORT_8B"
+# GPUs 0-3 are shared with another tenant on this box; override when they are
+# not ours. GPU_4B/GPU_8B keep the default 0/1 so existing invocations are
+# unchanged.
+serve qwen3-4b-base /data1/yhoon113/qwen3-4b-base "${GPU_4B:-0}" "$PORT_4B"
+serve qwen3-8b-base /data1/yhoon113/qwen3-8b-base "${GPU_8B:-1}" "$PORT_8B"
 
 # Wait for both to answer, and fail loudly rather than leaving a half-up pair.
 for spec in "qwen3-4b-base:$PORT_4B" "qwen3-8b-base:$PORT_8B"; do

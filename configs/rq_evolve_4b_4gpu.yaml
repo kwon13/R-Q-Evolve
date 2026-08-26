@@ -1,4 +1,4 @@
-# 4B on FOUR GPUs (4-7), shared with another tenant.
+# 4B on FOUR GPUs, held EXCLUSIVELY.
 #
 # Same science as rq_evolve_4b_8gpu.yaml -- identical batch geometry, identical
 # R_Q, identical rollout budget. Three memory knobs differ, and only because the
@@ -22,24 +22,31 @@
 #   ------------------------------------------
 #   persistent             8.0      16.0 GiB    (+8)
 #
-# so optimizer_offload is switched on below: it moves the fp32 m/v/master (12
-# GiB of that 16) to host RAM, which has 1.46 TB free. That is what makes four
-# ranks fit at all.
+# On a card that is also carrying a 17-19 GiB co-tenant, that +8 has to be paid
+# for, and optimizer_offload is the way to pay it. On a card we hold outright it
+# does not: 80.0 GiB is enough for the full replica AND the largest micro-batch
+# that fits, and both of those buy back time in update_actor -- which measured
+# 81.7s of a 131.8s step under the co-tenant settings, 62% of the whole step.
+# So offload is OFF here and the micro-batch is 4.
+#
+# This config therefore REQUIRES exclusive cards. Run it beside a tenant and it
+# OOMs in backward; the launcher checks and refuses.
 #
 # The budget (80.0 GiB card, per GPU), measured where marked:
 #
 #   verl trainer, 8 ranks, micro=4   41.2 GiB  MEASURED, all 243 steps
 #     + bigger shard at 4 ranks      + 8.0     derived from the table above
-#     - micro 4 -> 2                 - 4.5     ESTIMATE (activations + logits)
-#     - optimizer_offload            -12.0     derived (fp32 m/v/master)
+#     + guard pad                    + 2.0     the derivation ran 1.5 GiB under
+#                                              the one 4-rank measurement
 #   ------------------------------------------
-#   trainer                        ~ 32.7 GiB  ESTIMATE
-#   vLLM at utilization 0.22         21.2      MEASURED relation, see below
+#   trainer                          41.7 GiB  MEASURED, step 1 of this config
+#   vLLM at utilization 0.38         34.0      MEASURED relation, see below
 #   trainer CUDA context              0.5
 #   ------------------------------------------
-#   total                          ~ 54.4 GiB  -> ~7.7 GiB spare against the
-#                                                 62.1 GiB free on the tightest
-#                                                 of GPUs 4-7
+#   total                            76.2 GiB  -> 3.8 GiB spare on an 80.0 GiB
+#                                                 card held outright, the same
+#                                                 margin the 243-iteration
+#                                                 8-GPU run finished on
 #
 # A co-tenant holding 17 GiB puts that at 92.8 GiB and the run OOMs. That is not
 # a projection: the stock config's own note records a micro=4 run dying in
@@ -132,6 +139,16 @@ evolution:
   # copied the parent's bound). Turn this back on if ill-posed children show up
   # in the archive.
   use_evaluator: false
+  # Read each surviving child's SKILL off the child itself: eight binary
+  # YES/NO calls, one per skill, argmax of the offset-corrected P(YES).
+  # Against a reference labelling this scores 0.812 where the label stage 1
+  # declared scores 0.375 and stage 2's blind re-derivation 0.406. It replaces
+  # the stage-2 self-consistency gate, which is gone -- stage 2 is now TOLD the
+  # target skill and asked to build for it.
+  #
+  # Cost: 8 calls per surviving child at max_tokens=1. The skill block is last
+  # in the user turn so all eight share their prefix and cost one prefill.
+  relabel_skill: true
   # Structural contract on the child's own cross-check, before execution.
   # Measured on 456 archived champions: 45% flagged, 0 of the 14 clean
   # programs. use_evaluator=false requires this to be shadow or enforce.
@@ -246,18 +263,16 @@ verl_config:
       strategy: fsdp
       ppo_mini_batch_size: 32
       ppo_micro_batch_size: null
-      # 2, the value the stock config's own comment argues for and then does
-      # not use. Activation memory scales with hidden_size x micro-batch, and
-      # the logits tensor (tokens x 151936) scales with it too, so halving the
-      # micro-batch is the only actor-side knob that frees real memory without
-      # touching the optimizer. Estimated saving 4-5 GiB; it is an estimate
-      # because verl reports one reserved figure, not a per-term breakdown.
+      # 4. verl normalises ppo_mini_batch_size by rollout.n, so the update sees
+      # 32 x 10 = 320 sequences; on four ranks that is 80 per rank, and the
+      # micro-batch decides how many accumulation steps it takes to walk them.
+      # At 2 that was 40 steps and update_actor took 81.7s of a 131.8s step. At
+      # 4 it is 20. Same gradient, same 32-prompt batch, half the passes.
       #
-      # The MATHS IS UNCHANGED. ppo_mini_batch_size stays 32 over 8 ranks = 4
-      # sequences per rank per update, so micro=2 simply makes that two
-      # gradient-accumulation steps instead of one. Same gradient, same batch,
-      # ~1.3-1.5x the time in update_actor.
-      ppo_micro_batch_size_per_gpu: 2
+      # 8 does not fit: activations and the logits tensor (tokens x 151936)
+      # scale with the micro-batch, and the step from 4 to 8 would add roughly
+      # 10 GiB on top of a trainer already at ~51 GiB with the offload gone.
+      ppo_micro_batch_size_per_gpu: 4
       use_dynamic_bsz: false
       # vLLM stays resident (enable_sleep_mode: false) holding ~36 GiB, leaving
       # <10 GiB for the actor forward. The unchunked entropy path materializes a
@@ -269,12 +284,10 @@ verl_config:
       kl_loss_type: low_var_kl
       use_torch_compile: false
       fsdp_config:
-        # params stay resident -- they are only 2 GiB per rank and offloading
-        # them would pay a transfer on every micro-step, of which there are now
-        # 40. The optimizer state is the opposite: 12 GiB, touched once per
-        # update, so its transfer amortises over all 40 accumulation steps.
+        # Both off. Offloading the optimizer state costs a 12 GiB round trip on
+        # every update, and on exclusive cards there is nothing to buy with it.
         param_offload: false
-        optimizer_offload: true
+        optimizer_offload: false
       optim:
         lr: 1.0e-6
         weight_decay: 1.0e-2
@@ -309,13 +322,23 @@ verl_config:
       tensor_model_parallel_size: 1
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096
-      # 0.22, not 0.38. Measured: footprint = utilization x 80 + 3.6 GiB, so
-      # this frees 12.8 GiB per card. The cost is KV cache: 21.5 -> 10.2 GiB,
-      # i.e. 156,704 -> ~74,000 tokens, so roughly 14 full-length sequences fit
-      # instead of 30 and vLLM preempts more. Generation was never the
-      # bottleneck here (timing_s/step 22.7s is dominated by update_actor 9.8s
-      # and ref 5.9s), so the wall-clock cost lands mostly on the evolve phase.
-      gpu_memory_utilization: 0.22
+      # 0.38, the stock value, restored once the cards were held outright.
+      # Measured: footprint = utilization x 80 + 3.6 GiB, so this is 34.0 GiB
+      # and a 21.5 GiB / 156,704-token KV cache.
+      #
+      # It was 0.22 while a tenant held 17-19 GiB of every card. With the
+      # trainer measured at 41.7 GiB (step 1, this config) the budget is
+      # 41.7 + 34.0 + 0.5 = 76.2 of 80.0 -- a 3.8 GiB margin, which is the
+      # margin the 243-iteration 8-GPU run completed on (41.2 + 34.0 + 0.5 =
+      # 75.7, 4.3 GiB). Same micro-batch per rank, so the same activation peak,
+      # and verl's max_memory_reserved held flat at 41.2 for all 243 of that
+      # run's steps rather than creeping up.
+      #
+      # The KV cache is what async_rollout.max_in_flight_chunks: 32 is spending:
+      # 32 chunks x G=10 over four engines is 80 sequences per engine, and at
+      # 0.22 the cache held ~14 full-length ones. Raising the in-flight cap
+      # without the cache to back it buys preemption, not throughput.
+      gpu_memory_utilization: 0.38
       max_model_len: 12000
       max_num_batched_tokens: 12000
       dtype: bfloat16

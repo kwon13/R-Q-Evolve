@@ -1,4 +1,12 @@
+import json
+import logging
+import os
+import queue
+import select
+import subprocess
+import sys
 import threading
+from pathlib import Path
 
 import math_verify.grader as _g
 import math_verify.parser as _p
@@ -65,6 +73,126 @@ def _ensure_math_verify_thread_safe() -> None:
     _g.timeout = _safe_timeout
 
 
+# --------------------------------------------------------------------------
+# Out-of-process grading
+# --------------------------------------------------------------------------
+_log = logging.getLogger(__name__)
+
+_GRADER_WORKER_PATH = Path(__file__).with_name("_grader_worker.py")
+# Budgets. The steady-state one is the grading budget math_verify itself
+# defaults to; the cold one additionally covers interpreter start and the
+# worker's math_verify/sympy import.
+_GRADE_TIMEOUT = float(os.environ.get("RQ_GRADE_TIMEOUT", "10"))
+_GRADE_COLD_TIMEOUT = float(os.environ.get("RQ_GRADE_COLD_TIMEOUT", "30"))
+# One worker per verify thread (async_rollout's pool is 4) so a single wedged
+# comparison cannot hold up the others. Each worker is an interpreter with
+# sympy resident, so this is not free -- keep it near the verify fan-out.
+_GRADE_WORKERS = int(os.environ.get("RQ_GRADE_WORKERS", "4"))
+
+
+class _GraderClient:
+    """One persistent subprocess that grades under a hard kill.
+
+    Same shape, and the same reason, as ``program._SandboxClient``: a runaway
+    comparison cannot be stopped from inside the process running it, so it runs
+    somewhere killable. ``parse("\\boxed{51!!}")`` is ``factorial(factorial(51))``
+    -- the factorial of a 67-digit number -- and neither a signal nor a thread
+    join can end that. SIGKILL can.
+    """
+
+    def __init__(self) -> None:
+        self._proc: subprocess.Popen | None = None
+        self._warm = False
+
+    def _spawn(self) -> None:
+        self._proc = subprocess.Popen(
+            [sys.executable, str(_GRADER_WORKER_PATH)],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, text=True, bufsize=1,
+        )
+        self._warm = False
+
+    def _kill(self) -> None:
+        if self._proc is not None:
+            try:
+                self._proc.kill()
+                self._proc.wait(timeout=2)
+            except Exception:
+                pass
+            self._proc = None
+        self._warm = False
+
+    def grade(self, pred: str, gold: str) -> tuple[bool, str | None]:
+        """``(match, failure_kind)``; ``failure_kind`` is None on a real verdict."""
+        try:
+            if self._proc is None or self._proc.poll() is not None:
+                self._spawn()
+            budget = _GRADE_TIMEOUT if self._warm else max(_GRADE_TIMEOUT, _GRADE_COLD_TIMEOUT)
+            self._proc.stdin.write(json.dumps({"pred": pred, "gold": gold}) + "\n")
+            self._proc.stdin.flush()
+        except Exception:
+            self._kill()
+            return False, "write_error"
+
+        ready, _, _ = select.select([self._proc.stdout], [], [], budget)
+        if not ready:
+            # Wedged in work that yields to nothing. Kill it; the next call on
+            # this client respawns a clean worker.
+            self._kill()
+            return False, "timeout"
+        self._warm = True
+        line = self._proc.stdout.readline()
+        if not line:
+            self._kill()
+            return False, "worker_died"
+        try:
+            out = json.loads(line)
+        except Exception:
+            self._kill()
+            return False, "protocol_error"
+        if not out.get("ok"):
+            # parse/verify raised inside the worker -> non-match, same as the
+            # in-process path's `except Exception: return False`.
+            return False, None
+        return bool(out.get("match")), None
+
+
+class _GraderPool:
+    """Fixed pool of grader subprocesses, checked out one per call."""
+
+    def __init__(self, size: int) -> None:
+        self._q: queue.Queue = queue.Queue()
+        for _ in range(max(1, size)):
+            self._q.put(_GraderClient())
+        self._lock = threading.Lock()
+        self.counters = {"timeout": 0, "worker_died": 0,
+                         "write_error": 0, "protocol_error": 0, "graded": 0}
+
+    def grade(self, pred: str, gold: str) -> tuple[bool, str | None]:
+        client = self._q.get()
+        try:
+            match, kind = client.grade(pred, gold)
+        finally:
+            self._q.put(client)
+        with self._lock:
+            self.counters["graded"] += 1
+            if kind:
+                self.counters[kind] = self.counters.get(kind, 0) + 1
+        return match, kind
+
+    def stats(self) -> dict:
+        with self._lock:
+            return dict(self.counters)
+
+
+_GRADERS = _GraderPool(_GRADE_WORKERS)
+
+
+def grader_stats() -> dict:
+    """Counters for the iteration metrics: how often grading had to be killed."""
+    return _GRADERS.stats()
+
+
 def extract_boxed(text: str) -> str | None:
     r"""Return the content of the LAST complete ``\boxed{...}`` in ``text``.
 
@@ -114,26 +242,31 @@ def answers_match(predicted: str, ground_truth: str) -> bool:
     weaker grader. Parse/verify failures on a given pair count as a non-match.
     """
     pred_s, gold_s = str(predicted), str(ground_truth)
-    # Guard: a clean competition answer is short. An over-long prediction is a
-    # junk blob (run-on expression, pasted reasoning) that only feeds sympy's
-    # expensive solve()/simplify() -- skip math_verify and fall back to a cheap
-    # normalized string check so it can never wedge a reward worker.
+    # Cheap pre-filter, NOT a safety guard. An over-long prediction is a junk
+    # blob (run-on expression, pasted reasoning) whose only effect is to feed
+    # sympy expensive work, and a normalized string check settles it for free.
+    #
+    # It was load-bearing once and should not be again: length is a poor proxy
+    # for cost. The comparison that wedged a run was `51!!`, four characters,
+    # which math_verify parses as factorial(factorial(51)) -- the factorial of a
+    # 67-digit number. No length threshold catches that. The kill budget below
+    # is what makes cost bounded; this line only saves time.
     if len(pred_s) > 200 or len(gold_s) > 200:
         return normalize_answer(pred_s) == normalize_answer(gold_s)
 
-    _ensure_math_verify_thread_safe()
-
-    try:
-        # Wrap both sides in \boxed{} so math_verify's LaTeX extraction triggers.
-        # Parsing a bare fragment (e.g. "\dfrac{1}{2}" or "\frac34") otherwise
-        # fails its extractor and reports a false non-match; the \boxed form makes
-        # \dfrac/\frac, fraction/decimal, and spacing equivalences all resolve.
-        # verify(gold, target): ground truth first, prediction second.
-        gold = parse("\\boxed{" + str(ground_truth) + "}")
-        pred = parse("\\boxed{" + str(predicted) + "}")
-        return bool(verify(gold, pred))
-    except Exception:
-        return False
+    # Graded in a subprocess the parent can SIGKILL. The in-process path this
+    # replaces ran math_verify in a daemon thread and abandoned it on timeout;
+    # Python cannot stop a thread, so the abandoned one kept a core busy for the
+    # life of the process -- two of them, in one actor and the driver, took a
+    # run to 0% GPU. A timeout here grades as non-match, exactly as a parse or
+    # verify failure always has.
+    match, kind = _GRADERS.grade(pred_s, gold_s)
+    if kind == "timeout":
+        _log.warning(
+            "grader killed after %.0fs: pred=%r gold=%r (graded as non-match)",
+            _GRADE_TIMEOUT, pred_s[:80], gold_s[:80],
+        )
+    return match
 
 
 def compute_score(

@@ -1,57 +1,52 @@
 import random
+from itertools import product
 
 
 def generate(seed):
     rng = random.Random(seed)
 
-    # n is the only parameter, so its range is also the instance space. The
-    # upper end is kept where 2^(n-3) is still read straight off the closed
-    # form; much larger and the reduction mod 1000 becomes a cycle-finding
-    # puzzle of its own, stacked on top of the induction.
-    n = rng.randint(10, 30)
+    # n is the only parameter. Below 6 the strings can be listed by hand and
+    # the recursion is never forced. The upper end is set by the exhaustive
+    # check, which walks all 2^n strings.
+    n = rng.randint(6, 16)
 
-    # Let F_1 = {(1)}. For m >= 2, every permutation in F_{m-1}
-    # produces two members of F_m by inserting m at the left end
-    # or at the right end.
+    # Let a_m be the number of binary strings of length m with no three
+    # consecutive 1s.
     #
-    # If T_m is the total inversion count over all permutations in F_m,
-    # then |F_{m-1}| = 2^(m-2), and:
+    # Split by the run of 1s at the right end. Such a string ends in
     #
-    #   T_m = 2 T_{m-1} + (m-1) 2^(m-2).
+    #     ...0     -> the preceding m-1 characters are admissible
+    #     ...01    -> the preceding m-2 characters are admissible
+    #     ...011   -> the preceding m-3 characters are admissible
     #
-    # The first term duplicates all old inversions into both children.
-    # A left insertion of m creates exactly m-1 new inversions,
-    # while a right insertion creates none.
+    # and nothing else survives, since a longer run ends in 111. The three
+    # cases are disjoint and exhaustive, so
     #
-    # Inductively this gives:
+    #     a_m = a_{m-1} + a_{m-2} + a_{m-3}.
     #
-    #   T_m = m(m-1) 2^(m-3).
-    #
-    # T_n is asked modulo 1000 so the answer stays a short integer. The
-    # recursion is still the only way in -- the residue is read off the
-    # closed form.
-    answer = n * (n - 1) * (2 ** (n - 3)) % 1000
+    # Base cases: a_0 = 1 (the empty string), a_1 = 2, a_2 = 4. There is no
+    # short closed form here, so the recursion is not just the fastest route
+    # in -- it is the only one.
+    counts = [1, 2, 4]
 
-    # Independent route: compute T_n directly from the recursive construction,
-    # without using the closed form.
-    family_size = 1
+    for m in range(3, n + 1):
+        counts.append(counts[-1] + counts[-2] + counts[-3])
+
+    answer = counts[n]
+
+    # Independent route: enumerate every string of length n and reject the
+    # ones containing 111. This shares nothing with the case split above.
     check = 0
 
-    for m in range(2, n + 1):
-        check = 2 * check + (m - 1) * family_size
-        family_size *= 2
-
-    check %= 1000
+    for bits in product("01", repeat=n):
+        if "111" not in "".join(bits):
+            check += 1
 
     assert answer == check, f"answer={answer} check={check}"
 
     problem = (
-        f"Let F_1 consist only of the permutation (1). For each integer m from "
-        f"2 through {n}, construct F_m from F_(m-1) as follows: for every "
-        f"permutation in F_(m-1), create two new permutations by inserting m "
-        f"either at the left end or at the right end. Let T be the sum of the "
-        f"numbers of inversions over all permutations in F_{n}. Find the "
-        f"remainder when T is divided by 1000."
+        f"A string of length {n} is formed using only the characters 0 and 1. "
+        f"How many such strings contain no three consecutive 1s?"
     )
 
     return problem, str(answer)

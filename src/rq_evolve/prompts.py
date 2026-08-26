@@ -79,6 +79,12 @@ class MutationTask:
     max_output_tokens: int | None = None
     temperature: float | None = None
     top_p: float | None = None
+    # Relabelling probe. With logprobs on and the answer restricted to the YES
+    # and NO token ids, one greedy token plus its logprob determines the whole
+    # two-way distribution: the sampled side is exp(logprob) and the other is
+    # its complement. Nothing else in the mutation path sets these.
+    logprobs: int | None = None
+    allowed_token_ids: list[int] | None = None
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -355,6 +361,120 @@ def _parent_problem_text(parent: ProblemProgram) -> str:
     return instance.problem.strip()
 
 
+RELABEL_SYSTEM_PROMPT_FILE = "relabel_system_prompt.txt"
+RELABEL_USER_PROMPT_FILE = "relabel_user_prompt.txt"
+
+RELABEL_GROUP_SYSTEM_PROMPT_FILE = "relabel_group_system_prompt.txt"
+RELABEL_GROUP_USER_PROMPT_FILE = "relabel_group_user_prompt.txt"
+
+
+def build_relabel_task(
+    *,
+    parent,
+    child_family: str,
+    child_source: str,
+    skill: str,
+    allowed_token_ids: list[int] | None = None,
+) -> MutationTask:
+    """One binary question: does this family turn on this one skill?
+
+    ``parent`` rides along only because MutationTask requires it for reporting;
+    the prompt never shows it. The skill block is last in the user turn so the
+    eight calls for one child share their whole prefix.
+
+    Greedy on purpose. The verdict is a measurement, and sampling noise here
+    shows up as label churn the archive cannot distinguish from real movement.
+    """
+    system = _load_template(RELABEL_SYSTEM_PROMPT_FILE).strip()
+    user = _render_template(
+        _load_template(RELABEL_USER_PROMPT_FILE),
+        {
+            "child_family": child_family.strip(),
+            "child_source": strip_label_declarations(
+                strip_module_docstring(child_source)
+            ).strip(),
+            "skill": skill,
+            "skill_definition": _skill_definition(skill),
+        },
+    )
+    return MutationTask(
+        op="relabel",
+        prompt=user,
+        parent=parent,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        stage="relabel",
+        max_output_tokens=1,
+        temperature=0.0,
+        top_p=1.0,
+        logprobs=1,
+        allowed_token_ids=allowed_token_ids,
+    )
+
+
+def build_relabel_group_task(
+    *,
+    parent,
+    child_family: str,
+    child_source: str,
+    group: str,
+    allowed_token_ids: list[int] | None = None,
+) -> MutationTask:
+    system = _load_template(RELABEL_GROUP_SYSTEM_PROMPT_FILE).strip()
+    user = _render_template(
+        _load_template(RELABEL_GROUP_USER_PROMPT_FILE),
+        {
+            "child_family": child_family.strip(),
+            "child_source": strip_label_declarations(
+                strip_module_docstring(child_source)
+            ).strip(),
+            "group": group,
+            "group_definition": _group_definition(group),
+        },
+    )
+    return MutationTask(
+        op="relabel",
+        prompt=user,
+        parent=parent,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        stage="relabel",
+        max_output_tokens=1,
+        temperature=0.0,
+        top_p=1.0,
+        logprobs=1,
+        allowed_token_ids=allowed_token_ids,
+    )
+
+
+@lru_cache(maxsize=1)
+def _skill_definitions_map() -> dict:
+    out = {}
+    for line in _load_definitions(SKILL_DEFINITIONS_FILE).split("\n"):
+        if ":" in line:
+            key, value = line.split(":", 1)
+            out[key.strip()] = value.strip()
+    return out
+
+
+def _skill_definition(skill: str) -> str:
+    return _skill_definitions_map().get(skill, "")
+
+
+@lru_cache(maxsize=1)
+def _group_definitions_map() -> dict:
+    text = _load_definitions(GROUP_DEFINITIONS_FILE)
+    return dict(_split_definitions(text))
+
+
+def _group_definition(group: str) -> str:
+    return _group_definitions_map().get(group, "")
+
+
 def build_solver_messages(problem: str) -> list[dict]:
     """The solver conversation: rules in the system turn, problem in the user turn.
 
@@ -411,6 +531,11 @@ _INFERRED_LABEL = r"^[ \t>*_#-]*INFERRED_{key}[\s*_]*:[ \t]*(.*)$"
 
 def parse_inferred_labels(reply: str) -> tuple[str | None, str | None]:
     """Read INFERRED_GROUP / INFERRED_SKILL off a stage-2 generator reply.
+
+    RETIRED from the live path. Stage 2 no longer emits these lines: it is given
+    the target SKILL and builds for it, and the archive coordinate comes from
+    :meth:`RQEvolver._apply_relabel`. Kept because the offline probes in
+    ``scripts/`` replay recorded stage-2 replies through it.
 
     Stage 2 is asked to write the labels AFTER the code block, using the
     ``INFERRED_`` prefix so they are distinct from any ``GROUP = "..."`` /
@@ -567,6 +692,26 @@ be pushed into that niche, invent the child from scratch -- the niche matters,
 the parent does not.
 """
 
+TARGET_CELL_MUTATE_SKILL_BLOCK = """
+TARGET GROUP: $group (Keep the GROUP same as parent)
+
+The CHILD FAMILY you invent must belong to TARGET GROUP, but the decisive
+reasoning move of its shortest clean solution must change to a DIFFERENT SKILL of your choice. Write the
+GROUP and SKILL lines as exactly these two values (the TARGET GROUP and your chosen SKILL). If the parent family cannot
+be pushed into that niche, invent the child from scratch -- the niche matters,
+the parent does not.
+"""
+
+TARGET_CELL_MUTATE_GROUP_BLOCK = """
+TARGET SKILL: $skill (Keep the SKILL same as parent)
+
+The CHILD FAMILY you invent must change to a DIFFERENT GROUP of your choice, but the decisive
+reasoning move of its shortest clean solution must remain TARGET SKILL. Write the
+GROUP and SKILL lines as exactly these two values (your chosen GROUP and the TARGET SKILL). If the parent family cannot
+be pushed into that niche, invent the child from scratch -- the niche matters,
+the parent does not.
+"""
+
 # What a stage-1 reply must carry for the child to be usable.
 FAMILY_KEYS = ("STRUCTURAL MUTATION", "CHILD FAMILY", "GROUP", "SKILL")
 # Asked for, parsed when present, but NOT required. WHY FINITE makes the model
@@ -635,7 +780,7 @@ def build_family_task(
     temperature: float | None = None,
     top_p: float | None = None,
     max_output_tokens: int | None = None,
-    target_cell: tuple[str, str] | None = None,
+    target_cell: tuple | None = None,
     rotate_shots: bool = False,
     rng: random.Random | None = None,
 ) -> MutationTask:
@@ -669,8 +814,16 @@ def build_family_task(
         },
     )
     if target_cell is not None:
+        mutation_strategy = target_cell[2] if len(target_cell) > 2 else None
+        if mutation_strategy == "mutate_skill":
+            block_template = TARGET_CELL_MUTATE_SKILL_BLOCK
+        elif mutation_strategy == "mutate_group":
+            block_template = TARGET_CELL_MUTATE_GROUP_BLOCK
+        else:
+            block_template = TARGET_CELL_BLOCK
+            
         user_prompt = user_prompt + "\n" + _render_template(
-            TARGET_CELL_BLOCK,
+            block_template,
             {"group": target_cell[0], "skill": target_cell[1]},
         )
     return MutationTask(
@@ -707,13 +860,20 @@ def build_generator_task(
     appends them, so they cannot be dropped and cannot disagree with the
     problem they describe.
 
-    After the code block, the model is asked to output ``INFERRED_SKILL`` --
-    a blind re-derivation of the skill label from the code it just wrote.
-    The caller compares this against the stage-1 plan and rejects the child
-    when they disagree, catching implementation drift where the code is
-    easier to write than the problem is to solve.
+    The plan's SKILL is shown, with its definition, as a TARGET the generator
+    must build for. It used to be hidden so stage 2 could re-derive it blind and
+    the caller could reject a mismatch. That gate is gone: it asked whether the
+    model can name what it wrote rather than whether what it wrote demands the
+    skill, and the cell coordinate is now read off the finished program by the
+    relabeller instead. With nothing downstream depending on stage 2's guess,
+    hiding the target only left the child's skill to chance.
     """
     rng = rng or random
+    target_skill = str(plan.get("SKILL") or "").strip()
+    if target_skill not in SKILLS:
+        raise ValueError(
+            f"stage 2 needs a target SKILL from the plan, got {target_skill!r}"
+        )
     skill_definitions = _load_definitions(SKILL_DEFINITIONS_FILE)
     if rotate_shots:
         lines = [l for l in skill_definitions.strip().split("\n") if l.strip()]
@@ -743,6 +903,8 @@ def build_generator_task(
                 strip_module_docstring(parent.source_code)
             ),
             "new_problem": plan["CHILD FAMILY"],
+            "target_skill": target_skill,
+            "target_skill_definition": _skill_definition(target_skill),
         },
     )
     return MutationTask(

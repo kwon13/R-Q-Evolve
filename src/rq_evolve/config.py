@@ -147,14 +147,50 @@ class EvolutionConfig:
     # downside is noise in an existing channel, not a new failure mode.
     family_max_output_tokens: int | None = 2048
     generator_max_output_tokens: int | None = 2048
-    # Self-consistency gate: when two_stage_mutation is active, stage 2 is
-    # asked to output INFERRED_GROUP and INFERRED_SKILL after the code block.
-    # When this flag is True, a child whose inferred labels disagree with
-    # stage 1's plan is rejected before execution -- catching "implementation
-    # drift" where the code is easier to write than the problem is to solve.
-    # The gate is a zero-cost filter: it reuses the stage-2 reply and adds
-    # no extra LLM call.
-    stage2_skill_gate: bool = True
+    # How often a champion whose LAST measurement was degenerate (s_hat exactly
+    # 0 or exactly 1) is re-measured. 1 = every outer iteration, which is what
+    # the 4B run did; 0 = never, so it keeps its score until something displaces
+    # it; k = every k-th iteration.
+    #
+    # Why 0 is defensible: R_Q = 0 means the frontier band drains the champion
+    # from the training set, and with replay_training_batch its re-scoring
+    # rollouts are the training batch -- so a degenerate champion's rollouts are
+    # generated and then thrown away. Measured on the 4B run that was 35-48% of
+    # the whole re-evaluation budget (480 rollouts/iteration at 48 champions,
+    # of which 270 went to champions that could not train).
+    #
+    # What 0 costs, stated plainly because it is large: at n=1 instance the
+    # "degenerate" reading is mostly measurement noise, not a property of the
+    # program. Over the run, 20.3% of degenerate readings were followed by a
+    # live one at the very next re-evaluation, 43% of death runs lasted exactly
+    # one iteration, and 111 of 145 programs (77%) were alive again at some
+    # point after their first degenerate reading. Freezing on the first such
+    # reading therefore mislabels most of the archive, and the observations it
+    # would have skipped carry mean learnability s(1-s) = 0.152 against a
+    # maximum of 0.25. A k of 3-5 buys most of the saving back with a bounded
+    # lag; 1 is the safe setting and the one the measurements were taken under.
+    #
+    # 1, NOT 0, and this is not a preference. 0 was tried and it killed a run at
+    # iteration 65 with "VerlDynamicDataset is empty": a champion that reads
+    # degenerate once keeps that score until something displaces it, so
+    # degenerate champions accumulate MONOTONICALLY. The archive went from 8
+    # champions with 5 on the frontier to 30 with 1, mean R_Q fell 0.059 ->
+    # 0.0021, and the frontier finally emptied. The numbers above say why: at
+    # n=1 a degenerate reading is mostly noise, and freezing on it turns a
+    # transient miss into a permanent one. Re-measurement is what makes the
+    # archive a measurement rather than a ratchet.
+    reevaluate_degenerate_every: int = 1
+    # Read the child's SKILL off the child instead of trusting the label stage
+    # 1 was told to write. Eight binary calls per surviving child; see
+    # src/rq_evolve/relabel.py for the measurements.
+    #
+    # This replaced the stage-2 self-consistency gate, which is gone. That gate
+    # asked stage 2 to re-derive the SKILL blind and killed the child on a
+    # mismatch -- the wrong question. It tested whether the model can NAME what
+    # it wrote, not whether what it wrote demands the skill, and it killed 4,112
+    # candidates to do it. Stage 2 is now told the target SKILL and asked to
+    # build for it; the coordinate is read off the finished program afterwards.
+    relabel_skill: bool = True
     # Name the (GROUP, SKILL) cell each child must land in, drawn uniformly over
     # the whole 48-cell grid (archive.sample_target_cell). Without it the child's
     # descriptor is whatever stage 1 happens to declare, and stage 1's prior is
@@ -173,8 +209,9 @@ class EvolutionConfig:
     # that to 10% and flattens the distribution. Stage 2's rotation is for label
     # coverage, not plagiarism: its examples are copied 0.3% of the time because
     # it transcribes a fixed specification. Neither rotation consults the target
-    # cell -- stage 2's INFERRED_SKILL has to stay a blind re-derivation or the
-    # gate verifies nothing.
+    # cell. Stage 2 could now bias its worked examples toward the target SKILL
+    # -- nothing downstream re-derives the label any more -- but that is
+    # untested and the rotation stays uniform until it is measured.
     rotate_few_shots: bool = True
     # The judge is a measurement, so it is read greedily: any sampling noise
     # here shows up as label disagreement that the generator did not cause.

@@ -51,7 +51,18 @@ INSERT = f"""
         # which already lets a caller override sampling per call. Validation
         # keeps precedence: its overrides are set above and a validation batch
         # carries none of these keys.
-        for _rq_key in ("temperature", "top_p", "top_k", "max_tokens"):
+        # logprobs / allowed_token_ids carry the relabelling probe: one binary
+        # question per SKILL at max_tokens=1, with the answer restricted to the
+        # YES and NO token ids so exp(logprob) is the exact two-way probability
+        # rather than a renormalised slice of the top-k.
+        for _rq_key in (
+            "temperature",
+            "top_p",
+            "top_k",
+            "max_tokens",
+            "logprobs",
+            "allowed_token_ids",
+        ):
             if _rq_key in batch.meta_info:
                 sampling_params[_rq_key] = batch.meta_info[_rq_key]
 """

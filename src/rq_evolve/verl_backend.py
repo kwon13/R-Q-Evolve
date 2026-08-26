@@ -61,6 +61,10 @@ class VerlPolicyBackend(EvolutionBackend):
         # Outer-iteration index for JSONL sample records; the EvolvingSampler
         # updates this before each evolve phase.
         self.current_iteration = -1
+        # (token id, logprob) of each row's first generated token from the most
+        # recent mutate() call, aligned with its task list. Only filled when the
+        # tasks asked for logprobs; the SKILL relabeller reads it.
+        self.last_mutation_logprobs: list[tuple[int, float] | None] = []
 
     def bind(self, trainer) -> None:
         self.trainer = trainer
@@ -75,6 +79,11 @@ class VerlPolicyBackend(EvolutionBackend):
         self._sleep_enabled = free_cache_engine and enable_sleep_mode
         window = getattr(rollout_cfg, "max_model_len", None)
         self.max_model_len = int(window) if window else None
+        # Which logits the engine turns into logprobs. The relabeller's whole
+        # arithmetic rests on this; see _require_two_way_logprobs.
+        self._logprobs_mode = str(
+            getattr(rollout_cfg, "logprobs_mode", "processed_logprobs")
+        )
 
     def mutate(self, tasks: list[MutationTask]) -> list[str | None]:
         if not tasks:
@@ -101,21 +110,99 @@ class VerlPolicyBackend(EvolutionBackend):
                 "one mutation batch must use one temperature/top_p pair; "
                 "group tasks by stage before calling mutate()"
             )
+        # logprobs / allowed_token_ids ride on DataProto.meta_info, which is
+        # per-batch, not per-row -- so like temperature they must agree across
+        # the batch. The relabel path builds all 8 skill calls from one
+        # template, so they do; a mixed batch is a caller bug, not a silent
+        # "some rows get logprobs".
+        logprob_opts = {
+            int(task.logprobs) for task in tasks if task.logprobs is not None
+        }
+        allowed_opts = {
+            tuple(task.allowed_token_ids)
+            for task in tasks
+            if task.allowed_token_ids is not None
+        }
+        if len(logprob_opts) > 1 or len(allowed_opts) > 1:
+            raise ValueError(
+                "one mutation batch must use one logprobs/allowed_token_ids "
+                "pair; group tasks by stage before calling mutate()"
+            )
+        if logprob_opts and any(task.logprobs is None for task in tasks):
+            raise ValueError(
+                "logprobs must be set on every task in the batch or on none"
+            )
+        allowed = next(iter(allowed_opts), None)
+        if allowed is not None and logprob_opts:
+            self._require_two_way_logprobs()
         max_tokens = min(limits) if limits else None
+        self.last_mutation_logprobs = [None] * len(tasks)
         output, _ = self._generate_with_batch(
             prompts,
             messages=messages if any(messages) else None,
             max_tokens=max_tokens,
             temperature=next(iter(temperatures), None),
             top_p=next(iter(top_ps), None),
+            logprobs=next(iter(logprob_opts), None),
+            allowed_token_ids=list(allowed) if allowed is not None else None,
         )
         responses = output.batch.get("responses")
         if responses is None:
             return [None] * len(tasks)
+        self.last_mutation_logprobs = self._first_token_logprobs(output, len(tasks))
         return [
             self.tokenizer.decode(row.tolist(), skip_special_tokens=True)
             for row in responses
         ]
+
+    def _require_two_way_logprobs(self) -> None:
+        """Refuse to score a restricted-vocabulary call under raw logprobs.
+
+        The relabeller reads ONE token's logprob and takes the other side to be
+        its complement. That is exact only when the logprob is a log_softmax
+        over the MASKED logits -- after ``allowed_token_ids`` has set every
+        other token to -inf. vLLM does that only under
+        ``logprobs_mode="processed_logprobs"``: at sampler.py:88 the mask is
+        applied to the logits, and at sampler.py:164-165 the greedy branch
+        recomputes the logprobs from those masked logits. Under "raw_logprobs"
+        it keeps the logprobs taken at sampler.py:80-81, BEFORE the mask, so
+        P(YES) + P(NO) < 1 and the complement overstates the unsampled side --
+        by a different amount on every call.
+
+        verl's own default is "processed_logprobs" (workers/config/rollout.py),
+        so this normally passes. It raises rather than warns because the failure
+        is silent: the run would finish, and every archive coordinate in it
+        would be wrong.
+        """
+        mode = getattr(self, "_logprobs_mode", "processed_logprobs")
+        if mode != "processed_logprobs":
+            raise ValueError(
+                f"actor_rollout_ref.rollout.logprobs_mode is {mode!r}; the "
+                "SKILL relabeller needs 'processed_logprobs' for its "
+                "allowed_token_ids logprob to be a normalised two-way "
+                "probability. Set it, or turn off evolution.relabel_skill."
+            )
+
+    def _first_token_logprobs(self, output, n: int) -> list[tuple[int, float] | None]:
+        """(token id, logprob) of each row's FIRST generated token.
+
+        ``_generate_with_batch`` unpads before returning, so row k is task k.
+        ``rollout_log_probs`` is only present when the request asked for
+        logprobs (agent_loop.py:822-824) AND patches/verl_agent_loop_sampling.py
+        is applied to forward the key; otherwise every entry is None and the
+        caller falls back to the decoded text.
+        """
+        pairs: list[tuple[int, float] | None] = [None] * n
+        responses = output.batch.get("responses") if output is not None else None
+        logps = output.batch.get("rollout_log_probs") if output is not None else None
+        if responses is None or logps is None:
+            return pairs
+        for k in range(min(n, len(responses), len(logps))):
+            try:
+                pairs[k] = (int(responses[k][0]), float(logps[k][0]))
+            except (IndexError, ValueError, TypeError):
+                pairs[k] = None
+        return pairs
 
     def supports_pipelined_mutation(self) -> bool:
         """True when stage-2 calls can be submitted per parent, not per batch.
@@ -264,7 +351,31 @@ class VerlPolicyBackend(EvolutionBackend):
             if not 0.0 < top_p_value <= 1.0:
                 raise ValueError("top_p must be in (0, 1]")
             gen_batch.meta_info["top_p"] = top_p_value
+        if task.logprobs is not None:
+            gen_batch.meta_info["logprobs"] = int(task.logprobs)
+        if task.allowed_token_ids is not None:
+            gen_batch.meta_info["allowed_token_ids"] = list(task.allowed_token_ids)
         return gen_batch
+
+    def sampled_token_logprob(self, output) -> tuple[int, float] | None:
+        """(token id, logprob) of the FIRST generated token, or None.
+
+        verl's agent loop only fills ``rollout_log_probs`` when the request
+        asked for logprobs (agent_loop.py:822-824), which is what
+        MutationTask.logprobs turns on -- and that key only reaches the sampler
+        because patches/verl_agent_loop_sampling.py forwards it from meta_info.
+        Without the patch this returns None and the caller falls back to reading
+        the decoded text.
+        """
+        if output is None:
+            return None
+        responses = output.batch.get("responses")
+        logps = output.batch.get("rollout_log_probs")
+        if responses is None or logps is None:
+            return None
+        if len(responses) == 0 or len(logps) == 0:
+            return None
+        return int(responses[0][0]), float(logps[0][0])
 
     def _decode_single_response(self, output) -> str | None:
         responses = output.batch.get("responses") if output is not None else None
@@ -627,6 +738,8 @@ class VerlPolicyBackend(EvolutionBackend):
         temperature: float | None = None,
         top_p: float | None = None,
         ground_truths: list[str] | None = None,
+        logprobs: int | None = None,
+        allowed_token_ids: list[int] | None = None,
     ):
         trainer = self._require_trainer()
         batch = self._make_prompt_batch(
@@ -659,6 +772,10 @@ class VerlPolicyBackend(EvolutionBackend):
             if not 0.0 < top_p_value <= 1.0:
                 raise ValueError("top_p must be in (0, 1]")
             gen_batch.meta_info["top_p"] = top_p_value
+        if logprobs is not None:
+            gen_batch.meta_info["logprobs"] = int(logprobs)
+        if allowed_token_ids is not None:
+            gen_batch.meta_info["allowed_token_ids"] = list(allowed_token_ids)
 
         # verl 0.7.x retired vLLM SPMD; actor_rollout_wg.generate_sequences raises
         # NotImplementedError for the vLLM rollout. The trainer instead routes

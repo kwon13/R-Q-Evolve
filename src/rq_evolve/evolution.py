@@ -1,4 +1,6 @@
+import collections
 import json
+import math
 import random
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -9,13 +11,15 @@ from .archive import MAPElitesArchive
 from .ast_contract import check_generator_contract, check_problem_text
 from .backends import EvolutionBackend, RolloutRecord
 from .code_utils import (
+    answer_is_bare_draw,
+    answer_leaks_in_every_instance,
     extract_generator_code,
     lint_generator_source,
     lint_mutation_generator_source,
     lint_problem_instance,
     set_label_declarations,
 )
-from .concepts import validate_label_decl
+from .concepts import SKILLS, GROUPS, validate_label_decl
 from .config import EvolutionConfig, TrainingDataConfig
 from .dataset import (
     DynamicProblemDataset,
@@ -27,10 +31,13 @@ from .openai_evaluator import (
     OpenAIEvaluatorConfig,
     evaluate_messages_with_openai,
 )
+from .reward import grader_stats
 from .program import ProblemInstance, ProblemProgram
 from .replay import LaggedScoreboard, RolloutReplayBuffer
 from .seed_stream import SeedStream
 from .prompts import (
+    build_relabel_task,
+    build_relabel_group_task,
     MutationTask,
     MUTATION_OP,
     build_judge_messages,
@@ -38,11 +45,11 @@ from .prompts import (
     build_family_task,
     build_generator_task,
     parse_declared_labels,
-    parse_inferred_labels,
     parse_family_plan,
     judge_accepts,
     parse_judge_verdict,
 )
+from .relabel import SkillOffsets, GroupOffsets, choose_skill, choose_group, logit
 from .scoring import RQResult, compute_rq_program, is_frontier, score_seed
 from .solver_trace import clean_and_grade_solver_rollout
 
@@ -65,6 +72,32 @@ class CandidateReport:
     reason: str | None = None
     source_code: str | None = None
     ast_findings: list[str] = field(default_factory=list)
+
+
+
+def _relabel_p_yes(pair, reply, yes_id) -> float | None:
+    """P(YES) from the sampled token's logprob, else from the decoded text.
+
+    ``pair`` is the ``(token id, logprob)`` the backend recorded for this task.
+    With only two allowed tokens and greedy decoding the sampled side's
+    probability fixes the other's, so one logprob is the whole distribution --
+    which is why the caller asks for one token and one logprob, not a top-k.
+    """
+    if pair is not None and yes_id is not None:
+        try:
+            token_id, logp = pair
+            p = math.exp(float(logp))
+            if 0.0 <= p <= 1.0:
+                return p if int(token_id) == yes_id else 1.0 - p
+        except (TypeError, ValueError, OverflowError):
+            pass
+    if reply:
+        head = str(reply).strip().lstrip("`*_\"' \t\n").upper()
+        if head.startswith("YES"):
+            return 1.0
+        if head.startswith("NO"):
+            return 0.0
+    return None
 
 
 def _logged_source(source: str | None) -> str | None:
@@ -95,6 +128,10 @@ class RQEvolver:
     # already graded on -- which would reopen exactly the overfitting hole that
     # fresh seeds close.
     seed_stream: SeedStream = field(default_factory=SeedStream)
+    # Per-skill logit offsets for relabelling, carried across iterations
+    # and persisted with the archive so a resume does not restart cold.
+    skill_offsets: SkillOffsets = field(default_factory=SkillOffsets)
+    group_offsets: GroupOffsets = field(default_factory=GroupOffsets)
     # This iteration's re-scoring rollouts, kept so the solver update trains on
     # them instead of paying for a second sampling pass over the same programs.
     replay: RolloutReplayBuffer = field(default_factory=RolloutReplayBuffer)
@@ -239,6 +276,13 @@ class RQEvolver:
                 }
                 if findings and mode == "enforce":
                     source_errors.extend(str(f) for f in findings)
+            # The statement/code decoupling the AST contract does not cover:
+            # `answer` being a sampled name unchanged. 21% of the 4B run's
+            # champions are built this way, and the assert cannot catch it
+            # because both routes trivially yield the same draw.
+            bare = answer_is_bare_draw(program.source_code)
+            if bare:
+                source_errors.append(bare)
         if source_errors:
             return None, "; ".join(source_errors[:3])
 
@@ -253,7 +297,11 @@ class RQEvolver:
         program.metadata["skill"] = skill
 
         first: ProblemInstance | None = None
-        seen_problems: set[str] = set()
+        # statement -> the answers it was rendered with. A set would only
+        # answer "does the program vary?"; the mapping additionally proves
+        # ill-posedness when it does not vary the way it should.
+        seen_problems: dict[str, set[str]] = {}
+        rendered: list[ProblemInstance] = []
         for seed in range(n):
             inst = program.execute(seed=seed)
             if inst is None:
@@ -287,10 +335,49 @@ class RQEvolver:
             if not _answer_parseable(inst.answer):
                 return None, f"answer is not parseable: {inst.answer!r}"
             first = first or inst
-            seen_problems.add(" ".join(inst.problem.split()))
+            rendered.append(inst)
+            key = " ".join(inst.problem.split())
+            answers = seen_problems.setdefault(key, set())
+            answers.add(str(inst.answer).strip())
+            if len(answers) > 1:
+                # The one ill-posedness result that is a PROOF rather than a
+                # heuristic: the same question, word for word, graded against
+                # two different answers. Whatever the statement determines, it
+                # is not the value being scored.
+                #
+                # The old check -- at least two distinct statements over n seeds
+                # -- cannot see it. Champion 3cedc80f7798 of the 4B run renders
+                # three distinct statements across five seeds and so passed,
+                # while "Let n = 1 be a positive integer. Determine the number
+                # of ways to partition n into distinct prime factors." appeared
+                # twice with answers 1 and 2.
+                return None, (
+                    "the same problem text is graded against two answers "
+                    f"({sorted(answers)}): the statement does not determine it"
+                )
 
         if n > 1 and len(seen_problems) <= 1:
             return None, "program does not vary its visible problem across seeds"
+        # verify_program just rendered seeds 0..n-1 of this program, and the
+        # judge (when enabled) reads the seed-0 instance. Move the stream past
+        # them so the candidate's FIRST scoring draw is genuinely fresh.
+        #
+        # Without this the comment above `draw_instances` -- "A candidate is
+        # graded on n FRESH seeds, not on the seed-0 instance the judge saw" --
+        # is false: SeedStream starts every new program_id at 0 and nothing
+        # else advances it, so `take` returns 0 and the candidate is admitted
+        # on the one instance every structural check already ran against. It is
+        # visible in the persisted cursors: every champion born after iteration
+        # 1 has cursor == (snapshots it appears in) + exactly 1.
+        self.seed_stream.reserve_through(program.program_id, n - 1)
+        if is_generated_mutation and mode == "enforce":
+            # Needs every rendered instance, so it cannot live in the per-seed
+            # loop above: one coincidental appearance of the answer in the text
+            # is common, the same one on all n seeds is the answer being handed
+            # to the solver. 25% of the 4B run's champions leak this way.
+            leaked = answer_leaks_in_every_instance(rendered)
+            if leaked:
+                return None, leaked
         return first, None
 
     def run_outer_iteration(self, outer_iteration: int) -> dict:
@@ -389,24 +476,37 @@ class RQEvolver:
             key = f"status_{report.status}"
             status_counts[key] = status_counts.get(key, 0) + 1
 
-        # Self-consistency gate (stage 1 vs stage 2 label agreement).
-        s2_match = getattr(self, "_stage2_gate_match", 0)
-        s2_mismatch = getattr(self, "_stage2_gate_mismatch", 0)
-        s2_parse_fail = getattr(self, "_stage2_gate_parse_fail", 0)
-        s2_total = s2_match + s2_mismatch
-        stage2_gate_metrics = {
-            "stage2_gate_match": s2_match,
-            "stage2_gate_mismatch": s2_mismatch,
-            "stage2_gate_parse_fail": s2_parse_fail,
-            # Flattened so one JSONL line carries the whole 8x8 matrix.
-            "stage2_confusion": {
-                f"{plan}->{inferred}": n
-                for (plan, inferred), n in
-                getattr(self, "_stage2_gate_confusion", {}).items()
-            },
+        grader_metrics = {
+            # How often grading had to be killed. Non-zero means math_verify met
+            # an input it cannot finish (`51!!` -> factorial(factorial(51))) and
+            # the answer was scored non-match without wedging the run. Silence
+            # here used to mean the same thing had leaked a thread instead.
+            **{f"grader_{k}": v for k, v in grader_stats().items()},
         }
-        if s2_total:
-            stage2_gate_metrics["stage2_gate_match_rate"] = s2_match / s2_total
+
+        # Why inserts were refused, split by cause. The novelty gates and
+        # ordinary cell competition used to be one indistinguishable bucket.
+        insert_rejects = collections.Counter(
+            e.get("reason") for e in self.events if e.get("event") == "insert_rejected"
+        )
+        insert_metrics = {f"insert_rejected_{k}": v for k, v in insert_rejects.items()}
+        insert_metrics["insert_rejected"] = sum(insert_rejects.values())
+
+        # SKILL relabelling. `relabel_changed` is the one to watch: the declared
+        # label agreed with a reference only 32.4% of the time, so a run where
+        # this stays near zero is not one where the Evolver got the labels
+        # right -- it is one where the relabeller never reached the model.
+        relabel_metrics = dict(getattr(self, "_relabel_stats", {}) or {})
+        if relabel_metrics.get("relabel_children"):
+            relabel_metrics["relabel_change_rate"] = (
+                relabel_metrics["relabel_changed"]
+                / relabel_metrics["relabel_children"]
+            )
+        # Mean YES-bias per skill, the quantity the offsets subtract out. A
+        # skill drifting far from the rest is one the prompt over-accepts.
+        relabel_metrics["relabel_offsets"] = {
+            k: round(v, 4) for k, v in self.skill_offsets.mean.items()
+        }
 
         result = {
             "outer_iteration": outer_iteration,
@@ -421,7 +521,9 @@ class RQEvolver:
             **dispersion_metrics,
             **replay_metrics,
             **judge_metrics,
-            **stage2_gate_metrics,
+            **grader_metrics,
+            **insert_metrics,
+            **relabel_metrics,
             **status_counts,
             **stats,
         }
@@ -447,17 +549,31 @@ class RQEvolver:
         ("Evolution Candidate State") for the diagram and full status vocabulary.
         """
         parents: list[ProblemProgram] = []
-        targets: list[tuple[str, str] | None] = []
+        targets: list[tuple | None] = []
         for _ in range(batch_size):
             parent = self.archive.sample_parent()
             if parent is None:
                 return [CandidateReport(status="no_parent", op="none")]
             parents.append(parent)
-            targets.append(
-                self.archive.sample_target_cell()
-                if self.evolution_config.target_cell_injection
-                else None
-            )
+            
+            if self.evolution_config.target_cell_injection:
+                parent_group_match = re.search(r'GROUP\s*=\s*"([^"]+)"', parent.source_code)
+                parent_skill_match = re.search(r'SKILL\s*=\s*"([^"]+)"', parent.source_code)
+                parent_group = parent_group_match.group(1) if parent_group_match else None
+                parent_skill = parent_skill_match.group(1) if parent_skill_match else None
+
+                if parent_group and parent_skill:
+                    mutation_strategy = random.choice(["mutate_skill", "mutate_group"])
+                    
+                    if mutation_strategy == "mutate_skill":
+                        targets.append((parent_group, None, mutation_strategy, parent_group, parent_skill))
+                    else:
+                        targets.append((None, parent_skill, mutation_strategy, parent_group, parent_skill))
+                else:
+                    target_group, target_skill = self.archive.sample_target_cell()
+                    targets.append((target_group, target_skill, "mutate_both", None, None))
+            else:
+                targets.append(None)
 
         # One vLLM wake for the whole batch: the mutation generate and every
         # solver generate run while vLLM is awake; entropy (actor forward) is
@@ -470,7 +586,7 @@ class RQEvolver:
                     "templates (mutation_*_prompt.txt); set "
                     "evolution.two_stage_mutation: true"
                 )
-            tasks, outputs = self._mutate_in_two_stages(parents, targets)
+            tasks, outputs, mutation_strategies = self._mutate_in_two_stages(parents, targets)
             entries: list[dict] = []
             # Repeats also happen WITHIN one batch: 32 parents are drawn with
             # replacement from a ~10-cell archive and mutation is near
@@ -481,11 +597,12 @@ class RQEvolver:
             # reported against it. They would have produced the same verdict:
             # the source is byte-identical and the judge is deterministic.
             in_flight: set[str] = set()
-            gate_rejected = getattr(self, "_stage2_gate_rejected", {}) or {}
-            for idx, (task, output) in enumerate(zip(tasks, outputs)):
+            for task, output, mutation_strategy in zip(tasks, outputs, mutation_strategies):
                 child, inst, reason, source = self._make_child_from_output(
                     task, output, in_flight=in_flight
                 )
+                if child is not None:
+                    child.metadata["mutation_strategy"] = mutation_strategy
                 if child is not None and child.program_id in in_flight:
                     entries.append(
                         {
@@ -539,25 +656,6 @@ class RQEvolver:
                             }
                         }
                     )
-                elif idx in gate_rejected:
-                    # The stage-2 self-consistency gate dropped this child, so
-                    # `output` is None by construction. Reporting it as
-                    # "mutation_failed: empty model output" is what hid the
-                    # gate's real cost: 3,573 of the 4B run's 3,863
-                    # mutation_failed candidates were this, not a silent model.
-                    planned, inferred = gate_rejected[idx]
-                    entries.append(
-                        {
-                            "report": CandidateReport(
-                                status="stage2_gate_rejected",
-                                op=task.op,
-                                reason=(
-                                    f"stage-2 re-derived SKILL {inferred!r} "
-                                    f"from its own code; stage 1 planned {planned!r}"
-                                ),
-                            )
-                        }
-                    )
                 else:
                     entries.append(
                         {
@@ -580,6 +678,13 @@ class RQEvolver:
             # seed-0 problem alone and must land on both declared labels.
             # Runs BEFORE solver rollouts are spent, in the same open session.
             self._apply_judge(entries)
+
+            # Read each surviving child's SKILL off the child, replacing the
+            # label stage 1 was told to write. Inside the same open session and
+            # before rollouts are spent: it needs the policy and costs one
+            # prefill per child. See relabel.py -- the declared label is one the
+            # problem actually requires 37.5% of the time; this is 81.2%.
+            self._apply_relabel(entries)
 
             to_eval = [e for e in entries if "child" in e]
             # A candidate is graded on n FRESH seeds, not on the seed-0 instance
@@ -725,10 +830,16 @@ class RQEvolver:
         this prompt got wrong was the file's tail: whatever the parent's last
         two lines contained is what the child's contained, including nothing.
 
-        When ``stage2_skill_gate`` is enabled, stage 2's reply also carries
-        ``INFERRED_GROUP`` and ``INFERRED_SKILL`` -- a blind re-derivation of
-        the labels from the code the model just wrote.  If either disagrees
-        with stage 1's plan, the child is rejected before execution.
+        Stage 2 is TOLD the target SKILL and is asked to build a family whose
+        shortest solution turns on it. It used to be asked the opposite -- to
+        re-derive the label blind, so the caller could reject a mismatch -- and
+        that gate is gone. It was answering the wrong question: whether the
+        model can name what it wrote, not whether what it wrote demands the
+        skill. It agreed 32.4% of the time against a reference, and most of its
+        recoverable vocabulary was the four skills its own worked examples
+        demonstrate. The cell coordinate now comes from :meth:`_apply_relabel`,
+        which reads the finished program, so nothing downstream needs stage 2
+        to guess.
         """
         cfg = self.evolution_config
         rotate = cfg.rotate_few_shots
@@ -802,85 +913,46 @@ class RQEvolver:
 
         self.stage_one_parsed = sum(1 for plan in plans if plan is not None)
 
-        # Self-consistency gate counters, reported in _report_metrics.
-        gate_match = 0
-        gate_mismatch = 0
-        gate_parse_fail = 0
-        # (stage-1 plan SKILL -> stage-2 INFERRED_SKILL). The three counters
-        # above say HOW MANY children the gate killed; only this says WHICH
-        # labels it is unable to recover. Measured offline on 386 gated
-        # children, `invariant` came back 4 times and `construction` 4 -- the
-        # gate is largely reading stage-2's own worked examples, which
-        # demonstrate 4 of the 8 skills. That is invisible in a scalar.
-        gate_confusion: dict[tuple[str, str], int] = {}
-        gate_active = self.evolution_config.stage2_skill_gate
-
         tasks = list(family_tasks)
         outputs: list[str | None] = [None] * len(parents)
-        gate_rejected: dict[int, tuple[str, str]] = {}
+        mutation_strategies = ["mutate_both"] * len(parents)
         for i, plan in enumerate(plans):
             if plan is None:
                 continue
-            _parent = parents[i]
             reply = gen_reply_by_i.get(i)
             source = extract_generator_code(reply or "")
             if source is None:
                 continue
 
-            # --- Self-Consistency Gate (SKILL only) ---
-            # Stage 2 outputs INFERRED_SKILL AFTER the code block.  Compare
-            # against stage 1's plan SKILL.  The comparison uses the raw reply
-            # (which still has the label line), not the extracted source.
-            if gate_active:
-                _inf_group, inf_skill = parse_inferred_labels(reply or "")
-                events_list = getattr(self, "events", None)
-                gate_confusion[(plan["SKILL"], inf_skill or "PARSE_FAIL")] = (
-                    gate_confusion.get((plan["SKILL"], inf_skill or "PARSE_FAIL"), 0) + 1
-                )
-                if inf_skill is None:
-                    gate_parse_fail += 1
-                    if events_list is not None:
-                        events_list.append({
-                            "event": "stage2_skill_gate_parse_fail",
-                            "parent_id": _parent.program_id,
-                            "plan_skill": plan["SKILL"],
-                            "inferred_skill": inf_skill,
-                        })
-                    # Parse failure: allow through (don't penalise a model that
-                    # wrote valid code but mangled the label format).
-                elif inf_skill == plan["SKILL"]:
-                    gate_match += 1
+            target = targets[i] if targets else None
+            mutation_strategy = "mutate_both"
+            if target is not None and len(target) >= 5:
+                _, _, mutation_strategy, parent_group, parent_skill = target
+                if mutation_strategy == "mutate_skill":
+                    final_group = parent_group
+                    final_skill = plan.get("SKILL")
+                elif mutation_strategy == "mutate_group":
+                    final_group = plan.get("GROUP")
+                    final_skill = parent_skill
                 else:
-                    gate_mismatch += 1
-                    if events_list is not None:
-                        events_list.append({
-                            "event": "stage2_skill_gate_mismatch",
-                            "parent_id": _parent.program_id,
-                            "plan_skill": plan["SKILL"],
-                            "inferred_skill": inf_skill,
-                        })
-                    # Reject: the code the model wrote does not match the
-                    # skill the problem was supposed to require. Recorded so the
-                    # report says "the gate killed it", not "the model returned
-                    # nothing" -- that mislabel hid 3,573 of the 4B run's 3,863
-                    # `mutation_failed` candidates behind "empty model output".
-                    gate_rejected[i] = (plan["SKILL"], inf_skill)
-                    continue
+                    final_group = plan.get("GROUP")
+                    final_skill = plan.get("SKILL")
+            else:
+                final_group = plan.get("GROUP")
+                final_skill = plan.get("SKILL")
 
+            if final_group is None:
+                final_group = "UNKNOWN"
+            if final_skill is None:
+                final_skill = "UNKNOWN"
 
-
-            outputs[i] = set_label_declarations(source, plan["GROUP"], plan["SKILL"])
+            outputs[i] = set_label_declarations(source, final_group, final_skill)
             # The task carried downstream is the one whose reply a self-fix
             # would have to repair: the generator call, not the family call.
             tasks[i] = gen_task_by_i[i]
+            mutation_strategies[i] = mutation_strategy
 
-        # Store gate counters for _report_metrics.
-        self._stage2_gate_match = gate_match
-        self._stage2_gate_mismatch = gate_mismatch
-        self._stage2_gate_parse_fail = gate_parse_fail
-        self._stage2_gate_confusion = gate_confusion
-        self._stage2_gate_rejected = gate_rejected
-        return tasks, outputs
+        return tasks, outputs, mutation_strategies
 
 
     def _make_child_from_output(
@@ -967,6 +1039,137 @@ class RQEvolver:
                 source_code=_logged_source(info.get("source")),
                 ast_findings=list(info.get("ast_findings") or []),
             )
+
+    def _apply_relabel(self, entries: list[dict]) -> None:
+        """Overwrite each child's SKILL with the one its own program demands.
+
+        Eight binary calls per child, one per skill, each ``max_tokens=1`` with
+        the answer restricted to the YES/NO token ids. The skill block is last
+        in the user turn so the eight share a prefix and cost one prefill.
+
+        Silent no-op when ``relabel_skill`` is off. Falls back to the decoded
+        text when the backend cannot return logprobs -- that is the greedy
+        variant, measured at 0.641 against this one's 0.812, and it is what runs
+        if patches/verl_agent_loop_sampling.py is missing its logprobs key.
+        """
+        self._relabel_stats = {}
+        if not self.evolution_config.relabel_skill:
+            return
+        live = [e for e in entries if "child" in e and e.get("inst") is not None]
+        if not live:
+            return
+        skills = list(SKILLS)
+        groups = list(GROUPS)
+        yes_id, no_id = self._relabel_token_ids()
+        allowed = [yes_id, no_id] if yes_id is not None and no_id is not None else None
+        
+        tasks = []
+        task_offsets = []  # To keep track of which tasks belong to which entry and label type
+        
+        for i, e in enumerate(live):
+            strategy = e["child"].metadata.get("mutation_strategy", "mutate_both")
+            if strategy in ("mutate_skill", "mutate_both"):
+                for skill in skills:
+                    tasks.append(
+                        build_relabel_task(
+                            parent=e["task"].parent,
+                            child_family=e["inst"].problem,
+                            child_source=e["child"].source_code,
+                            skill=skill,
+                            allowed_token_ids=allowed,
+                        )
+                    )
+                    task_offsets.append((i, "skill", skill))
+            if strategy == "mutate_group":
+                for group in groups:
+                    tasks.append(
+                        build_relabel_group_task(
+                            parent=e["task"].parent,
+                            child_family=e["inst"].problem,
+                            child_source=e["child"].source_code,
+                            group=group,
+                            allowed_token_ids=allowed,
+                        )
+                    )
+                    task_offsets.append((i, "group", group))
+
+        replies = self.backend.mutate(tasks)
+        pairs = getattr(self.backend, "last_mutation_logprobs", None) or []
+        
+        changed = agreed = 0
+        margins: list[float] = []
+        
+        # Group replies by entry and label type
+        entry_results = collections.defaultdict(lambda: collections.defaultdict(dict))
+        for idx, (i, ltype, label) in enumerate(task_offsets):
+            p = _relabel_p_yes(
+                pairs[idx] if idx < len(pairs) else None,
+                replies[idx] if idx < len(replies) else None,
+                yes_id,
+            )
+            if p is not None:
+                entry_results[i][ltype][label] = p
+
+        for i, e in enumerate(live):
+            results = entry_results[i]
+            strategy = e["child"].metadata.get("mutation_strategy", "mutate_both")
+            
+            if "skill" in results:
+                p_yes = results["skill"]
+                self.skill_offsets.observe({s: logit(v) for s, v in p_yes.items()})
+                picked, margin, _ = choose_skill(p_yes, self.skill_offsets)
+                if picked is not None:
+                    declared = e["child"].metadata.get("skill")
+                    margins.append(margin)
+                    if picked == declared:
+                        agreed += 1
+                    else:
+                        changed += 1
+                    e["child"].metadata["skill"] = picked
+                    e["child"].metadata["skill_declared"] = declared
+                    e["child"].metadata["skill_margin"] = round(float(margin), 4)
+
+            if "group" in results:
+                p_yes = results["group"]
+                self.group_offsets.observe({g: logit(v) for g, v in p_yes.items()})
+                picked, margin, _ = choose_group(p_yes, self.group_offsets)
+                if picked is not None:
+                    declared = e["child"].metadata.get("group")
+                    margins.append(margin)
+                    if picked == declared:
+                        agreed += 1
+                    else:
+                        changed += 1
+                    e["child"].metadata["group"] = picked
+                    e["child"].metadata["group_declared"] = declared
+                    e["child"].metadata["group_margin"] = round(float(margin), 4)
+
+        self._relabel_stats = {
+            "relabel_children": len(live),
+            "relabel_changed": changed,
+            "relabel_agreed": agreed,
+            "relabel_margin_mean": (
+                round(sum(margins) / len(margins), 4) if margins else 0.0
+            ),
+        }
+
+    def _relabel_token_ids(self) -> tuple[int | None, int | None]:
+        """Token ids for a leading YES / NO, or (None, None) without a tokenizer."""
+        cached = getattr(self, "_relabel_ids", None)
+        if cached is not None:
+            return cached
+        ids: tuple[int | None, int | None] = (None, None)
+        tok = getattr(self.backend, "tokenizer", None)
+        if tok is not None:
+            try:
+                y = tok.encode("YES", add_special_tokens=False)
+                n = tok.encode("NO", add_special_tokens=False)
+                if y and n:
+                    ids = (int(y[0]), int(n[0]))
+            except Exception:
+                ids = (None, None)
+        self._relabel_ids = ids
+        return ids
 
     def _apply_judge(self, entries: list[dict]) -> None:
         """Label gate: the judge must independently reach both declared labels.
@@ -1332,19 +1535,47 @@ class RQEvolver:
         iteration's measurement. That is the same lag the batch selection uses:
         ranking on the rollouts about to be trained on would condition the
         sample on its own measurement noise.
+
+        THE SHORTFALL IS COUNTED OVER FRONTIER CHAMPIONS, NOT ALL OF THEM, and
+        that distinction is the whole point of this function. Only a champion
+        with 0 < s_hat < 1 contributes a training row -- ``is_frontier`` in
+        dataset.py drains the rest -- so comparing the target against
+        ``len(champions)`` asks the wrong question. Measured on the 4B run: the
+        archive reached 48 champions while only 18-22 were on the frontier, so
+        ``target(32) <= n(48)`` held, every champion got exactly one instance,
+        and the training set came out at 19 rows against a 32-prompt batch.
+        VerlDynamicDataset is built with ``min_size=train_batch_size``
+        (verl_adapter.py), so the missing 13 rows were filled by wrapping onto
+        rows already in the batch -- the same instance, and under replay the
+        same stored rollouts, counted twice in the update. Over iterations 100+
+        that was 41% of every batch, peaking at 75% when the frontier fell to 8.
+        Allocating against the frontier count closes it: extras go to frontier
+        champions until the batch is full of distinct instances.
         """
         n = len(champions)
         counts = [1] * n
         target = int(self.evolution_config.train_batch_target)
-        if n == 0 or target <= n:
+        if n == 0:
+            return counts
+        low, high = self.evolution_config.frontier_s_hat_range
+        frontier = [
+            i
+            for i in range(n)
+            if is_frontier(float(getattr(champions[i], "s_hat", 0.0) or 0.0), low, high)
+        ]
+        # Nothing on the frontier yet (bootstrap, or every champion degenerate):
+        # fall back to the old whole-population behaviour rather than refusing
+        # to allocate, so the batch is still filled with something.
+        pool = frontier or list(range(n))
+        if target <= len(pool):
             return counts
         order = sorted(
-            range(n),
+            pool,
             key=lambda i: float(getattr(champions[i], "rq_score", 0.0) or 0.0),
             reverse=True,
         )
-        for j in range(target - n):
-            counts[order[j % n]] += 1
+        for j in range(target - len(pool)):
+            counts[order[j % len(order)]] += 1
         return counts
 
     def reevaluate_champions(self) -> None:
@@ -1353,6 +1584,34 @@ class RQEvolver:
         One vLLM wake/sleep for the whole champion set (was one per champion).
         """
         champions = list(self.archive.champions())
+        if not champions:
+            return
+        # Degenerate champions (s_hat in {0, 1}) are held in the archive but not
+        # necessarily re-measured. They cannot enter the training batch -- the
+        # frontier band drains them in dataset.py -- so under
+        # replay_training_batch their rollouts are generated and discarded.
+        # See EvolutionConfig.reevaluate_degenerate_every for the budget this
+        # recovers and, importantly, for what skipping them costs at n=1.
+        every = int(self.evolution_config.reevaluate_degenerate_every)
+        if every != 1:
+            low, high = self.evolution_config.frontier_s_hat_range
+            due = every > 0 and (self.current_iteration % every == 0)
+            if not due:
+                skipped = [
+                    c
+                    for c in champions
+                    if not is_frontier(float(getattr(c, "s_hat", 0.0) or 0.0), low, high)
+                ]
+                if skipped:
+                    champions = [c for c in champions if c not in skipped]
+                    self.events.append(
+                        {
+                            "event": "degenerate_reevaluation_skipped",
+                            "iteration": self.current_iteration,
+                            "skipped": len(skipped),
+                            "rescored": len(champions),
+                        }
+                    )
         if not champions:
             return
         # Fresh seeds every re-scoring. A program that degenerates on only an
@@ -1419,6 +1678,30 @@ class RQEvolver:
             u_value=u_value,
             rq_score=rq_score,
         )
+        if not inserted:
+            # WHY it was refused. try_insert distinguishes six rejections --
+            # unlabelled, seed_variation, duplicate_behavior, duplicate_template,
+            # near_duplicate_template, structural_duplicate -- and losing a cell
+            # to a higher-R_Q incumbent is a seventh. All seven were reported as
+            # one bare "rejected_non_elite" with no reason, so the novelty gates
+            # could not be told apart from ordinary cell competition: 176 such
+            # rejections in the 65-iteration run, none attributable.
+            #
+            # This is the most expensive rejection in the pipeline. try_insert
+            # takes rq_score, so the child has already paid for verification,
+            # relabelling and its full rollout budget by the time it gets here.
+            self.events.append(
+                {
+                    "event": "insert_rejected",
+                    "source": source,
+                    "reason": (program.metadata or {}).get(
+                        "archive_status", "lost_cell_contest"
+                    ),
+                    "program_id": program.program_id,
+                    "rq_score": float(rq_score),
+                    "target_cell": list(target_cell) if target_cell else None,
+                }
+            )
         if (
             inserted
             and incumbent is not None
@@ -1497,6 +1780,36 @@ class RQEvolver:
                         training_budget=self.training_config.training_budget,
                         warmup=True,
                     )
+            if not examples and not warmup and self.archive.champions():
+                # The frontier admitted nobody: every champion currently reads
+                # degenerate (s_hat exactly 0 or 1). Handing the trainer an
+                # empty dataloader ends the run -- verl raises IndexError out of
+                # VerlDynamicDataset and there is no recovery path. A run died
+                # this way at iteration 65 with 29 of 30 champions degenerate.
+                #
+                # Training on them produces no gradient (RLOO advantages are
+                # identically 0 when a group scores alike), so this costs one
+                # step and changes nothing. It keeps the loop alive so the next
+                # re-evaluation can pull champions back onto the band, which is
+                # what actually recovers: 20.3% of degenerate readings are
+                # followed by a live one at the very next measurement.
+                self.events.append(
+                    {
+                        "event": "frontier_empty_fallback",
+                        "iteration": self.current_iteration,
+                        "champions": len(self.archive.champions()),
+                    }
+                )
+                examples = build_replay_training_examples(
+                    self.archive.champions(),
+                    replay=self.replay,
+                    lagged=self.lagged,
+                    iteration=self.current_iteration,
+                    frontier_s_hat_range=self.evolution_config.frontier_s_hat_range,
+                    training_budget=self.training_config.training_budget,
+                    warmup=True,
+                    allow_degenerate=True,
+                )
             # The dataset is modulo-padded up to train_batch_size. Under replay
             # that repeats IDENTICAL responses rather than resampling them, so a
             # short batch double-counts the same rollouts. Harmless but worth
@@ -1570,6 +1883,10 @@ class RQEvolver:
                     "seed_cursor": self.seed_stream.to_dict(),
                     "lagged_scores": self.lagged.to_dict(),
                     "rejected_children": self.rejected_children,
+                    # Per-skill YES-bias, learned across iterations. A cold
+                    # start re-learns it from the first batch alone, and the
+                    # picker is worst exactly while the means are noisiest.
+                    "skill_offsets": self.skill_offsets.to_dict(),
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -1597,7 +1914,7 @@ class RQEvolver:
         Unlike the archive (latest snapshot only), this is append-only, so the
         full evolution trajectory is preserved: per-iteration metrics plus every
         candidate report. ``CandidateReport.status`` is one of: no_parent,
-        mutation_failed, stage2_gate_rejected, no_code, verify_failed, judge_rejected,
+        mutation_failed, no_code, verify_failed, judge_rejected,
         judge_input_too_large, rollout_failed, s_hat_zero, rq_zero,
         inserted, rejected_non_elite (each with op, rq_score, s_hat,
         u_score; see docs/PIPELINE.md "Evolution Candidate State").
@@ -1655,6 +1972,9 @@ class RQEvolver:
                 ewma_alpha=float(self.training_config.lagged_selection_ewma),
             )
             self.rejected_children = dict(payload.get("rejected_children") or {})
+            offsets = payload.get("skill_offsets")
+            if offsets:
+                self.skill_offsets = SkillOffsets.from_dict(offsets)
             cursor = payload.get("seed_cursor")
             if cursor:
                 self.seed_stream = SeedStream.from_dict(cursor)

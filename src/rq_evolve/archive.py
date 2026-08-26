@@ -1,3 +1,4 @@
+import ast
 import hashlib
 from difflib import SequenceMatcher
 import json
@@ -193,6 +194,17 @@ class MAPElitesArchive:
             program.metadata["duplicate_of"] = other.program_id
             program.metadata["duplicate_ratio"] = round(ratio, 3)
             return False
+        # 5. Structural duplicate: a different statement over the same program.
+        #    Runs last of the four because it is the only one that parses, and
+        #    first among things that matter -- it is the gate the run needed and
+        #    did not have.
+        sdup = self._find_structural_duplicate(program)
+        if sdup is not None:
+            other, ratio = sdup
+            program.metadata["archive_status"] = "structural_duplicate_rejected"
+            program.metadata["duplicate_of"] = other.program_id
+            program.metadata["structural_ratio"] = round(ratio, 3)
+            return False
 
         niche = self.grid[cell]
         # Champion competition ranks by selection priority: real R_Q in
@@ -330,12 +342,142 @@ class MAPElitesArchive:
     #
     # Measured on a live 21-cell archive, containment separated the collisions
     # (1.000, 0.964, 0.901) from the merely related (0.855, 0.788, 0.720).
-    near_duplicate_template_ratio: float = 0.90
+    # 0.85, lowered from 0.90 on measurement. Over the 137 parent/child pairs of
+    # the 4B run the band this opens up (0.85-0.90, 17 pairs) has AST-skeleton
+    # similarity median 1.000, and 15 of the 17 are also >= 0.95 structurally --
+    # same statement AND same program, i.e. duplicates by both axes rather than
+    # a legitimate refinement that happens to share vocabulary. Below 0.85 the
+    # band stops being clean: the 0.85-and-under pairs are only 44% structural
+    # matches, so that is where genuine variety starts.
+    near_duplicate_template_ratio: float = 0.85
     # Containment alone would reject a genuinely bigger question that happens to
     # open with a smaller one ("... how many divisors?" vs "... how many
     # divisors? of those, how many are prime?"). Both statements must also be
     # comparable in size before one is called a restatement of the other.
     near_duplicate_length_ratio: float = 0.60
+    # Absolute floor on the compared text, for the same reason the structural
+    # gate has one: containment over a 20-character statement is not evidence.
+    # "real: what is n + n?" and any other short question share most of their
+    # characters, and at the 0.85 threshold that is a rejection. Real material is
+    # nowhere near it -- champion templates of the 4B run run 114 to 1267
+    # characters (median 283).
+    #
+    # 60. A numeric-free statement shorter than that is not a competition
+    # problem, it is a fragment, and containment over it is dominated by the
+    # common English words any two questions share.
+    #
+    # The bound is pinned from both sides by material that exists:
+    #   20  chars  a bare toy ("real: what is n + n?")            -- must exempt
+    #   45  chars  "algebra studied by counting, then add n to n" -- must exempt
+    #   79  chars  "Let n = N. How many distinct prime factors
+    #              does n have? State only the integer."          -- MUST gate
+    #   114 chars  the shortest real champion template of the 4B run
+    #
+    # The 79-character case is the one the gate exists for: the same question
+    # with "be a positive integer" inserted lands in a second cell and reports
+    # as coverage. An earlier floor of 80 sat just above it and silently turned
+    # the gate off for precisely that failure.
+    near_duplicate_min_chars: int = 60
+    # Structural duplicate: the SAME PROGRAM behind a different statement.
+    #
+    # The template gates above compare what the problem SAYS. This one compares
+    # what the generator IS -- its AST reduced to the sequence of node types,
+    # with every identifier, constant and string discarded. The two catch
+    # opposite halves of the same failure, and the run's worst case slipped
+    # through both because only the statement gate existed:
+    #
+    #   parent : "... Construct a specific coloring ... all the same color."
+    #   child  : "... Prove that it is impossible to construct a specific
+    #             coloring ... all the same color."   SKILL relabelled.
+    #
+    # Byte-identical code. Template similarity 0.746 -- under the 0.90 bar.
+    # Skeleton similarity 1.000. It entered a second cell and counted as
+    # coverage, and 31 of 31 such pairs at source similarity >= 0.90 did the
+    # same, which is how 48/48 coverage was reached with 37 dead cells.
+    #
+    # 0.90. Measured over 221 generated children against the 48-champion grid:
+    #
+    #   threshold   rejected   parent copies caught   resample multiplier
+    #   0.96          19%           41 of 52               1.23
+    #   0.95          24%           52 of 52               1.32
+    #   0.90          35%           52 of 52               1.55
+    #
+    # Recall is already 1.00 at 0.95, so 0.90 was first read as 26 pointless
+    # extra rejections. It is not: those 25 children sit at skeleton 0.933 to
+    # their nearest champion AND 0.913 to their own parent, and 18 of 25 (72%)
+    # are also >= 0.70 similar to that champion in raw source. They are
+    # rewordings that fall just under the copy cutoff, not new material -- the
+    # archive's own baseline between different-cell champions is 0.677, so 0.90
+    # is still far above what unrelated programs score.
+    #
+    # The rejection is affordable because this gate runs BEFORE scoring: a
+    # rejected child costs one stage-1 + stage-2 regeneration (~480 decode
+    # tokens) and saves the 10 rollouts it would otherwise have been scored on.
+    #
+    # It is also the threshold ShinkaEvolve and Promptbreeder use, though both
+    # apply it to embeddings of TEXT -- which cannot see this failure at all,
+    # because the text genuinely differs. The measured copy pair scores 0.746 on
+    # statement text and 1.000 on skeleton.
+    structural_duplicate_ratio: float = 0.90
+    # Below this many AST nodes the skeleton carries no information and the
+    # comparison must not run. Measured: two UNRELATED 20-node generators (a
+    # function that returns one f-string) score 0.905 against each other, which
+    # this gate would call a duplicate. Over real material the picture inverts --
+    # sampling unrelated champion pairs by the shorter skeleton's length gives
+    # median 0.685 and only 2.7% at >= 0.90 in the 60-119 node band, and median
+    # 0.453 at 120-179. Every champion of the 4B run is 99-604 nodes (median
+    # 159) and every seed program is 147-604, so a floor of 60 exempts nothing
+    # real while excluding exactly the degenerate range where the metric is
+    # noise. tests/test_archive.py builds 20-node fixtures and is what surfaced
+    # this.
+    structural_min_nodes: int = 60
+
+    def program_skeleton(self, program: ProblemProgram) -> tuple[str, ...] | None:
+        """The generator's AST as a flat sequence of node type names.
+
+        Cached on the program's metadata like ``template_text``, so the archive
+        sweep costs one parse per program rather than one per comparison.
+        """
+        cached = (program.metadata or {}).get("_ast_skeleton")
+        if cached is not None:
+            return tuple(cached) or None
+        try:
+            tree = ast.parse(program.source_code)
+        except SyntaxError:
+            program.metadata["_ast_skeleton"] = []
+            return None
+        seq: list[str] = []
+
+        def walk(node: ast.AST) -> None:
+            seq.append(type(node).__name__)
+            for child in ast.iter_child_nodes(node):
+                walk(child)
+
+        walk(tree)
+        program.metadata["_ast_skeleton"] = seq
+        return tuple(seq)
+
+    def _find_structural_duplicate(
+        self, program: ProblemProgram
+    ) -> tuple[ProblemProgram, float] | None:
+        """The closest champion whose generator has essentially this shape."""
+        mine = self.program_skeleton(program)
+        if not mine or len(mine) < self.structural_min_nodes:
+            return None
+        best: tuple[ProblemProgram, float] | None = None
+        for niche in self.grid.values():
+            existing = niche.champion
+            if existing is None or existing.program_id == program.program_id:
+                continue
+            theirs = self.program_skeleton(existing)
+            if not theirs or len(theirs) < self.structural_min_nodes:
+                continue
+            ratio = SequenceMatcher(None, mine, theirs, autojunk=False).ratio()
+            if ratio >= self.structural_duplicate_ratio and (
+                best is None or ratio > best[1]
+            ):
+                best = (existing, ratio)
+        return best
 
     def template_text(self, program: ProblemProgram, n_seeds: int = 5) -> str | None:
         """The numeric-free statement set, as text rather than a hash.
@@ -371,7 +513,7 @@ class MAPElitesArchive:
         cell the curriculum does not actually have.
         """
         mine = self.template_text(program)
-        if not mine:
+        if not mine or len(mine) < self.near_duplicate_min_chars:
             return None
         best: tuple[ProblemProgram, float] | None = None
         for niche in self.grid.values():
@@ -379,14 +521,27 @@ class MAPElitesArchive:
             if existing is None or existing.program_id == program.program_id:
                 continue
             theirs = self.template_text(existing)
-            if not theirs:
+            if not theirs or len(theirs) < self.near_duplicate_min_chars:
                 continue
             shorter, longer = sorted((len(mine), len(theirs)))
             if shorter / max(1, longer) < self.near_duplicate_length_ratio:
                 continue
+            # autojunk=False is load-bearing, not a style choice. difflib's
+            # default heuristic drops any element appearing in more than 1% of a
+            # sequence longer than 200 -- and these are CHARACTER sequences of
+            # ~500, so it junks the common letters and reports two statements
+            # that differ by one inserted clause as 0.746 similar. Measured over
+            # the 137 parent/child pairs of the 4B run this gate rejected 0 of
+            # them with the default and 23 (17%) without it; the pair it most
+            # obviously had to catch -- identical source, "Construct a ..."
+            # reworded to "Prove that it is impossible to construct a ...", the
+            # SKILL relabelled, landing in a second cell -- scores 0.746 with
+            # autojunk and 1.000 without. The gate had never once fired.
             matched = sum(
                 block.size
-                for block in SequenceMatcher(None, mine, theirs).get_matching_blocks()
+                for block in SequenceMatcher(
+                    None, mine, theirs, autojunk=False
+                ).get_matching_blocks()
             )
             ratio = matched / max(1, shorter)
             if ratio >= self.near_duplicate_template_ratio and (

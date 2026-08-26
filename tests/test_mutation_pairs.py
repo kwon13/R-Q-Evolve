@@ -133,7 +133,8 @@ def test_fixtures_are_not_on_the_prompt_injection_path():
         'GROUP = "algebra"\nSKILL = "counting"\n'
     )
     plan = {"CHILD FAMILY": "How many? State only the integer.",
-            "STRUCTURAL MUTATION": "different target"}
+            "STRUCTURAL MUTATION": "different target",
+            "SKILL": "counting"}
     for task in (build_family_task(parent), build_generator_task(parent, plan)):
         rendered = "\n".join(m["content"] for m in task.messages)
         assert "CRUX:" not in rendered

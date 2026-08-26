@@ -275,7 +275,7 @@ verl_config:
       # 8 does not fit: activations and the logits tensor (tokens x 151936)
       # scale with the micro-batch, and the step from 4 to 8 would add roughly
       # 10 GiB on top of a trainer already at ~51 GiB with the offload gone.
-      ppo_micro_batch_size_per_gpu: 4
+      ppo_micro_batch_size_per_gpu: 2
       use_dynamic_bsz: false
       # vLLM stays resident (enable_sleep_mode: false) holding ~36 GiB, leaving
       # <10 GiB for the actor forward. The unchunked entropy path materializes a
@@ -287,10 +287,8 @@ verl_config:
       kl_loss_type: low_var_kl
       use_torch_compile: false
       fsdp_config:
-        # Both off. Offloading the optimizer state costs a 12 GiB round trip on
-        # every update, and on exclusive cards there is nothing to buy with it.
         param_offload: false
-        optimizer_offload: false
+        optimizer_offload: true
       optim:
         lr: 1.0e-6
         weight_decay: 1.0e-2
@@ -299,20 +297,7 @@ verl_config:
 
     ref:
       log_prob_micro_batch_size: null
-      # 4, not 2. The two log_prob passes are pure forward with no grad and no
-      # optimizer state, and they cost 2,388 s of the 4B 8-GPU run's 7,335 s of
-      # training time (ref 1,504 s + old_log_prob 884 s, from timing_s/* in
-      # rq_output/rq_evolve_4b_8gpu_logs). The 28.4 GB the run peaked at
-      # (perf/max_memory_reserved_gb) is the update_actor BACKWARD, not this
-      # pass, so the headroom next to vLLM's resident 0.38 x 80 GB is larger
-      # here than that number suggests.
-      #
-      # This is the one change in this pass that can OOM rather than just run
-      # slower, and the file already records a backward OOM at micro-batch 4
-      # when another user held 18 GiB on GPU 0. Revert BOTH of these to 2
-      # first if a run dies in compute_log_prob; it is worth ~3% of wall clock,
-      # nothing depends on it, and the machine is shared.
-      log_prob_micro_batch_size_per_gpu: 4
+      log_prob_micro_batch_size_per_gpu: 2
       fsdp_config:
         param_offload: true
 
@@ -325,22 +310,6 @@ verl_config:
       tensor_model_parallel_size: 1
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096
-      # 0.38, the stock value, restored once the cards were held outright.
-      # Measured: footprint = utilization x 80 + 3.6 GiB, so this is 34.0 GiB
-      # and a 21.5 GiB / 156,704-token KV cache.
-      #
-      # It was 0.22 while a tenant held 17-19 GiB of every card. With the
-      # trainer measured at 41.7 GiB (step 1, this config) the budget is
-      # 41.7 + 34.0 + 0.5 = 76.2 of 80.0 -- a 3.8 GiB margin, which is the
-      # margin the 243-iteration 8-GPU run completed on (41.2 + 34.0 + 0.5 =
-      # 75.7, 4.3 GiB). Same micro-batch per rank, so the same activation peak,
-      # and verl's max_memory_reserved held flat at 41.2 for all 243 of that
-      # run's steps rather than creeping up.
-      #
-      # The KV cache is what async_rollout.max_in_flight_chunks: 32 is spending:
-      # 32 chunks x G=10 over four engines is 80 sequences per engine, and at
-      # 0.22 the cache held ~14 full-length ones. Raising the in-flight cap
-      # without the cache to back it buys preemption, not throughput.
       gpu_memory_utilization: 0.38
       max_model_len: 12000
       max_num_batched_tokens: 12000
@@ -350,9 +319,7 @@ verl_config:
       free_cache_engine: false
       enable_sleep_mode: false
       log_prob_micro_batch_size: null
-      # 4: the actor-side old_log_prob recompute. See the ref block above for
-      # the measurement and the revert condition -- these two move together.
-      log_prob_micro_batch_size_per_gpu: 4
+      log_prob_micro_batch_size_per_gpu: 2
 
   # Inert under algorithm.adv_estimator: grpo -- verl's need_critic() returns
   # False for anything but gae when critic.enable is unset, so no critic worker

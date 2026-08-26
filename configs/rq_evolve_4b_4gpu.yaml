@@ -256,7 +256,7 @@ verl_config:
     model:
       path: /data1/yhoon113/qwen3-4b-base
       trust_remote_code: true
-      use_remove_padding: false
+      use_remove_padding: true
       enable_gradient_checkpointing: true
       override_config:
         attn_implementation: "sdpa"
@@ -275,7 +275,7 @@ verl_config:
       # 8 does not fit: activations and the logits tensor (tokens x 151936)
       # scale with the micro-batch, and the step from 4 to 8 would add roughly
       # 10 GiB on top of a trainer already at ~51 GiB with the offload gone.
-      ppo_micro_batch_size_per_gpu: 2
+      ppo_micro_batch_size_per_gpu: 4
       use_dynamic_bsz: false
       # vLLM stays resident (enable_sleep_mode: false) holding ~36 GiB, leaving
       # <10 GiB for the actor forward. The unchunked entropy path materializes a
@@ -288,7 +288,7 @@ verl_config:
       use_torch_compile: false
       fsdp_config:
         param_offload: false
-        optimizer_offload: true
+        optimizer_offload: false
       optim:
         lr: 1.0e-6
         weight_decay: 1.0e-2
@@ -297,7 +297,7 @@ verl_config:
 
     ref:
       log_prob_micro_batch_size: null
-      log_prob_micro_batch_size_per_gpu: 2
+      log_prob_micro_batch_size_per_gpu: 4
       fsdp_config:
         param_offload: true
 
@@ -319,7 +319,7 @@ verl_config:
       free_cache_engine: false
       enable_sleep_mode: false
       log_prob_micro_batch_size: null
-      log_prob_micro_batch_size_per_gpu: 2
+      log_prob_micro_batch_size_per_gpu: 4
 
   # Inert under algorithm.adv_estimator: grpo -- verl's need_critic() returns
   # False for anything but gae when critic.enable is unset, so no critic worker

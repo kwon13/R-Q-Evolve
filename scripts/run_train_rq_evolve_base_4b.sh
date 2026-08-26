@@ -14,17 +14,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
-CONFIG="${1:-configs/rq_evolve_4b_base.yaml}"
-
 mkdir -p "$ROOT/logs"
 # Distinct from the 8B script's prefix: both used rq_evolve_base_* and the
 # two runs' logs were indistinguishable after the fact.
 LOG="$ROOT/logs/rq_evolve_4b_$(date +%Y%m%d_%H%M%S).log"
-echo "[run] logging to $LOG"
-echo "[run] using config: $CONFIG"
+CONFIG="${1:-configs/rq_evolve_4b_4gpu.yaml}"
+echo "[run] config : $CONFIG"
+echo "[run] logging: $LOG"
 set -o pipefail
 python scripts/train_with_verl.py \
   --config "$CONFIG" 2>&1 | tee "$LOG"
-
 
 # bash scripts/run_train_rq_evolve_base_4b.sh configs/rq_evolve_4b_4gpu.yaml

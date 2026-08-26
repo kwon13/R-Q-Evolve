@@ -43,6 +43,28 @@ def _require_verl_sampling_patch() -> None:
         )
 
 
+def _require_flash_attn_if_needed(config_path: str) -> None:
+    """Ensure flash_attn is properly installed if use_remove_padding is enabled."""
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "use_remove_padding: true" in content or "use_remove_padding: True" in content:
+            try:
+                import flash_attn
+                from flash_attn.bert_padding import unpad_input, pad_input
+            except Exception as exc:
+                raise SystemExit(
+                    f"\n[FATAL] Config '{config_path}' specifies `use_remove_padding: true`, "
+                    f"but FlashAttention (flash_attn) is not installed or cannot be imported ({exc}).\n"
+                    f"  Please install flash_attn (or build from source with your CUDA toolkit) "
+                    f"before running training with use_remove_padding.\n"
+                )
+    except SystemExit:
+        raise
+    except Exception:
+        pass
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default=str(ROOT / "configs" / "rq_evolve_base.yaml"))
@@ -83,6 +105,7 @@ def main() -> None:
         os.environ.setdefault("WANDB_MODE", "offline")
 
     _require_verl_sampling_patch()
+    _require_flash_attn_if_needed(args.config)
     _warn_if_project_venv_exists()
     # Keep training consistent with the evaluation scripts: load the project
     # .env before config/adapter construction, without overwriting shell vars.

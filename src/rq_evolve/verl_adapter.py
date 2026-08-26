@@ -847,6 +847,13 @@ class VerlTrainerAdapter:
                     f"[RQ-Evolve] resume: continuing outer-iteration numbering at "
                     f"epoch {resume_epoch} (preserving archive_iter*.json snapshots)"
                 )
+            if len(evolver.dataset.snapshot()) == 0:
+                print(
+                    "[RQ-Evolve] restored archive has no replay rollouts in memory -> "
+                    "bootstrapping seed rollouts for initial training batch"
+                )
+                self._bootstrap_seed_archive(evolver)
+                evolver.save_state(archive_dir)
         else:
             self._bootstrap_seed_archive(evolver)
             evolver.save_state(archive_dir)

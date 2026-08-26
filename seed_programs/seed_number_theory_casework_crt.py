@@ -1,87 +1,104 @@
+import math
 import random
 
+K_MAX = 72
 
-def _is_prime(n):
-    if n < 2:
-        return False
-    if n % 2 == 0:
-        return n == 2
-    d = 3
+
+def _prime_factors(n):
+    factors = set()
+    d = 2
     while d * d <= n:
-        if n % d == 0:
-            return False
-        d += 2
-    return True
+        while n % d == 0:
+            factors.add(d)
+            n //= d
+        d += 1
+    if n > 1:
+        factors.add(n)
+    return factors
 
 
-def _smallest_quadratic_nonresidue(p):
+def _primitive_root(p):
+    factors = sorted(_prime_factors(p - 1))
     for g in range(2, p):
-        if pow(g, (p - 1) // 2, p) == p - 1:
+        if all(pow(g, (p - 1) // q, p) != 1 for q in factors):
             return g
-    raise ValueError("no quadratic nonresidue found")
-
-
-def _crt_mod_3_p(r3, rp, p):
-    # Solve x ≡ r3 (mod 3), x ≡ rp (mod p).
-    # Since p is an odd prime different from 3, 3 is invertible modulo p.
-    t = ((rp - r3) * pow(3, -1, p)) % p
-    x = r3 + 3 * t
-    return 3 * p if x == 0 else x
+    return 2
 
 
 def generate(seed):
     rng = random.Random(seed)
 
-    # Small primes on purpose: the reasoning is the three residue classes
-    # mod 3 and one CRT lift each, and a larger p adds arithmetic without
-    # adding any of that.
-    primes = [p for p in range(5, 20) if _is_prime(p)]
+    # Build a prime and exponent k.
+    primes = [
+        n for n in range(29, 294)
+        if all(n % d for d in range(2, math.isqrt(n) + 1))
+    ]
     p = rng.choice(primes)
-    a = rng.randint(2, p - 2)
-    g = _smallest_quadratic_nonresidue(p)
 
-    # Case 1: x ≡ 0 (mod 3).
-    # Then the additional condition is linear: x ≡ a (mod p),
-    # giving exactly one solution modulo 3p.
-    x0 = _crt_mod_3_p(0, a, p)
+    g = _primitive_root(p)
 
-    # Case 2: x ≡ 1 (mod 3).
-    # x^2 ≡ 4 (mod p) splits into x ≡ 2 or -2 (mod p),
-    # so two separate CRT solutions occur.
-    x1 = _crt_mod_3_p(1, 2, p)
-    x2 = _crt_mod_3_p(1, p - 2, p)
+    k = rng.randint(2, min(K_MAX, p - 2))
+    d = math.gcd(k, p - 1)
 
-    # Case 3: x ≡ 2 (mod 3).
-    # Since g is a quadratic nonresidue modulo p,
-    # x^2 ≡ g (mod p) has no solutions.
-    assert pow(g, (p - 1) // 2, p) == p - 1
+    # Create two residues requiring genuinely different treatment:
+    #
+    # Case 1: exponent e1 is divisible by d -> x^k = a1 has exactly d solutions.
+    # Case 2: exponent e2 is not divisible by d -> x^k = a2 has no solutions.
+    #
+    # The solver must identify which regime each residue belongs to.
 
-    answer = x0 + x1 + x2
+    multiples = [
+        e for e in range(1, p - 1)
+        if e % d == 0
+    ]
+    nonmultiples = [
+        e for e in range(1, p - 1)
+        if e % d != 0
+    ]
 
-    # Independent route: inspect every integer in the stated range and apply
-    # exactly the condition belonging to its residue class modulo 3.
-    check = 0
-    for x in range(1, 3 * p + 1):
-        if x % 3 == 0:
-            valid = x % p == a
-        elif x % 3 == 1:
-            valid = pow(x, 2, p) == 4
-        else:
-            valid = pow(x, 2, p) == g
+    # Avoid degenerate d = 1, where there is no second case.
+    if d == 1:
+        k = (p - 1) // 2
+        d = math.gcd(k, p - 1)
 
-        if valid:
-            check += x
+        multiples = [
+            e for e in range(1, p - 1)
+            if e % d == 0
+        ]
+        nonmultiples = [
+            e for e in range(1, p - 1)
+            if e % d != 0
+        ]
 
-    assert answer == check, f"answer={answer} check={check}"
+    e1 = rng.choice(multiples)
+    e2 = rng.choice(nonmultiples)
+
+    a1 = pow(g, e1, p)
+    a2 = pow(g, e2, p)
+
+    # Asked for the total number of solutions across the two congruences.
+    answer = d
+
+    # Independent brute-force route.
+    check1 = sum(
+        1 for x in range(p)
+        if pow(x, k, p) == a1
+    )
+    check2 = sum(
+        1 for x in range(p)
+        if pow(x, k, p) == a2
+    )
+
+    assert check1 == d
+    assert check2 == 0
+    assert answer == check1 + check2
 
     problem = (
-        f"Let p = {p}, let a = {a}, and let g = {g}, where g is a quadratic "
-        f"nonresidue modulo p. For integers x with 1 <= x <= {3 * p}, call x "
-        f"admissible as follows: if x is congruent to 0 modulo 3, require "
-        f"x congruent to a modulo p; if x is congruent to 1 modulo 3, require "
-        f"x^2 congruent to 4 modulo p; and if x is congruent to 2 modulo 3, "
-        f"require x^2 congruent to g modulo p. Find the sum of all admissible "
-        f"integers x."
+        f"Let p = {p}, and let g = {g} be a primitive root modulo p. "
+        f"Let a = {a1} and b = {a2}. "
+        f"Determine the total number of residue classes x modulo {p} "
+        f"that satisfy either x^{k} ≡ a (mod {p}) or "
+        f"x^{k} ≡ b (mod {p})."
     )
 
     return problem, str(answer)

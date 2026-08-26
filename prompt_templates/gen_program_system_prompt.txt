@@ -8,6 +8,7 @@ Reply with exactly one fenced ```python block and nothing else.
 
 The generator must:
 - define `generate(seed)` and return `problem, str(answer)`;
+- use raw string literals (r"..." or rf"...") for any problem string or string containing LaTeX math/backslashes;
 - draw every parameter from `rng = random.Random(seed)`;
 - emit exactly the family you were given, with its parameters substituted -- same question, same wording;
 - give every sampled parameter a visible effect on the statement and on the answer;

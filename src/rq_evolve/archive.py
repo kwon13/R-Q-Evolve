@@ -8,7 +8,11 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .code_utils import lint_problem_instance
+from .code_utils import (
+    extract_problem_statement_template,
+    lint_problem_instance,
+    structural_inspiration_safety_reason,
+)
 from .constancy import check_constancy
 from .concepts import GROUPS, SKILLS, axis_index
 from .program import ProblemProgram
@@ -24,6 +28,20 @@ class Niche:
     selection_count: int = 0
     update_count: int = 0
     history: list[dict] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class StructuralInspirationSelection:
+    """One label-free donor assignment for a stage-1 mutation prompt.
+
+    ``template`` is the only donor material allowed into the model context.
+    ``provenance`` is audit data for logs/archive metadata and is never rendered
+    into the prompt.
+    """
+
+    donor: ProblemProgram | None
+    template: str | None
+    provenance: dict
 
 
 class MAPElitesArchive:
@@ -213,7 +231,9 @@ class MAPElitesArchive:
         # champion_rq stays the real R_Q, so the MAP still logs true scores --
         # only the winner choice is H-blind under the ablation.
         new_priority = self._select_priority(program)
-        if niche.champion is None or new_priority > self._select_priority(niche.champion):
+        if niche.champion is None or new_priority > self._select_priority(
+            niche.champion
+        ):
             event = "inserted" if niche.champion is None else "replaced"
             if niche.champion is not None:
                 self.total_replacements += 1
@@ -230,9 +250,7 @@ class MAPElitesArchive:
             )
             self.total_insertions += 1
             # Archive-global uniqueness: one generator occupies one cell only.
-            self._purge_program_from_other_cells(
-                program.program_id, keep_cell=cell
-            )
+            self._purge_program_from_other_cells(program.program_id, keep_cell=cell)
             return True
         return False
 
@@ -250,10 +268,7 @@ class MAPElitesArchive:
         """Remove one champion identity from the single live MAP archive."""
         removed: list[tuple[int, int]] = []
         for key, niche in self.grid.items():
-            if (
-                niche.champion is not None
-                and niche.champion.program_id == program_id
-            ):
+            if niche.champion is not None and niche.champion.program_id == program_id:
                 niche.champion = None
                 niche.champion_rq = -1.0
                 removed.append(key)
@@ -562,10 +577,14 @@ class MAPElitesArchive:
                 return existing
         return None
 
-    def _find_duplicate_behavior(self, program: ProblemProgram) -> ProblemProgram | None:
+    def _find_duplicate_behavior(
+        self, program: ProblemProgram
+    ) -> ProblemProgram | None:
         return self._find_duplicate(program, self.program_behavior_signature)
 
-    def _find_duplicate_template(self, program: ProblemProgram) -> ProblemProgram | None:
+    def _find_duplicate_template(
+        self, program: ProblemProgram
+    ) -> ProblemProgram | None:
         return self._find_duplicate(program, self.program_template_signature)
 
     def _purge_program_from_other_cells(
@@ -657,6 +676,233 @@ class MAPElitesArchive:
     def champions(self) -> list[ProblemProgram]:
         return [n.champion for n in self.grid.values() if n.champion is not None]
 
+    def sample_structural_inspiration(
+        self,
+        parent: ProblemProgram,
+        *,
+        rng: random.Random,
+        max_template_chars: int = 1600,
+        selection_strategy: str = "cross_lineage_random",
+    ) -> StructuralInspirationSelection:
+        """Uniformly sample one usable donor outside the parent's lineage.
+
+        The archive contains no ground-truth semantic-family identifier.  A
+        primary-parent lineage is therefore the reproducible proxy: every seed
+        starts a root and every child inherits its primary parent's root.  The
+        archive's existing template/near-template/structural duplicate gates
+        provide the complementary content-level separation.
+
+        No UCB/selection counter is touched here.  Those counters describe
+        reproductive parent selection; an inspiration is context only.
+        """
+        if selection_strategy != "cross_lineage_random":
+            raise ValueError(
+                "structural inspiration selection must be "
+                f"'cross_lineage_random', got {selection_strategy!r}"
+            )
+        if max_template_chars < 1:
+            raise ValueError("max_template_chars must be >= 1")
+
+        pool = [p for p in self.champions() if p.program_id != parent.program_id]
+        parent_root = parent.lineage_root_id()
+        cross_lineage = [p for p in pool if p.lineage_root_id() != parent_root]
+
+        usable: list[tuple[ProblemProgram, str]] = []
+        missing_template = 0
+        oversized_template = 0
+        unsafe_template = 0
+        unsafe_reasons: dict[str, int] = {}
+        for donor in cross_lineage:
+            template = extract_problem_statement_template(donor.source_code)
+            if not template:
+                missing_template += 1
+                continue
+            if len(template) > max_template_chars:
+                oversized_template += 1
+                continue
+            unsafe_reason = structural_inspiration_safety_reason(template)
+            if unsafe_reason is not None:
+                unsafe_template += 1
+                unsafe_reasons[unsafe_reason] = unsafe_reasons.get(unsafe_reason, 0) + 1
+                continue
+            usable.append((donor, template))
+
+        base = {
+            "enabled": True,
+            "selection_strategy": selection_strategy,
+            "pool_size": len(pool),
+            "cross_lineage_pool_size": len(cross_lineage),
+            "eligible_count": len(usable),
+            "missing_template_count": missing_template,
+            "oversized_template_count": oversized_template,
+            "unsafe_template_count": unsafe_template,
+            "unsafe_template_reasons": dict(sorted(unsafe_reasons.items())),
+            "max_template_chars": int(max_template_chars),
+        }
+        if not usable:
+            if not pool:
+                reason = "no_other_champion"
+            elif not cross_lineage:
+                reason = "no_cross_lineage_champion"
+            elif oversized_template and not missing_template and not unsafe_template:
+                reason = "all_cross_lineage_templates_oversized"
+            elif unsafe_template and not missing_template and not oversized_template:
+                reason = "all_cross_lineage_templates_unsafe"
+            else:
+                reason = "no_usable_cross_lineage_template"
+            return StructuralInspirationSelection(
+                donor=None,
+                template=None,
+                provenance={**base, "attached": False, "omitted_reason": reason},
+            )
+
+        # "Conceptual family" has no ground-truth field. Use two independent,
+        # observable proxies without turning the donor into a target: lineage
+        # must differ, and among those candidates prefer a donor whose GROUP
+        # and SKILL descriptors both differ. Labels choose context only; they
+        # are never shown in the prompt. Fall back gracefully when the small
+        # early archive offers no orthogonal descriptor pair.
+        parent_group, parent_skill = parent.get_group(), parent.get_skill()
+        cross_descriptor = [
+            item
+            for item in usable
+            if item[0].get_group() != parent_group
+            and item[0].get_skill() != parent_skill
+        ]
+        different_cell = [
+            item
+            for item in usable
+            if (
+                item[0].get_group() != parent_group
+                or item[0].get_skill() != parent_skill
+            )
+        ]
+        if cross_descriptor:
+            selection_pool = cross_descriptor
+            selection_tier = "cross_lineage_cross_descriptor"
+        elif different_cell:
+            selection_pool = different_cell
+            selection_tier = "cross_lineage_different_cell"
+        else:
+            selection_pool = usable
+            selection_tier = "cross_lineage"
+
+        donor, template = rng.choice(selection_pool)
+        provenance = {
+            **base,
+            "attached": True,
+            "selection_tier": selection_tier,
+            "selection_pool_size": len(selection_pool),
+            "program_id": donor.program_id,
+            "lineage_root_id": donor.lineage_root_id(),
+            # Labels stay out of the prompt but remain useful for the ablation
+            # audit after the donor may have been evicted from the live MAP.
+            "group": donor.get_group(),
+            "skill": donor.get_skill(),
+            "template_sha256": hashlib.sha256(template.encode("utf-8")).hexdigest(),
+            "template_chars": len(template),
+            # The donor may be evicted before the post-iteration archive is
+            # written. Persist this already-sanitized <=max_chars statement so
+            # claimed transfers and copy-gate decisions remain auditable.
+            "statement_template": template,
+        }
+        return StructuralInspirationSelection(
+            donor=donor,
+            template=template,
+            provenance=provenance,
+        )
+
+    def compare_with_structural_inspiration(
+        self,
+        child: ProblemProgram,
+        donor: ProblemProgram,
+    ) -> dict:
+        """Apply the archive's copy gates directly to one assigned donor.
+
+        The live MAP is allowed to replace a donor before this child eventually
+        competes for a cell.  Comparing against the frozen donor object here
+        makes "inspiration, not imitation" invariant to that replacement and
+        moves a deterministic rejection ahead of expensive solver rollouts.
+        """
+        exact_source = child.program_id == donor.program_id
+        child_behavior = self.program_behavior_signature(child)
+        donor_behavior = self.program_behavior_signature(donor)
+        exact_behavior = bool(
+            child_behavior and donor_behavior and child_behavior == donor_behavior
+        )
+        child_template = self.program_template_signature(child)
+        donor_template = self.program_template_signature(donor)
+        exact_template = bool(
+            child_template and donor_template and child_template == donor_template
+        )
+
+        near_template_ratio: float | None = None
+        child_text = self.template_text(child)
+        donor_text = self.template_text(donor)
+        if (
+            child_text
+            and donor_text
+            and len(child_text) >= self.near_duplicate_min_chars
+            and len(donor_text) >= self.near_duplicate_min_chars
+        ):
+            shorter, longer = sorted((len(child_text), len(donor_text)))
+            if shorter / max(1, longer) >= self.near_duplicate_length_ratio:
+                matched = sum(
+                    block.size
+                    for block in SequenceMatcher(
+                        None, child_text, donor_text, autojunk=False
+                    ).get_matching_blocks()
+                )
+                near_template_ratio = matched / max(1, shorter)
+
+        structural_ratio: float | None = None
+        child_skeleton = self.program_skeleton(child)
+        donor_skeleton = self.program_skeleton(donor)
+        if (
+            child_skeleton
+            and donor_skeleton
+            and len(child_skeleton) >= self.structural_min_nodes
+            and len(donor_skeleton) >= self.structural_min_nodes
+        ):
+            structural_ratio = SequenceMatcher(
+                None, child_skeleton, donor_skeleton, autojunk=False
+            ).ratio()
+
+        reason = None
+        if exact_source:
+            reason = "exact_source"
+        elif exact_behavior:
+            reason = "duplicate_behavior"
+        elif exact_template:
+            reason = "duplicate_template"
+        elif (
+            near_template_ratio is not None
+            and near_template_ratio >= self.near_duplicate_template_ratio
+        ):
+            reason = "near_duplicate_template"
+        elif (
+            structural_ratio is not None
+            and structural_ratio >= self.structural_duplicate_ratio
+        ):
+            reason = "structural_duplicate"
+
+        return {
+            "checked": True,
+            "rejected": reason is not None,
+            "reason": reason,
+            "exact_source": exact_source,
+            "exact_behavior": exact_behavior,
+            "exact_template": exact_template,
+            "near_template_ratio": (
+                round(near_template_ratio, 6)
+                if near_template_ratio is not None
+                else None
+            ),
+            "structural_ratio": (
+                round(structural_ratio, 6) if structural_ratio is not None else None
+            ),
+        }
+
     def _select_priority(self, program: ProblemProgram | None) -> float:
         """Selection priority for a champion: full R_Q, or s(1-s) under the
         select_ignores_uncertainty ablation, or H under select_ignores_variance."""
@@ -679,7 +925,8 @@ class MAPElitesArchive:
         """
         return program is not None and self._select_priority(program) > 0.0
 
-    def sample_parent(self) -> ProblemProgram | None:
+    def sample_parent(self, rng: random.Random | None = None) -> ProblemProgram | None:
+        rng = rng or random
         occupied = [(key, n) for key, n in self.grid.items() if n.champion is not None]
         if not occupied:
             return None
@@ -704,9 +951,9 @@ class MAPElitesArchive:
         pool = occupied
 
         if self.selection_strategy == "random":
-            key, niche = random.choice(pool)
-        elif random.random() < self.epsilon:
-            key, niche = random.choice(pool)
+            key, niche = rng.choice(pool)
+        elif rng.random() < self.epsilon:
+            key, niche = rng.choice(pool)
         else:
             key, niche = self._sample_ucb(pool)
         niche.selection_count += 1
@@ -714,7 +961,7 @@ class MAPElitesArchive:
         assert niche.champion is not None
         return niche.champion
 
-    def sample_target_cell(self) -> tuple[str, str]:
+    def sample_target_cell(self, rng: random.Random | None = None) -> tuple[str, str]:
         """A niche for the next child to aim at: uniform over the whole grid.
 
         NOT uniform over the EMPTY cells. Measured over 7,776 candidates of the
@@ -740,15 +987,14 @@ class MAPElitesArchive:
         the grid being a complete product -- the spelling below is the one that
         stays uniform per axis if either vocabulary ever changes length.
         """
-        return (random.choice(GROUPS), random.choice(SKILLS))
+        rng = rng or random
+        return (rng.choice(GROUPS), rng.choice(SKILLS))
 
     def _sample_ucb(self, occupied: list[tuple[tuple[int, int], Niche]]):
         # Exploitation term ranks by selection priority: real R_Q in production,
         # s(1-s) under the select_ignores_uncertainty ablation. champion_rq stays
         # the real stored R_Q; we recompute priority from each champion.
-        priorities = {
-            key: self._select_priority(n.champion) for key, n in occupied
-        }
+        priorities = {key: self._select_priority(n.champion) for key, n in occupied}
         sorted_rqs = sorted(set(priorities.values()))
         denom = max(len(sorted_rqs) - 1, 1)
         total = self.total_selections + 1
@@ -808,6 +1054,17 @@ class MAPElitesArchive:
                 "stats": self.stats(),
             },
             "champions": [p.to_dict() for p in self.champions()],
+            "niches": [
+                {
+                    "group_bin": niche.group_bin,
+                    "skill_bin": niche.skill_bin,
+                    "selection_count": niche.selection_count,
+                    "update_count": niche.update_count,
+                    "history": list(niche.history),
+                }
+                for _, niche in sorted(self.grid.items())
+                if niche.selection_count or niche.update_count or niche.history
+            ],
         }
 
     def save(self, path: str | Path) -> None:
@@ -837,6 +1094,9 @@ class MAPElitesArchive:
         for niche in self.grid.values():
             niche.champion = None
             niche.champion_rq = -1.0
+            niche.selection_count = 0
+            niche.update_count = 0
+            niche.history = []
 
         placed = 0
         unlabelled = 0
@@ -871,6 +1131,19 @@ class MAPElitesArchive:
             niche.champion_rq = float(program.rq_score)
             niche.update_count += 1
             placed += 1
+        for row in payload.get("niches", []):
+            try:
+                cell = (int(row["group_bin"]), int(row["skill_bin"]))
+                niche = self.grid[cell]
+            except (KeyError, TypeError, ValueError):
+                continue
+            niche.selection_count = int(row.get("selection_count", 0))
+            niche.update_count = int(row.get("update_count", niche.update_count))
+            niche.history = list(row.get("history") or [])
+        saved_stats = meta.get("stats") or {}
+        self.total_insertions = int(saved_stats.get("total_insertions", 0))
+        self.total_replacements = int(saved_stats.get("total_replacements", 0))
+        self.total_selections = int(saved_stats.get("total_selections", 0))
         if unlabelled:
             print(
                 f"[archive.load] dropped {unlabelled} champion(s) without a "

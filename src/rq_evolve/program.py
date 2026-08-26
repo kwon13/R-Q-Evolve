@@ -63,9 +63,7 @@ class _SandboxClient:
             self._proc = None
         self._warm = False
 
-    def run(
-        self, source: str, seed: int, timeout: float, cold_timeout: float
-    ) -> dict:
+    def run(self, source: str, seed: int, timeout: float, cold_timeout: float) -> dict:
         """Return ``{"ok": True, "problem", "answer"}`` or ``{"ok": False, ...}``.
 
         Failures carry ``error_type``/``error`` so a caller can tell a child's
@@ -88,27 +86,39 @@ class _SandboxClient:
                 self._proc.stdin.flush()
             except Exception as exc:
                 self._kill()
-                return {"ok": False, "error_type": "SandboxWriteError",
-                        "error": str(exc)[:200]}
+                return {
+                    "ok": False,
+                    "error_type": "SandboxWriteError",
+                    "error": str(exc)[:200],
+                }
 
             ready, _, _ = select.select([self._proc.stdout], [], [], budget)
             if not ready:
                 # Overran the budget -> the worker is wedged in C-level work.
                 # Kill it; the next call respawns a clean one.
                 self._kill()
-                return {"ok": False, "error_type": "Timeout",
-                        "error": f"no result within {budget}s"}
+                return {
+                    "ok": False,
+                    "error_type": "Timeout",
+                    "error": f"no result within {budget}s",
+                }
             self._warm = True
             line = self._proc.stdout.readline()
             if not line:  # worker died mid-request (e.g. MemoryError-killed)
                 self._kill()
-                return {"ok": False, "error_type": "WorkerDied",
-                        "error": "worker exited mid-request (memory limit?)"}
+                return {
+                    "ok": False,
+                    "error_type": "WorkerDied",
+                    "error": "worker exited mid-request (memory limit?)",
+                }
             try:
                 return json.loads(line)
             except Exception as exc:
-                return {"ok": False, "error_type": "ProtocolError",
-                        "error": str(exc)[:200]}
+                return {
+                    "ok": False,
+                    "error_type": "ProtocolError",
+                    "error": str(exc)[:200],
+                }
 
 
 # Process-global client: one resident worker shared by all ProblemProgram.execute
@@ -162,9 +172,9 @@ class ProblemProgram:
 
     def __post_init__(self) -> None:
         if not self.program_id:
-            self.program_id = hashlib.md5(
-                self.source_code.encode("utf-8")
-            ).hexdigest()[:12]
+            self.program_id = hashlib.md5(self.source_code.encode("utf-8")).hexdigest()[
+                :12
+            ]
 
     @classmethod
     def from_file(cls, path: str | Path, **kwargs: Any) -> "ProblemProgram":
@@ -188,7 +198,9 @@ class ProblemProgram:
             elif isinstance(node, ast.AnnAssign):
                 if isinstance(node.target, ast.Name) and node.target.id == name:
                     value_node = node.value
-            if isinstance(value_node, ast.Constant) and isinstance(value_node.value, str):
+            if isinstance(value_node, ast.Constant) and isinstance(
+                value_node.value, str
+            ):
                 return value_node.value.strip()
         return None
 
@@ -202,10 +214,9 @@ class ProblemProgram:
     def declared_group(self) -> str | None:
         # CONCEPT_GROUP is the pre-migration spelling of the same axis, so a
         # snapshot written before the rename still reports its domain.
-        return (
-            self._top_level_string_constant("GROUP")
-            or self._top_level_string_constant("CONCEPT_GROUP")
-        )
+        return self._top_level_string_constant(
+            "GROUP"
+        ) or self._top_level_string_constant("CONCEPT_GROUP")
 
     def declared_skill(self) -> str | None:
         # No fallback: SKILL has no pre-migration equivalent. CONCEPT_TYPE was a
@@ -218,6 +229,23 @@ class ProblemProgram:
 
     def get_skill(self) -> str | None:
         return self.metadata.get("skill") or self.declared_skill()
+
+    def lineage_root_id(self) -> str:
+        """Stable primary-parent lineage used for diversity-aware sampling.
+
+        Structural inspiration is not a second parent: ``parent_id`` continues
+        to describe the one reproductive edge.  The root is carried in metadata
+        so descendants of that parent can be excluded as donors without
+        changing the existing genealogy or archive wire format.  Old snapshots
+        predate the field; their immediate parent (or their own id) is the safest
+        available fallback.
+        """
+        root = self.metadata.get("lineage_root_id")
+        if root:
+            return str(root)
+        if self.generation <= 0:
+            return self.program_id
+        return self.parent_id or self.program_id
 
     # --- Pre-migration accessors ------------------------------------------
     # Still called by archive.py, evolution.py, prompts.py and
@@ -332,4 +360,3 @@ class ProblemProgram:
     @classmethod
     def load(cls, path: str | Path) -> "ProblemProgram":
         return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
-

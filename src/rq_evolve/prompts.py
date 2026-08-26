@@ -1,7 +1,8 @@
+import hashlib
 import os
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from string import Template
@@ -85,6 +86,14 @@ class MutationTask:
     # its complement. Nothing else in the mutation path sets these.
     logprobs: int | None = None
     allowed_token_ids: list[int] | None = None
+    # Audit-only context carried from stage 1 through stage 2 and into every
+    # candidate report. Backends ignore it, and prompt builders render only the
+    # explicitly supplied inspiration template -- never this metadata.
+    provenance: dict = field(default_factory=dict)
+    # Ephemeral audit object. It is never rendered or serialized; keeping the
+    # frozen batch donor alive lets the copy gate compare against it even if a
+    # later archive insertion evicts that donor from the live MAP.
+    inspiration_donor: ProblemProgram | None = None
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -178,9 +187,7 @@ def build_judge_task(
     Reuses the batched generate path; no new backend method is needed.
     ``parent`` carries the program under review purely for reporting.
     """
-    messages = build_judge_messages(
-        problem_text, answer_text, rubric_file=rubric_file
-    )
+    messages = build_judge_messages(problem_text, answer_text, rubric_file=rubric_file)
     return MutationTask(
         op="judge",
         prompt=f"{messages[0]['content']}\n\n{messages[1]['content']}",
@@ -526,7 +533,7 @@ def parse_declared_labels(reply: str) -> tuple[str | None, str | None]:
             value = match.group(1)
             if value in vocabulary:
                 found = value  # last wins: a reply that restates them means it
-        out.append(found)      # settled late, and PART 2 must not carry any
+        out.append(found)  # settled late, and PART 2 must not carry any
     return out[0], out[1]
 
 
@@ -553,7 +560,9 @@ def parse_inferred_labels(reply: str) -> tuple[str | None, str | None]:
     out: list[str | None] = []
     for key, vocabulary in (("GROUP", GROUPS), ("SKILL", SKILLS)):
         found = None
-        for match in re.finditer(_INFERRED_LABEL.format(key=key), text, re.IGNORECASE | re.MULTILINE):
+        for match in re.finditer(
+            _INFERRED_LABEL.format(key=key), text, re.IGNORECASE | re.MULTILINE
+        ):
             raw_val = match.group(1).strip()
             # Clean decoration: backticks, quotes, asterisks, whitespace
             token = raw_val.strip(" \t`'\"*_.:#").lower()
@@ -563,7 +572,6 @@ def parse_inferred_labels(reply: str) -> tuple[str | None, str | None]:
                 found = token  # last wins, same convention as parse_declared
         out.append(found)
     return out[0], out[1]
-
 
 
 # --- two-stage mutation -----------------------------------------------------
@@ -590,6 +598,8 @@ GENERATOR_USER_PROMPT_FILE = "gen_program_user_prompt.txt"
 # demo set more than the code. With the pool at eight, invariant's pass rate goes
 # 2% -> 17% and construction's 46% -> 43-71%.
 GENERATOR_EXTRA_EXAMPLES_FILE = "gen_program_extra_examples.txt"
+STRUCTURAL_INSPIRATION_SYSTEM_NOTE_FILE = "structural_inspiration_system_note.txt"
+STRUCTURAL_INSPIRATION_USER_BLOCK_FILE = "structural_inspiration_user_block.txt"
 
 # --- few-shot rotation ------------------------------------------------------
 #
@@ -608,9 +618,7 @@ GENERATOR_EXTRA_EXAMPLES_FILE = "gen_program_extra_examples.txt"
 # 17% vs 14%, 20 cells reached vs 17).
 _EXAMPLE_HEAD = re.compile(r"^EXAMPLE \d+ — (.+)$", re.M)
 _WORKED_HEAD = re.compile(r"^WORKED EXAMPLE \d+$", re.M)
-_SKETCH_HEAD = re.compile(
-    r"^(" + "|".join(SKILLS) + r") -- ", re.M
-)
+_SKETCH_HEAD = re.compile(r"^(" + "|".join(SKILLS) + r") -- ", re.M)
 FAMILY_SHOTS_SHOWN = 3
 GENERATOR_SHOTS_SHOWN = 4
 
@@ -624,7 +632,7 @@ def _split_family_system(text: str):
     blocks = []
     for i, m in enumerate(hits):
         end = hits[i + 1].start() if i + 1 < len(hits) else None
-        blocks.append(text[m.start(): end] if end else text[m.start():])
+        blocks.append(text[m.start() : end] if end else text[m.start() :])
     cut = blocks[-1].find("Now create a child family")
     tail = blocks[-1][cut:] if cut >= 0 else ""
     if cut >= 0:
@@ -642,12 +650,12 @@ def _split_generator_system(text: str):
     sketches = []
     for i, m in enumerate(sm):
         end = sm[i + 1].start() if i + 1 < len(sm) else wm[0].start()
-        sketches.append(text[m.start(): end])
-    mid = text[sm[-1].start(): wm[0].start()][len(sketches[-1]):]
+        sketches.append(text[m.start() : end])
+    mid = text[sm[-1].start() : wm[0].start()][len(sketches[-1]) :]
     worked = []
     for i, m in enumerate(wm):
         end = wm[i + 1].start() if i + 1 < len(wm) else None
-        worked.append(text[m.start(): end] if end else text[m.start():])
+        worked.append(text[m.start() : end] if end else text[m.start() :])
     cut = worked[-1].find("After the closing ```")
     tail = worked[-1][cut:] if cut >= 0 else ""
     if cut >= 0:
@@ -664,7 +672,7 @@ def _extra_worked_blocks() -> list[str]:
     out = []
     for i, m in enumerate(hits):
         end = hits[i + 1].start() if i + 1 < len(hits) else None
-        out.append(text[m.start(): end] if end else text[m.start():])
+        out.append(text[m.start() : end] if end else text[m.start() :])
     return out
 
 
@@ -677,9 +685,11 @@ def _renumber(blocks, pattern, label):
     """
     out = []
     for i, block in enumerate(blocks, 1):
+
         def repl(m, i=i):
             title = m.group(1) if m.re.groups else None
             return f"{label} {i} \u2014 {title}" if title else f"{label} {i}"
+
         out.append(pattern.sub(repl, block, count=1))
     return out
 
@@ -748,7 +758,8 @@ def parse_family_plan(reply: str) -> dict[str, str] | None:
         best = ""
         for match in re.finditer(
             rf"^[ \t]*{key}[ \t]*:[ \t]*(.+?)(?=^[ \t]*(?:{_FAMILY_KEY_ALT})[ \t]*:|\Z)",
-            text, re.M | re.S,
+            text,
+            re.M | re.S,
         ):
             value = match.group(1).strip()
             if value and not value.startswith("<"):
@@ -764,7 +775,8 @@ def parse_family_plan(reply: str) -> dict[str, str] | None:
     for key in OPTIONAL_FAMILY_KEYS:
         for match in re.finditer(
             rf"^[ \t]*{key}[ \t]*:[ \t]*(.+?)(?=^[ \t]*(?:{_FAMILY_KEY_ALT})[ \t]*:|\Z)",
-            text, re.M | re.S,
+            text,
+            re.M | re.S,
         ):
             value = match.group(1).strip()
             if value and not value.startswith("<"):
@@ -787,6 +799,9 @@ def build_family_task(
     target_cell: tuple | None = None,
     rotate_shots: bool = False,
     rng: random.Random | None = None,
+    inspiration_template: str | None = None,
+    inspiration_donor: ProblemProgram | None = None,
+    provenance: dict | None = None,
 ) -> MutationTask:
     """Stage 1: mutate the parent's problem FAMILY, in prose, with no program.
 
@@ -799,6 +814,7 @@ def build_family_task(
     instance = _parent_problem_text(parent)
     template = extract_problem_template(parent.source_code) or instance
     system_prompt = _load_template(FAMILY_SYSTEM_PROMPT_FILE)
+    task_provenance = dict(provenance or {})
     rng = rng or random
     if rotate_shots:
         head, blocks, tail = _split_family_system(system_prompt)
@@ -807,7 +823,18 @@ def build_family_task(
         else:
             blocks = list(blocks)
             rng.shuffle(blocks)
-        system_prompt = head + "".join(_renumber(blocks, _EXAMPLE_HEAD, "EXAMPLE")) + tail
+        system_prompt = (
+            head + "".join(_renumber(blocks, _EXAMPLE_HEAD, "EXAMPLE")) + tail
+        )
+    if inspiration_template:
+        # The behavioural rules belong in the system turn; the donor's one
+        # permitted artefact (its parameterized statement skeleton) belongs in
+        # the user turn below. Keeping them separate makes it testable that no
+        # donor source/answer/labels leaked into either stage.
+        inspiration_system_note = _load_template(
+            STRUCTURAL_INSPIRATION_SYSTEM_NOTE_FILE
+        ).strip()
+        system_prompt = system_prompt.rstrip() + "\n\n" + inspiration_system_note + "\n"
     user_prompt = _render_template(
         _load_template(FAMILY_USER_PROMPT_FILE),
         {
@@ -817,7 +844,36 @@ def build_family_task(
             "allowed_skills": _load_definitions(SKILL_DEFINITIONS_FILE),
         },
     )
+    if inspiration_template:
+        inspiration_user_block = _load_template(STRUCTURAL_INSPIRATION_USER_BLOCK_FILE)
+        quoted_inspiration = "\n".join(
+            f"> {line}" for line in inspiration_template.strip().splitlines()
+        )
+        user_prompt = (
+            user_prompt.rstrip()
+            + "\n\n"
+            + _render_template(
+                inspiration_user_block,
+                {"inspiration_template": quoted_inspiration},
+            ).strip()
+        )
+        inspiration_audit = dict(task_provenance.get("structural_inspiration") or {})
+        inspiration_audit.update(
+            {
+                "prompt_version": "structural_inspiration_v1",
+                "prompt_contract_sha256": hashlib.sha256(
+                    (inspiration_system_note + "\0" + inspiration_user_block).encode(
+                        "utf-8"
+                    )
+                ).hexdigest(),
+            }
+        )
+        task_provenance["structural_inspiration"] = inspiration_audit
     if target_cell is not None:
+        # Keep the archive's explicit niche constraint AFTER the non-authority
+        # donor block. Qwen is strongly recency-sensitive; putting the random
+        # donor last made it look like the live request and weakened both the
+        # primary-parent relation and the target contract.
         mutation_strategy = target_cell[2] if len(target_cell) > 2 else None
         if mutation_strategy == "mutate_skill":
             block_template = TARGET_CELL_MUTATE_SKILL_BLOCK
@@ -825,11 +881,21 @@ def build_family_task(
             block_template = TARGET_CELL_MUTATE_GROUP_BLOCK
         else:
             block_template = TARGET_CELL_BLOCK
-            
-        user_prompt = user_prompt + "\n" + _render_template(
-            block_template,
-            {"group": target_cell[0], "skill": target_cell[1]},
+
+        user_prompt = (
+            user_prompt.rstrip()
+            + "\n\n"
+            + _render_template(
+                block_template,
+                {"group": target_cell[0], "skill": target_cell[1]},
+            ).strip()
         )
+    if inspiration_template:
+        inspiration_audit = dict(task_provenance["structural_inspiration"])
+        inspiration_audit["stage1_prompt_sha256"] = hashlib.sha256(
+            (system_prompt + "\0" + user_prompt).encode("utf-8")
+        ).hexdigest()
+        task_provenance["structural_inspiration"] = inspiration_audit
     return MutationTask(
         op=MUTATION_OP,
         prompt=f"{system_prompt}\n\n{user_prompt}",
@@ -842,6 +908,8 @@ def build_family_task(
         temperature=temperature,
         top_p=top_p,
         max_output_tokens=max_output_tokens,
+        provenance=task_provenance,
+        inspiration_donor=inspiration_donor,
     )
 
 
@@ -854,6 +922,8 @@ def build_generator_task(
     max_output_tokens: int | None = None,
     rotate_shots: bool = False,
     rng: random.Random | None = None,
+    provenance: dict | None = None,
+    inspiration_donor: ProblemProgram | None = None,
 ) -> MutationTask:
     """Stage 2: write the generator for the fixed child family.
 
@@ -891,13 +961,20 @@ def build_generator_task(
         head, sketches, mid, worked, tail = _split_generator_system(system_prompt)
         if worked:
             pool = list(worked) + _extra_worked_blocks()
-            shown = (rng.sample(pool, GENERATOR_SHOTS_SHOWN)
-                     if len(pool) > GENERATOR_SHOTS_SHOWN else list(pool))
+            shown = (
+                rng.sample(pool, GENERATOR_SHOTS_SHOWN)
+                if len(pool) > GENERATOR_SHOTS_SHOWN
+                else list(pool)
+            )
             rng.shuffle(shown)
             rng.shuffle(sketches)
-            system_prompt = (head + "".join(sketches) + mid
-                             + "".join(_renumber(shown, _WORKED_HEAD, "WORKED EXAMPLE"))
-                             + tail)
+            system_prompt = (
+                head
+                + "".join(sketches)
+                + mid
+                + "".join(_renumber(shown, _WORKED_HEAD, "WORKED EXAMPLE"))
+                + tail
+            )
     user_prompt = _render_template(
         _load_template(GENERATOR_USER_PROMPT_FILE),
         {
@@ -923,5 +1000,8 @@ def build_generator_task(
         temperature=temperature,
         top_p=top_p,
         max_output_tokens=max_output_tokens,
+        # Carried for reporting only. No provenance field is substituted into
+        # either generator prompt, so stage 2 cannot see the donor.
+        provenance=dict(provenance or {}),
+        inspiration_donor=inspiration_donor,
     )
-

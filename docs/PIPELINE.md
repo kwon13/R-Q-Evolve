@@ -196,7 +196,7 @@ parent가 없으면 batch 진입 직후 `{report: no_parent}` 하나로 조기 �
 
 **`CandidateReport.status` 전체 어휘** ([`evolution.py:29`](../src/rq_evolve/evolution.py#L29)):
 `no_parent`, `mutation_failed`, `no_code`, `verify_failed`,
-`judge_rejected`, `judge_input_too_large`, `rollout_failed`,
+`judge_rejected`, `judge_input_too_large`, `inspiration_copy_rejected`, `rollout_failed`,
 `s_hat_zero`, `rq_zero`, `inserted`, `rejected_non_elite`.
 
 `s_hat_zero` / `rq_zero`는 이제 **조기 반환이 아니라 삽입 실패의 사유**입니다.

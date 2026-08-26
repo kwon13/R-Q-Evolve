@@ -10,9 +10,11 @@ seed_programs/*.py
   -> verify_program()
   -> MAPElitesArchive.try_insert()   # cell = (GROUP, SKILL)
   -> parent selection
-  -> backend.mutate(mutation prompt)     # one free-form operator
+  -> stage 1: child-family design (+ optional structural inspiration)
+  -> stage 2: generator implementation   # donor is absent here
   -> generated ProblemProgram
-  -> judge(problem, answer) == declared (GROUP, SKILL)?
+  -> blind GROUP/SKILL readback
+  -> optional judge(problem, answer) == resolved (GROUP, SKILL)?
   -> backend.rollout(G)
   -> R_Q = p_hat * (1 - p_hat) * uncertainty
   -> MAP-Elites update
@@ -28,7 +30,7 @@ seed_programs/*.py
 - `prompts.py`: mutation / solver prompt builder
 - `concepts.py`: GROUP(6) × SKILL(8) 라벨 vocabulary — 두 축은 독립
 - `solver_trace.py`: rollout 위생 처리 (chat boundary 절단 후 재채점)
-- `prompt_templates/`: depth/breadth mutation prompts + shots
+- `prompt_templates/`: two-stage mutation, structural-inspiration and label prompts
 - `backends.py`: LLM mutation과 solver rollout 인터페이스
 - `evolution.py`: outer iteration, mutation, verification, scoring, dataset refresh
 - `dataset.py`: champion에서 학습 문제를 만드는 framework-free dataset
@@ -66,6 +68,57 @@ python scripts/train_with_verl.py --config configs/rq_evolve_base.yaml
 solver update를 맡고, `R-Q-Evolve`의 sampler가 epoch 시작마다 archive
 re-evaluation, mutation, R_Q scoring, dataset refresh를 실행합니다.
 
+## 4B Structural Inspiration
+
+주 실행 설정은 target-cell 지시를 쓰지 않습니다. Primary parent와 다른
+lineage에서, 가능하면 GROUP과 SKILL도 모두 다른 champion을 하나 뽑고 그
+프로그램의 **문제 문장 skeleton만** stage 1에 제공합니다. Source, 정답/check,
+라벨, 점수와 metadata는 숨겨지며 stage 2에는 donor가 들어가지 않습니다.
+완성된 child의 두 라벨은 blind readback하고, donor 복제는 rollout 전에
+전용 gate로 거절합니다.
+
+```bash
+# 이 머신의 verl/vLLM 학습 환경
+conda activate azr-bw-blackwell
+
+# GPU 없이 양쪽 설정 점검
+python scripts/preflight_check.py \
+  --config configs/rq_evolve_4b_4gpu_structural_inspiration.yaml
+python scripts/preflight_check.py \
+  --config configs/rq_evolve_4b_4gpu_structural_control.yaml
+
+# treatment (4 GPU)
+bash launch_4b_train.sh \
+  --config configs/rq_evolve_4b_4gpu_structural_inspiration.yaml \
+  --gpus 0,1,2,3
+
+# paired control은 별도 시점/동일 GPU 조건에서 실행
+bash launch_4b_train.sh \
+  --config configs/rq_evolve_4b_4gpu_structural_control.yaml \
+  --gpus 0,1,2,3
+```
+
+두 명령 모두 launcher가 해당 run의 checkpoint auto-merge daemon도 함께
+시작합니다. `save_freq: 32`이므로 처음에는 `global_step_32/actor`를 resume용으로
+그대로 두고, step 64가 저장되면 step 32를 `hf_merged/`로 변환ㆍ검증한 뒤
+step 32의 `actor/`만 삭제합니다. 이후에도 항상 최신 actor 하나는 보존됩니다.
+merge 상태는 다음처럼 확인할 수 있습니다.
+
+```bash
+tail -f logs/rq_evolve_4b_4gpu_untargeted_structural_inspiration_auto_merge.log
+```
+
+학습이 완전히 끝난 뒤에도 마지막 checkpoint의 actor는 의도적으로 남습니다.
+resume 가능성을 버리고 마지막 것까지 HF로 합칠 때만
+`scripts/merge_fsdp_to_hf.py`를 수동 실행하세요. 자동화를 끄고 싶을 때는
+launcher에 `--no-auto-merge`를 추가할 수 있습니다.
+
+과거 4B run은 비교군으로 쓰지 않습니다. 새 control은 현재 코드, untargeted
+generation, search/few-shot seed와 전체 budget을 treatment와 공유합니다. 첫
+실행 때 effective config, prompt, seed corpus와 구현 hash가 output의
+`run_contract/`에 동결되며, 다른 방법으로 같은 디렉터리를 resume하면 Ray가
+시작되기 전에 실패합니다.
+
 ## Implementation Order
 
 1. `tests/test_program.py`, `tests/test_scoring.py`가 통과하는지 확인
@@ -93,8 +146,8 @@ def generate(seed):
     ...
     return problem_text, answer_text
 
-CONCEPT_GROUP = "algebra"
-CONCEPT_TYPE = "algebra.quadratic"
+GROUP = "algebra"
+SKILL = "transformation"
 ```
 
 `EvolutionBackend`는 두 메서드만 구현하면 됩니다.

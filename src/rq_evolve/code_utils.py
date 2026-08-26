@@ -52,10 +52,22 @@ def sanitize_latex_raw_strings(code: str) -> str:
             if prefix_match:
                 prefix, quote_part = prefix_match.groups()
                 # If not already raw (r/R), formatted (f/F), or binary (b/B)
-                if "r" not in prefix.lower() and "f" not in prefix.lower() and "b" not in prefix.lower():
-                    if _LATEX_ESCAPE_PATTERNS.search(quote_part) or r"\(" in quote_part or r"\)" in quote_part or r"\[" in quote_part or r"\]" in quote_part:
+                if (
+                    "r" not in prefix.lower()
+                    and "f" not in prefix.lower()
+                    and "b" not in prefix.lower()
+                ):
+                    if (
+                        _LATEX_ESCAPE_PATTERNS.search(quote_part)
+                        or r"\(" in quote_part
+                        or r"\)" in quote_part
+                        or r"\[" in quote_part
+                        or r"\]" in quote_part
+                    ):
                         new_val = f"r{val}"
-                        tok = tokenize.TokenInfo(tok.type, new_val, tok.start, tok.end, tok.line)
+                        tok = tokenize.TokenInfo(
+                            tok.type, new_val, tok.start, tok.end, tok.line
+                        )
                         modified = True
         new_tokens.append(tok)
 
@@ -383,8 +395,7 @@ def lint_mutation_generator_source(
             names = {
                 child.id
                 for child in ast.walk(expression)
-                if isinstance(child, ast.Name)
-                and isinstance(child.ctx, ast.Load)
+                if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
             }
             if dependency in names:
                 return True
@@ -423,16 +434,14 @@ def lint_mutation_generator_source(
                 for value in assignments.get("answer", ())
             ):
                 reasons.append(
-                    "generated mutation must compute `answer` from "
-                    "`instance_data`"
+                    "generated mutation must compute `answer` from " "`instance_data`"
                 )
             if not any(
                 expression_depends_on(value, "instance_data")
                 for value in assignments.get("problem", ())
             ):
                 reasons.append(
-                    "generated mutation must render `problem` from "
-                    "`instance_data`"
+                    "generated mutation must render `problem` from " "`instance_data`"
                 )
 
             helper_names = {
@@ -470,8 +479,7 @@ def lint_mutation_generator_source(
                 direct_names = {
                     child.id
                     for child in ast.walk(value)
-                    if isinstance(child, ast.Name)
-                    and isinstance(child.ctx, ast.Load)
+                    if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
                 }
                 for name in direct_names:
                     if (
@@ -508,21 +516,17 @@ def lint_mutation_generator_source(
                 direct_names = {
                     child.id
                     for child in ast.walk(assertion.test)
-                    if isinstance(child, ast.Name)
-                    and isinstance(child.ctx, ast.Load)
+                    if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
                 }
                 if "answer" not in direct_names:
                     continue
                 other_names = direct_names - {"answer"}
-                links_canonical_data = (
-                    "instance_data" in other_names
-                    or any(
-                        any(
-                            expression_depends_on(value, "instance_data")
-                            for value in assignments.get(name, ())
-                        )
-                        for name in other_names
+                links_canonical_data = "instance_data" in other_names or any(
+                    any(
+                        expression_depends_on(value, "instance_data")
+                        for value in assignments.get(name, ())
                     )
+                    for name in other_names
                 )
                 comparison_parts = [
                     assertion.test.left,
@@ -531,14 +535,10 @@ def lint_mutation_generator_source(
                 non_answer_parts = [
                     part
                     for part in comparison_parts
-                    if not (
-                        isinstance(part, ast.Name)
-                        and part.id == "answer"
-                    )
+                    if not (isinstance(part, ast.Name) and part.id == "answer")
                 ]
                 merely_repeats_answer_rhs = bool(non_answer_parts) and all(
-                    ast.dump(part, include_attributes=False)
-                    in answer_value_dumps
+                    ast.dump(part, include_attributes=False) in answer_value_dumps
                     for part in non_answer_parts
                 )
                 if links_canonical_data and not merely_repeats_answer_rhs:
@@ -651,9 +651,7 @@ def lint_mutation_generator_source(
             for node in ast.walk(generate)
             if isinstance(node, (ast.Assign, ast.AnnAssign))
             for target in (
-                list(node.targets)
-                if isinstance(node, ast.Assign)
-                else [node.target]
+                list(node.targets) if isinstance(node, ast.Assign) else [node.target]
             )
             if isinstance(target, ast.Name)
         }
@@ -669,15 +667,10 @@ def lint_mutation_generator_source(
             if not isinstance(node, (ast.Assign, ast.AnnAssign)):
                 continue
             targets = (
-                list(node.targets)
-                if isinstance(node, ast.Assign)
-                else [node.target]
+                list(node.targets) if isinstance(node, ast.Assign) else [node.target]
             )
             for target in targets:
-                if (
-                    isinstance(target, ast.Name)
-                    and target.id in route_assignments
-                ):
+                if isinstance(target, ast.Name) and target.id in route_assignments:
                     route_assignments[target.id].append(node.value)
 
         # Catch the common false cross-check where both route variables are
@@ -727,8 +720,7 @@ def lint_mutation_generator_source(
         )
         if not has_route_equivalence_assert:
             reasons.append(
-                "generated mutation must assert "
-                "`answer_insight == answer_brute`"
+                "generated mutation must assert " "`answer_insight == answer_brute`"
             )
 
     # Randomness must flow through the seed-local rng. Creating Random(seed) is
@@ -789,8 +781,7 @@ def lint_mutation_generator_source(
     )
     if require_mechanical_shape and not has_integer_serialization:
         reasons.append(
-            "generated mutation must return "
-            "`problem, str(sympy.Integer(answer))`"
+            "generated mutation must return " "`problem, str(sympy.Integer(answer))`"
         )
 
     return reasons
@@ -844,9 +835,13 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
 
     # 4) soft concatenation cue: marker + multiple imperatives
     concat_markers = (
-        "additionally", "now consider", "now, consider",
+        "additionally",
+        "now consider",
+        "now, consider",
         "find the value of x in the following",
-        "compute the sum of the first", "also compute", "and then calculate",
+        "compute the sum of the first",
+        "also compute",
+        "and then calculate",
     )
     hits = [m for m in concat_markers if m in lowered]
     if len(hits) >= 1 and _looks_multi_answer(problem):
@@ -856,20 +851,20 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
     if re.search(
         r"\b(also compute|and then (?:compute|calculate)|"
         r"separately(?: compute)?|total sum of all parts)\b",
-        problem, re.IGNORECASE,
+        problem,
+        re.IGNORECASE,
     ):
         reasons.append("explicit concatenation marker")
 
     # 5) self-contradictory numeric range
-    for lo, var, hi in re.findall(
-        r"(\d+)\s*<\s*([A-Za-z]\w*)\s*<\s*(\d+)", problem
-    ):
+    for lo, var, hi in re.findall(r"(\d+)\s*<\s*([A-Za-z]\w*)\s*<\s*(\d+)", problem):
         if int(lo) >= int(hi):
             reasons.append(f"contradictory range: {lo} < {var} < {hi}")
 
     # 6) intermediate computed-value leak
-    if re.search(r"\bwhich (?:is|equals|gives)\s+-?\d{2,}", problem, re.IGNORECASE) or \
-       re.search(r"\bsum\b[^.]{0,40}\bis\s+-?\d{3,}", problem, re.IGNORECASE):
+    if re.search(
+        r"\bwhich (?:is|equals|gives)\s+-?\d{2,}", problem, re.IGNORECASE
+    ) or re.search(r"\bsum\b[^.]{0,40}\bis\s+-?\d{3,}", problem, re.IGNORECASE):
         reasons.append("intermediate result leaked into problem text")
 
     # 7) pre-computed data dump
@@ -901,9 +896,9 @@ def _counts_independent_questions(problem: str) -> int:
     # imperative answer-demands ("how many", "find", "compute", "solve for",
     # "determine", "calculate"), counted as occurrences
     demands = re.findall(
-        r"\b(how many|find|compute|calculate|determine|solve for|"
-        r"evaluate)\b",
-        problem, re.IGNORECASE,
+        r"\b(how many|find|compute|calculate|determine|solve for|" r"evaluate)\b",
+        problem,
+        re.IGNORECASE,
     )
     # Question marks are a clean signal (a single problem normally has one "?").
     # Demand verbs are NOISY: a legitimate multi-step problem routinely chains
@@ -930,7 +925,8 @@ def _looks_multi_answer(problem: str) -> bool:
     independent subproblems."""
     verbs = re.findall(
         r"\b(compute|find|calculate|determine|evaluate|how many)\b",
-        problem, re.IGNORECASE,
+        problem,
+        re.IGNORECASE,
     )
     return len(verbs) >= 2
 
@@ -950,9 +946,7 @@ def _answer_leaks_as_assignment(answer: str, problem: str) -> bool:
         return False
     # any line of the form  <identifier> = <pure number literal>
     # where that number equals the answer
-    for m in re.finditer(
-        r"(?m)^\s*[A-Za-z_]\w*\s*=\s*(-?\d+(?:\.\d+)?)\s*$", problem
-    ):
+    for m in re.finditer(r"(?m)^\s*[A-Za-z_]\w*\s*=\s*(-?\d+(?:\.\d+)?)\s*$", problem):
         if m.group(1) == a:
             return True
     return False
@@ -1088,3 +1082,144 @@ def extract_problem_template(source_code: str) -> str | None:
         # with the one that is actually returned.
         best = "\n".join(lines[node.lineno - 1 : end])
     return textwrap.dedent(best).strip() if best else None
+
+
+def extract_problem_statement_template(source_code: str) -> str | None:
+    """Return only the text skeleton of the final ``problem`` assignment.
+
+    This is deliberately narrower than :func:`extract_problem_template`, which
+    returns the Python assignment verbatim for the primary-parent prompt.  A
+    structural-inspiration donor is untrusted context, so it contributes only
+    the natural-language statement: no assignment syntax, helper code, label
+    declarations, answer/check route, comments, or metadata.
+
+    Literal strings and f-strings joined with ``+`` are supported.  A template
+    that interpolates the program's ``answer`` or ``check`` variable is rejected
+    instead of risking an answer leak.  More dynamic constructions are also
+    rejected; the caller can simply sample another archive champion.
+    """
+    try:
+        tree = safe_ast_parse(source_code)
+    except (SyntaxError, ValueError):
+        return None
+
+    value: ast.expr | None = None
+    value_lineno = -1
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        if (
+            any(isinstance(t, ast.Name) and t.id == "problem" for t in targets)
+            and node.lineno >= value_lineno
+        ):
+            # Match extract_problem_template's last-assignment-wins contract.
+            value = node.value
+            value_lineno = node.lineno
+    if value is None:
+        return None
+
+    rendered = _render_problem_text_expression(value)
+    if rendered is None:
+        return None
+    rendered = textwrap.dedent(rendered).strip()
+    return rendered or None
+
+
+def _render_problem_text_expression(node: ast.AST) -> str | None:
+    """Render a safe string/f-string AST as a readable parameterized statement."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        pieces: list[str] = []
+        for part in node.values:
+            if isinstance(part, ast.Constant) and isinstance(part.value, str):
+                pieces.append(part.value)
+                continue
+            if not isinstance(part, ast.FormattedValue):
+                return None
+            referenced = {
+                name.id.lower()
+                for name in ast.walk(part.value)
+                if isinstance(name, ast.Name)
+            }
+            forbidden = {
+                "answer",
+                "check",
+                "group",
+                "skill",
+                "concept_group",
+                "concept_type",
+            }
+            if any(
+                name in forbidden
+                or name.endswith("_answer")
+                or name.startswith("answer_")
+                or name.endswith("_check")
+                for name in referenced
+            ):
+                return None
+            expression = ast.unparse(part.value).strip()
+            if not expression:
+                return None
+            conversion = f"!{chr(part.conversion)}" if part.conversion != -1 else ""
+            format_spec = ""
+            if part.format_spec is not None:
+                rendered_spec = _render_problem_text_expression(part.format_spec)
+                if rendered_spec is None:
+                    return None
+                format_spec = f":{rendered_spec}"
+            pieces.append(f"{{{expression}{conversion}{format_spec}}}")
+        return "".join(pieces)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _render_problem_text_expression(node.left)
+        right = _render_problem_text_expression(node.right)
+        if left is None or right is None:
+            return None
+        return left + right
+    return None
+
+
+_INSPIRATION_ROLE_MARKER_RE = re.compile(
+    r"<\|[^|\r\n]{1,64}\|>|\[/?INST\]|<<\s*/?SYS\s*>>",
+    re.IGNORECASE,
+)
+_INSPIRATION_FIELD_MARKER_RE = re.compile(
+    r"^\s*(?:system|developer|assistant|user|target\s+group|target\s+skill|"
+    r"group|skill|answer|structural\s+mutation|child\s+family|why\s+finite)"
+    r"\s*[:=]",
+    re.IGNORECASE | re.MULTILINE,
+)
+_INSPIRATION_INLINE_LABEL_RE = re.compile(
+    r"\b(?:declared\s+|target\s+)?(?:GROUP|SKILL)\s*[:=]",
+    re.IGNORECASE,
+)
+_INSPIRATION_OVERRIDE_RE = re.compile(
+    r"\b(?:ignore|disregard|override)\b.{0,48}\b(?:instruction|prompt|rule)s?\b|"
+    r"\bfollow\s+(?:these|the following|my)\s+instructions?\b|"
+    r"\breply\s+with\s+exactly\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def structural_inspiration_safety_reason(template: str) -> str | None:
+    """Classify prompt-control text that makes a donor unsafe to embed.
+
+    Markdown quoting is presentation, not a security boundary.  In particular,
+    Qwen tokenizes strings such as ``<|im_start|>`` as real chat-control tokens,
+    so an archive-generated problem statement containing one must be rejected,
+    not merely prefixed with ``>``.  The filters are intentionally narrow enough
+    to keep ordinary mathematical uses of words such as "group" and "target".
+    """
+    text = str(template or "")
+    if _INSPIRATION_ROLE_MARKER_RE.search(text):
+        return "chat_control_marker"
+    if "```" in text:
+        return "code_fence"
+    if _INSPIRATION_FIELD_MARKER_RE.search(text):
+        return "role_label_or_output_marker"
+    if _INSPIRATION_INLINE_LABEL_RE.search(text):
+        return "explicit_label_marker"
+    if _INSPIRATION_OVERRIDE_RE.search(text):
+        return "instruction_override"
+    return None

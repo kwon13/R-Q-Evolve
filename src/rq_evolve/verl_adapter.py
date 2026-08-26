@@ -40,11 +40,7 @@ def _ray_temp_dir(project_root: Path) -> str | None:
     to start because the relocated path was too long for a socket.
     """
     configured = os.environ.get("RAY_TMPDIR")
-    candidate = (
-        Path(configured)
-        if configured
-        else project_root / ".raytmp"
-    )
+    candidate = Path(configured) if configured else project_root / ".raytmp"
     if len(str(candidate)) > _RAY_TEMP_DIR_BUDGET:
         print(
             f"[RQ-Evolve] ray temp dir {candidate} is {len(str(candidate))} "
@@ -169,6 +165,14 @@ class EvolvingSampler:
                 "archive": ev.archive.to_payload(),
                 "used_seeds": {pid: sorted(s) for pid, s in ev.used_seeds.items()},
                 "current_iteration": ev.current_iteration,
+                "seed_cursor": ev.seed_stream.to_dict(),
+                "previous_rq_scores": ev.previous_rq.to_dict(),
+                "rejected_children": dict(ev.rejected_children),
+                "skill_offsets": ev.skill_offsets.to_dict(),
+                "group_offsets": ev.group_offsets.to_dict(),
+                "inspiration_draw_count": ev.inspiration_draw_count,
+                "mutation_prompt_draw_count": ev.mutation_prompt_draw_count,
+                "search_draw_count": ev.search_draw_count,
             },
         }
 
@@ -196,6 +200,34 @@ class EvolvingSampler:
             ev.current_iteration = int(
                 payload.get("current_iteration", ev.current_iteration)
             )
+            if payload.get("seed_cursor"):
+                ev.seed_stream = type(ev.seed_stream).from_dict(payload["seed_cursor"])
+            if "previous_rq_scores" in payload:
+                ev.previous_rq = type(ev.previous_rq).from_dict(
+                    payload["previous_rq_scores"]
+                )
+            if "rejected_children" in payload:
+                ev.rejected_children = dict(payload.get("rejected_children") or {})
+            if "skill_offsets" in payload:
+                ev.skill_offsets = type(ev.skill_offsets).from_dict(
+                    payload["skill_offsets"]
+                )
+            if "group_offsets" in payload:
+                ev.group_offsets = type(ev.group_offsets).from_dict(
+                    payload["group_offsets"]
+                )
+            ev.inspiration_draw_count = int(
+                payload.get("inspiration_draw_count", ev.inspiration_draw_count)
+            )
+            ev.mutation_prompt_draw_count = int(
+                payload.get(
+                    "mutation_prompt_draw_count",
+                    ev.archive.total_selections,
+                )
+            )
+            ev.search_draw_count = int(
+                payload.get("search_draw_count", ev.archive.total_selections)
+            )
             ev.refresh_dataset()
             print(
                 f"[RQ-Evolve] resume: restored MAP from data.pt ({n} champions, "
@@ -203,8 +235,10 @@ class EvolvingSampler:
                 f"overrides latest archive.json to match the weight checkpoint"
             )
         except Exception as exc:  # never let checkpoint housekeeping kill a resume
-            print(f"[RQ-Evolve] resume: data.pt MAP restore FAILED ({exc!r}); "
-                  f"keeping archive.json state")
+            print(
+                f"[RQ-Evolve] resume: data.pt MAP restore FAILED ({exc!r}); "
+                f"keeping archive.json state"
+            )
             return
         self._archive_post_checkpoint_snapshots(self._active_iteration)
         # Rewrite the live snapshot files (archive.json / used_seeds) to the
@@ -231,7 +265,10 @@ class EvolvingSampler:
         cutoff = int(active_iteration)
         d = Path(self.archive_dir)
         try:
-            backup = d / f"_stale_{datetime.now().strftime('%Y%m%d_%H%M%S')}_after_iter{cutoff}"
+            backup = (
+                d
+                / f"_stale_{datetime.now().strftime('%Y%m%d_%H%M%S')}_after_iter{cutoff}"
+            )
             moved: list[str] = []
             pat = re.compile(r"archive_iter(\d+)\.json$")
             for p in d.glob("archive_iter*.json"):
@@ -258,12 +295,18 @@ class EvolvingSampler:
                     (kept if idx <= cutoff else dropped).append(line)
                 if dropped:
                     backup.mkdir(parents=True, exist_ok=True)
-                    (backup / fname).write_text("\n".join(dropped) + "\n", encoding="utf-8")
-                    f.write_text(("\n".join(kept) + "\n") if kept else "", encoding="utf-8")
+                    (backup / fname).write_text(
+                        "\n".join(dropped) + "\n", encoding="utf-8"
+                    )
+                    f.write_text(
+                        ("\n".join(kept) + "\n") if kept else "", encoding="utf-8"
+                    )
                     moved.append(f"{fname}(-{len(dropped)} lines)")
             if moved:
-                print(f"[RQ-Evolve] resume: moved post-checkpoint MAP history "
-                      f"(> iter {cutoff}) to {backup.name} -> {moved}")
+                print(
+                    f"[RQ-Evolve] resume: moved post-checkpoint MAP history "
+                    f"(> iter {cutoff}) to {backup.name} -> {moved}"
+                )
         except Exception as exc:
             print(f"[RQ-Evolve] resume: snapshot cleanup skipped ({exc!r})")
 
@@ -284,7 +327,10 @@ class EvolvingSampler:
         except Exception:
             pass
         if self.metrics_logger is not None:
-            record = {"iteration": int(self.epoch), "trainer_idle_s": float(trainer_idle_s)}
+            record = {
+                "iteration": int(self.epoch),
+                "trainer_idle_s": float(trainer_idle_s),
+            }
             record.update(snapshot)
             if self.version_tracker is not None:
                 record["policy_version"] = self.version_tracker.policy_version
@@ -551,9 +597,7 @@ class VerlTrainerAdapter:
         """Tokenize and report a fixed JSONL without starting Ray or training."""
 
         if not self.static_training_enabled:
-            raise ValueError(
-                "training_data.static_training_jsonl is not configured"
-            )
+            raise ValueError("training_data.static_training_jsonl is not configured")
         from omegaconf import OmegaConf
 
         verl_config = self._load_verl_config()
@@ -683,9 +727,7 @@ class VerlTrainerAdapter:
                     else True
                 ),
                 seed=int(verl_config.data.get("seed") or 1),
-                evolve_on_first_epoch=bool(
-                    self.rq_config.verl.evolve_on_first_epoch
-                ),
+                evolve_on_first_epoch=bool(self.rq_config.verl.evolve_on_first_epoch),
                 archive_dir=archive_dir,
             )
 
@@ -693,7 +735,10 @@ class VerlTrainerAdapter:
         # benchmark -> verl reports per-benchmark accuracy via _validate); else a
         # dummy mirror of the train dataset (verl requires a non-empty val set).
         val_dataset = None
-        if getattr(self.rq_config, "math_eval", None) and self.rq_config.math_eval.enabled:
+        if (
+            getattr(self.rq_config, "math_eval", None)
+            and self.rq_config.math_eval.enabled
+        ):
             from .math_eval import build_math_eval_val_dataset
 
             val_dataset = build_math_eval_val_dataset(
@@ -712,10 +757,7 @@ class VerlTrainerAdapter:
                     if static_training
                     else max(
                         1,
-                        int(
-                            verl_config.data.get("val_batch_size")
-                            or train_batch_size
-                        ),
+                        int(verl_config.data.get("val_batch_size") or train_batch_size),
                     )
                 ),
                 data_source=(
@@ -827,7 +869,9 @@ class VerlTrainerAdapter:
         try:
             resumed = evolver.load_state(archive_dir)
         except Exception as exc:  # corrupt/partial snapshot — fall back to seeds
-            print(f"[RQ-Evolve] archive restore failed ({exc!r}); bootstrapping from seeds")
+            print(
+                f"[RQ-Evolve] archive restore failed ({exc!r}); bootstrapping from seeds"
+            )
         if resumed:
             print(
                 f"[RQ-Evolve] restored archive "
@@ -1060,7 +1104,10 @@ class VerlTrainerAdapter:
             package_root / "trainer" / "config" / "_generated_ppo_trainer.yaml",
             package_root / "trainer" / "config" / "ppo_trainer.yaml",
         ]
-        base = next((OmegaConf.load(path) for path in base_candidates if path.exists()), OmegaConf.create({}))
+        base = next(
+            (OmegaConf.load(path) for path in base_candidates if path.exists()),
+            OmegaConf.create({}),
+        )
         return OmegaConf.merge(base, user_override)
 
     def _patch_reward_config(self, config) -> None:
@@ -1071,7 +1118,10 @@ class VerlTrainerAdapter:
             self.project_root,
         )
         with open_dict(config):
-            if "custom_reward_function" not in config or config.custom_reward_function is None:
+            if (
+                "custom_reward_function" not in config
+                or config.custom_reward_function is None
+            ):
                 config.custom_reward_function = {}
             config.custom_reward_function.path = str(reward_path)
             config.custom_reward_function.name = reward_name
@@ -1084,11 +1134,17 @@ class VerlTrainerAdapter:
                 config.reward_model.enable = False
 
             if "reward" in config and config.reward is not None:
-                if "custom_reward_function" not in config.reward or config.reward.custom_reward_function is None:
+                if (
+                    "custom_reward_function" not in config.reward
+                    or config.reward.custom_reward_function is None
+                ):
                     config.reward.custom_reward_function = {}
                 config.reward.custom_reward_function.path = str(reward_path)
                 config.reward.custom_reward_function.name = reward_name
-                if "reward_manager" not in config.reward or config.reward.reward_manager is None:
+                if (
+                    "reward_manager" not in config.reward
+                    or config.reward.reward_manager is None
+                ):
                     config.reward.reward_manager = {}
                 if not isinstance(config.reward.reward_manager, str):
                     if OmegaConf.select(config, "reward.reward_manager.source") is None:
@@ -1096,7 +1152,10 @@ class VerlTrainerAdapter:
                     if OmegaConf.select(config, "reward.reward_manager.name") is None:
                         config.reward.reward_manager.name = "naive"
                 if OmegaConf.select(config, "reward.reward_model.enable") is None:
-                    if "reward_model" not in config.reward or config.reward.reward_model is None:
+                    if (
+                        "reward_model" not in config.reward
+                        or config.reward.reward_model is None
+                    ):
                         config.reward.reward_model = {}
                     config.reward.reward_model.enable = False
 
@@ -1110,7 +1169,9 @@ class VerlTrainerAdapter:
         if hf_tokenizer is None:
             hf_tokenizer = _import_attr([("verl.utils.tokenizer", "get_tokenizer")])
         if hf_processor is None:
-            hf_processor = _optional_import_attr(("verl.utils.tokenizer", "get_processor"))
+            hf_processor = _optional_import_attr(
+                ("verl.utils.tokenizer", "get_processor")
+            )
 
         model_path = config.actor_rollout_ref.model.path
         local_path = (
@@ -1156,9 +1217,7 @@ class VerlTrainerAdapter:
     ) -> dict[str, Any]:
         data_config = self.rq_config.training_data
         batch_size = int(
-            verl_config.data.get(
-                "gen_batch_size", verl_config.data.train_batch_size
-            )
+            verl_config.data.get("gen_batch_size", verl_config.data.train_batch_size)
             or verl_config.data.train_batch_size
         )
         raw_total_steps = verl_config.trainer.get("total_training_steps")
@@ -1176,9 +1235,7 @@ class VerlTrainerAdapter:
             max_prompt_length=int(verl_config.data.max_prompt_length),
             raise_on_error=False,
         )
-        resume_mode = str(
-            verl_config.trainer.get("resume_mode", "auto") or "auto"
-        )
+        resume_mode = str(verl_config.trainer.get("resume_mode", "auto") or "auto")
         schedule.update(
             {
                 "resume_mode": resume_mode,
@@ -1187,9 +1244,7 @@ class VerlTrainerAdapter:
                         "default_local_dir", "./rq_output/verl_ckpt"
                     )
                 ),
-                "base_model_path": str(
-                    verl_config.actor_rollout_ref.model.path
-                ),
+                "base_model_path": str(verl_config.actor_rollout_ref.model.path),
             }
         )
         if resume_mode != "disable":
@@ -1202,9 +1257,7 @@ class VerlTrainerAdapter:
         if require_expected and schedule["issues"]:
             raise ValueError(
                 "invalid static training schedule:\n"
-                + "\n".join(
-                    f"- {issue}" for issue in schedule["issues"]
-                )
+                + "\n".join(f"- {issue}" for issue in schedule["issues"])
             )
         return schedule
 
@@ -1277,7 +1330,9 @@ class VerlTrainerAdapter:
         for program in seeds:
             inst, reason = evolver.verify_program(program)
             if inst is None:
-                print(f"[RQ-Evolve] seed rejected after load: {program.program_id} {reason}")
+                print(
+                    f"[RQ-Evolve] seed rejected after load: {program.program_id} {reason}"
+                )
                 continue
             # Real R_Q via solver rollout over n fresh seeds x m rollouts;
             # sets program.s_hat / u_score / rq_score.
@@ -1342,7 +1397,8 @@ class VerlTrainerAdapter:
         # math_verify's SIGALRM timeout can't fire and a pathological boxed answer
         # pegs CPU -> vLLM starves -> GPU 0% mid-eval). See eval_trainer.py.
         math_eval_on = bool(
-            getattr(self.rq_config, "math_eval", None) and self.rq_config.math_eval.enabled
+            getattr(self.rq_config, "math_eval", None)
+            and self.rq_config.math_eval.enabled
         )
         if math_eval_on:
             from .eval_trainer import make_validating_trainer_cls
@@ -1374,13 +1430,19 @@ class VerlTrainerAdapter:
             ]
         )
 
-        actor_rollout_cls, critic_cls, reward_model_cls, ray_worker_group_cls = _select_worker_classes(
-            verl_config,
-            default_ray_worker_group_cls=RayWorkerGroup,
+        actor_rollout_cls, critic_cls, reward_model_cls, ray_worker_group_cls = (
+            _select_worker_classes(
+                verl_config,
+                default_ray_worker_group_cls=RayWorkerGroup,
+            )
         )
-        actor_role = getattr(Role, "ActorRollout", getattr(Role, "ActorRolloutRef", None))
+        actor_role = getattr(
+            Role, "ActorRollout", getattr(Role, "ActorRolloutRef", None)
+        )
         if actor_role is None:
-            raise RuntimeError("installed verl exposes neither Role.ActorRollout nor Role.ActorRolloutRef")
+            raise RuntimeError(
+                "installed verl exposes neither Role.ActorRollout nor Role.ActorRolloutRef"
+            )
 
         global_pool_id = "global_pool"
         n_gpus_per_node = int(verl_config.trainer.get("n_gpus_per_node", 1))
@@ -1393,9 +1455,15 @@ class VerlTrainerAdapter:
             role_worker_mapping[critic_role] = ray.remote(critic_cls)
             mapping[critic_role] = global_pool_id
 
-        reward_model_enabled = bool(_cfg_select(verl_config, "reward_model.enable", False))
+        reward_model_enabled = bool(
+            _cfg_select(verl_config, "reward_model.enable", False)
+        )
         reward_role = getattr(Role, "RewardModel", None)
-        if reward_model_enabled and reward_role is not None and reward_model_cls is not None:
+        if (
+            reward_model_enabled
+            and reward_role is not None
+            and reward_model_cls is not None
+        ):
             role_worker_mapping[reward_role] = ray.remote(reward_model_cls)
             mapping[reward_role] = global_pool_id
 

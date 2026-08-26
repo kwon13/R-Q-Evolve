@@ -1,0 +1,23 @@
+# Paired control for rq_evolve_4b_4gpu_structural_inspiration.yaml.
+#
+# This is deliberately a NEW run, not the historical 4B baseline: it shares
+# untargeted generation, deterministic prompt-shot sampling, blind two-axis
+# relabelling and the current implementation. The only treatment absent here is
+# the structural-inspiration prompt contract plus donor statement.
+extends: rq_evolve_4b_4gpu.yaml
+run_contract: untargeted_structural_inspiration_control_v1
+
+evolution:
+  structural_inspiration: false
+  structural_inspiration_seed: 0
+  mutation_prompt_seed: 0
+  search_seed: 0
+  structural_inspiration_max_chars: 1600
+  structural_inspiration_selection: cross_lineage_random
+  target_cell_injection: false
+
+verl_config:
+  trainer:
+    experiment_name: qwen3_4b_rq_evolve_4gpu_untargeted_structural_control
+    default_local_dir: ./rq_output/rq_evolve_4b_4gpu_untargeted_structural_control
+    resume_mode: auto

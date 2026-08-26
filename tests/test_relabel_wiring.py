@@ -18,7 +18,7 @@ from rq_evolve.archive import MAPElitesArchive
 from rq_evolve.config import EvolutionConfig
 from rq_evolve.evolution import RQEvolver, _relabel_p_yes
 from rq_evolve.program import ProblemInstance, ProblemProgram
-from rq_evolve.prompts import MUTATION_OP, SKILLS, MutationTask
+from rq_evolve.prompts import GROUPS, MUTATION_OP, SKILLS, MutationTask
 from rq_evolve.verl_backend import VerlPolicyBackend
 
 YES_ID, NO_ID = 101, 202
@@ -66,7 +66,13 @@ def _child(declared: str) -> ProblemProgram:
             'GROUP = "algebra"\n'
             f'SKILL = "{declared}"\n'
         ),
-        metadata={"op": MUTATION_OP, "skill": declared},
+        metadata={
+            "op": MUTATION_OP,
+            "skill": declared,
+            # Existing tests isolate the skill relabeller. mutate_both has its
+            # own regression test below and must probe both axes.
+            "mutation_strategy": "mutate_skill",
+        },
     )
 
 
@@ -202,6 +208,44 @@ def test_the_run_reports_how_many_labels_moved():
     assert stats["relabel_agreed"] == 1
 
 
+def test_mutate_both_blindly_relabels_group_and_skill():
+    """The no-target structural-inspiration arm frees both descriptor axes."""
+
+    class _BothAxesBackend(_Backend):
+        def __init__(self):
+            super().__init__({s: 0.95 if s == "contradiction" else 0.1 for s in SKILLS})
+            self.p_by_group = {g: 0.95 if g == "sequence" else 0.1 for g in GROUPS}
+
+        def mutate(self, tasks):
+            self.seen.extend(tasks)
+            replies, pairs = [], []
+            for task in tasks:
+                labels = SKILLS if "CANDIDATE SKILL" in task.prompt else GROUPS
+                table = self.p_by_skill if labels is SKILLS else self.p_by_group
+                label = next(x for x in labels if f"\n{x}:" in task.prompt)
+                p = table[label]
+                if p >= 0.5:
+                    replies.append("YES")
+                    pairs.append((YES_ID, math.log(p)))
+                else:
+                    replies.append("NO")
+                    pairs.append((NO_ID, math.log(1.0 - p)))
+            self.last_mutation_logprobs = pairs
+            return replies
+
+    backend = _BothAxesBackend()
+    entry = _entry("counting")
+    entry["child"].metadata["mutation_strategy"] = "mutate_both"
+    entry["child"].metadata["group"] = "algebra"
+
+    _evolver(backend)._apply_relabel([entry])
+
+    child = entry["child"]
+    assert child.metadata["skill"] == "contradiction"
+    assert child.metadata["group"] == "sequence"
+    assert len(backend.seen) == len(SKILLS) + len(GROUPS)
+
+
 # --- the backend contract the wiring depends on --------------------------
 
 
@@ -238,8 +282,12 @@ def test_rows_map_back_to_their_tasks_in_order():
     output = type(
         "O",
         (),
-        {"batch": {"responses": [[YES_ID], [NO_ID], [YES_ID]],
-                   "rollout_log_probs": [[-0.1], [-0.2], [-0.3]]}},
+        {
+            "batch": {
+                "responses": [[YES_ID], [NO_ID], [YES_ID]],
+                "rollout_log_probs": [[-0.1], [-0.2], [-0.3]],
+            }
+        },
     )()
     pairs = backend._first_token_logprobs(output, 3)
     assert pairs == [(YES_ID, -0.1), (NO_ID, -0.2), (YES_ID, -0.3)]

@@ -8,6 +8,7 @@
 #   bash launch_4b_train.sh --config configs/rq_evolve_4b_4gpu.yaml  # config 지정
 #   bash launch_4b_train.sh --wandb-offline    # wandb offline 모드
 #   bash launch_4b_train.sh --dry-run          # 환경 점검만 하고 학습 시작 안 함
+#   bash launch_4b_train.sh --no-auto-merge    # checkpoint 자동 merge 비활성화
 #
 # 이 스크립트가 하는 일:
 #   1. 이전 Ray 프로세스 정리
@@ -17,7 +18,7 @@
 #   5. wandb 로그인 상태 확인
 #   6. .env에서 환경변수 로드
 #   7. preflight check 실행
-#   8. 학습 시작 (로그 파일 자동 생성)
+#   8. checkpoint auto-merge daemon + 학습 시작
 # ============================================================================
 set -euo pipefail
 
@@ -42,10 +43,9 @@ cd "$ROOT"
 # -- 기본값 ----
 CONFIG="configs/rq_evolve_4b_base.yaml"
 MODEL_HF_ID="Qwen/Qwen3-4B-Base"
-MODEL_LOCAL="/root/models/qwen3-4b-base"
-MODEL_SYMLINK="/data1/yhoon113/qwen3-4b-base"
 WANDB_ONLINE=true
 DRY_RUN=false
+AUTO_MERGE=true
 GPUS="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 
 # -- 인자 파싱 ----
@@ -54,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --config)       CONFIG="$2"; shift 2 ;;
     --wandb-offline) WANDB_ONLINE=false; shift ;;
     --dry-run)      DRY_RUN=true; shift ;;
+    --no-auto-merge) AUTO_MERGE=false; shift ;;
     --gpus)         GPUS="$2"; shift 2 ;;
     --help|-h)
       head -17 "$0" | tail -15
@@ -63,6 +64,32 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Resolve the effective (possibly inherited) config before touching Ray or the
+# GPUs.  The old launcher hard-coded /root/models/qwen3-4b-base and could try
+# to download there even while the configured model already existed elsewhere.
+if ! EFFECTIVE_PATHS="$(python3 -c '
+import sys
+sys.path.insert(0, "src")
+from omegaconf import OmegaConf
+from rq_evolve.config import load_raw_config
+
+config = load_raw_config(sys.argv[1])
+model_path = OmegaConf.select(config, "verl_config.actor_rollout_ref.model.path")
+checkpoint_dir = OmegaConf.select(config, "verl_config.trainer.default_local_dir")
+if not model_path:
+    raise SystemExit("missing verl_config.actor_rollout_ref.model.path")
+if not checkpoint_dir:
+    raise SystemExit("missing verl_config.trainer.default_local_dir")
+print(model_path)
+print(checkpoint_dir)
+' "$CONFIG")"; then
+  log_fail "Config에서 model.path/default_local_dir를 해석하지 못했습니다: $CONFIG"
+  exit 1
+fi
+mapfile -t EFFECTIVE_PATH_ARRAY <<< "$EFFECTIVE_PATHS"
+MODEL_LOCAL="${EFFECTIVE_PATH_ARRAY[0]}"
+CKPT_DIR="${EFFECTIVE_PATH_ARRAY[1]}"
+
 # ============================================================================
 echo ""
 separator
@@ -70,8 +97,11 @@ echo -e "${BLUE}  R-Q-Evolve 4B Training Launcher${NC}"
 separator
 echo ""
 log_info "Config : $CONFIG"
+log_info "Model  : $MODEL_LOCAL"
+log_info "Output : $CKPT_DIR"
 log_info "GPUs   : $GPUS"
 log_info "WandB  : $(if $WANDB_ONLINE; then echo online; else echo offline; fi)"
+log_info "Merge  : $(if $AUTO_MERGE; then echo automatic; else echo disabled; fi)"
 echo ""
 
 # ============================================================================
@@ -141,14 +171,6 @@ else
   fi
   log_ok "모델 다운로드 완료"
 fi
-
-# symlink 확인 (config에서 /data1/yhoon113/qwen3-4b-base를 참조)
-if [ ! -e "$MODEL_SYMLINK" ]; then
-  log_warn "Symlink 생성: $MODEL_SYMLINK → $MODEL_LOCAL"
-  mkdir -p "$(dirname "$MODEL_SYMLINK")"
-  ln -sf "$MODEL_LOCAL" "$MODEL_SYMLINK"
-fi
-log_ok "모델 경로 심링크 ✓"
 
 # ============================================================================
 # 4. Python 패키지 확인
@@ -256,7 +278,10 @@ log_ok "Preflight check 통과 ✓"
 echo ""
 separator
 if $DRY_RUN; then
-  echo -e "${GREEN}  ✓ Dry-run 완료: 모든 점검 통과. --dry-run 없이 다시 실행하세요.${NC}"
+  echo -e "${GREEN}  ✓ Dry-run 완료: 모든 점검 통과.${NC}"
+  if $AUTO_MERGE; then
+    log_info "실제 실행에서는 $CKPT_DIR 의 이전 checkpoint가 자동 merge됩니다."
+  fi
   separator
   exit 0
 fi
@@ -281,9 +306,40 @@ fi
 mkdir -p "$ROOT/logs"
 LOG="$ROOT/logs/rq_evolve_4b_$(date +%Y%m%d_%H%M%S).log"
 
+# 새 checkpoint가 생긴 뒤에만 직전 checkpoint를 merge한다. 따라서 최신
+# actor/는 항상 resume용으로 온전히 남는다. merge 결과를 검증한 뒤에만
+# 이전 actor/를 삭제하며, verl 자체 보존 수는 config에서 null이어야 한다.
+if $AUTO_MERGE; then
+  mkdir -p "$CKPT_DIR"
+  RUN_KEY="$(basename "$CKPT_DIR")"
+  AUTO_MERGE_LOG="$ROOT/logs/${RUN_KEY}_auto_merge.log"
+  AUTO_MERGE_PID_FILE="$ROOT/logs/${RUN_KEY}_auto_merge.pid"
+
+  if pgrep -f "auto_merge_checkpoints.py.*${RUN_KEY}" >/dev/null; then
+    log_ok "Checkpoint auto-merge daemon이 이미 실행 중입니다: $CKPT_DIR"
+  else
+    nohup python3 scripts/auto_merge_checkpoints.py \
+      --ckpt_dir "$CKPT_DIR" --interval 60 \
+      >> "$AUTO_MERGE_LOG" 2>&1 &
+    AUTO_MERGE_PID=$!
+    echo "$AUTO_MERGE_PID" > "$AUTO_MERGE_PID_FILE"
+    sleep 3
+    if kill -0 "$AUTO_MERGE_PID" 2>/dev/null; then
+      log_ok "Checkpoint auto-merge 시작 (PID $AUTO_MERGE_PID)"
+      log_info "Merge log: $AUTO_MERGE_LOG"
+    else
+      log_fail "Checkpoint auto-merge가 즉시 종료되었습니다: $AUTO_MERGE_LOG"
+      exit 1
+    fi
+  fi
+else
+  log_warn "Checkpoint auto-merge가 비활성화되었습니다. 디스크 사용량을 직접 관리하세요."
+fi
+
 echo -e "${GREEN}  🚀 R-Q-Evolve 4B 학습을 시작합니다!${NC}"
 echo ""
 log_info "Config  : $CONFIG"
+log_info "Output  : $CKPT_DIR"
 log_info "GPUs    : $GPUS"
 log_info "WandB   : $WANDB_MODE"
 log_info "Log     : $LOG"

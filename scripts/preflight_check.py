@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from rq_evolve.config import load_config  # noqa: E402
+from rq_evolve.config import load_config, load_raw_config  # noqa: E402
 from rq_evolve.preflight import has_fatal_failure, run_all  # noqa: E402
 
 
@@ -38,14 +38,14 @@ def main() -> int:
         default=None,
         help="model to check; defaults to actor_rollout_ref.model.path from --config",
     )
-    parser.add_argument("--config", default=str(ROOT / "configs" / "rq_evolve_base.yaml"))
+    parser.add_argument(
+        "--config", default=str(ROOT / "configs" / "rq_evolve_base.yaml")
+    )
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args()
 
-    from omegaconf import OmegaConf
-
     rq_config = load_config(args.config)
-    raw = OmegaConf.load(args.config)
+    raw = load_raw_config(args.config)
     verl_config = raw.get("verl_config")
     if verl_config is None:
         print(f"error: {args.config} has no inline verl_config block", file=sys.stderr)
@@ -87,7 +87,9 @@ def main() -> int:
         )
     else:
         print(f"== preflight: model={model_path}")
-        print(f"==            config={args.config} (lora.enabled={rq_config.lora.enabled})")
+        print(
+            f"==            config={args.config} (lora.enabled={rq_config.lora.enabled})"
+        )
         for r in results:
             print(r.render())
 

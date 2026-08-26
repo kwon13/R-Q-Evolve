@@ -3,6 +3,9 @@ from .safe_parse import ParserBomb, safe_ast_parse
 import textwrap
 import re
 
+import io
+import tokenize
+
 from .program import ALLOWED_IMPORT_ROOTS, ProblemInstance
 
 FORBIDDEN_SOURCE_PATTERNS = (
@@ -18,6 +21,50 @@ FORBIDDEN_SOURCE_PATTERNS = (
     "os.",
     "sys.",
 )
+
+_LATEX_ESCAPE_PATTERNS = re.compile(
+    r"\\(?:"
+    r"\(|\)|\[|\]|frac|boxed|text|sqrt|alpha|beta|theta|gamma|delta|epsilon|"
+    r"pi|sigma|lambda|mu|leq|geq|neq|cdot|times|pm|left|right|sum|prod|int|"
+    r"infty|binom|pmod|gcd|lcm|deg|log|ln|sin|cos|tan|cot|sec|csc|arcsin|"
+    r"arccos|arctan|lim|to|quad|qquad|over|substack|prime|circ|triangle|angle"
+    r")"
+)
+
+
+def sanitize_latex_raw_strings(code: str) -> str:
+    """Prepend 'r' to string literals containing LaTeX backslashes without raw prefix.
+
+    Prevents Python 3.12 SyntaxWarnings (e.g. invalid escape sequence '\(') and avoids
+    destructive ASCII control character substitutions (e.g. \\b -> backspace, \\t -> tab).
+    """
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(code).readline))
+    except (tokenize.TokenError, IndentationError):
+        return code
+
+    modified = False
+    new_tokens = []
+    for tok in tokens:
+        if tok.type == tokenize.STRING:
+            val = tok.string
+            prefix_match = re.match(r"^([a-zA-Z]*)(['\"].*)$", val, re.DOTALL)
+            if prefix_match:
+                prefix, quote_part = prefix_match.groups()
+                # If not already raw (r/R), formatted (f/F), or binary (b/B)
+                if "r" not in prefix.lower() and "f" not in prefix.lower() and "b" not in prefix.lower():
+                    if _LATEX_ESCAPE_PATTERNS.search(quote_part) or r"\(" in quote_part or r"\)" in quote_part or r"\[" in quote_part or r"\]" in quote_part:
+                        new_val = f"r{val}"
+                        tok = tokenize.TokenInfo(tok.type, new_val, tok.start, tok.end, tok.line)
+                        modified = True
+        new_tokens.append(tok)
+
+    if modified:
+        try:
+            return tokenize.untokenize(new_tokens)
+        except Exception:
+            return code
+    return code
 
 
 def extract_generator_code(text: str) -> str | None:
@@ -61,9 +108,11 @@ def extract_generator_code(text: str) -> str | None:
     for candidate in candidates:
         if "def generate" not in candidate:
             continue
+        # Sanitize candidate before checking parseable prefix
+        candidate = sanitize_latex_raw_strings(candidate)
         trimmed = _trim_to_parseable_prefix(candidate)
         if trimmed is not None:
-            return trimmed
+            return sanitize_latex_raw_strings(trimmed)
     return None
 
 

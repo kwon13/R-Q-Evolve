@@ -1,153 +1,18 @@
-# 4B on FOUR GPUs, held EXCLUSIVELY.
-#
-# Same science as rq_evolve_4b_8gpu.yaml -- identical batch geometry, identical
-# R_Q, identical rollout budget. Three memory knobs differ, and only because the
-# GPUs are not ours alone. Do NOT use this config on idle hardware: it is
-# measurably slower and buys nothing there.
-#
-# THE BATCH IS UNCHANGED. verl normalises ppo_mini_batch_size by rollout.n
-# (ray_trainer.py:1175), so the update sees 32 x 10 = 320 sequences either way.
-# On eight ranks that was 40 per rank and micro=4 made it 10 accumulation steps;
-# on four ranks it is 80 per rank and micro=2 makes it 40. Same gradient, same
-# 32-prompt batch, more steps to get there.
-#
-# What four ranks DO change is the FSDP shard. Halving the rank count doubles
-# every per-GPU replica term:
-#
-#                        8 ranks   4 ranks
-#   params      bf16       1.0       2.0 GiB
-#   grads       bf16       1.0       2.0
-#   AdamW m,v   fp32       4.0       8.0
-#   master wts  fp32       2.0       4.0
-#   ------------------------------------------
-#   persistent             8.0      16.0 GiB    (+8)
-#
-# On a card that is also carrying a 17-19 GiB co-tenant, that +8 has to be paid
-# for, and optimizer_offload is the way to pay it. On a card we hold outright it
-# does not: 80.0 GiB is enough for the full replica AND the largest micro-batch
-# that fits, and both of those buy back time in update_actor -- which measured
-# 81.7s of a 131.8s step under the co-tenant settings, 62% of the whole step.
-# So offload is OFF here and the micro-batch is 4.
-#
-# This config therefore REQUIRES exclusive cards. Run it beside a tenant and it
-# OOMs in backward; the launcher checks and refuses.
-#
-# The budget (80.0 GiB card, per GPU), measured where marked:
-#
-#   verl trainer, 8 ranks, micro=4   41.2 GiB  MEASURED, all 243 steps
-#     + bigger shard at 4 ranks      + 8.0     derived from the table above
-#     + guard pad                    + 2.0     the derivation ran 1.5 GiB under
-#                                              the one 4-rank measurement
-#   ------------------------------------------
-#   trainer                          41.7 GiB  MEASURED, step 1 of this config
-#   vLLM at utilization 0.38         34.0      MEASURED relation, see below
-#   trainer CUDA context              0.5
-#   ------------------------------------------
-#   total                            76.2 GiB  -> 3.8 GiB spare on an 80.0 GiB
-#                                                 card held outright, the same
-#                                                 margin the 243-iteration
-#                                                 8-GPU run finished on
-#
-# A co-tenant holding 17 GiB puts that at 92.8 GiB and the run OOMs. That is not
-# a projection: the stock config's own note records a micro=4 run dying in
-# backward at step 5 when another user took 18 GiB.
-#
-# vLLM's footprint is exactly linear in its utilization -- measured at two
-# points on an idle card, 0.38 -> 34.0 GiB and 0.30 -> 27.6 GiB, i.e.
-#
-#   footprint(GiB) = utilization x 80 + 3.6
-#
-# so 0.22 costs 21.2 GiB and frees 12.8. Halving the actor micro-batch frees
-# an estimated 4-5 more (activations and the logits tensor are the only terms
-# that scale with it). Together that is ~17 GiB of headroom for a ~13 GiB
-# deficit -- enough, with roughly 4 GiB of margin.
-#
-#   GPUS=4,5,6,7 bash scripts/run_train_8gpu_4b_shared.sh configs/rq_evolve_4b_4gpu.yaml
-#
-# Identical to rq_evolve_4b_base.yaml (R_Q = s(1-s)U, n=5 x m=2 on fresh seeds,
-# replay batch, RLOO, policy judge, 256 steps, test_freq 32, one checkpoint) in
-# everything the science depends on. Only the device count and the run identity
-# differ, so its curves are directly comparable to a later 4-GPU arm.
-#
-# Batches are NOT rescaled with the device count: train_batch_size 32 over 8
-# ranks is 4 prompts x m=2 rollouts per rank, and ppo_micro_batch_size_per_gpu
-# stays 2. Doubling ranks halves the FSDP parameter shard, so this run has MORE
-# headroom than the 4-GPU one, not less -- raising the micro-batch at the same
-# time would put an untested memory profile on the critical path.
-#
 archive:
-  epsilon: 0.3
-  ucb_c: 1.0
   selection_strategy: random
 
 evolution:
   seed_programs_dir: seed_programs
   inner_iterations: 32
   inner_iteration_batch_size: 32
-  # n x m fitness (paper Table B.1 default): 5 fresh seeds x 2 rollouts =
-  # the same 10-rollout budget the old single-instance G=10 scoring spent.
-  # m MUST equal actor_rollout_ref.rollout.n below: replay hands the
-  # re-scoring rollouts to the trainer as its batch, so the group the
-  # RLOO baseline averages over IS these m rollouts.
-  # n=5, m=2 -- the paper's Table B.1 default, and the same 10-rollout budget
-  # per program the old single-instance G=10 scoring spent.
-  #
-  # m=4 was tried and reverted. It does what it claims: measured on 8B it took
-  # degenerate replay groups (both rollouts of a seed scoring alike, so the
-  # RLOO advantage is exactly 0) from 82-95% down to 33-50%. It also doubles
-  # the scoring pass, which is ~83% of the evolve phase's generated tokens, and
-  # the evolve phase is ~72% of an iteration. n controls concentration
-  # (O(sqrt(1/n))) and m the estimator's bias (O(1/m)); this budget spends it
-  # on n. m >= 2 is not a preference: at m=1 the plug-in learnability is
-  # identically 0 for every program and R_Q is unidentifiable.
-  # G: rollouts per instance == actor_rollout_ref.rollout.n below.
-  # R_Q is one fresh instance x G rollouts, overwritten each
-  # re-evaluation (Dynamic MAP-Elites / LILO-SFL semantics).
   group_size: 10
-  # Prompts per training step. The frontier is usually smaller than this
-  # (median 18 over the 8B run), so the shortfall is covered by drawing
-  # further FRESH seeds from the highest-R_Q champions -- extra problems,
-  # not extra rollouts on the same problem. LILO Sec 6.3: scaling the
-  # number of levels beat scaling rollouts per level.
   train_batch_target: 32
   select_ignores_uncertainty: false
   select_ignores_variance: false
   verify_seeds: 5
   frontier_p_hat_range: [0.0, 1.0]
-  # Matched to configs/rq_evolve_base.yaml; see that file for the evidence
-  # behind each value.
-  #
-  # OFF. The self-fix round shows the model its own rejected program and asks
-  # for a repair, and it was earning its extra generation back when 38% of
-  # candidates died on their own AssertionError. It is not earning it now:
-  # measured over 41 children, the FIRST mutation output was already 99%
-  # identical to its parent (14 of 15 non-retried children were >95% copies),
-  # so the fix round is repairing copies rather than rescuing ideas -- and it
-  # spends one generation per failure to do it.
   fix_retry: false
-  # OFF for the two-stage mutation. The judge re-derives GROUP and SKILL from
-  # the child's seed-0 statement and admits it only when both match what the
-  # child declared -- which was the answer to a generator that labelled its own
-  # output after writing it. Stage 1 now writes the problem and reads its labels
-  # off that problem before any code exists, so the label is no longer a
-  # post-hoc claim about a program.
-  #
-  # What is lost with it is the only gate that reads the STATEMENT: lint, the
-  # AST contract and the assert all pass on a well-formed program emitting an
-  # unanswerable question (a measured child asked for a count over a set the
-  # statement never bounds, and `answer == check` held because both routes
-  # copied the parent's bound). Turn this back on if ill-posed children show up
-  # in the archive.
   use_evaluator: false
-  # Read each surviving child's SKILL off the child itself: eight binary
-  # YES/NO calls, one per skill, argmax of the offset-corrected P(YES).
-  # Against a reference labelling this scores 0.812 where the label stage 1
-  # declared scores 0.375 and stage 2's blind re-derivation 0.406. It replaces
-  # the stage-2 self-consistency gate, which is gone -- stage 2 is now TOLD the
-  # target skill and asked to build for it.
-  #
-  # Cost: 8 calls per surviving child at max_tokens=1. The skill block is last
-  # in the user turn so all eight share their prefix and cost one prefill.
   relabel_skill: true
   # Structural contract on the child's own cross-check, before execution.
   # Measured on 456 archived champions: 45% flagged, 0 of the 14 clean

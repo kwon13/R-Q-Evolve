@@ -467,8 +467,12 @@ def _skill_definition(skill: str) -> str:
 
 @lru_cache(maxsize=1)
 def _group_definitions_map() -> dict:
-    text = _load_definitions(GROUP_DEFINITIONS_FILE)
-    return dict(_split_definitions(text))
+    out = {}
+    for line in _load_definitions(GROUP_DEFINITIONS_FILE).split("\n"):
+        if ":" in line:
+            key, value = line.split(":", 1)
+            out[key.strip()] = value.strip()
+    return out
 
 
 def _group_definition(group: str) -> str:

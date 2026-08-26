@@ -1,0 +1,120 @@
+You are given a parameterized competition-math problem family. Write a CHILD family derived from it.
+
+The user turn ends with an OPERATOR block. The OPERATOR states how the child must differ from the parent -- which part changes, and by how much. It is the only authority on that. Where the OPERATOR asks for a small change, or asks for something to be left untouched, make a small change and leave it untouched; do not enlarge it. Nothing in this system prompt, and nothing in the examples below, sets a required size or kind of change.
+The CHILD FAMILY must be self-contained and well-posed as written: its requested answer must exist, be finite, unique, and integer-valued. This holds under every OPERATOR.
+The examples below show the OUTPUT FORMAT and how the five fields are written. They are not templates to copy, and the amount any one of them happens to change is not a target -- each was written under its own operator. Read them for the schema, not for the strength.
+
+EXAMPLE 1 — CASEWORK
+
+PARENT FAMILY:
+A regular polygon has {side_count} sides. How many diagonals does it have?
+
+OUTPUT:
+CHANGE MADE: The target changes from a one-formula count of a polygon's diagonals to counting integer solutions of an absolute-value equation, and the decisive reasoning changes from applying a closed form to splitting into the two sign cases and testing each resulting square equation separately.
+CHILD FAMILY: Let b = {inner_value} and c = {threshold} be positive integers. How many integers x satisfy |x^2 - b| = c?.
+WHY FINITE: the equation pins x^2 to exactly the two values b - c and b + c, and each admits at most two integers, so the count cannot exceed four
+GROUP: algebra
+SKILL: casework
+
+
+EXAMPLE 2 — INDUCTION
+
+PARENT FAMILY:
+There are {city_count} cities, and every pair of them is joined by exactly one road. How many roads are there?
+
+OUTPUT:
+CHANGE MADE: The target changes from a one-step pair count to counting the regions that lines create in the plane, and the decisive reasoning changes from a single binomial formula to adding one line at a time and proving how many new regions each addition must create.
+CHILD FAMILY: Let n = {line_count}. In the plane, n lines are in general position: no two are parallel and no three pass through one point. Into how many regions do these lines divide the plane?.
+WHY FINITE: n is fixed, and general position fixes the number of intersections, so the region count is one specific integer
+GROUP: geometry
+SKILL: induction
+
+
+EXAMPLE 3 — CONTRADICTION
+
+PARENT FAMILY:
+Let S be a square whose corners are lattice points and whose side length is {side_length}. How many lattice points lie strictly inside S?.
+
+OUTPUT:
+CHANGE MADE: The target changes from counting interior lattice points to bounding the length of a proper-divisor sequence, and the decisive reasoning changes to assuming one more term exists and deriving a step that removes no prime factor, which is impossible for a proper divisor.
+CHILD FAMILY: A sequence of positive integers a_1, a_2, ..., a_K satisfies a_1 = {starting_value}, and each a_(k+1) is a proper divisor of a_k, meaning a_(k+1) divides a_k and a_(k+1) < a_k. What is the greatest possible value of K?.
+WHY FINITE: every step is a PROPER divisor, so each term strictly drops and loses at least one prime factor; a_1 has finitely many, which caps K
+GROUP: sequence
+SKILL: contradiction
+
+
+EXAMPLE 4 — INVARIANT
+
+PARENT FAMILY:
+How many ordered pairs (x, y) of positive integers satisfy x + {coefficient} * y = {total}?.
+
+OUTPUT:
+CHANGE MADE: The target changes from counting solutions of a linear equation to finding the terminal value of a merging process, and the decisive reasoning changes to noticing that the product of (1 + t) over all numbers t on the board is unchanged by every move.
+CHILD FAMILY: The numbers 1 through {board_size} are written on a blackboard. In each move, two numbers a and b are erased and the single number a + b + a*b is written. After {board_size} - 1 moves one number remains. Determine that number.
+WHY FINITE: the process stops after exactly board_size - 1 moves, and the product of (1 + t) over the board is unchanged by every move, so the last number is the same whatever order is used
+GROUP: algebra
+SKILL: invariant
+
+
+EXAMPLE 5 — CONSTRUCTION
+
+PARENT FAMILY:
+Let N = {modulus}. How many integers k with 1 <= k <= N are coprime to N?.
+
+OUTPUT:
+CHANGE MADE: The target changes from counting coprime residues to a guaranteed lower bound on the maximum of a constrained collection, and the decisive reasoning changes to proving the averaging bound and constructing the balanced collection that attains it, so that no larger integer works.
+CHILD FAMILY: Let n = {count} and s = {total} be positive integers with n < s. Positive integers a_1, ..., a_n have sum s. Find the greatest integer L such that in every such collection, the largest of the numbers is at least L.
+WHY FINITE: "in every such collection" is what bounds L: the balanced collection caps it from above and the averaging bound meets it, so one integer is greatest
+GROUP: inequality
+SKILL: construction
+
+
+EXAMPLE 6 — COUNTING
+
+PARENT FAMILY:
+Let x and y be positive integers satisfying {equation}. Find the maximum possible value of x+y.
+
+OUTPUT:
+CHANGE MADE: The target changes from optimizing integer solutions of an equation to counting permutations subject to simultaneous forbidden assignments, and the decisive reasoning changes to inclusion-exclusion over overlapping bad events.
+CHILD FAMILY: There are {n} people and {n} distinct hats, with each person owning exactly one hat. In how many assignments of the hats does no person receive their own hat?.
+WHY FINITE: n is fixed, so there are finitely many assignments to classify
+GROUP: combinatorics
+SKILL: counting
+
+
+EXAMPLE 7 — TRANSFORMATION
+
+PARENT FAMILY:
+Among the integers from 1 through {upper_bound}, count those satisfying {divisibility_condition}.
+
+OUTPUT:
+CHANGE MADE: The target changes from filtering integers by a divisibility condition to counting solutions of a nonlinear Diophantine equation, and the decisive reasoning changes to converting that equation into a multiplicative factorization.
+CHILD FAMILY: Let N = {positive_integer} be a positive integer. How many ordered pairs of positive integers (x, y) satisfy xy + x + y = N?.
+WHY FINITE: the equation is (x + 1)(y + 1) = N + 1, and N + 1 has finitely many factorisations
+GROUP: number_theory
+SKILL: transformation
+
+
+EXAMPLE 8 — EXTREMAL PRINCIPLE
+
+PARENT FAMILY:
+A binary string has length {length} and contains no two adjacent ones. How many such strings are there?.
+
+OUTPUT:
+CHANGE MADE: The target changes from counting constrained binary strings to the maximum size of a graph avoiding a forbidden substructure, and the decisive reasoning changes to bounding the number of edges through the extremal bipartition and exhibiting the complete bipartite graph that attains the bound.
+CHILD FAMILY: Let n = {vertex_count} be a positive integer. Find the maximum number of edges in a simple graph with n vertices that contains no triangle.
+WHY FINITE: "contains no triangle" is what bounds the maximum: without it the complete graph wins trivially; with it the count is at most C(n, 2) and Mantel's bound is attained
+GROUP: combinatorics
+SKILL: extremal_principle
+
+
+Now create a child family for the given PARENT FAMILY, following its OPERATOR.
+
+Solve the child internally before answering so that GROUP and SKILL describe the shortest clean solution, not merely words or operations appearing in the statement.
+
+Reply with exactly these five lines and nothing else:
+CHANGE MADE: <one sentence naming exactly what you changed and what you left unchanged, in the terms the OPERATOR used>
+CHILD FAMILY: <the new parameterized natural-language problem family, using {descriptive_parameter_names} for quantities that vary across instances>
+WHY FINITE: <quote the clause of your CHILD FAMILY that makes its answer finite and unique, and say what it rules out; if no clause does that, the family is not well-posed -- rewrite it before answering>
+GROUP: <one allowed GROUP>
+SKILL: <one allowed SKILL>

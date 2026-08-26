@@ -114,6 +114,34 @@ class EvolutionConfig:
     # declaring their parent's own cell 96% -> 0%. Both come from the same
     # thing -- a base policy shown a program to mutate reproduces it.
     two_stage_mutation: bool = False
+    # Give stage 1 one label-free problem skeleton sampled from a DIFFERENT
+    # primary-parent lineage, preferring a cross-GROUP/cross-SKILL donor and
+    # sampling uniformly within that best available tier. This is inspiration,
+    # not crossover:
+    # the donor's source, answer/check routes, labels, scores and concrete
+    # instances never enter the prompt, and stage 2 never sees the donor at
+    # all.  Disabled by default so old configs and ablation baselines remain
+    # byte-for-byte prompt compatible.
+    structural_inspiration: bool = False
+    # Independent from Python's process-global RNG. RQEvolver derives one local
+    # RNG from this seed and a persisted draw counter for every proposed child.
+    structural_inspiration_seed: int = 0
+    # Oversized donor templates are omitted rather than handed to the backend's
+    # left-truncation policy, which could silently remove the primary parent or
+    # the output contract.  Live archive templates are far below this cap.
+    structural_inspiration_max_chars: int = 1600
+    # Named explicitly in configs/logs so a future semantic-cluster selector
+    # cannot silently change the meaning of an existing experiment.
+    structural_inspiration_selection: str = "cross_lineage_random"
+    # Per-proposal few-shot rotation has its own deterministic stream.  Stage-2
+    # tasks are created in asynchronous completion order, so using the global
+    # RNG there would assign different examples to the same parent solely due
+    # to worker timing and would also perturb later parent/target draws.
+    mutation_prompt_seed: int = 0
+    # Reproductive parent, target-axis and mutation-strategy draws use a second
+    # counter-derived stream. Persisting its counter makes a checkpoint resume
+    # independent of process-global Python RNG state.
+    search_seed: int = 0
     # Stage 2 is transcription of a fixed specification onto a fixed shape, so
     # it wants no exploration; stage 1 keeps code_temperature because it is
     # invention and collapses to one child per parent at 0.
@@ -273,6 +301,26 @@ class EvolutionConfig:
             value = getattr(self, name)
             if value is not None and int(value) < 1:
                 raise ValueError(f"evolution.{name} must be >= 1 or null")
+        if self.structural_inspiration and not self.two_stage_mutation:
+            raise ValueError(
+                "evolution.structural_inspiration requires "
+                "evolution.two_stage_mutation=true: inspiration belongs only "
+                "to the stage-1 family-design prompt"
+            )
+        if self.structural_inspiration_seed < 0:
+            raise ValueError("evolution.structural_inspiration_seed must be >= 0")
+        if self.mutation_prompt_seed < 0:
+            raise ValueError("evolution.mutation_prompt_seed must be >= 0")
+        if self.search_seed < 0:
+            raise ValueError("evolution.search_seed must be >= 0")
+        if self.structural_inspiration_max_chars < 1:
+            raise ValueError("evolution.structural_inspiration_max_chars must be >= 1")
+        if self.structural_inspiration_selection != "cross_lineage_random":
+            raise ValueError(
+                "evolution.structural_inspiration_selection must be "
+                "'cross_lineage_random', got "
+                f"{self.structural_inspiration_selection!r}"
+            )
         if self.frontier_p_hat_range is not None:
             self.frontier_s_hat_range = tuple(
                 float(x) for x in self.frontier_p_hat_range
@@ -601,10 +649,37 @@ class RQEvolveConfig:
         return _dataclass_from_dict(cls, payload)
 
 
+def load_raw_config(path: str | Path, _stack: tuple[Path, ...] = ()):
+    """Load a possibly-derived YAML config as one merged OmegaConf tree.
+
+    A top-level ``extends: base.yaml`` is resolved relative to the child file.
+    This keeps experiment arms small and auditable: the structural-inspiration
+    arm overrides only its feature flag and output directory instead of copying
+    a 250-line trainer configuration that can drift away from its baseline.
+    Existing standalone configs are unchanged.
+    """
+    path = Path(path).expanduser().resolve()
+    if path in _stack:
+        chain = " -> ".join(str(p) for p in (*_stack, path))
+        raise ValueError(f"cyclic config extends chain: {chain}")
+    raw = OmegaConf.load(path)
+    parent = raw.get("extends") if hasattr(raw, "get") else None
+    if not parent:
+        return raw
+
+    child = OmegaConf.create(OmegaConf.to_container(raw, resolve=False))
+    del child["extends"]
+    parent_path = Path(str(parent)).expanduser()
+    if not parent_path.is_absolute():
+        parent_path = path.parent / parent_path
+    base = load_raw_config(parent_path, (*_stack, path))
+    return OmegaConf.merge(base, child)
+
+
 def load_config(path: str | Path) -> RQEvolveConfig:
-    """Load YAML via OmegaConf, with a tiny fallback for this simple config."""
+    """Load YAML via OmegaConf, resolving an optional ``extends`` chain."""
     path = Path(path)
-    raw = OmegaConf.to_container(OmegaConf.load(path), resolve=True)
+    raw = OmegaConf.to_container(load_raw_config(path), resolve=True)
     if not isinstance(raw, dict):
         raise ValueError(f"config root must be a mapping: {path}")
     return RQEvolveConfig.from_dict(raw)
@@ -675,7 +750,10 @@ def _dataclass_from_dict(cls, payload: dict[str, Any]):
                 kwargs[item.name] = _dataclass_from_dict(type(default_obj), value)
                 continue
             kwargs[item.name] = value
-        elif item.name in ("frontier_s_hat_range", "frontier_p_hat_range") and isinstance(value, list):
+        elif item.name in (
+            "frontier_s_hat_range",
+            "frontier_p_hat_range",
+        ) and isinstance(value, list):
             kwargs[item.name] = tuple(float(x) for x in value)
         elif item.name == "target_modules" and isinstance(value, list):
             kwargs[item.name] = tuple(str(x) for x in value)

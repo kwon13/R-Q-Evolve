@@ -10,8 +10,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from rq_evolve.config import load_config
+from rq_evolve.config import load_config, load_raw_config
 from rq_evolve.openai_evaluator import load_project_dotenv
+from rq_evolve.prompts import PROMPT_TEMPLATE_DIR
+from rq_evolve.run_contract import freeze_evolution_run_contract
 from rq_evolve.verl_adapter import (
     VerlAdapterConfig,
     VerlTrainerAdapter,
@@ -46,9 +48,14 @@ def _require_verl_sampling_patch() -> None:
 def _require_flash_attn_if_needed(config_path: str) -> None:
     """Ensure flash_attn is properly installed if use_remove_padding is enabled."""
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        if "use_remove_padding: true" in content or "use_remove_padding: True" in content:
+        raw = load_raw_config(config_path)
+        remove_padding = bool(
+            raw.get("verl_config", {})
+            .get("actor_rollout_ref", {})
+            .get("model", {})
+            .get("use_remove_padding", False)
+        )
+        if remove_padding:
             try:
                 import flash_attn
                 from flash_attn.bert_padding import unpad_input, pad_input
@@ -67,7 +74,9 @@ def _require_flash_attn_if_needed(config_path: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default=str(ROOT / "configs" / "rq_evolve_base.yaml"))
+    parser.add_argument(
+        "--config", default=str(ROOT / "configs" / "rq_evolve_base.yaml")
+    )
     parser.add_argument(
         "--print-verl-env",
         action="store_true",
@@ -127,6 +136,32 @@ def main() -> None:
             "either embed a `verl_config:` block in the yaml or set "
             "verl.config_path when verl.enabled=true"
         )
+
+    resolved_raw = load_raw_config(args.config)
+    contract_name = resolved_raw.get("run_contract")
+    if config.evolution.structural_inspiration and not contract_name:
+        contract_name = "structural_inspiration_v1"
+    if contract_name:
+        if inline_verl_config is None:
+            raise ValueError(
+                "the frozen run contract requires an inline verl_config so its "
+                "output directory can be frozen before launch"
+            )
+        output_dir = inline_verl_config.trainer.get("default_local_dir")
+        if not output_dir:
+            raise ValueError(
+                "verl_config.trainer.default_local_dir is required for the "
+                "frozen run contract"
+            )
+        manifest = freeze_evolution_run_contract(
+            contract_name=str(contract_name),
+            config_path=args.config,
+            resolved_config=resolved_raw,
+            output_dir=str(output_dir),
+            project_root=ROOT,
+            prompt_dir=PROMPT_TEMPLATE_DIR,
+        )
+        print(f"[RQ-Evolve] frozen run contract: {manifest}")
 
     adapter = VerlTrainerAdapter(
         config=VerlAdapterConfig(
@@ -190,7 +225,9 @@ def _run_smoke_checks(config, inline_verl_config, started_at: float) -> int:
         adapters = [
             p
             for p in sorted(
-                local_dir.glob("global_step_*/**/lora_adapter/adapter_model.safetensors")
+                local_dir.glob(
+                    "global_step_*/**/lora_adapter/adapter_model.safetensors"
+                )
             )
             if fresh(p)
         ]
@@ -198,9 +235,11 @@ def _run_smoke_checks(config, inline_verl_config, started_at: float) -> int:
             (
                 "lora_adapter_saved",
                 bool(adapters),
-                str(adapters[-1])
-                if adapters
-                else f"no fresh lora_adapter under {local_dir}/global_step_*",
+                (
+                    str(adapters[-1])
+                    if adapters
+                    else f"no fresh lora_adapter under {local_dir}/global_step_*"
+                ),
             )
         )
 
@@ -241,7 +280,7 @@ def _read_inline_verl_config(yaml_path: str):
     """
     from omegaconf import OmegaConf
 
-    raw = OmegaConf.load(yaml_path)
+    raw = load_raw_config(yaml_path)
     if not isinstance(raw, type(OmegaConf.create({}))):
         return None
     return raw.get("verl_config", None) if "verl_config" in raw else None
@@ -249,7 +288,10 @@ def _read_inline_verl_config(yaml_path: str):
 
 def _warn_if_project_venv_exists() -> None:
     project_python = ROOT / ".venv" / "bin" / "python"
-    if project_python.exists() and Path(sys.executable).resolve() != project_python.resolve():
+    if (
+        project_python.exists()
+        and Path(sys.executable).resolve() != project_python.resolve()
+    ):
         print(
             "[RQ-Evolve] project .venv detected. "
             f"Use {project_python} to train against that environment's verl."

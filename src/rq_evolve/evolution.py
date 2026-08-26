@@ -1,4 +1,5 @@
 import collections
+import hashlib
 import json
 import math
 import random
@@ -7,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .archive import MAPElitesArchive
+from .archive import MAPElitesArchive, StructuralInspirationSelection
 from .ast_contract import check_generator_contract, check_problem_text
 from .backends import EvolutionBackend, RolloutRecord
 from .code_utils import (
@@ -72,7 +73,12 @@ class CandidateReport:
     reason: str | None = None
     source_code: str | None = None
     ast_findings: list[str] = field(default_factory=list)
-
+    # Reproductive ancestry and context provenance are logged for every
+    # outcome, including stage-1 parse failures. Without them only champions
+    # could be audited and the donor's effect on the rejection funnel would be
+    # unknowable.
+    parent_id: str | None = None
+    inspiration: dict | None = None
 
 
 def _relabel_p_yes(pair, reply, yes_id) -> float | None:
@@ -111,6 +117,45 @@ def _ast_findings(program: "ProblemProgram | None") -> list[str]:
         return []
     verdict = program.metadata.get("ast_contract") or {}
     return list(verdict.get("findings") or [])
+
+
+def _report_context(task: "MutationTask | None") -> dict:
+    if task is None:
+        return {"parent_id": None, "inspiration": None}
+    parent = getattr(task, "parent", None)
+    provenance = dict(getattr(task, "provenance", {}) or {})
+    inspiration = provenance.get("structural_inspiration")
+    return {
+        "parent_id": getattr(parent, "program_id", None),
+        "inspiration": dict(inspiration) if inspiration is not None else None,
+    }
+
+
+def _child_metadata(task: "MutationTask") -> dict:
+    """Persistent ancestry/plan metadata for a generated child."""
+    metadata = {
+        "op": task.op,
+        "lineage_root_id": task.parent.lineage_root_id(),
+    }
+    provenance = dict(task.provenance or {})
+    if provenance.get("structural_inspiration") is not None:
+        metadata["structural_inspiration"] = dict(provenance["structural_inspiration"])
+    if provenance.get("family_plan") is not None:
+        metadata["family_plan"] = dict(provenance["family_plan"])
+    return metadata
+
+
+def _record_inspiration_copy_gate(
+    task: "MutationTask", child: "ProblemProgram", verdict: dict
+) -> None:
+    """Attach donor-copy telemetry to both the report path and child snapshot."""
+    provenance = dict(task.provenance or {})
+    inspiration = dict(provenance.get("structural_inspiration") or {})
+    inspiration["copy_gate"] = dict(verdict)
+    provenance["structural_inspiration"] = inspiration
+    task.provenance = provenance
+    if "structural_inspiration" in child.metadata:
+        child.metadata["structural_inspiration"] = dict(inspiration)
 
 
 @dataclass
@@ -167,11 +212,21 @@ class RQEvolver:
     # is observable (which champions fed the training set, and why not).
     last_frontier: list[dict] = field(default_factory=list)
     current_iteration: int = -1
+    # Separate from the process-global RNG so enabling donor context does not
+    # change baseline parent draws or few-shot rotation. Persisted on disk and
+    # in verl's data checkpoint for exact resume at a weight-aligned point.
+    inspiration_draw_count: int = 0
+    mutation_prompt_draw_count: int = 0
+    search_draw_count: int = 0
 
     def load_seed_programs(self, seed_dir: str | Path) -> list[ProblemProgram]:
         programs: list[ProblemProgram] = []
         for path in sorted(Path(seed_dir).glob("*.py")):
             program = ProblemProgram.from_file(path, generation=0)
+            # Each authored seed begins one primary-parent lineage. Descendants
+            # inherit this id; structural inspirations never create a second
+            # ancestry edge.
+            program.metadata.setdefault("lineage_root_id", program.program_id)
             inst, reason = self.verify_program(program)
             if inst is None:
                 self.events.append(
@@ -440,7 +495,9 @@ class RQEvolver:
 
         self.refresh_dataset(training_champions=training_pool)
         stats = self.archive.stats()
-        frontier_in = sum(1 for f in self.last_frontier if f["decision"] == "in_frontier")
+        frontier_in = sum(
+            1 for f in self.last_frontier if f["decision"] == "in_frontier"
+        )
         # Dispersion is a diagnostic, never a fitness term (rewarding
         # consistency would hand a free maximum to a seed-ignoring generator),
         # but it is the signal that says whether a champion's R_Q is an average
@@ -483,6 +540,84 @@ class RQEvolver:
             key = f"status_{report.status}"
             status_counts[key] = status_counts.get(key, 0) + 1
 
+        inspiration_reports = [
+            report for report in reports if report.inspiration is not None
+        ]
+        attached_inspirations = [
+            report
+            for report in inspiration_reports
+            if bool((report.inspiration or {}).get("attached"))
+        ]
+        omitted_reasons = collections.Counter(
+            str((report.inspiration or {}).get("omitted_reason"))
+            for report in inspiration_reports
+            if not bool((report.inspiration or {}).get("attached"))
+        )
+        selection_tiers = collections.Counter(
+            str((report.inspiration or {}).get("selection_tier"))
+            for report in attached_inspirations
+        )
+        inspiration_metrics = {
+            "inspiration_enabled": int(self.evolution_config.structural_inspiration),
+            "inspiration_attempted": len(inspiration_reports),
+            "inspiration_attached": len(attached_inspirations),
+            "inspiration_attached_rate": (
+                len(attached_inspirations) / len(inspiration_reports)
+                if inspiration_reports
+                else 0.0
+            ),
+            "inspiration_unique_donors": len(
+                {
+                    str((report.inspiration or {}).get("program_id"))
+                    for report in attached_inspirations
+                }
+            ),
+            "inspiration_inserted": sum(
+                1 for report in attached_inspirations if report.status == "inserted"
+            ),
+            **{
+                f"inspiration_omitted_{reason}": count
+                for reason, count in omitted_reasons.items()
+            },
+            **{
+                f"inspiration_tier_{tier}": count
+                for tier, count in selection_tiers.items()
+            },
+        }
+        copy_checked = [
+            report
+            for report in attached_inspirations
+            if bool(((report.inspiration or {}).get("copy_gate") or {}).get("checked"))
+        ]
+        copy_rejected = [
+            report
+            for report in copy_checked
+            if bool(((report.inspiration or {}).get("copy_gate") or {}).get("rejected"))
+        ]
+        copy_rejection_reasons = collections.Counter(
+            str(((report.inspiration or {}).get("copy_gate") or {}).get("reason"))
+            for report in copy_rejected
+        )
+        inspiration_metrics.update(
+            {
+                "inspiration_copy_checked": len(copy_checked),
+                "inspiration_copy_rejected": len(copy_rejected),
+                "inspiration_copy_rejected_rate": (
+                    len(copy_rejected) / len(copy_checked) if copy_checked else 0.0
+                ),
+                "inspiration_cross_descriptor_rate": (
+                    selection_tiers.get("cross_lineage_cross_descriptor", 0)
+                    / len(attached_inspirations)
+                    if attached_inspirations
+                    else 0.0
+                ),
+                **{
+                    f"inspiration_copy_rejected_{reason}": count
+                    for reason, count in copy_rejection_reasons.items()
+                },
+            }
+        )
+
         grader_metrics = {
             # How often grading had to be killed. Non-zero means math_verify met
             # an input it cannot finish (`51!!` -> factorial(factorial(51))) and
@@ -504,15 +639,18 @@ class RQEvolver:
         # this stays near zero is not one where the Evolver got the labels
         # right -- it is one where the relabeller never reached the model.
         relabel_metrics = dict(getattr(self, "_relabel_stats", {}) or {})
-        if relabel_metrics.get("relabel_children"):
+        if relabel_metrics.get("relabel_decisions"):
             relabel_metrics["relabel_change_rate"] = (
                 relabel_metrics["relabel_changed"]
-                / relabel_metrics["relabel_children"]
+                / relabel_metrics["relabel_decisions"]
             )
         # Mean YES-bias per skill, the quantity the offsets subtract out. A
         # skill drifting far from the rest is one the prompt over-accepts.
         relabel_metrics["relabel_offsets"] = {
             k: round(v, 4) for k, v in self.skill_offsets.mean.items()
+        }
+        relabel_metrics["relabel_group_offsets"] = {
+            k: round(v, 4) for k, v in self.group_offsets.mean.items()
         }
 
         result = {
@@ -530,6 +668,7 @@ class RQEvolver:
             **judge_metrics,
             **grader_metrics,
             **insert_metrics,
+            **inspiration_metrics,
             **relabel_metrics,
             **status_counts,
             **stats,
@@ -558,29 +697,60 @@ class RQEvolver:
         parents: list[ProblemProgram] = []
         targets: list[tuple | None] = []
         for _ in range(batch_size):
-            parent = self.archive.sample_parent()
+            search_rng = self._next_search_rng()
+            parent = self.archive.sample_parent(rng=search_rng)
             if parent is None:
                 return [CandidateReport(status="no_parent", op="none")]
             parents.append(parent)
-            
+
             if self.evolution_config.target_cell_injection:
-                parent_group_match = re.search(r'GROUP\s*=\s*"([^"]+)"', parent.source_code)
-                parent_skill_match = re.search(r'SKILL\s*=\s*"([^"]+)"', parent.source_code)
-                parent_group = parent_group_match.group(1) if parent_group_match else None
-                parent_skill = parent_skill_match.group(1) if parent_skill_match else None
+                # Relabelling updates metadata without rewriting source (the
+                # program id is the source hash). Read the resolved labels or a
+                # resumed child would be mutated from its stale declaration
+                # while the MAP correctly stored it in a different cell.
+                parent_group = parent.get_group()
+                parent_skill = parent.get_skill()
 
                 if parent_group and parent_skill:
-                    mutation_strategy = random.choice(["mutate_skill", "mutate_group"])
-                    
+                    mutation_strategy = search_rng.choice(
+                        ["mutate_skill", "mutate_group"]
+                    )
+
                     if mutation_strategy == "mutate_skill":
-                        targets.append((parent_group, None, mutation_strategy, parent_group, parent_skill))
+                        targets.append(
+                            (
+                                parent_group,
+                                None,
+                                mutation_strategy,
+                                parent_group,
+                                parent_skill,
+                            )
+                        )
                     else:
-                        targets.append((None, parent_skill, mutation_strategy, parent_group, parent_skill))
+                        targets.append(
+                            (
+                                None,
+                                parent_skill,
+                                mutation_strategy,
+                                parent_group,
+                                parent_skill,
+                            )
+                        )
                 else:
-                    target_group, target_skill = self.archive.sample_target_cell()
-                    targets.append((target_group, target_skill, "mutate_both", None, None))
+                    target_group, target_skill = self.archive.sample_target_cell(
+                        rng=search_rng
+                    )
+                    targets.append(
+                        (target_group, target_skill, "mutate_both", None, None)
+                    )
             else:
                 targets.append(None)
+
+        # Draw donors only AFTER every primary parent/target draw is complete,
+        # and with an independent deterministic RNG. Inspiration therefore
+        # changes only the prompt context -- it cannot shift the baseline arm's
+        # subsequent parent choices through Python's global RNG state.
+        inspirations = self._sample_structural_inspirations(parents)
 
         # One vLLM wake for the whole batch: the mutation generate and every
         # solver generate run while vLLM is awake; entropy (actor forward) is
@@ -593,7 +763,9 @@ class RQEvolver:
                     "templates (mutation_*_prompt.txt); set "
                     "evolution.two_stage_mutation: true"
                 )
-            tasks, outputs, mutation_strategies = self._mutate_in_two_stages(parents, targets)
+            tasks, outputs, mutation_strategies = self._mutate_in_two_stages(
+                parents, targets, inspirations
+            )
             entries: list[dict] = []
             # Repeats also happen WITHIN one batch: 32 parents are drawn with
             # replacement from a ~10-cell archive and mutation is near
@@ -604,13 +776,25 @@ class RQEvolver:
             # reported against it. They would have produced the same verdict:
             # the source is byte-identical and the judge is deterministic.
             in_flight: set[str] = set()
-            for task, output, mutation_strategy in zip(tasks, outputs, mutation_strategies):
+            for task, output, mutation_strategy in zip(
+                tasks, outputs, mutation_strategies
+            ):
                 child, inst, reason, source = self._make_child_from_output(
                     task, output, in_flight=in_flight
                 )
+                # A cross-lineage context can move either mathematical axis,
+                # even when the scheduler asked stage 1 to preserve one. Never
+                # trust that held label on an inspiration-attached child.
+                if child is not None and task.inspiration_donor is not None:
+                    mutation_strategy = "mutate_both"
                 if child is not None:
                     child.metadata["mutation_strategy"] = mutation_strategy
                 if child is not None and child.program_id in in_flight:
+                    # The source is already known viable, but copy status is a
+                    # property of this proposal's (child, assigned donor) pair.
+                    # Record it before collapsing the repeated source so every
+                    # attached donor assignment remains visible in telemetry.
+                    self._check_structural_inspiration_copy(task, child)
                     entries.append(
                         {
                             "report": CandidateReport(
@@ -618,6 +802,7 @@ class RQEvolver:
                                 op=task.op,
                                 child_id=child.program_id,
                                 reason="duplicate of an earlier candidate in this batch",
+                                **_report_context(task),
                             )
                         }
                     )
@@ -629,10 +814,32 @@ class RQEvolver:
                                 op=task.op,
                                 child_id=child.program_id,
                                 reason=reason,
+                                **_report_context(task),
                             )
                         }
                     )
                 elif inst is not None:
+                    copy_verdict = self._check_structural_inspiration_copy(task, child)
+                    if copy_verdict and copy_verdict["rejected"]:
+                        entries.append(
+                            {
+                                "report": CandidateReport(
+                                    status="inspiration_copy_rejected",
+                                    op=task.op,
+                                    child_id=child.program_id,
+                                    reason=str(copy_verdict["reason"]),
+                                    source_code=_logged_source(child.source_code),
+                                    ast_findings=_ast_findings(child),
+                                    **_report_context(task),
+                                )
+                            }
+                        )
+                        continue
+                    # A donor-copy verdict is relative to (child, donor), not
+                    # to child source alone. Claim the batch-wide source id only
+                    # after that pair passes, so the same source can still be
+                    # judged against a different assigned donor later in this
+                    # batch.
                     in_flight.add(child.program_id)
                     entries.append({"task": task, "child": child, "inst": inst})
                 elif source is not None:
@@ -653,13 +860,15 @@ class RQEvolver:
                                 "reason": reason,
                                 "source": source,
                                 "child_id": child.program_id if child else None,
-                                "ast_findings": list(
-                                    (child.metadata.get("ast_contract") or {}).get(
-                                        "findings", []
+                                "ast_findings": (
+                                    list(
+                                        (child.metadata.get("ast_contract") or {}).get(
+                                            "findings", []
+                                        )
                                     )
-                                )
-                                if child
-                                else [],
+                                    if child
+                                    else []
+                                ),
                             }
                         }
                     )
@@ -667,11 +876,10 @@ class RQEvolver:
                     entries.append(
                         {
                             "report": CandidateReport(
-                                status=(
-                                    "mutation_failed" if not output else "no_code"
-                                ),
+                                status=("mutation_failed" if not output else "no_code"),
                                 op=task.op,
                                 reason=reason,
+                                **_report_context(task),
                             )
                         }
                     )
@@ -684,14 +892,22 @@ class RQEvolver:
             # Final gate: the judge re-derives GROUP and SKILL from the
             # seed-0 problem alone and must land on both declared labels.
             # Runs BEFORE solver rollouts are spent, in the same open session.
-            self._apply_judge(entries)
-
-            # Read each surviving child's SKILL off the child, replacing the
+            # Read each surviving child's descriptors off the child, replacing the
             # label stage 1 was told to write. Inside the same open session and
             # before rollouts are spent: it needs the policy and costs one
             # prefill per child. See relabel.py -- the declared label is one the
             # problem actually requires 37.5% of the time; this is 81.2%.
-            self._apply_relabel(entries)
+            # Inspiration may move both axes. Relabel it BEFORE an optional
+            # judge so the judge compares against the independent readback,
+            # not stage 1's self-declaration. The legacy arm keeps its cheaper
+            # judge-first order and avoids relabelling candidates the judge
+            # already rejects.
+            if self.evolution_config.structural_inspiration:
+                self._apply_relabel(entries)
+                self._apply_judge(entries)
+            else:
+                self._apply_judge(entries)
+                self._apply_relabel(entries)
 
             to_eval = [e for e in entries if "child" in e]
             # A candidate is graded on n FRESH seeds, not on the seed-0 instance
@@ -747,6 +963,7 @@ class RQEvolver:
                         ),
                         source_code=_logged_source(child.source_code),
                         ast_findings=_ast_findings(child),
+                        **_report_context(task),
                     )
                 )
                 continue
@@ -786,10 +1003,30 @@ class RQEvolver:
                     u_score=result.u_score,
                     source_code=_logged_source(child.source_code),
                     ast_findings=_ast_findings(child),
+                    **_report_context(task),
                 )
             )
         self._memoize_rejections(reports)
         return reports
+
+    def _next_search_rng(self) -> random.Random:
+        """One restart-stable RNG for a reproductive proposal."""
+        material = (
+            f"{self.evolution_config.search_seed}:{self.search_draw_count}"
+        ).encode("utf-8")
+        seed = int.from_bytes(hashlib.sha256(material).digest()[:8], "big")
+        self.search_draw_count += 1
+        return random.Random(seed)
+
+    def _check_structural_inspiration_copy(
+        self, task: MutationTask, child: ProblemProgram
+    ) -> dict | None:
+        donor = getattr(task, "inspiration_donor", None)
+        if donor is None:
+            return None
+        verdict = self.archive.compare_with_structural_inspiration(child, donor)
+        _record_inspiration_copy_gate(task, child, verdict)
+        return verdict
 
     # Only rejections that are a property of the SOURCE, and so cannot come out
     # differently later. The code either runs or it does not; the judge is
@@ -814,15 +1051,43 @@ class RQEvolver:
 
     def _memoize_rejections(self, reports: list[CandidateReport]) -> None:
         for report in reports:
-            if (
-                report.child_id
-                and report.status in self._DETERMINISTIC_REJECTIONS
-            ):
+            if report.child_id and report.status in self._DETERMINISTIC_REJECTIONS:
                 self.rejected_children.setdefault(
                     report.child_id, f"{report.status}: {report.reason}"
                 )
 
-    def _mutate_in_two_stages(self, parents, targets=None):
+    def _sample_structural_inspirations(
+        self, parents: list[ProblemProgram]
+    ) -> list[StructuralInspirationSelection | None]:
+        """One cross-lineage donor per parent, or ``None`` when disabled.
+
+        The SHA-derived local seeds are stable across Python processes (unlike
+        ``hash()``) and the draw counter is checkpointed. Each proposal gets a
+        distinct draw even when the same parent appears repeatedly in a batch.
+        """
+        cfg = self.evolution_config
+        if not cfg.structural_inspiration:
+            return [None] * len(parents)
+
+        selections: list[StructuralInspirationSelection] = []
+        for parent in parents:
+            material = (
+                f"{cfg.structural_inspiration_seed}:"
+                f"{self.inspiration_draw_count}:{parent.program_id}"
+            ).encode("utf-8")
+            local_seed = int.from_bytes(hashlib.sha256(material).digest()[:8], "big")
+            self.inspiration_draw_count += 1
+            selections.append(
+                self.archive.sample_structural_inspiration(
+                    parent,
+                    rng=random.Random(local_seed),
+                    max_template_chars=cfg.structural_inspiration_max_chars,
+                    selection_strategy=cfg.structural_inspiration_selection,
+                )
+            )
+        return selections
+
+    def _mutate_in_two_stages(self, parents, targets=None, inspirations=None):
         """Problem first, program second: two calls instead of one.
 
         The two stages are PIPELINED per parent when the backend supports it
@@ -858,6 +1123,24 @@ class RQEvolver:
         cfg = self.evolution_config
         rotate = cfg.rotate_few_shots
         targets = targets or [None] * len(parents)
+        inspirations = inspirations or [None] * len(parents)
+        if len(inspirations) != len(parents):
+            raise ValueError(
+                "one structural-inspiration selection is required per parent"
+            )
+        prompt_rngs: list[tuple[random.Random, random.Random]] = []
+        for parent in parents:
+            draw = self.mutation_prompt_draw_count
+            self.mutation_prompt_draw_count += 1
+
+            def _prompt_rng(stage: str) -> random.Random:
+                material = (
+                    f"{cfg.mutation_prompt_seed}:{draw}:" f"{parent.program_id}:{stage}"
+                ).encode("utf-8")
+                seed = int.from_bytes(hashlib.sha256(material).digest()[:8], "big")
+                return random.Random(seed)
+
+            prompt_rngs.append((_prompt_rng("family"), _prompt_rng("generator")))
         family_tasks = [
             build_family_task(
                 parent,
@@ -866,8 +1149,18 @@ class RQEvolver:
                 max_output_tokens=cfg.family_max_output_tokens,
                 target_cell=target,
                 rotate_shots=rotate,
+                rng=prompt_rngs[index][0],
+                inspiration_template=(selection.template if selection else None),
+                inspiration_donor=(selection.donor if selection else None),
+                provenance=(
+                    {"structural_inspiration": dict(selection.provenance)}
+                    if selection is not None
+                    else None
+                ),
             )
-            for parent, target in zip(parents, targets)
+            for index, (parent, target, selection) in enumerate(
+                zip(parents, targets, inspirations)
+            )
         ]
 
         def _stage_two(index: int, family_reply: str | None):
@@ -875,12 +1168,33 @@ class RQEvolver:
             plan = parse_family_plan(family_reply)
             if plan is None:
                 return None, None
+            provenance = dict(family_tasks[index].provenance)
+            provenance["family_plan"] = {
+                key: plan[key]
+                for key in (
+                    "STRUCTURAL MUTATION",
+                    "CHILD FAMILY",
+                    "WHY FINITE",
+                    "GROUP",
+                    "SKILL",
+                )
+                if key in plan
+            }
+            inspiration = provenance.get("structural_inspiration")
+            if inspiration is not None:
+                inspiration = dict(inspiration)
+                inspiration["claimed_transfer"] = plan.get("STRUCTURAL MUTATION", "")
+                provenance["structural_inspiration"] = inspiration
             return plan, build_generator_task(
-                parents[index], plan,
+                parents[index],
+                plan,
                 temperature=cfg.generator_temperature,
                 top_p=cfg.generator_top_p,
                 max_output_tokens=cfg.generator_max_output_tokens,
                 rotate_shots=rotate,
+                rng=prompt_rngs[index][1],
+                provenance=provenance,
+                inspiration_donor=family_tasks[index].inspiration_donor,
             )
 
         plans: list[dict | None] = [None] * len(parents)
@@ -933,7 +1247,13 @@ class RQEvolver:
         for i, plan in enumerate(plans):
             if plan is None:
                 continue
+            # Preserve stage-2 provenance even when its reply is empty or
+            # malformed. The report must still identify the family plan and
+            # assigned donor, and a nonempty malformed reply is ``no_code`` --
+            # not an indistinguishable "empty model output".
+            tasks[i] = gen_task_by_i[i]
             reply = gen_reply_by_i.get(i)
+            outputs[i] = reply
             source = extract_generator_code(reply or "")
             if source is None:
                 continue
@@ -961,13 +1281,9 @@ class RQEvolver:
                 final_skill = "UNKNOWN"
 
             outputs[i] = set_label_declarations(source, final_group, final_skill)
-            # The task carried downstream is the one whose reply a self-fix
-            # would have to repair: the generator call, not the family call.
-            tasks[i] = gen_task_by_i[i]
             mutation_strategies[i] = mutation_strategy
 
         return tasks, outputs, mutation_strategies
-
 
     def _make_child_from_output(
         self,
@@ -1004,7 +1320,7 @@ class RQEvolver:
         if group and skill:
             source = set_label_declarations(source, group, skill)
 
-        metadata = {"op": task.op}  # MUTATION_OP; the judge decides the labels
+        metadata = _child_metadata(task)
         child = ProblemProgram(
             source_code=source,
             parent_id=task.parent.program_id,
@@ -1052,14 +1368,16 @@ class RQEvolver:
                 reason=info["reason"],
                 source_code=_logged_source(info.get("source")),
                 ast_findings=list(info.get("ast_findings") or []),
+                **_report_context(task),
             )
 
     def _apply_relabel(self, entries: list[dict]) -> None:
-        """Overwrite each child's SKILL with the one its own program demands.
+        """Blindly re-read every descriptor axis the mutation was free to move.
 
-        Eight binary calls per child, one per skill, each ``max_tokens=1`` with
-        the answer restricted to the YES/NO token ids. The skill block is last
-        in the user turn so the eight share a prefix and cost one prefill.
+        ``mutate_skill`` probes all eight skills, ``mutate_group`` probes all six
+        groups, and ``mutate_both`` probes both. The last case is the label-free
+        structural-inspiration arm: trusting stage 1 on GROUP there would make
+        only half of its supposedly blind MAP coordinate independent.
 
         Silent no-op when ``relabel_skill`` is off. Falls back to the decoded
         text when the backend cannot return logprobs -- that is the greedy
@@ -1076,10 +1394,12 @@ class RQEvolver:
         groups = list(GROUPS)
         yes_id, no_id = self._relabel_token_ids()
         allowed = [yes_id, no_id] if yes_id is not None and no_id is not None else None
-        
+
         tasks = []
-        task_offsets = []  # To keep track of which tasks belong to which entry and label type
-        
+        task_offsets = (
+            []
+        )  # To keep track of which tasks belong to which entry and label type
+
         for i, e in enumerate(live):
             strategy = e["child"].metadata.get("mutation_strategy", "mutate_both")
             if strategy in ("mutate_skill", "mutate_both"):
@@ -1094,7 +1414,7 @@ class RQEvolver:
                         )
                     )
                     task_offsets.append((i, "skill", skill))
-            if strategy == "mutate_group":
+            if strategy in ("mutate_group", "mutate_both"):
                 for group in groups:
                     tasks.append(
                         build_relabel_group_task(
@@ -1109,10 +1429,10 @@ class RQEvolver:
 
         replies = self.backend.mutate(tasks)
         pairs = getattr(self.backend, "last_mutation_logprobs", None) or []
-        
+
         changed = agreed = 0
         margins: list[float] = []
-        
+
         # Group replies by entry and label type
         entry_results = collections.defaultdict(lambda: collections.defaultdict(dict))
         for idx, (i, ltype, label) in enumerate(task_offsets):
@@ -1127,7 +1447,7 @@ class RQEvolver:
         for i, e in enumerate(live):
             results = entry_results[i]
             strategy = e["child"].metadata.get("mutation_strategy", "mutate_both")
-            
+
             if "skill" in results:
                 p_yes = results["skill"]
                 self.skill_offsets.observe({s: logit(v) for s, v in p_yes.items()})
@@ -1160,6 +1480,7 @@ class RQEvolver:
 
         self._relabel_stats = {
             "relabel_children": len(live),
+            "relabel_decisions": changed + agreed,
             "relabel_changed": changed,
             "relabel_agreed": agreed,
             "relabel_margin_mean": (
@@ -1276,9 +1597,7 @@ class RQEvolver:
                 # Evolver is right -- measured at 3 of 8 for one judge and 6 of
                 # 8 for another over the same corpus.
                 name = verdict.skill or "none"
-                self.judge_skill_counts[name] = (
-                    self.judge_skill_counts.get(name, 0) + 1
-                )
+                self.judge_skill_counts[name] = self.judge_skill_counts.get(name, 0) + 1
             if accepted:
                 continue
             task = e["task"]
@@ -1290,6 +1609,7 @@ class RQEvolver:
                 reason=reason,
                 source_code=_logged_source(child.source_code),
                 ast_findings=_ast_findings(child),
+                **_report_context(task),
             )
 
     def _drop_oversized_judge_inputs(self, targets: list[dict]) -> list[dict]:
@@ -1348,6 +1668,7 @@ class RQEvolver:
                 ),
                 source_code=_logged_source(child.source_code),
                 ast_findings=_ast_findings(child),
+                **_report_context(mutation_task),
             )
         return kept
 
@@ -1383,8 +1704,9 @@ class RQEvolver:
     ) -> RQResult:
         """One instance's rollouts -> a one-seed R_Q. Kept for single-instance
         callers; the program-level path is :meth:`evaluate_program`."""
-        stat = self._seed_stat(program, instance, rollouts, seed=
-                               int(getattr(instance, "seed", 0) or 0))
+        stat = self._seed_stat(
+            program, instance, rollouts, seed=int(getattr(instance, "seed", 0) or 0)
+        )
         return self._store_result(program, compute_rq_program([stat] if stat else []))
 
     def _seed_stat(
@@ -1407,9 +1729,11 @@ class RQEvolver:
         if not accepted:
             return None
         flags = [
-            clean_and_grade_solver_rollout(record, instance)[2]
-            if instance is not None
-            else bool(record.correct)
+            (
+                clean_and_grade_solver_rollout(record, instance)[2]
+                if instance is not None
+                else bool(record.correct)
+            )
             for record in accepted
         ]
         return score_seed(
@@ -1595,8 +1919,7 @@ class RQEvolver:
         # child and must not receive priority before its next iteration.
         if all(score is None for score in past_scores.values()):
             rank_score = {
-                i: float(getattr(champions[i], "rq_score", 0.0) or 0.0)
-                for i in pool
+                i: float(getattr(champions[i], "rq_score", 0.0) or 0.0) for i in pool
             }
         else:
             rank_score = {
@@ -1630,7 +1953,9 @@ class RQEvolver:
                 skipped = [
                     c
                     for c in champions
-                    if not is_frontier(float(getattr(c, "s_hat", 0.0) or 0.0), low, high)
+                    if not is_frontier(
+                        float(getattr(c, "s_hat", 0.0) or 0.0), low, high
+                    )
                 ]
                 if skipped:
                     champions = [c for c in champions if c not in skipped]
@@ -1699,9 +2024,7 @@ class RQEvolver:
     ) -> bool:
         target_cell = self.archive.target_cell(program)
         incumbent = (
-            self.archive.grid[target_cell].champion
-            if target_cell is not None
-            else None
+            self.archive.grid[target_cell].champion if target_cell is not None else None
         )
         inserted = self.archive.try_insert(
             program=program,
@@ -1938,6 +2261,10 @@ class RQEvolver:
                     # start re-learns it from the first batch alone, and the
                     # picker is worst exactly while the means are noisiest.
                     "skill_offsets": self.skill_offsets.to_dict(),
+                    "group_offsets": self.group_offsets.to_dict(),
+                    "inspiration_draw_count": self.inspiration_draw_count,
+                    "mutation_prompt_draw_count": self.mutation_prompt_draw_count,
+                    "search_draw_count": self.search_draw_count,
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -1966,8 +2293,8 @@ class RQEvolver:
         full evolution trajectory is preserved: per-iteration metrics plus every
         candidate report. ``CandidateReport.status`` is one of: no_parent,
         mutation_failed, no_code, verify_failed, judge_rejected,
-        judge_input_too_large, rollout_failed, s_hat_zero, rq_zero,
-        inserted, rejected_non_elite (each with op, rq_score, s_hat,
+        judge_input_too_large, inspiration_copy_rejected, rollout_failed,
+        s_hat_zero, rq_zero, inserted, rejected_non_elite (each with op, rq_score, s_hat,
         u_score; see docs/PIPELINE.md "Evolution Candidate State").
 
         Each report also carries ``source_code`` (truncated at
@@ -2011,23 +2338,39 @@ class RQEvolver:
             # the unusable archive, and carrying them over would retire seeds
             # the bootstrap is about to need.
             return False
+        missing_prompt_draw_count = True
+        missing_search_draw_count = True
         seeds_file = directory / self._USED_SEEDS_FILE
         if seeds_file.exists():
             payload = json.loads(seeds_file.read_text(encoding="utf-8"))
             self.used_seeds = {
-                pid: set(seeds)
-                for pid, seeds in payload.get("used_seeds", {}).items()
+                pid: set(seeds) for pid, seeds in payload.get("used_seeds", {}).items()
             }
             self.previous_rq = PreviousRQScoreboard.from_dict(
                 # Pre-migration archives used the key ``lagged_scores``.
                 # Accept it for offline inspection; changed training semantics
                 # still require a fresh run rather than checkpoint resume.
-                payload.get("previous_rq_scores") or payload.get("lagged_scores"),
+                payload.get("previous_rq_scores")
+                or payload.get("lagged_scores"),
             )
             self.rejected_children = dict(payload.get("rejected_children") or {})
             offsets = payload.get("skill_offsets")
             if offsets:
                 self.skill_offsets = SkillOffsets.from_dict(offsets)
+            group_offsets = payload.get("group_offsets")
+            if group_offsets:
+                self.group_offsets = GroupOffsets.from_dict(group_offsets)
+            self.inspiration_draw_count = int(
+                payload.get("inspiration_draw_count", self.inspiration_draw_count)
+            )
+            if "mutation_prompt_draw_count" in payload:
+                self.mutation_prompt_draw_count = int(
+                    payload["mutation_prompt_draw_count"]
+                )
+                missing_prompt_draw_count = False
+            if "search_draw_count" in payload:
+                self.search_draw_count = int(payload["search_draw_count"])
+                missing_search_draw_count = False
             cursor = payload.get("seed_cursor")
             if cursor:
                 self.seed_stream = SeedStream.from_dict(cursor)
@@ -2042,11 +2385,16 @@ class RQEvolver:
             self.current_iteration = int(
                 payload.get("current_iteration", self.current_iteration)
             )
+        if missing_prompt_draw_count:
+            # Every successful primary-parent draw increments total_selections
+            # exactly once, so it is the exact legacy proposal counter.
+            self.mutation_prompt_draw_count = self.archive.total_selections
+        if missing_search_draw_count:
+            self.search_draw_count = self.archive.total_selections
         self.refresh_dataset()
-        self.events.append(
-            {"event": "archive_restored", "champions": n_champions}
-        )
+        self.events.append({"event": "archive_restored", "champions": n_champions})
         return True
+
 
 def _answer_parseable(answer: str) -> bool:
     try:

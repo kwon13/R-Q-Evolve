@@ -1,12 +1,26 @@
 # Prompt Templates
 
-Four files drive the evolution loop. Edit them to change its behaviour; the code
-reads them verbatim and substitutes only the placeholders listed below.
+The files in this directory drive the evolution loop. The code reads them
+verbatim and substitutes only the documented placeholders.
 
 ## Mutation (the Evolver)
 
-- `mutation_system_prompt.txt` — role, output discipline, the answer/check rule
-- `mutation_user_prompt.txt` — the live parent and both label vocabularies
+- `diff_problem_system_prompt.txt` / `diff_problem_user_prompt.txt` — stage 1,
+  which designs a child problem family
+- `gen_program_system_prompt.txt` / `gen_program_user_prompt.txt` — stage 2,
+  which implements that already-fixed family as a generator
+- `structural_inspiration_system_note.txt` /
+  `structural_inspiration_user_block.txt` — optional stage-1-only donor rules
+  and its single `$inspiration_template` placeholder
+
+When `evolution.structural_inspiration` is enabled, a donor is sampled from a
+different primary-parent lineage, preferring candidates whose GROUP and SKILL
+descriptors both differ. Only its statement-only parameterized problem skeleton
+is rendered as untrusted quoted data. Its source, answer/check, concrete
+instances, GROUP/SKILL, score, metadata and identifiers never enter the prompt,
+and stage 2 never sees it. Chat-control/role/label markers make a donor
+ineligible, and an assigned-donor copy is rejected before solver rollouts. The
+feature-off prompt contains neither the donor block nor its system rules.
 
 There is **one** mutation operator. The retired pair (`in_depth` held GROUP and
 moved SKILL, `in_breadth` the mirror) forced a label change on one axis, which
@@ -19,13 +33,21 @@ the coverage metric read a fiction.
 The child now decides for itself what to change, and labels the result from its
 own shortest solution.
 
-Placeholders:
+Stage-1 placeholders:
 
-- `$parent_source`
-- `$parent_group`
-- `$parent_skill`
+- `$parent_template`
+- `$parent_problem`
 - `$allowed_groups`   (from `group_definitions.txt`)
 - `$allowed_skills`   (from `skill_definitions.txt`)
+- `$inspiration_template` (optional donor block only)
+
+Stage-2 placeholders:
+
+- `$parent_template`
+- `$parent_source` (primary parent only, with labels removed)
+- `$new_problem`
+- `$target_skill`
+- `$target_skill_definition`
 
 ## Judge (the label gate)
 

@@ -1,0 +1,223 @@
+--- scripts/probe_operators.py	2026-08-25 14:06:07.507780462 +0000
++++ /tmp/claude-1031/-data1-yhoon113/714145a2-f052-4fcc-9b41-8daf0b1cbbe4/scratchpad/probe_operators_fixed.py	2026-08-25 14:25:59.195905530 +0000
+@@ -19,11 +19,13 @@
+ import argparse, ast, difflib, json, random, re, sys, urllib.request, statistics, collections
+ from concurrent.futures import ThreadPoolExecutor
+ from pathlib import Path
++from string import Template
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+ sys.path.insert(0, str(ROOT / "src"))
+ from rq_evolve.code_utils import (extract_problem_template, strip_label_declarations,      # noqa: E402
+                                   strip_module_docstring, lint_generator_source)
++from rq_evolve.concepts import GROUPS, SKILLS                                              # noqa: E402
+ from rq_evolve.program import ProblemProgram                                               # noqa: E402
+ 
+ TPL = ROOT / "prompt_templates"
+@@ -130,34 +132,83 @@
+             + "\n\nOPERATOR\n" + instr + TAIL.format(group=group))
+     return [{"role": "system", "content": sys_text}, {"role": "user", "content": user}]
+ 
+-def stage2(parent, plan):
++# Stage 2 is the production stage 2, byte for byte: the same system prompt and
++# the same gen_program_user_prompt.txt, which frames the parent pair as a worked
++# EXAMPLE of the statement-to-program mapping rather than as "PARENT SOURCE".
++# The framing is not cosmetic -- prompts.py:444-451 records child/parent source
++# similarity falling 0.99 -> 0.14 on that change alone. GROUP/SKILL are NOT put
++# in the stage-2 turn: production strips them so INFERRED_SKILL stays a blind
++# re-derivation, and handing the label back makes that gate worthless.
++#
++# `mode` is the ablation that separates stage 1 from stage 2:
++#   prod   parent family + parent generator, production framing  (baseline)
++#   show   the probe's original "PARENT SOURCE" framing
++#   fixed  a FIXED unrelated seed generator as the reference pair
++#   none   no reference generator at all
++_FIXED_REF = None
++def stage2(parent, plan, mode="prod"):
++    global _FIXED_REF
+     sys_text = T("gen_program_system_prompt.txt").replace("$skill_definitions", D("skill_definitions.txt"))
+-    user = (f"PARENT SOURCE\n\n```python\n"
+-            f"{strip_label_declarations(strip_module_docstring(parent.source_code))}\n```\n\n"
+-            f"NEW PROBLEM FAMILY TO IMPLEMENT\n\n{plan['CHILD FAMILY']}\n\n"
+-            f"GROUP: {plan['GROUP']}\nSKILL: {plan['SKILL']}\n\n"
+-            "Write the complete generator for the NEW PROBLEM FAMILY.")
++    ref = parent
++    if mode == "fixed":
++        if _FIXED_REF is None:
++            _FIXED_REF = ProblemProgram.from_file(sorted((ROOT / "seed_programs").glob("*.py"))[0])
++        ref = _FIXED_REF
++    if mode == "show":
++        user = (f"PARENT SOURCE\n\n```python\n"
++                f"{strip_label_declarations(strip_module_docstring(parent.source_code))}\n```\n\n"
++                f"NEW PROBLEM FAMILY TO IMPLEMENT\n\n{plan['CHILD FAMILY']}\n\n"
++                "Write the complete generator for the NEW PROBLEM FAMILY.")
++    elif mode == "none":
++        user = ("NOW WRITE THE GENERATOR FOR THIS FAMILY\n\n"
++                f"{plan['CHILD FAMILY']}\n\nCORRECT OUTPUT:\n")
++    else:
++        user = Template(T("gen_program_user_prompt.txt")).safe_substitute(
++            parent_template=extract_problem_template(ref.source_code) or _prob(ref),
++            parent_source=strip_label_declarations(strip_module_docstring(ref.source_code)),
++            new_problem=plan["CHILD FAMILY"])
+     return [{"role": "system", "content": sys_text}, {"role": "user", "content": user}]
+ 
+-def chat(port, model, messages, max_tokens, temp=0.7):
++def chat(port, model, messages, max_tokens, temp, top_p, seed):
++    """Returns (text, error). The seed goes to the server, so a rerun repeats."""
+     body = json.dumps({"model": model, "messages": messages, "max_tokens": max_tokens,
+-                       "temperature": temp, "top_p": 0.95}).encode()
++                       "temperature": temp, "top_p": top_p, "seed": seed}).encode()
+     req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/chat/completions",
+                                  data=body, headers={"Content-Type": "application/json"})
++    last = ""
+     for _ in range(3):
+         try:
+             r = json.loads(urllib.request.urlopen(req, timeout=900).read())
+-            return r["choices"][0]["message"]["content"] or ""
+-        except Exception:
+-            pass
+-    return ""
++            c = r["choices"][0]
++            if c.get("finish_reason") == "length":
++                return c["message"]["content"] or "", "truncated"
++            return c["message"]["content"] or "", ""
++        except Exception as exc:                       # transport failures are
++            last = f"{type(exc).__name__}: {exc}"      # attrition, not zeros --
++    return "", last                                    # record which arm lost what
++
++# A base policy re-emits the prompt's own <placeholder> lines before answering
++# (13 of 24 replies, probe_diff_mutation.py:80-97), and a CHILD FAMILY often
++# runs to several lines. `^KEY: (.+?)$` with re.M reads the FIRST match and
++# ONE line: it returns the placeholder, or the first line of the family, and
++# the arms whose families are longest lose the most. Take the LAST non-
++# placeholder value and let it run to the next known header.
++_KEYS = "STRUCTURAL MUTATION|CHILD FAMILY|WHY FINITE|GROUP|SKILL"
++def _field(text, key):
++    best = ""
++    for m in re.finditer(rf"^[ \t]*{key}[ \t]*:[ \t]*(.+?)(?=^[ \t]*(?:{_KEYS})[ \t]*:|\Z)",
++                         text, re.M | re.S):
++        v = m.group(1).strip()
++        if v and not v.startswith("<"): best = v
++    return best
+ 
+ def parse_plan(reply):
+-    out = {}
+-    for k in ("CHILD FAMILY", "GROUP", "SKILL"):
+-        m = re.search(rf"^{re.escape(k)}\s*:\s*(.+?)\s*$", reply, re.M)
+-        if m: out[k] = m.group(1).strip()
+-    return out if len(out) == 3 else None
++    out = {"CHILD FAMILY": _field(reply, "CHILD FAMILY")}
++    for k, vocab in (("GROUP", GROUPS), ("SKILL", SKILLS)):
++        v = _field(reply, k).strip().strip("\"'").split()
++        v = v[0].strip(".,") if v else ""
++        out[k] = v if v in vocab else ""          # an out-of-vocabulary label is
++    return out if all(out.values()) else None     # a failure, not free diversity
+ 
+ def code_of(reply):
+     m = re.findall(r"```python\n(.*?)```", reply, re.S)
+@@ -180,51 +231,89 @@
+     ap.add_argument("--archive", default="rq_output/rq_evolve_4b_4gpu/rq_archive")
+     ap.add_argument("--out", default="rq_output/probe_operators.jsonl")
+     ap.add_argument("--seed", type=int, default=23)
++    ap.add_argument("--ops", default="", help="comma-separated subset of OPS; empty = all")
++    ap.add_argument("--stage2-parent", default="prod", choices=("prod", "show", "fixed", "none"),
++                    help="what stage 2 is shown; the stage1-vs-stage2 ablation")
++    ap.add_argument("--temp1", type=float, default=0.4)   # evolution.code_temperature
++    ap.add_argument("--top-p1", type=float, default=0.95)
++    ap.add_argument("--temp2", type=float, default=0.0)   # evolution.generator_temperature
++    ap.add_argument("--top-p2", type=float, default=1.0)
+     args = ap.parse_args()
++    ops = [o for o in (args.ops.split(",") if args.ops else list(OPS)) if o]
++    for o in ops:
++        if o not in OPS: raise SystemExit(f"unknown operator {o!r}")
+ 
+     snaps = sorted((ROOT / args.archive).glob("archive_iter*.json"),
+                    key=lambda p: int("".join(c for c in p.name if c.isdigit())))
+     champs = json.loads(snaps[-1].read_text())["champions"]
+     champs = list(champs.values() if isinstance(champs, dict) else champs)
+-    GNAMES = [l.split(":")[0].strip() for l in D("group_definitions.txt").split("\n") if l.strip()]
++    # The group axis is concepts.GROUPS. Re-deriving it by splitting the prompt
++    # file on ":" makes the probe depend on that file's line ORDER agreeing with
++    # the vocabulary, with nothing asserting it, and the `else GNAMES[0]` fallback
++    # reintroduces exactly the silent bin-0 folding that concepts.axis_index
++    # returns None to avoid. A champion without a usable cell is dropped.
+     pool = []
+     for c in champs:
+-        gi = c.get("niche_group")
++        gi, si = c.get("niche_group"), c.get("niche_skill")
++        if not (isinstance(gi, int) and 0 <= gi < len(GROUPS)
++                and isinstance(si, int) and 0 <= si < len(SKILLS)):
++            print(f"[skip] champion {c.get('program_id')} has no usable cell: {gi},{si}")
++            continue
+         pool.append(dict(prog=ProblemProgram(source_code=c["source_code"]),
+-                         group=GNAMES[gi] if isinstance(gi, int) and gi < len(GNAMES) else GNAMES[0],
+-                         cell=(c.get("niche_group"), c.get("niche_skill")),
++                         group=GROUPS[gi], cell=(gi, si),
+                          s_hat=float(c.get("s_hat") or 0.0), rq=float(c.get("rq_score") or 0.0),
+                          src=c["source_code"]))
++    assert [GROUPS[p["cell"][0]] for p in pool] == [p["group"] for p in pool]
+     arch_sk = [s for s in (skel(p["src"]) for p in pool) if s]
+     cellcount = collections.Counter(p["cell"] for p in pool)
+     rng = random.Random(args.seed)
+ 
+-    jobs = []
+-    for op in OPS:
+-        for i in range(args.n):
+-            a = rng.randrange(len(pool))
+-            d = rng.randrange(len(pool))
+-            while pool[d]["cell"] == pool[a]["cell"] and len(pool) > 1: d = rng.randrange(len(pool))
+-            jobs.append((op, i, a, d, rng.randint(0, 10**9)))
++    # PAIRED DESIGN. Drawing a fresh parent per arm made the arms disjoint
++    # populations: median Jaccard overlap of the parent SETS was 0.273, mean
++    # parent s_hat ran 0.690-0.893 across arms, and ICC(parent) on the outcome
++    # is 0.451 -- half the between-arm signal was which parents the arm drew.
++    # One parent list, every arm, and the analysis differences within parent.
++    block = []
++    for i in range(args.n):
++        a = rng.randrange(len(pool))
++        d = rng.randrange(len(pool))
++        while pool[d]["cell"] == pool[a]["cell"] and len(pool) > 1: d = rng.randrange(len(pool))
++        block.append((i, a, d, rng.randint(0, 10**9)))
++    jobs = [(op, i, a, d, sd) for op in ops for (i, a, d, sd) in block]
++    # Jobs went out arm-block by arm-block, so anything that drifts with wall
++    # clock -- a server restart, a co-tenant on the GPU -- landed on whole arms.
++    random.Random(args.seed ^ 0x5EED).shuffle(jobs)
+ 
+     def run(job):
+         op, i, ai, di, sd = job
+         P, DN = pool[ai], pool[di]
+         r = random.Random(sd)
+-        row = {"op": op, "i": i, "parent_src": P["src"], "parent_cell": P["cell"], "parent_s_hat": P["s_hat"]}
+-        r1 = chat(args.port, args.model,
+-                  stage1(op, P["prog"], P["group"], DN["prog"], r, P["s_hat"], P["rq"], cellcount[P["cell"]]), 1200)
++        row = {"op": op, "i": i, "parent_src": P["src"], "parent_cell": P["cell"],
++               "parent_s_hat": P["s_hat"], "stage2_parent": args.stage2_parent}
++        r1, e1 = chat(args.port, args.model,
++                      stage1(op, P["prog"], P["group"], DN["prog"], r, P["s_hat"], P["rq"],
++                             cellcount[P["cell"]]),
++                      2048, args.temp1, args.top_p1, sd)
+         plan = parse_plan(r1)
+         row["stage1_ok"] = plan is not None
++        row["stage1_err"] = e1 or ("" if plan else "unparseable")
++        row["raw1"] = r1                                   # attrition must be auditable
+         if not plan: return row
+         row.update(child_family=plan["CHILD FAMILY"], plan_group=plan["GROUP"], plan_skill=plan["SKILL"])
+-        r2 = chat(args.port, args.model, stage2(P["prog"], plan), 2200)
++        # TAIL orders the parent's GROUP held. Nothing checked it: compliance ran
++        # 48%-100% by arm, so "which cell the child lands in" was an arm effect.
++        row["group_held"] = plan["GROUP"] == P["group"]
++        r2, e2 = chat(args.port, args.model, stage2(P["prog"], plan, args.stage2_parent),
++                      2048, args.temp2, args.top_p2, sd)
+         c = code_of(r2)
+         row["stage2_ok"] = c is not None
++        row["stage2_err"] = e2 or ("" if c else "no code block")
++        row["raw2"] = r2
+         if c: row["code"] = c
+         return row
+ 
+-    print(f"{len(OPS)} operators x n={args.n}  model={args.model}:{args.port}", flush=True)
++    print(f"{len(ops)} operators x n={args.n} paired parents  stage2-parent={args.stage2_parent}  "
++          f"T1={args.temp1} T2={args.temp2}  model={args.model}:{args.port}", flush=True)
+     with ThreadPoolExecutor(24) as ex: rows = list(ex.map(run, jobs))
+     (ROOT / args.out).write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+     print(f"written to {ROOT/args.out}")

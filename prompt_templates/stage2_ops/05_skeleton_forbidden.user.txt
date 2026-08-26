@@ -1,0 +1,45 @@
+EXAMPLE -- this family
+
+$parent_template
+
+is produced by this generator:
+```python
+$parent_source
+```
+
+WHAT THAT GENERATOR DOES STRUCTURALLY -- AND WHAT YOURS MUST NOT DO
+
+$parent_fingerprint
+
+Those are shapes, not names. Renaming a variable, swapping a list comprehension
+for a generator expression, changing a bound from 10 to 40, or reordering two
+independent statements changes none of the shapes above, so none of those counts.
+
+What you may take from the generator above is the CONTRACT and nothing else:
+`def generate(seed)`, `rng = random.Random(seed)`, the names `answer`, `check`,
+`problem`, the assert line, and the return. Everything between them must differ
+in at least these two ways:
+
+  1. YOUR ANSWER ROUTE must not be the shape named above. If the parent's answer
+     is one closed-form expression, yours computes the answer by a route with
+     real structure -- a recurrence, a search, a case split, an accumulation. If
+     the parent's answer already enumerates, yours reaches the number without
+     enumerating, or enumerates something the parent never enumerated.
+  2. YOUR CHECK ROUTE must not be the shape named above, and must still be an
+     honest independent recomputation: it walks the stated domain, it does not
+     read `answer`, and it shares no subexpression with the answer route.
+
+Two structures the archive has collapsed onto, which you should treat as
+forbidden by default unless your family truly admits nothing else: an `answer`
+that is one statement long, and a generator with no helper function in it.
+
+If your family's mathematics genuinely admits only the parent's shape, write
+`# SHAPE FORCED: <one line saying why>` above `answer` and then write the
+correct program. A right program with an old shape is worth more than a wrong
+program with a new one -- but say so explicitly, so the claim can be checked.
+
+NOW WRITE THE GENERATOR FOR THIS FAMILY
+
+$new_problem
+
+CORRECT OUTPUT:

@@ -1,0 +1,32 @@
+WRITE THE GENERATOR FOR THIS FAMILY
+
+$new_problem
+
+No reference generator is shown for this one, and none exists.
+
+Begin generate() with exactly these three comment lines, filled in from the
+sentence above and from nothing else:
+
+    # GIVEN: <every quantity that sentence leaves free, each with its range>
+    # ASKED: <the quantity the sentence asks for, in the sentence's own words>
+    # ROUTE: <the operation that turns GIVEN into ASKED>
+
+The program must then satisfy all five of these:
+
+  1. `answer` is the result of applying ROUTE to the GIVEN quantities. It is
+     never one of the GIVEN names standing alone, and never a literal.
+  2. Every GIVEN quantity is load-bearing: if you deleted one of them, the
+     computation of `answer` would break or return a different number. A
+     quantity that can be deleted without changing `answer` does not belong in
+     the problem either -- take it out of the statement as well.
+  3. `check` recomputes the same number by walking the domain the statement
+     names. It does not read `answer`, does not restate ROUTE, and shares no
+     subexpression with the answer route.
+  4. The answer must not be a number the problem text already prints. If the
+     value you compute would equal a parameter shown in the statement, then the
+     statement is telling the solver the answer -- change what the family asks
+     for until it does not.
+  5. `assert answer == check` must be a real test. If it would pass because both
+     sides are the same expression written twice, one of the two routes is wrong.
+
+CORRECT OUTPUT:

@@ -92,20 +92,30 @@ bash launch_4b_train.sh \
   --config configs/rq_evolve_4b_4gpu_structural_inspiration.yaml \
   --gpus 0,1,2,3
 
-# paired control은 별도 시점/동일 GPU 조건에서 실행
-bash launch_4b_train.sh \
-  --config configs/rq_evolve_4b_4gpu_structural_control.yaml \
-  --gpus 0,1,2,3
+# certified donor-v2: manual seed donors + positive-R_Q + Jaccard gate
+bash scripts/run_4b_certified_donor.sh --gpus 0,1,2,3
+
+# SSH 종료 후에도 돌리려면
+bash scripts/run_4b_certified_donor.sh --gpus 0,1,2,3 --detach
 ```
 
-두 명령 모두 launcher가 해당 run의 checkpoint auto-merge daemon도 함께
-시작합니다. `save_freq: 32`이므로 처음에는 `global_step_32/actor`를 resume용으로
-그대로 두고, step 64가 저장되면 step 32를 `hf_merged/`로 변환ㆍ검증한 뒤
-step 32의 `actor/`만 삭제합니다. 이후에도 항상 최신 actor 하나는 보존됩니다.
+Certified donor-v2는 수동 검증 allowlist에 들어간 seed 중 현재 `R_Q > 0`인
+항목만 structural donor로 사용합니다. 인증 seed는 별도 registry에 보존되므로
+나중에 child가 해당 MAP cell의 champion을 교체해도 donor 자격은 사라지지
+않습니다. 생성 child는 AST/실행/32-seed 검증을
+통과하면 MAP과 primary-parent 경로에는 참여하지만 structural donor로 승격되지
+않습니다. Donor-child statement token Jaccard가 0.45 이상이면 rollout 전에
+복제로 거절합니다. 외부 API, 별도 evaluator 모델, local-policy self-judge는 모두
+사용하지 않습니다. Runner는 config 불변조건, checkpoint auto-merge, 학습만
+실행합니다.
+
+`save_freq: 32`이므로 처음에는 `global_step_32/actor`를 resume용으로 그대로
+두고, step 64가 저장되면 step 32를 `hf_merged/`로 변환ㆍ검증한 뒤 step 32의
+`actor/`만 삭제합니다. 이후에도 항상 최신 actor 하나는 보존됩니다.
 merge 상태는 다음처럼 확인할 수 있습니다.
 
 ```bash
-tail -f logs/rq_evolve_4b_4gpu_untargeted_structural_inspiration_auto_merge.log
+tail -f logs/rq_evolve_4b_4gpu_certified_structural_inspiration_v2/auto_merge.log
 ```
 
 학습이 완전히 끝난 뒤에도 마지막 checkpoint의 actor는 의도적으로 남습니다.
@@ -113,11 +123,10 @@ resume 가능성을 버리고 마지막 것까지 HF로 합칠 때만
 `scripts/merge_fsdp_to_hf.py`를 수동 실행하세요. 자동화를 끄고 싶을 때는
 launcher에 `--no-auto-merge`를 추가할 수 있습니다.
 
-과거 4B run은 비교군으로 쓰지 않습니다. 새 control은 현재 코드, untargeted
-generation, search/few-shot seed와 전체 budget을 treatment와 공유합니다. 첫
-실행 때 effective config, prompt, seed corpus와 구현 hash가 output의
-`run_contract/`에 동결되며, 다른 방법으로 같은 디렉터리를 resume하면 Ray가
-시작되기 전에 실패합니다.
+V2는 unrestricted donor-v1 checkpoint를 resume하지 않고 base model에서 새
+output으로 시작합니다. 첫 실행 때 effective config, prompt, seed corpus와 구현
+hash가 output의 `run_contract/`에 동결되며, 다른 방법으로 같은 디렉터리를
+resume하면 Ray가 시작되기 전에 실패합니다.
 
 ## Implementation Order
 

@@ -221,12 +221,19 @@ class RQEvolver:
 
     def load_seed_programs(self, seed_dir: str | Path) -> list[ProblemProgram]:
         programs: list[ProblemProgram] = []
+        certified_files = set(self.evolution_config.manual_certified_seed_files)
         for path in sorted(Path(seed_dir).glob("*.py")):
             program = ProblemProgram.from_file(path, generation=0)
             # Each authored seed begins one primary-parent lineage. Descendants
             # inherit this id; structural inspirations never create a second
             # ancestry edge.
             program.metadata.setdefault("lineage_root_id", program.program_id)
+            if path.name in certified_files:
+                program.metadata["structural_donor_certification"] = {
+                    "passed": True,
+                    "source": "manual_seed_allowlist",
+                    "seed_file": path.name,
+                }
             inst, reason = self.verify_program(program)
             if inst is None:
                 self.events.append(
@@ -1024,7 +1031,13 @@ class RQEvolver:
         donor = getattr(task, "inspiration_donor", None)
         if donor is None:
             return None
-        verdict = self.archive.compare_with_structural_inspiration(child, donor)
+        copy_kwargs = {}
+        max_jaccard = self.evolution_config.structural_inspiration_max_token_jaccard
+        if max_jaccard is not None:
+            copy_kwargs["max_token_jaccard"] = max_jaccard
+        verdict = self.archive.compare_with_structural_inspiration(
+            child, donor, **copy_kwargs
+        )
         _record_inspiration_copy_gate(task, child, verdict)
         return verdict
 
@@ -1083,6 +1096,12 @@ class RQEvolver:
                     rng=random.Random(local_seed),
                     max_template_chars=cfg.structural_inspiration_max_chars,
                     selection_strategy=cfg.structural_inspiration_selection,
+                    require_certified=(
+                        cfg.structural_inspiration_require_certified_donor
+                    ),
+                    require_positive_rq=(
+                        cfg.structural_inspiration_require_positive_rq
+                    ),
                 )
             )
         return selections

@@ -133,6 +133,18 @@ class EvolutionConfig:
     # Named explicitly in configs/logs so a future semantic-cluster selector
     # cannot silently change the meaning of an existing experiment.
     structural_inspiration_selection: str = "cross_lineage_random"
+    # Donor-v2 safety contract. A donor must come from the manually reviewed
+    # seed allowlist and must currently have strictly positive R_Q. These affect
+    # donor context only; generated children and R_Q=0 champions may still
+    # occupy and reproduce from MAP cells.
+    structural_inspiration_require_certified_donor: bool = False
+    structural_inspiration_require_positive_rq: bool = False
+    # Reject a child whose normalized statement-token set overlaps too much
+    # with its assigned donor. None preserves the v1 copy gates.
+    structural_inspiration_max_token_jaccard: float | None = None
+    # Authored seeds eligible to act as structural donors. Generated children
+    # never inherit this certification.
+    manual_certified_seed_files: tuple[str, ...] = ()
     # Per-proposal few-shot rotation has its own deterministic stream.  Stage-2
     # tasks are created in asynchronous completion order, so using the global
     # RNG there would assign different examples to the same parent solely due
@@ -320,6 +332,19 @@ class EvolutionConfig:
                 "evolution.structural_inspiration_selection must be "
                 "'cross_lineage_random', got "
                 f"{self.structural_inspiration_selection!r}"
+            )
+        if self.structural_inspiration_max_token_jaccard is not None:
+            threshold = float(self.structural_inspiration_max_token_jaccard)
+            if not 0.0 <= threshold <= 1.0:
+                raise ValueError(
+                    "evolution.structural_inspiration_max_token_jaccard must "
+                    "be in [0, 1] or null"
+                )
+        if len(set(self.manual_certified_seed_files)) != len(
+            self.manual_certified_seed_files
+        ):
+            raise ValueError(
+                "evolution.manual_certified_seed_files contains duplicates"
             )
         if self.frontier_p_hat_range is not None:
             self.frontier_s_hat_range = tuple(
@@ -755,7 +780,10 @@ def _dataclass_from_dict(cls, payload: dict[str, Any]):
             "frontier_p_hat_range",
         ) and isinstance(value, list):
             kwargs[item.name] = tuple(float(x) for x in value)
-        elif item.name == "target_modules" and isinstance(value, list):
+        elif item.name in (
+            "target_modules",
+            "manual_certified_seed_files",
+        ) and isinstance(value, list):
             kwargs[item.name] = tuple(str(x) for x in value)
         else:
             kwargs[item.name] = value

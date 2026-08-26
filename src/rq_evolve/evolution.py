@@ -420,6 +420,15 @@ class RQEvolver:
         if self.evolution_config.reevaluate_champions:
             self.reevaluate_champions()
 
+        # Freeze the population whose CURRENT rollouts may train this update
+        # before mutation changes the archive.  Selection is based on scores
+        # known before those rollouts (LaggedScoreboard), the current s_hat is
+        # only a zero-advantage gate, and the payload is this iteration's replay.
+        # A child inserted below therefore becomes eligible at the next outer
+        # iteration instead of displacing a measured incumbent from the batch
+        # that is about to update theta_t -> theta_{t+1}.
+        training_pool = list(self.archive.champions())
+
         batch_size = self.evolution_config.inner_iteration_batch_size
         for start in range(0, self.evolution_config.inner_iterations, batch_size):
             current_batch = min(
@@ -431,7 +440,7 @@ class RQEvolver:
             attempted += sum(1 for r in batch_reports if r.status != "no_parent")
             inserted += sum(1 for r in batch_reports if r.status == "inserted")
 
-        self.refresh_dataset()
+        self.refresh_dataset(training_champions=training_pool)
         stats = self.archive.stats()
         frontier_in = sum(1 for f in self.last_frontier if f["decision"] == "in_frontier")
         # Dispersion is a diagnostic, never a fitness term (rewarding
@@ -754,6 +763,13 @@ class RQEvolver:
                 u_value=result.u_score,
                 rq_score=result.rq_score,
             )
+            if inserted:
+                # The candidate was measured under theta_t.  Recording that
+                # score now makes it a PAST score at t+1, so a new child waits
+                # exactly one update before it can train (not two).
+                self.lagged.record(
+                    child.program_id, self.current_iteration, result.rq_score
+                )
             if inserted:
                 status = "inserted"
             elif result.s_hat <= 0.0:
@@ -1521,7 +1537,7 @@ class RQEvolver:
         return results
 
     def _allocate_instances(self, champions: list[ProblemProgram]) -> list[int]:
-        """One fresh instance each, then extra instances to the best champions.
+        """One fresh instance each, then extras by the lagged selection score.
 
         The trainer needs ``train_batch_target`` prompts and the frontier is
         routinely smaller than that (median 18 against a target of 16-32 over
@@ -1531,10 +1547,10 @@ class RQEvolver:
         -- LILO found scaling the number of levels more effective than scaling
         rollouts per level.
 
-        Ranked by the score each champion already carries, i.e. the previous
-        iteration's measurement. That is the same lag the batch selection uses:
-        ranking on the rollouts about to be trained on would condition the
-        sample on its own measurement noise.
+        Ranked by the same past-only EWMA used to build the training batch.
+        ``program.rq_score`` is deliberately not the ranking key: it is only
+        the most recent raw draw, whereas ``LaggedScoreboard`` is the declared
+        cumulative priority and excludes the current iteration by construction.
 
         THE SHORTFALL IS COUNTED OVER FRONTIER CHAMPIONS, NOT ALL OF THEM, and
         that distinction is the whole point of this function. Only a champion
@@ -1569,11 +1585,27 @@ class RQEvolver:
         pool = frontier or list(range(n))
         if target <= len(pool):
             return counts
-        order = sorted(
-            pool,
-            key=lambda i: float(getattr(champions[i], "rq_score", 0.0) or 0.0),
-            reverse=True,
-        )
+        past_scores = {
+            i: self.lagged.selection_score(
+                champions[i].program_id, self.current_iteration
+            )
+            for i in pool
+        }
+        # Bootstrap / a pre-scoreboard checkpoint has no past-only value at
+        # all.  Only in that all-missing state may the already-stored score seed
+        # the first batch.  Once any history exists, a missing program is a new
+        # child and must not receive priority before its next iteration.
+        if all(score is None for score in past_scores.values()):
+            rank_score = {
+                i: float(getattr(champions[i], "rq_score", 0.0) or 0.0)
+                for i in pool
+            }
+        else:
+            rank_score = {
+                i: (float(score) if score is not None else float("-inf"))
+                for i, score in past_scores.items()
+            }
+        order = sorted(pool, key=lambda i: rank_score[i], reverse=True)
         for j in range(target - len(pool)):
             counts[order[j % len(order)]] += 1
         return counts
@@ -1721,7 +1753,22 @@ class RQEvolver:
             )
         return inserted
 
-    def refresh_dataset(self, *, warmup: bool = False) -> None:
+    def refresh_dataset(
+        self,
+        *,
+        warmup: bool = False,
+        training_champions: list[ProblemProgram] | None = None,
+    ) -> None:
+        # ``training_champions`` is captured immediately after incumbent
+        # re-scoring and before mutation.  Keeping it separate from the live
+        # archive makes the temporal contract explicit: children created in
+        # iteration t may train from t+1, while every row used now has a replay
+        # group sampled under the current theta_t.
+        champions = (
+            list(training_champions)
+            if training_champions is not None
+            else list(self.archive.champions())
+        )
         # Record each champion's frontier decision (the learnability filter that
         # decides which problems feed training) with the SAME predicate
         # build_training_examples uses -- observability only, no behavior change.
@@ -1737,16 +1784,21 @@ class RQEvolver:
                     else "s_hat_out_of_range"
                 ),
             }
-            for champion in self.archive.champions()
+            for champion in champions
         ]
         if self.training_config.replay_training_batch:
+            replay_budget = (
+                self.training_config.training_budget
+                if self.training_config.training_budget is not None
+                else self.evolution_config.train_batch_target
+            )
             examples = build_replay_training_examples(
-                self.archive.champions(),
+                champions,
                 replay=self.replay,
                 lagged=self.lagged,
                 iteration=self.current_iteration,
                 frontier_s_hat_range=self.evolution_config.frontier_s_hat_range,
-                training_budget=self.training_config.training_budget,
+                training_budget=replay_budget,
                 warmup=warmup,
             )
             if not examples and not warmup:
@@ -1756,7 +1808,6 @@ class RQEvolver:
                 # fall back to the current scores rather than hand the trainer
                 # an empty dataloader. The lag re-engages the moment any
                 # champion carries history again.
-                champions = list(self.archive.champions())
                 if champions and all(
                     self.lagged.selection_score(c.program_id, self.current_iteration)
                     is None
@@ -1777,10 +1828,10 @@ class RQEvolver:
                         frontier_s_hat_range=(
                             self.evolution_config.frontier_s_hat_range
                         ),
-                        training_budget=self.training_config.training_budget,
+                        training_budget=replay_budget,
                         warmup=True,
                     )
-            if not examples and not warmup and self.archive.champions():
+            if not examples and not warmup and champions:
                 # The frontier admitted nobody: every champion currently reads
                 # degenerate (s_hat exactly 0 or 1). Handing the trainer an
                 # empty dataloader ends the run -- verl raises IndexError out of
@@ -1797,16 +1848,16 @@ class RQEvolver:
                     {
                         "event": "frontier_empty_fallback",
                         "iteration": self.current_iteration,
-                        "champions": len(self.archive.champions()),
+                        "champions": len(champions),
                     }
                 )
                 examples = build_replay_training_examples(
-                    self.archive.champions(),
+                    champions,
                     replay=self.replay,
                     lagged=self.lagged,
                     iteration=self.current_iteration,
                     frontier_s_hat_range=self.evolution_config.frontier_s_hat_range,
-                    training_budget=self.training_config.training_budget,
+                    training_budget=replay_budget,
                     warmup=True,
                     allow_degenerate=True,
                 )
@@ -1814,7 +1865,7 @@ class RQEvolver:
             # that repeats IDENTICAL responses rather than resampling them, so a
             # short batch double-counts the same rollouts. Harmless but worth
             # seeing: it shrinks as the archive fills.
-            budget = self.training_config.training_budget
+            budget = replay_budget
             if examples and budget and len(examples) < budget:
                 self.events.append(
                     {
@@ -1828,7 +1879,7 @@ class RQEvolver:
             self.dataset_refresh_count += 1
             return
         examples = build_training_examples(
-            self.archive.champions(),
+            champions,
             instances_per_program=self.training_config.instances_per_program,
             training_budget=self.training_config.training_budget,
             frontier_s_hat_range=self.evolution_config.frontier_s_hat_range,

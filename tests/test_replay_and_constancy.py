@@ -168,6 +168,22 @@ def test_the_batch_is_ordered_by_the_lagged_score():
     assert [r["program_id"] for r in rows] == ["high", "mid", "low"]
 
 
+def test_the_batch_budget_binds_before_dataloader_shuffle():
+    """An overfull frontier must be top-k by past R_Q, not random after shuffle."""
+    buf = RolloutReplayBuffer(); buf.begin_iteration(1)
+    board = LaggedScoreboard()
+    champs = []
+    for pid, past in (("low", 0.1), ("high", 0.9), ("mid", 0.5)):
+        buf.store(pid, _inst(0, pid), _rollouts(True, False))
+        board.record(pid, 0, past)
+        champs.append(_champion(pid, 0.5, 0.5))
+    rows = build_replay_training_examples(
+        champs, replay=buf, lagged=board, iteration=1,
+        frontier_s_hat_range=(0.0, 1.0), training_budget=2,
+    )
+    assert [r["program_id"] for r in rows] == ["high", "mid"]
+
+
 # --- the constancy gate -----------------------------------------------------
 
 
@@ -297,6 +313,45 @@ def _loop_evolver(backend, group_size=2, batch=6):
         ),
         training_config=TrainingDataConfig(replay_training_batch=True),
     )
+
+
+def test_extra_instances_use_the_same_lagged_ewma_as_batch_selection():
+    backend = _CountingBackend()
+    evolver = _loop_evolver(backend, batch=3)
+    low_past = _champion("low-past", 0.5, 99.0)
+    high_past = _champion("high-past", 0.5, 0.01)
+    evolver.current_iteration = 2
+    evolver.lagged.record(low_past.program_id, 1, 0.1)
+    evolver.lagged.record(high_past.program_id, 1, 0.9)
+
+    counts = evolver._allocate_instances([low_past, high_past])
+
+    assert counts == [1, 2], (
+        "raw rq_score and lagged priority disagree; allocation must follow lagged R_Q"
+    )
+
+
+def test_training_pool_is_frozen_before_mutation_changes_the_archive():
+    backend = _CountingBackend()
+    evolver = _loop_evolver(backend, batch=1)
+    incumbent = _champion("measured-incumbent", 0.5, 0.4)
+    evolver.current_iteration = 2
+    evolver.replay.begin_iteration(2)
+    evolver.replay.store(
+        incumbent.program_id,
+        _inst(7, incumbent.program_id),
+        _rollouts(True, False),
+    )
+    evolver.lagged.record(incumbent.program_id, 1, 0.4)
+
+    # The live archive may no longer contain the incumbent after mutation.
+    # The current update must still consume the rollout measured before that
+    # mutation, and a replacement child must wait until the next iteration.
+    evolver.refresh_dataset(training_champions=[incumbent])
+
+    rows = evolver.dataset.snapshot()
+    assert [row["program_id"] for row in rows] == [incumbent.program_id]
+    assert [row["seed"] for row in rows] == [7]
 
 
 # One sentence per tag, and genuinely different sentences: the archive's

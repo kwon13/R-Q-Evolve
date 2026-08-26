@@ -35,7 +35,7 @@ _LATEX_ESCAPE_PATTERNS = re.compile(
 def sanitize_latex_raw_strings(code: str) -> str:
     """Prepend 'r' to string literals containing LaTeX backslashes without raw prefix.
 
-    Prevents Python 3.12 SyntaxWarnings (e.g. invalid escape sequence '\(') and avoids
+    Prevents Python 3.12 SyntaxWarnings (e.g. invalid escape sequence '\\(') and avoids
     destructive ASCII control character substitutions (e.g. \\b -> backspace, \\t -> tab).
     """
     try:

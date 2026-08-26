@@ -74,6 +74,16 @@ evolution:
   # copied the parent's bound). Turn this back on if ill-posed children show up
   # in the archive.
   use_evaluator: false
+  # Read each surviving child's SKILL off the child itself: eight binary
+  # YES/NO calls, one per skill, argmax of the offset-corrected P(YES).
+  # Against a reference labelling this scores 0.812 where the label stage 1
+  # declared scores 0.375 and stage 2's blind re-derivation 0.406. It replaces
+  # the stage-2 self-consistency gate, which is gone -- stage 2 is now TOLD the
+  # target skill and asked to build for it.
+  #
+  # Cost: 8 calls per surviving child at max_tokens=1. The skill block is last
+  # in the user turn so all eight share their prefix and cost one prefill.
+  relabel_skill: true
   # Structural contract on the child's own cross-check, before execution.
   # Measured on 456 archived champions: 45% flagged, 0 of the 14 clean
   # programs. use_evaluator=false requires this to be shadow or enforce.

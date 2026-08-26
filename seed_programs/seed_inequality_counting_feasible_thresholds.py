@@ -3,12 +3,7 @@ import random
 
 def generate(seed):
     rng = random.Random(seed)
-
-    # n is the only parameter, so its range is also the whole instance space:
-    # 31 distinct statements. The reasoning is AM-GM then a parity split,
-    # which a wider range would not change -- it would only make the count
-    # longer to write down.
-    n = rng.randint(10, 40)
+    n = rng.randint(6, 16)
 
     # For a fixed integer s >= 2, consider positive real x, y with x + y = s.
     # By AM-GM,

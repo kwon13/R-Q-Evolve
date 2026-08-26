@@ -57,15 +57,22 @@ fi
 UTIL=$(grep -oP '^\s+gpu_memory_utilization:\s*\K[0-9.]+' "$CONFIG" | head -1)
 MICRO=$(grep -oP '^\s+ppo_micro_batch_size_per_gpu:\s*\K[0-9]+' "$CONFIG" | head -1)
 OPT_OFFLOAD=$(grep -oP '^\s+optimizer_offload:\s*\K\w+' "$CONFIG" | head -1)
-# 41.2 GiB is the ONLY measured term: verl's perf/max_memory_reserved_gb, held
-# flat across all 243 steps of the 2026-08-24 8-rank micro=4 run. Everything
-# else is derived, and derived numbers are why TRAINER_GIB is overridable --
-# read perf/max_memory_reserved_gb off the first steps and set it for real.
+# Two measured anchors, both verl's perf/max_memory_reserved_gb:
+#
+#   8 ranks, micro 4, no offload   41.2 GiB   flat across all 243 steps
+#                                              (2026-08-24 run)
+#   4 ranks, micro 2, offload      34.2 GiB   step 1 of the 2026-08-25 run
+#
+# The derivation below reproduces the first by construction and lands 1.5 GiB
+# UNDER the second, so it carries a flat +2.0 pad. Padding rather than fitting
+# a coefficient: one measurement is not enough to fit to, and the failure mode
+# of being low here is an OOM in backward several minutes into a run.
 TRAINER_GIB=${TRAINER_GIB:-$(python3 -c "
 base = 41.2                                   # measured: 8 ranks, micro 4
 base += (8.0 / ${NGPU:-8} - 1.0) * 8.0        # FSDP replica terms scale with 1/ranks
 if ${MICRO:-4} <= 2: base -= 4.5              # activations + logits halve
 if '${OPT_OFFLOAD:-false}'.lower() == 'true': base -= 12.0 * (8.0 / ${NGPU:-8}) / 2.0
+base += 2.0                                   # see the anchors above
 print(round(base, 1))")}
 NEED=$(python3 -c "print(round(${UTIL:-0.38}*80 + 3.6 + $TRAINER_GIB + 0.5, 1))")
 

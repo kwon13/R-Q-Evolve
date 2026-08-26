@@ -27,8 +27,12 @@ evolution:
   inner_iteration_batch_size: 2
   # n x m fitness. m must equal actor_rollout_ref.rollout.n below or the
   # replay groups cannot line up row-for-row and every step falls through.
-  eval_seeds: 2
-  rollouts_per_seed: 4
+  # G = one fresh instance x G rollouts. Was the deprecated
+  # n x m spelling (eval_seeds 2 x rollouts_per_seed 4), which
+  # config.py resolved to exactly this number -- written out so the
+  # value that has to match actor_rollout_ref.rollout.n is visible
+  # here rather than computed somewhere else.
+  group_size: 8
   verify_seeds: 5
   frontier_s_hat_range: [-1.0, 2.0]   # smoke only: prove the plumbing, not the curriculum
   fix_retry: false
@@ -119,7 +123,7 @@ verl_config:
       mode: async
       temperature: 1.0
       top_p: 0.95
-      n: 4   # == evolution.rollouts_per_seed (m)
+      n: 8  # == evolution.group_size; replay_training_batch requires it
       tensor_model_parallel_size: 1
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096

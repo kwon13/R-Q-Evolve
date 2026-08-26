@@ -506,6 +506,7 @@ def build_replay_training_examples(
     frontier_s_hat_range: tuple[float, float],
     training_budget: int | None = None,
     warmup: bool = False,
+    allow_degenerate: bool = False,
 ) -> list[dict]:
     """The training set: this iteration's re-scoring rollouts, lagged-selected.
 
@@ -540,7 +541,15 @@ def build_replay_training_examples(
         # The frontier band uses the CURRENT measurement: an elite selected on
         # its past score but degenerate right now would contribute a batch of
         # zero advantages.
-        if not is_frontier(float(getattr(champion, "s_hat", 0.0)), low, high):
+        #
+        # ``allow_degenerate`` is the caller saying the band admitted nobody at
+        # all. A batch of zero advantages is a wasted step; an empty dataloader
+        # is a dead run (IndexError: VerlDynamicDataset is empty). Take the
+        # wasted step -- re-measurement runs next iteration and the band
+        # normally refills.
+        if not allow_degenerate and not is_frontier(
+            float(getattr(champion, "s_hat", 0.0)), low, high
+        ):
             continue
         ranked.append((score, champion))
     ranked.sort(key=lambda pair: pair[0], reverse=True)

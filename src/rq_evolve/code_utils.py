@@ -909,6 +909,84 @@ def _answer_leaks_as_assignment(answer: str, problem: str) -> bool:
     return False
 
 
+def answer_is_bare_draw(source_code: str) -> str | None:
+    """Error when ``answer`` is just a name the generator sampled, unchanged.
+
+    The pattern is ``n = rng.randint(3, 10)`` followed by ``answer = n``. Nothing
+    between the statement and the returned value does any work, so the program's
+    mathematics is whatever the prose happens to claim and the assert is
+    guaranteed to pass -- an archived champion paired "Construct a sequence of n
+    distinct positive integers whose pairwise sums avoid n; find the smallest
+    possible a_n" with ``answer = point_count`` and a `check` that read the last
+    element of ``range(1, n + 1)``, i.e. the same n wearing a hat.
+
+    Measured over the 48 champions of the 4B run: 10 (21%) are built this way,
+    and their s_hat averages 0.90 against the archive's 0.81 -- solvers "succeed"
+    because the answer is the number printed in the question.
+    """
+    try:
+        tree = ast.parse(source_code)
+    except SyntaxError:
+        return None
+    drawn: set[str] = set()
+    answer_value: ast.expr | None = None
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Assign) and len(node.targets) == 1):
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        value = node.value
+        if (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Attribute)
+            and value.func.attr in ("randint", "choice", "randrange", "sample")
+        ):
+            drawn.add(target.id)
+        if target.id == "answer":
+            answer_value = value
+    if answer_value is None:
+        return None
+    if isinstance(answer_value, ast.Name) and answer_value.id in drawn:
+        return (
+            f"answer is the sampled parameter {answer_value.id!r} unchanged: the "
+            "program computes nothing the statement asks for"
+        )
+    return None
+
+
+def answer_leaks_in_every_instance(instances) -> str | None:
+    """Error when the answer appears verbatim in the problem text of EVERY seed.
+
+    ``_answer_leaks_into_problem`` already looks for this on ONE instance, but it
+    returns early for answers of two characters or fewer -- and that guard is why
+    it has never fired: measured over the 48 champions of the 4B run it flags 0
+    of them, while 12 (25%) do leak, all with short answers like ``n`` drawn from
+    ``randint(3, 10)`` and printed in the statement as "Let n = 7".
+
+    Requiring the leak on EVERY verification seed is what makes short answers
+    safe to check. A single coincidence is common; the same coincidence five
+    independent draws running is not. Measured on the same 48: demanding one seed
+    flags 18 (38%, mean s_hat 0.82 -- it is catching real problems too), while
+    demanding all five flags 12 (25%, mean s_hat 0.90) and those are exactly the
+    trivial ones.
+    """
+    seen = [i for i in instances if i is not None]
+    if len(seen) < 2:
+        return None
+    for inst in seen:
+        answer = str(inst.answer).strip()
+        if not answer:
+            return None
+        pattern = r"(?<![\d.])" + re.escape(answer) + r"(?![\d.])"
+        if re.search(pattern, inst.problem) is None:
+            return None
+    return (
+        "the answer is printed in the problem text on every seed: a solver that "
+        "copies the number out of the question scores without solving anything"
+    )
+
+
 def set_label_declarations(source_code: str, group: str, skill: str) -> str:
     """Return ``source_code`` with exactly one GROUP / SKILL pair, at the end.
 

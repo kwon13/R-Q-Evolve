@@ -151,7 +151,9 @@ def test_the_system_prompts_are_properly_rendered():
     gen_task = build_generator_task(_program(), _plan())
     gen_system = gen_task.messages[0]["content"]
     assert "$" not in gen_system
-    assert "INFERRED_SKILL:" in gen_system
+    # Stage 2 builds FOR the skill; it is no longer asked to name it back.
+    assert "INFERRED_SKILL" not in gen_system
+    assert "TARGET SKILL" in gen_system
     for skill in SKILLS:
         assert f"{skill}:" in gen_system
 
@@ -318,7 +320,13 @@ def test_labels_outside_the_vocabulary_are_not_invented():
 
 
 def test_parse_inferred_labels_extracts_skill():
-    """Stage 2 outputs INFERRED_SKILL after the code block."""
+    """Retired from the live path; kept for the offline probes in scripts/.
+
+    Stage 2 used to emit INFERRED_SKILL after its code block so the caller could
+    reject a mismatch against stage 1. That gate is gone -- the skill is now an
+    input to stage 2 and the cell comes from the relabeller -- but three probe
+    scripts still replay old JSONL through this parser.
+    """
     from rq_evolve.prompts import parse_inferred_labels
 
     reply = "```python\ndef generate(seed):\n    pass\n```\nINFERRED_SKILL: casework\n"

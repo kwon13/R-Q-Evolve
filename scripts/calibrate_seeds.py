@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import collections
 import json
 import statistics
 import sys
@@ -35,6 +36,7 @@ from rq_evolve.program import ProblemProgram  # noqa: E402
 from rq_evolve.prompts import build_solver_messages  # noqa: E402
 from rq_evolve.reward import answers_match, extract_boxed  # noqa: E402
 from rq_evolve.scoring import unbiased_learnability  # noqa: E402
+from rq_evolve.solver_trace import SOLVER_CHAT_BOUNDARY_STOPS  # noqa: E402
 
 SERVERS = {"4B": ("http://127.0.0.1:8401/v1", "qwen3-4b-base"),
            "8B": ("http://127.0.0.1:8801/v1", "qwen3-8b-base")}
@@ -48,6 +50,15 @@ async def _one(client, model, problem, args):
             temperature=args.temperature,
             top_p=args.top_p,
             max_tokens=args.tokens,
+            # These are BASE checkpoints. Without the boundary stops a reply
+            # runs past its answer into a hallucinated next turn and emits a
+            # SECOND \boxed{}; extract_boxed returns the LAST box, so that one
+            # overwrites the correct answer. The run's own scorer is unaffected
+            # -- evolution.py regrades through sanitize_solver_trace, which cuts
+            # the spilled turn -- but this script grades raw, so without this it
+            # under-measures s_hat, and worst on exactly the hard seeds it
+            # exists to calibrate. probe_seed_solvability.py:76 already does it.
+            stop=list(SOLVER_CHAT_BOUNDARY_STOPS),
         )
         return r.choices[0].message.content or ""
     except Exception as exc:  # one bad request must not sink the sweep
@@ -81,18 +92,39 @@ def main() -> int:
     ap.add_argument("--seed-dir", default="seed_programs")
     ap.add_argument("--eval-seeds", type=int, default=5, help="n: fresh seeds per program")
     ap.add_argument("--rollouts", type=int, default=4, help="m: rollouts per seed")
-    ap.add_argument("--tokens", type=int, default=3000)
+    # 5000 = the run's data.max_response_length. At 3000 a long seed is
+    # truncated before its box and scores 0 for a reason that has nothing to
+    # do with its difficulty -- the same trap this script's server wrapper
+    # documents for generation_config's 2048 ceiling.
+    ap.add_argument("--tokens", type=int, default=5000)
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument("--top-p", type=float, default=0.95)
+    ap.add_argument("--guess-seeds", type=int, default=300,
+                    help="seeds used to estimate the modal-answer (guess) floor")
     ap.add_argument("--only", default=None, help="substring filter on the file name")
     ap.add_argument("--out", default="rq_output/seed_calibration.json")
     args = ap.parse_args()
 
     instances = []
+    # Guess floor: the share of the seed space that yields the single most
+    # common answer. Narrowing a one-parameter generator is the obvious way to
+    # raise s_hat, and it raises this at the same time and on the SAME knob --
+    # a seed whose s_hat merely matches its modal rate is being answered by
+    # guessing, not by the SKILL it is supposed to demand. Read the two columns
+    # together or calibration will manufacture exactly the wrong seeds.
+    guess: dict[str, float] = {}
     for path in sorted(Path(args.seed_dir).glob("*.py")):
         if args.only and args.only not in path.name:
             continue
         program = ProblemProgram.from_file(path)
+        answers = collections.Counter()
+        for seed in range(args.guess_seeds):
+            probe = program.execute(seed=seed)
+            if probe is not None:
+                answers[str(probe.answer)] += 1
+        guess[path.name] = (
+            answers.most_common(1)[0][1] / sum(answers.values()) if answers else 1.0
+        )
         for seed in range(args.eval_seeds):
             inst = program.execute(seed=seed)
             if inst is None:
@@ -117,7 +149,9 @@ def main() -> int:
 
     print(f"\nn={args.eval_seeds} fresh seeds x m={args.rollouts} rollouts, "
           f"temperature={args.temperature}\n")
-    head = f"{'seed program':<52}" + "".join(f"{t+' s_hat':>11}{t+' R_Q':>10}{'info':>7}" for t in SERVERS)
+    head = (f"{'seed program':<52}"
+            + "".join(f"{t+' s_hat':>11}{t+' R_Q':>10}{'info':>7}" for t in SERVERS)
+            + f"{'guess':>8}  verdict")
     print(head); print("-" * len(head))
     rows = []
     for name in sorted({n for n, _, _ in instances}):
@@ -135,6 +169,40 @@ def main() -> int:
             line += f"{s:>11.2f}{rq:>10.3f}{info:>7.0%}"
             row[tag] = {"s_hat": s, "learnability": rq, "informative": info,
                         "per_seed": per_seed}
+        g = guess.get(name, 1.0)
+        row["guess_floor"] = g
+        line += f"{g:>8.0%}  "
+        # The 4B server is the policy the run actually starts from, so its
+        # s_hat is the one that decides whether this seed can ever carry
+        # gradient. R_Q = s(1-s)U is zero at both ends; 0.30-0.70 is the band
+        # where a seed is worth its rollouts.
+        s4 = (row.get("4B") or {}).get("s_hat")
+        if s4 is None:
+            verdict = "no measurement"
+        elif s4 <= 0.0:
+            verdict = "DEAD (s=0): unsolvable, R_Q=0 from birth"
+        elif s4 >= 1.0:
+            verdict = "DEAD (s=1): trivial, R_Q=0 from birth"
+        elif s4 < g + 0.10:
+            verdict = f"AT GUESS FLOOR (s={s4:.2f} vs modal {g:.0%})"
+        elif not 0.30 <= s4 <= 0.70:
+            verdict = "off-band (want 0.30-0.70)"
+        else:
+            verdict = "ok"
+        # Capability ordering. 8B is strictly the stronger solver, so a seed that
+        # measures REASONING must be easier for it. When s_8B <= s_4B the seed is
+        # ranking the two models the wrong way round, which no amount of
+        # difficulty tuning fixes -- the score is coming from something other
+        # than the SKILL the cell claims (answer-space luck, format, length).
+        # Reported alongside rather than instead of the band verdict: a seed can
+        # sit in the band and still be measuring nothing.
+        s8 = (row.get("8B") or {}).get("s_hat")
+        if s4 is not None and s8 is not None:
+            row["capability_gap"] = s8 - s4
+            if s8 <= s4:
+                verdict += f"  [!] 8B <= 4B ({s8:.2f} vs {s4:.2f}): not measuring skill"
+        row["verdict"] = verdict
+        line += verdict
         print(line); rows.append(row)
 
     print()

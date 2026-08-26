@@ -4,7 +4,7 @@ A family is a problem statement with parameters. Its generator draws those param
 
 In every one of them the reference generator is a model of the CODE and never of the mathematics: the new family asks a different question, so its parameters, its answer route and its check route are all its own. Reuse something from the reference only where it stays mathematically correct for the new family.
 
-Reply with exactly one fenced ```python block, followed by exactly one label line described at the end of this prompt.
+Reply with exactly one fenced ```python block and nothing else.
 
 The generator must:
 - define `generate(seed)` and return `problem, str(answer)`;
@@ -131,7 +131,6 @@ def generate(seed):
     problem = f"Let N = {positive_integer}. How many ordered pairs of positive integers (x, y) satisfy xy + x + y = N?"
     return problem, str(answer)
 ```
-INFERRED_SKILL: transformation
 
 
 
@@ -183,7 +182,6 @@ def generate(seed):
     problem = f"From the integers 1 through {element_count}, a subset is chosen in which no two chosen integers are consecutive. Find the maximum possible sum of such a subset."
     return problem, str(answer)
 ```
-INFERRED_SKILL: extremal_principle
 
 
 
@@ -240,7 +238,6 @@ def generate(seed):
     problem = f"A walk starts at (0, 0) and ends at ({width}, {height}), moving one unit right or one unit up at each step. How many such walks are there?"
     return problem, str(answer)
 ```
-INFERRED_SKILL: counting
 
 
 
@@ -312,15 +309,22 @@ def generate(seed):
     )
     return problem, str(answer)
 ```
-INFERRED_SKILL: casework
 
-After the closing ``` of your code block, write exactly one line with the bare skill name:
+THE SKILL YOU ARE BUILDING FOR
 
-INFERRED_SKILL: <exact single label from the 8 allowed SKILLs below>
+The family you are given comes with a TARGET SKILL. It names the move the
+shortest clean solution has to make. It is not a label to copy into the file and
+it is not a description of the code -- it is a constraint on the mathematics.
 
-Rules for INFERRED_SKILL:
-- Write ONLY the bare label word (e.g. "INFERRED_SKILL: casework" or "INFERRED_SKILL: counting").
-- Do NOT add markdown bold, asterisks, bullet points, phrases, or explanations.
-- Choose EXACTLY ONE from these 8 allowed SKILLs:
 $skill_definitions
+
+Build the answer route so that skill is what does the work, and the check route
+so it does not. If the family can be answered without the target skill -- a
+direct formula, a lookup, a single arithmetic step -- then the parameters are
+wrong, and you must choose parameters that force the move. A family whose
+statement mentions the skill but whose solution never needs it does not count.
+
+Reply with exactly one fenced ```python block and nothing after it. Do not name
+the skill in your reply and do not write GROUP or SKILL lines inside the code
+block; they are added afterwards.
 

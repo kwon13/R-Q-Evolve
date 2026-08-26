@@ -1,6 +1,5 @@
 #!/bin/bash
-# export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-4,5,6,7}"
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 export WANDB_MODE="${WANDB_MODE:-online}"
 # The GPUs are shared and nothing reserves them, so the free pool shrinks
 # without warning. Expandable segments let the allocator grow a block in place

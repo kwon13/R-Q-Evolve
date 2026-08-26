@@ -427,7 +427,7 @@ def test_two_stage_mutation_returns_the_single_call_shape():
     evolver.evolution_config = EvolutionConfig(two_stage_mutation=True)
     evolver.backend = _Backend()
 
-    tasks, outputs = evolver._mutate_in_two_stages([parent, parent])
+    tasks, outputs, _ = evolver._mutate_in_two_stages([parent, parent])
     assert calls == [["family", "family"], ["generator"]], calls
     assert len(tasks) == len(outputs) == 2
     # The parsed one carries stage 1's labels, stapled on rather than asked of

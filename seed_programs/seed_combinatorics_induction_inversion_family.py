@@ -1,52 +1,50 @@
 import random
-from itertools import product
 
 
 def generate(seed):
     rng = random.Random(seed)
 
-    # n is the only parameter. Below 6 the strings can be listed by hand and
-    # the recursion is never forced. The upper end is set by the exhaustive
-    # check, which walks all 2^n strings.
-    n = rng.randint(6, 16)
+    n = rng.randint(6, 15)
 
-    # Let a_m be the number of binary strings of length m with no three
-    # consecutive 1s.
+    # D_m = number of derangements of m objects.
     #
-    # Split by the run of 1s at the right end. Such a string ends in
+    # Look at where person 1's card goes, say to person j.
     #
-    #     ...0     -> the preceding m-1 characters are admissible
-    #     ...01    -> the preceding m-2 characters are admissible
-    #     ...011   -> the preceding m-3 characters are admissible
+    # Case 1: person j's card goes back to person 1.
+    # Removing these two people leaves a derangement of m-2 people.
     #
-    # and nothing else survives, since a longer run ends in 111. The three
-    # cases are disjoint and exhaustive, so
+    # Case 2: person j's card does not go to person 1.
+    # Merge person 1 into the position involving j; this reduces to
+    # a derangement of m-1 people.
     #
-    #     a_m = a_{m-1} + a_{m-2} + a_{m-3}.
+    # There are m-1 choices of j, hence
     #
-    # Base cases: a_0 = 1 (the empty string), a_1 = 2, a_2 = 4. There is no
-    # short closed form here, so the recursion is not just the fastest route
-    # in -- it is the only one.
-    counts = [1, 2, 4]
+    #   D_m = (m-1)(D_{m-1} + D_{m-2}).
+    #
+    # The size-m problem therefore essentially depends on smaller instances.
 
-    for m in range(3, n + 1):
-        counts.append(counts[-1] + counts[-2] + counts[-3])
+    D = [0] * (n + 1)
+    D[0] = 1
+    D[1] = 0
 
-    answer = counts[n]
+    for m in range(2, n + 1):
+        D[m] = (m - 1) * (D[m - 1] + D[m - 2])
 
-    # Independent route: enumerate every string of length n and reject the
-    # ones containing 111. This shares nothing with the case split above.
-    check = 0
+    answer = D[n]
 
-    for bits in product("01", repeat=n):
-        if "111" not in "".join(bits):
-            check += 1
+    # Independent check via inclusion-exclusion.
+    import math
+    check = round(
+        math.factorial(n)
+        * sum(((-1) ** j) / math.factorial(j) for j in range(n + 1))
+    )
 
     assert answer == check, f"answer={answer} check={check}"
 
     problem = (
-        f"A string of length {n} is formed using only the characters 0 and 1. "
-        f"How many such strings contain no three consecutive 1s?"
+        f"{n} people each write their name on a card. The cards are shuffled "
+        f"and redistributed, one card to each person. In how many redistributions "
+        f"does no person receive their own card?"
     )
 
     return problem, str(answer)

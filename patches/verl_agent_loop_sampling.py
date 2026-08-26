@@ -39,6 +39,12 @@ from pathlib import Path
 MARKER = "# [rq-evolve] per-call sampling overrides from meta_info"
 
 ANCHOR = """        # override sampling params for validation
+        if validate:
+            sampling_params["top_p"] = config.val_kwargs.top_p
+            sampling_params["top_k"] = config.val_kwargs.top_k
+            sampling_params["temperature"] = config.val_kwargs.temperature
+"""
+ANCHOR_ALT = """        # override sampling params for validation
         if batch.meta_info.get("validate", False):
             sampling_params["top_p"] = config.val_kwargs.top_p
             sampling_params["top_k"] = config.val_kwargs.top_k
@@ -89,7 +95,12 @@ def apply() -> str:
     text = path.read_text(encoding="utf-8")
     if MARKER in text:
         return f"already applied: {path}"
-    if ANCHOR not in text:
+    target_anchor = None
+    if ANCHOR in text:
+        target_anchor = ANCHOR
+    elif ANCHOR_ALT in text:
+        target_anchor = ANCHOR_ALT
+    else:
         raise SystemExit(
             f"anchor not found in {path}; verl's agent loop changed shape and "
             "this patch must be re-derived before any run is trusted"
@@ -97,7 +108,7 @@ def apply() -> str:
     backup = path.with_suffix(path.suffix + ".orig")
     if not backup.exists():
         shutil.copy2(path, backup)
-    path.write_text(text.replace(ANCHOR, ANCHOR + INSERT, 1), encoding="utf-8")
+    path.write_text(text.replace(target_anchor, target_anchor + INSERT, 1), encoding="utf-8")
     return f"patched {path} (backup at {backup})"
 
 

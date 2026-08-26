@@ -100,6 +100,10 @@ class MAPElitesArchive:
         self.total_insertions = 0
         self.total_replacements = 0
         self.total_selections = 0
+        # Manually certified structural donors live independently of MAP cell
+        # competition. Otherwise a valid child replacing a seed champion would
+        # silently turn off the treatment later in the same run.
+        self.structural_donors: dict[str, ProblemProgram] = {}
         self.grid: dict[tuple[int, int], Niche] = {
             (g, s): Niche(group_bin=g, skill_bin=s)
             for g in range(self.n_group_bins)
@@ -223,6 +227,12 @@ class MAPElitesArchive:
             program.metadata["duplicate_of"] = other.program_id
             program.metadata["structural_ratio"] = round(ratio, 3)
             return False
+
+        certification = (program.metadata or {}).get(
+            "structural_donor_certification"
+        ) or {}
+        if certification.get("passed"):
+            self.structural_donors[program.program_id] = program
 
         niche = self.grid[cell]
         # Champion competition ranks by selection priority: real R_Q in
@@ -683,6 +693,8 @@ class MAPElitesArchive:
         rng: random.Random,
         max_template_chars: int = 1600,
         selection_strategy: str = "cross_lineage_random",
+        require_certified: bool = False,
+        require_positive_rq: bool = False,
     ) -> StructuralInspirationSelection:
         """Uniformly sample one usable donor outside the parent's lineage.
 
@@ -703,9 +715,30 @@ class MAPElitesArchive:
         if max_template_chars < 1:
             raise ValueError("max_template_chars must be >= 1")
 
-        pool = [p for p in self.champions() if p.program_id != parent.program_id]
+        candidates = (
+            list(self.structural_donors.values())
+            if require_certified
+            else self.champions()
+        )
+        pool = [p for p in candidates if p.program_id != parent.program_id]
+        quality_pool: list[ProblemProgram] = []
+        uncertified_count = 0
+        nonpositive_rq_count = 0
+        for donor in pool:
+            certified = bool(
+                (
+                    (donor.metadata or {}).get("structural_donor_certification") or {}
+                ).get("passed")
+            )
+            if require_certified and not certified:
+                uncertified_count += 1
+                continue
+            if require_positive_rq and not float(donor.rq_score or 0.0) > 0.0:
+                nonpositive_rq_count += 1
+                continue
+            quality_pool.append(donor)
         parent_root = parent.lineage_root_id()
-        cross_lineage = [p for p in pool if p.lineage_root_id() != parent_root]
+        cross_lineage = [p for p in quality_pool if p.lineage_root_id() != parent_root]
 
         usable: list[tuple[ProblemProgram, str]] = []
         missing_template = 0
@@ -731,6 +764,11 @@ class MAPElitesArchive:
             "enabled": True,
             "selection_strategy": selection_strategy,
             "pool_size": len(pool),
+            "quality_eligible_pool_size": len(quality_pool),
+            "uncertified_donor_count": uncertified_count,
+            "nonpositive_rq_donor_count": nonpositive_rq_count,
+            "require_certified": bool(require_certified),
+            "require_positive_rq": bool(require_positive_rq),
             "cross_lineage_pool_size": len(cross_lineage),
             "eligible_count": len(usable),
             "missing_template_count": missing_template,
@@ -742,6 +780,8 @@ class MAPElitesArchive:
         if not usable:
             if not pool:
                 reason = "no_other_champion"
+            elif not quality_pool:
+                reason = "no_quality_eligible_donor"
             elif not cross_lineage:
                 reason = "no_cross_lineage_champion"
             elif oversized_template and not missing_template and not unsafe_template:
@@ -799,6 +839,12 @@ class MAPElitesArchive:
             # audit after the donor may have been evicted from the live MAP.
             "group": donor.get_group(),
             "skill": donor.get_skill(),
+            "donor_rq_score": float(donor.rq_score),
+            "donor_certification_source": str(
+                (
+                    (donor.metadata or {}).get("structural_donor_certification") or {}
+                ).get("source", "")
+            ),
             "template_sha256": hashlib.sha256(template.encode("utf-8")).hexdigest(),
             "template_chars": len(template),
             # The donor may be evicted before the post-iteration archive is
@@ -816,6 +862,8 @@ class MAPElitesArchive:
         self,
         child: ProblemProgram,
         donor: ProblemProgram,
+        *,
+        max_token_jaccard: float | None = None,
     ) -> dict:
         """Apply the archive's copy gates directly to one assigned donor.
 
@@ -836,9 +884,17 @@ class MAPElitesArchive:
             child_template and donor_template and child_template == donor_template
         )
 
-        near_template_ratio: float | None = None
+        token_jaccard: float | None = None
         child_text = self.template_text(child)
         donor_text = self.template_text(donor)
+        if child_text and donor_text:
+            child_tokens = set(re.findall(r"[a-z]+(?:_[a-z]+)*", child_text.lower()))
+            donor_tokens = set(re.findall(r"[a-z]+(?:_[a-z]+)*", donor_text.lower()))
+            union = child_tokens | donor_tokens
+            if union:
+                token_jaccard = len(child_tokens & donor_tokens) / len(union)
+
+        near_template_ratio: float | None = None
         if (
             child_text
             and donor_text
@@ -876,6 +932,12 @@ class MAPElitesArchive:
         elif exact_template:
             reason = "duplicate_template"
         elif (
+            max_token_jaccard is not None
+            and token_jaccard is not None
+            and token_jaccard >= float(max_token_jaccard)
+        ):
+            reason = "donor_token_jaccard"
+        elif (
             near_template_ratio is not None
             and near_template_ratio >= self.near_duplicate_template_ratio
         ):
@@ -893,6 +955,12 @@ class MAPElitesArchive:
             "exact_source": exact_source,
             "exact_behavior": exact_behavior,
             "exact_template": exact_template,
+            "token_jaccard": (
+                round(token_jaccard, 6) if token_jaccard is not None else None
+            ),
+            "max_token_jaccard": (
+                float(max_token_jaccard) if max_token_jaccard is not None else None
+            ),
             "near_template_ratio": (
                 round(near_template_ratio, 6)
                 if near_template_ratio is not None
@@ -1037,6 +1105,7 @@ class MAPElitesArchive:
             "total_insertions": self.total_insertions,
             "total_replacements": self.total_replacements,
             "total_selections": self.total_selections,
+            "num_structural_donors": len(self.structural_donors),
         }
 
     def to_payload(self) -> dict:
@@ -1054,6 +1123,9 @@ class MAPElitesArchive:
                 "stats": self.stats(),
             },
             "champions": [p.to_dict() for p in self.champions()],
+            "structural_donors": [
+                p.to_dict() for _, p in sorted(self.structural_donors.items())
+            ],
             "niches": [
                 {
                     "group_bin": niche.group_bin,
@@ -1097,6 +1169,20 @@ class MAPElitesArchive:
             niche.selection_count = 0
             niche.update_count = 0
             niche.history = []
+        self.structural_donors = {}
+
+        donor_rows = payload.get("structural_donors")
+        if donor_rows is None:
+            # Backward-compatible recovery for snapshots written before the
+            # dedicated registry existed.
+            donor_rows = payload.get("champions", [])
+        for donor_dict in donor_rows:
+            donor = ProblemProgram.from_dict(donor_dict)
+            certified = (
+                (donor.metadata or {}).get("structural_donor_certification") or {}
+            ).get("passed")
+            if certified:
+                self.structural_donors[donor.program_id] = donor
 
         placed = 0
         unlabelled = 0

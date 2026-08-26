@@ -1,0 +1,47 @@
+# Certified-donor successor to the unrestricted structural-inspiration pilot.
+# Start this arm from the base model in its own output directory. Do not resume
+# the v1 donor run: its archive and actor have already consumed uncertified
+# children, so changing gates in place would mix two methods.
+extends: rq_evolve_4b_4gpu_structural_inspiration.yaml
+run_contract: certified_structural_inspiration_v2
+
+evolution:
+  # No API, auxiliary model, or self-judge. Generated children use the normal
+  # AST/execution checks and may enter the MAP, but cannot become structural
+  # donors because donor certification is granted only to this manual list.
+  use_evaluator: false
+
+  # Five seeds missed a real seed-15 failure in the pilot. Thirty-two still
+  # costs little relative to solver rollout and catches thin random failures.
+  verify_seeds: 32
+
+  # Only explicitly reviewed seeds can serve as structural donors. The
+  # geometry seed is intentionally absent: its stated area is half the value
+  # used by its answer and "greatest A" is directionally ill-posed. The
+  # number-theory casework seed is also absent because its answer appears as a
+  # literal in some of the 32 rendered statements.
+  manual_certified_seed_files:
+    - seed_algebra_invariant_discriminant_orbit.py
+    - seed_combinatorics_construction_separating_family.py
+    - seed_combinatorics_induction_inversion_family.py
+    - seed_inequality_counting_feasible_thresholds.py
+    - seed_number_theory_transformation_primitive_root.py
+    - seed_sequence_contradiction_prime_progression.py
+
+  # Donors come from a persistent manual-seed registry: they must have positive
+  # CURRENT R_Q but remain available if a child later replaces their MAP cell.
+  # Generated children and valid R_Q=0 programs may hold MAP cells, but cannot
+  # provide structural inspiration.
+  structural_inspiration_require_certified_donor: true
+  structural_inspiration_require_positive_rq: true
+
+  # Additional donor-relative copy gate over normalized statement token sets.
+  # Pilot direct transfers scored 0.49-0.74; 0.45 catches that band while the
+  # unrelated accepted examples were around 0.11-0.26.
+  structural_inspiration_max_token_jaccard: 0.45
+
+verl_config:
+  trainer:
+    experiment_name: qwen3_4b_rq_evolve_4gpu_certified_structural_inspiration_v2
+    default_local_dir: ./rq_output/rq_evolve_4b_4gpu_certified_structural_inspiration_v2
+    resume_mode: auto

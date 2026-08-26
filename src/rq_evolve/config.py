@@ -113,7 +113,7 @@ class EvolutionConfig:
     # program: child/parent source similarity 0.99 -> 0.14, and children
     # declaring their parent's own cell 96% -> 0%. Both come from the same
     # thing -- a base policy shown a program to mutate reproduces it.
-    two_stage_mutation: bool = False
+    two_stage_mutation: bool = True
     # Stage 2 is transcription of a fixed specification onto a fixed shape, so
     # it wants no exploration; stage 1 keeps code_temperature because it is
     # invention and collapses to one child per parent at 0.

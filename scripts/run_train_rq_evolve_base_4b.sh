@@ -1,5 +1,7 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
+# export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
+# export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-4,5,6,7}"
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-3,4,6,7}"
 export WANDB_MODE="${WANDB_MODE:-online}"
 # The GPUs are shared and nothing reserves them, so the free pool shrinks
 # without warning. Expandable segments let the allocator grow a block in place
@@ -22,3 +24,5 @@ echo "[run] logging: $LOG"
 set -o pipefail
 python scripts/train_with_verl.py \
   --config "$CONFIG" 2>&1 | tee "$LOG"
+
+# bash scripts/run_train_rq_evolve_base_4b.sh configs/rq_evolve_4b_4gpu.yaml

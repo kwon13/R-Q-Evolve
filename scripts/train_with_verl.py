@@ -7,11 +7,12 @@ import json
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from rq_evolve.config import load_config, load_raw_config
-from rq_evolve.openai_evaluator import load_project_dotenv
 from rq_evolve.prompts import PROMPT_TEMPLATE_DIR
 from rq_evolve.run_contract import freeze_evolution_run_contract
 from rq_evolve.verl_adapter import (
@@ -24,12 +25,9 @@ from rq_evolve.verl_adapter import (
 def _require_verl_sampling_patch() -> None:
     """Abort unless verl honours per-call sampling overrides.
 
-    Without the patch, ``code_temperature`` and ``judge_temperature`` are read
-    from the yaml, plumbed onto meta_info, and then dropped by verl's agent
-    loop -- so a judge configured at temperature 0 actually samples at the
-    rollout temperature. Nothing in the logs says so; the only symptom is a
-    "deterministic" gate returning different verdicts on identical input. That
-    already cost one run, so a missing patch is a startup error, not a warning.
+    Without the patch, per-call mutation sampling overrides are read from the
+    yaml, plumbed onto meta_info, and then dropped by verl's agent loop. A
+    missing patch is therefore a startup error, not a warning.
     """
     sys.path.insert(0, str(ROOT / "patches"))
     try:
@@ -39,8 +37,7 @@ def _require_verl_sampling_patch() -> None:
     if not patch.is_applied():
         raise SystemExit(
             "verl's agent loop is NOT patched for per-call sampling overrides, "
-            "so evolution.code_temperature and evolution.judge_temperature "
-            "would be silently ignored.\n"
+            "so evolution.code_temperature would be silently ignored.\n"
             "  fix: python patches/verl_agent_loop_sampling.py"
         )
 
@@ -116,9 +113,9 @@ def main() -> None:
     _require_verl_sampling_patch()
     _require_flash_attn_if_needed(args.config)
     _warn_if_project_venv_exists()
-    # Keep training consistent with the evaluation scripts: load the project
-    # .env before config/adapter construction, without overwriting shell vars.
-    load_project_dotenv(ROOT)
+    # Load ordinary training credentials (for example WANDB_API_KEY) without
+    # importing or initializing any classifier/API client.
+    load_dotenv(ROOT / ".env", override=False)
     config = load_config(args.config)
 
     if not config.verl.enabled:

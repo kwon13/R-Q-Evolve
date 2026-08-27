@@ -17,10 +17,6 @@ from .dataset import (
     validate_static_training_schedule,
 )
 from .evolution import RQEvolver
-from .openai_evaluator import (
-    load_project_dotenv,
-    validate_openai_evaluator_environment,
-)
 from .verl_backend import VerlPolicyBackend
 
 
@@ -168,8 +164,6 @@ class EvolvingSampler:
                 "seed_cursor": ev.seed_stream.to_dict(),
                 "previous_rq_scores": ev.previous_rq.to_dict(),
                 "rejected_children": dict(ev.rejected_children),
-                "skill_offsets": ev.skill_offsets.to_dict(),
-                "group_offsets": ev.group_offsets.to_dict(),
                 "inspiration_draw_count": ev.inspiration_draw_count,
                 "mutation_prompt_draw_count": ev.mutation_prompt_draw_count,
                 "search_draw_count": ev.search_draw_count,
@@ -208,14 +202,6 @@ class EvolvingSampler:
                 )
             if "rejected_children" in payload:
                 ev.rejected_children = dict(payload.get("rejected_children") or {})
-            if "skill_offsets" in payload:
-                ev.skill_offsets = type(ev.skill_offsets).from_dict(
-                    payload["skill_offsets"]
-                )
-            if "group_offsets" in payload:
-                ev.group_offsets = type(ev.group_offsets).from_dict(
-                    payload["group_offsets"]
-                )
             ev.inspiration_draw_count = int(
                 payload.get("inspiration_draw_count", ev.inspiration_draw_count)
             )
@@ -365,9 +351,9 @@ class EvolvingSampler:
             pass
 
     def _log_map_figure_to_wandb(self, metrics: dict) -> None:
-        """Send one picture of the GROUP x SKILL archive per outer iteration.
+        """Send one DOMAIN x PROBLEM_TYPE archive image per outer iteration.
 
-        ``coverage`` says how many of the 48 cells are filled and cannot say
+        ``coverage`` says how many of the 35 cells are filled and cannot say
         which. "Only two domains" and "only two reasoning moves" give the same
         number and need opposite fixes, so the grid itself is logged as an image
         and the cells filled since the previous iteration are outlined.
@@ -398,14 +384,6 @@ class EvolvingSampler:
             hook = getattr(self.evolver, "replay_hook", None)
             if hook is not None:
                 payload.update(hook.stats.to_wandb("evolve/replay_"))
-            # Which SKILLs the judge is willing to emit at all. A label it never
-            # returns is a cell no child can be archived into, so this bounds
-            # reachable coverage independently of the agreement rate.
-            counts = getattr(self.evolver, "judge_skill_counts", None)
-            if counts:
-                payload.update(
-                    {f"evolve/judge_skill/{k}": v for k, v in counts.items()}
-                )
             wandb.log(payload, commit=False)
             try:
                 import matplotlib.pyplot as plt
@@ -506,13 +484,6 @@ class VerlTrainerAdapter:
         self.config = config
         self.rq_config = rq_config
         self.project_root = Path(project_root)
-        if (
-            not self.static_training_enabled
-            and self.rq_config.evolution.use_evaluator
-            and self.rq_config.evolution.evaluator_provider == "openai"
-        ):
-            load_project_dotenv(self.project_root)
-            validate_openai_evaluator_environment()
 
     @property
     def static_training_enabled(self) -> bool:
@@ -857,21 +828,35 @@ class VerlTrainerAdapter:
 
     def _resume_or_bootstrap(self, ctx: dict) -> None:
         evolver = ctx["evolver"]
-        archive_dir = ctx["archive_dir"]
+        archive_dir = Path(ctx["archive_dir"])
         train_sampler = ctx["train_sampler"]
+        resume_mode = str(
+            ctx["verl_config"].trainer.get("resume_mode", "auto") or "auto"
+        ).lower()
 
         # Backend is now bound to the worker group -> solver rollouts work.
+        # A disabled trainer resume is a genuinely fresh run: silently loading
+        # an old MAP would pair fresh base weights with stale curriculum state.
+        # Refuse an occupied archive directory so a direct training invocation
+        # cannot bypass the launcher's clean-directory preflight.
+        if resume_mode == "disable":
+            archive_file = archive_dir / "archive.json"
+            if archive_file.exists():
+                raise RuntimeError(
+                    "trainer.resume_mode=disable requires a clean rq_archive "
+                    f"directory, but {archive_file} already exists"
+                )
+            self._bootstrap_seed_archive(evolver)
+            evolver.save_state(archive_dir)
+            return
+
         # Resume the archive if a snapshot exists; otherwise bootstrap by
         # evaluating EVERY seed with the live solver. Real R_Q gives each seed a
         # real u_score, so seeds spread across H bins (instead of collapsing into
         # one placeholder bin) and the dataset is refreshed before epoch 0.
-        resumed = False
-        try:
-            resumed = evolver.load_state(archive_dir)
-        except Exception as exc:  # corrupt/partial snapshot — fall back to seeds
-            print(
-                f"[RQ-Evolve] archive restore failed ({exc!r}); bootstrapping from seeds"
-            )
+        # Corrupt or schema-incompatible state is not equivalent to no state:
+        # propagate the error instead of quietly starting a different run.
+        resumed = evolver.load_state(archive_dir)
         if resumed:
             print(
                 f"[RQ-Evolve] restored archive "
@@ -1305,7 +1290,7 @@ class VerlTrainerAdapter:
         real u_score, which decides who holds a cell -- H is no longer a grid
         coordinate, so a placeholder score would silently hand cells to whoever
         was inserted first. Seeds still compete per niche, so two seeds sharing
-        a (GROUP, SKILL) cell keep only the higher-R_Q one — a MAP-Elites
+        a (DOMAIN, PROBLEM_TYPE) cell keep only the higher-R_Q one — a MAP-Elites
         property, not a bug. Then refresh the training dataset so epoch 0
         trains on these seeds (with evolve_on_first_epoch=false).
         """
@@ -1365,8 +1350,8 @@ class VerlTrainerAdapter:
         print(
             f"[RQ-Evolve] bootstrapped {inserted}/{len(seeds)} seeds with real R_Q; "
             f"{len(evolver.archive.champions())} champions on a "
-            f"{evolver.archive.n_group_bins}x{evolver.archive.n_skill_bins} "
-            f"GROUP x SKILL grid"
+            f"{evolver.archive.n_domain_bins}x{evolver.archive.n_problem_type_bins} "
+            f"DOMAIN x PROBLEM_TYPE grid"
         )
         # warmup: the seed scores were taken at bootstrap, so there is no
         # earlier iteration to select from. Every later refresh uses t-1 R_Q.

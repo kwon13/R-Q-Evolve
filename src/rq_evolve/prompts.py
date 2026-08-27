@@ -3,7 +3,6 @@ import os
 import random
 import re
 from dataclasses import dataclass, field
-from functools import lru_cache
 from pathlib import Path
 from string import Template
 
@@ -12,7 +11,7 @@ from .code_utils import (
     strip_label_declarations,
     strip_module_docstring,
 )
-from .concepts import GROUPS, SKILLS
+from .concepts import DOMAINS, GROUPS, SKILLS
 from .program import ProblemProgram
 
 SOLVER_SYSTEM_PROMPT = (
@@ -20,52 +19,16 @@ SOLVER_SYSTEM_PROMPT = (
 )
 
 
-SKILL_DEFINITIONS_FILE = "skill_definitions.txt"
-GROUP_DEFINITIONS_FILE = "group_definitions.txt"
-
-
-def _load_definitions(filename: str) -> str:
-    path = PROMPT_TEMPLATE_DIR / filename
-    if not path.exists():
-        raise FileNotFoundError(
-            f"missing axis definitions: {path}. Without them the model picks "
-            "labels from a bare vocabulary list with nothing saying what they "
-            "mean, and a mislabel becomes unfalsifiable."
-        )
-    return path.read_text(encoding="utf-8").strip()
-
-
-JUDGE_SYSTEM_PROMPT_FILE = "mutation_judge_system_prompt.txt"
-JUDGE_USER_PROMPT_FILE = "mutation_judge_user_prompt.txt"
-
 # One mutation operator. The pair that forced a label change on one axis --
 # in_depth held GROUP and moved SKILL, in_breadth the mirror -- is retired.
 # Ordering the model to land on a SKILL it had not yet solved for made the
 # label a target instead of a description, and the child was written to satisfy
 # the order: the archived GROUP/SKILL then disagreed with what the visible
 # problem actually demanded, which is the one error the MAP cannot survive.
-# The child now picks both labels from its own finished mathematics, and the
-# judge re-derives them from the visible problem alone.
+# Stage 1 receives no descriptor or destination. Stage 2 labels the already
+# fixed child with one DOMAIN, and deterministic code derives PROBLEM_TYPE from
+# the visible request and verifier contract.
 MUTATION_OP = "mutate"
-
-
-@lru_cache(maxsize=4)
-def judge_system_prompt(rubric_file: str = JUDGE_SYSTEM_PROMPT_FILE) -> str:
-    """The judge's system turn: the validity gate and taxonomy rubric.
-
-    ``rubric_file`` is a parameter rather than a constant so a rubric can be
-    swapped without touching code -- ``evolution.judge_rubric`` selects it and
-    ``scripts/compare_judges.py`` uses it to put two rubrics on one corpus.
-
-    The shipped rubric keeps two validity gates and then judges both axes
-    against the same one-line definitions the Evolver reads. An earlier draft
-    additionally required a SKILL to survive a routineness test, a mandatory
-    named witness and a closest-alternative challenge; measured over 41 items
-    that took both-axis agreement from 41% to 2% and returned ``SKILL: none``
-    for 6 of 8 hand-labelled seeds, so a "declared == judged" gate built on it
-    rejected ground truth. See analysis/judge_pipeline_v2/.
-    """
-    return _load_template(rubric_file).strip()
 
 
 @dataclass(slots=True)
@@ -104,181 +67,6 @@ PROMPT_TEMPLATE_DIR = Path(
 SHOT_TEMPLATE_DIR = Path(
     os.environ.get("RQ_EVOLVE_SHOT_DIR", PROMPT_TEMPLATE_DIR / "shots")
 )
-
-
-JUDGE_FIELDS = (
-    "GROUP",
-    "GROUP_EVIDENCE",
-    "SKILL",
-    "SKILL_WITNESS",
-    "CLOSEST_ALTERNATIVE",
-    "WHY_NOT_ALTERNATIVE",
-    "FAILURE_REASON",
-)
-
-
-@dataclass(slots=True)
-class JudgeVerdict:
-    """One parsed judge reply.
-
-    ``group`` and ``skill`` are None whenever the judge failed closed (it emits
-    the literal ``none``) or whenever the field was missing, unparseable, or
-    outside the vocabulary. None is the answer, not an error: every one of those
-    shapes means the judge did not certify a label, and they must all reject.
-    """
-
-    group: str | None = None
-    skill: str | None = None
-    group_evidence: str = ""
-    skill_witness: str = ""
-    closest_alternative: str = ""
-    why_not_alternative: str = ""
-    failure_reason: str = ""
-    raw: str = ""
-
-    def to_dict(self) -> dict[str, str | None]:
-        return {
-            "group": self.group,
-            "skill": self.skill,
-            "group_evidence": self.group_evidence,
-            "skill_witness": self.skill_witness,
-            "closest_alternative": self.closest_alternative,
-            "why_not_alternative": self.why_not_alternative,
-            "failure_reason": self.failure_reason,
-        }
-
-
-def build_judge_messages(
-    problem_text: str,
-    answer_text: str,
-    *,
-    rubric_file: str = JUDGE_SYSTEM_PROMPT_FILE,
-) -> list[dict]:
-    """The judge conversation for one (problem, answer) pair.
-
-    The generator source, the declared labels, and the parent never travel with
-    it. The judge has to reach GROUP and SKILL from the visible problem alone,
-    which is the only way its answer can disagree with the declared one.
-    """
-    user = _render_template(
-        _load_template(JUDGE_USER_PROMPT_FILE),
-        {
-            "problem_text": str(problem_text).strip(),
-            "answer": str(answer_text).strip(),
-        },
-    )
-    return [
-        {"role": "system", "content": judge_system_prompt(rubric_file)},
-        {"role": "user", "content": user},
-    ]
-
-
-def build_judge_task(
-    program: ProblemProgram,
-    problem_text: str,
-    answer_text: str,
-    *,
-    temperature: float | None = None,
-    top_p: float | None = None,
-    rubric_file: str = JUDGE_SYSTEM_PROMPT_FILE,
-) -> MutationTask:
-    """Wrap a judge query as a MutationTask so ``backend.mutate`` can run it.
-
-    Reuses the batched generate path; no new backend method is needed.
-    ``parent`` carries the program under review purely for reporting.
-    """
-    messages = build_judge_messages(problem_text, answer_text, rubric_file=rubric_file)
-    return MutationTask(
-        op="judge",
-        prompt=f"{messages[0]['content']}\n\n{messages[1]['content']}",
-        parent=program,
-        messages=messages,
-        stage="judge",
-        temperature=temperature,
-        top_p=top_p,
-    )
-
-
-def _judge_field(text: str, name: str) -> str:
-    """Read one ``NAME: value`` line, tolerating decoration around the label.
-
-    The output contract asks for seven bare lines, but a base model reliably
-    wraps a field name in bullets, bold markers, or numbering while getting the
-    value right. The label match is lenient for that reason; the VALUES are
-    then held to the closed vocabularies below, so leniency here can only
-    recover a well-formed verdict, never invent one.
-    """
-    match = re.search(
-        r"^[\s>*_#-]*" + name + r"[\s*_]*:[ \t]*(.*)$",
-        text,
-        re.IGNORECASE | re.MULTILINE,
-    )
-    return match.group(1).strip() if match else ""
-
-
-def _judge_label(value: str, vocabulary: tuple[str, ...]) -> str | None:
-    """A vocabulary member, or None for ``none``/missing/anything unrecognised."""
-    # Strip whitespace and decoration together: a base model writes
-    # "**GROUP:** number_theory", which leaves "** number_theory" as the value,
-    # and stripping punctuation alone would hand back a leading space.
-    token = value.strip(" \t`'\"*_.:#").lower()
-    if not token or token == "none":
-        return None
-    return token if token in vocabulary else None
-
-
-def parse_judge_verdict(output: str) -> JudgeVerdict:
-    """Parse a judge reply into its seven fields.
-
-    Never raises. An empty, truncated, or off-contract reply parses to a verdict
-    with ``group``/``skill`` None, which ``judge_accepts`` rejects -- the judge
-    is a gate that has to fail closed, so an unreadable answer must not be
-    distinguishable from a refusal.
-    """
-    text = output or ""
-    return JudgeVerdict(
-        group=_judge_label(_judge_field(text, "GROUP"), GROUPS),
-        skill=_judge_label(_judge_field(text, "SKILL"), SKILLS),
-        group_evidence=_judge_field(text, "GROUP_EVIDENCE"),
-        skill_witness=_judge_field(text, "SKILL_WITNESS"),
-        closest_alternative=_judge_field(text, "CLOSEST_ALTERNATIVE"),
-        why_not_alternative=_judge_field(text, "WHY_NOT_ALTERNATIVE"),
-        failure_reason=_judge_field(text, "FAILURE_REASON"),
-        raw=text,
-    )
-
-
-def judge_accepts(
-    verdict: JudgeVerdict,
-    declared_group: str | None,
-    declared_skill: str | None,
-) -> tuple[bool, str]:
-    """The gate: both labels must survive the judge AND match what was declared.
-
-    Agreement on both axes is the whole condition. A child the judge labels
-    validly but differently is still rejected: the archive would file it under
-    the declared cell while the problem belongs in another, and a MAP whose
-    coordinates lie is worse than a MAP with an empty cell.
-    """
-    if verdict.group is None or verdict.skill is None:
-        reason = verdict.failure_reason.strip()
-        missing = " and ".join(
-            axis
-            for axis, value in (("GROUP", verdict.group), ("SKILL", verdict.skill))
-            if value is None
-        )
-        if not reason or reason.lower() == "none":
-            reason = f"judge returned no {missing}"
-        return False, f"judge failed closed ({missing}): {reason}"
-
-    mismatches = []
-    if verdict.group != declared_group:
-        mismatches.append(f"GROUP declared={declared_group!r} judged={verdict.group!r}")
-    if verdict.skill != declared_skill:
-        mismatches.append(f"SKILL declared={declared_skill!r} judged={verdict.skill!r}")
-    if mismatches:
-        return False, "label mismatch: " + "; ".join(mismatches)
-    return True, ""
 
 
 def _load_template(filename: str) -> str:
@@ -321,26 +109,17 @@ def _render_template(template: str, context: dict[str, str]) -> str:
 
 
 def _template_context(parent: ProblemProgram) -> dict[str, str]:
-    """Placeholders for ``mutation_user_prompt.txt``.
-
-    Both vocabularies go in whole. The retired operators each withheld the axis
-    they held fixed, on the reasoning that the parent was already a worked
-    instance of it; with no axis held there is nothing to withhold, and a label
-    the child may choose but cannot read the meaning of is a label it will
-    misapply.
-    """
+    """Legacy template helper, kept descriptor-free for audit callers."""
     return {
         # The parent's cell is withheld: from the prose, and from the tail of
         # its own source. With the real labels shown, 97% of 118 distinct
         # children declared the cell their parent already occupied, across only
-        # 12 distinct cells. What replaces the ending the tail used to teach is
-        # PART 1 committing to GROUP and SKILL before any code is written.
+        # 12 distinct cells. The completed child is classified only after both
+        # mutation stages have finished.
         "parent_source": strip_label_declarations(
             strip_module_docstring(parent.source_code)
         ),
         "parent_problem": _parent_problem_text(parent),
-        "allowed_groups": _load_definitions(GROUP_DEFINITIONS_FILE),
-        "allowed_skills": _load_definitions(SKILL_DEFINITIONS_FILE),
     }
 
 
@@ -368,124 +147,6 @@ def _parent_problem_text(parent: ProblemProgram) -> str:
     return instance.problem.strip()
 
 
-RELABEL_SYSTEM_PROMPT_FILE = "relabel_system_prompt.txt"
-RELABEL_USER_PROMPT_FILE = "relabel_user_prompt.txt"
-
-RELABEL_GROUP_SYSTEM_PROMPT_FILE = "relabel_group_system_prompt.txt"
-RELABEL_GROUP_USER_PROMPT_FILE = "relabel_group_user_prompt.txt"
-
-
-def build_relabel_task(
-    *,
-    parent,
-    child_family: str,
-    child_source: str,
-    skill: str,
-    allowed_token_ids: list[int] | None = None,
-) -> MutationTask:
-    """One binary question: does this family turn on this one skill?
-
-    ``parent`` rides along only because MutationTask requires it for reporting;
-    the prompt never shows it. The skill block is last in the user turn so the
-    eight calls for one child share their whole prefix.
-
-    Greedy on purpose. The verdict is a measurement, and sampling noise here
-    shows up as label churn the archive cannot distinguish from real movement.
-    """
-    system = _load_template(RELABEL_SYSTEM_PROMPT_FILE).strip()
-    user = _render_template(
-        _load_template(RELABEL_USER_PROMPT_FILE),
-        {
-            "child_family": child_family.strip(),
-            "child_source": strip_label_declarations(
-                strip_module_docstring(child_source)
-            ).strip(),
-            "skill": skill,
-            "skill_definition": _skill_definition(skill),
-        },
-    )
-    return MutationTask(
-        op="relabel",
-        prompt=user,
-        parent=parent,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        stage="relabel",
-        max_output_tokens=1,
-        temperature=0.0,
-        top_p=1.0,
-        logprobs=1,
-        allowed_token_ids=allowed_token_ids,
-    )
-
-
-def build_relabel_group_task(
-    *,
-    parent,
-    child_family: str,
-    child_source: str,
-    group: str,
-    allowed_token_ids: list[int] | None = None,
-) -> MutationTask:
-    system = _load_template(RELABEL_GROUP_SYSTEM_PROMPT_FILE).strip()
-    user = _render_template(
-        _load_template(RELABEL_GROUP_USER_PROMPT_FILE),
-        {
-            "child_family": child_family.strip(),
-            "child_source": strip_label_declarations(
-                strip_module_docstring(child_source)
-            ).strip(),
-            "group": group,
-            "group_definition": _group_definition(group),
-        },
-    )
-    return MutationTask(
-        op="relabel",
-        prompt=user,
-        parent=parent,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        stage="relabel",
-        max_output_tokens=1,
-        temperature=0.0,
-        top_p=1.0,
-        logprobs=1,
-        allowed_token_ids=allowed_token_ids,
-    )
-
-
-@lru_cache(maxsize=1)
-def _skill_definitions_map() -> dict:
-    out = {}
-    for line in _load_definitions(SKILL_DEFINITIONS_FILE).split("\n"):
-        if ":" in line:
-            key, value = line.split(":", 1)
-            out[key.strip()] = value.strip()
-    return out
-
-
-def _skill_definition(skill: str) -> str:
-    return _skill_definitions_map().get(skill, "")
-
-
-@lru_cache(maxsize=1)
-def _group_definitions_map() -> dict:
-    out = {}
-    for line in _load_definitions(GROUP_DEFINITIONS_FILE).split("\n"):
-        if ":" in line:
-            key, value = line.split(":", 1)
-            out[key.strip()] = value.strip()
-    return out
-
-
-def _group_definition(group: str) -> str:
-    return _group_definitions_map().get(group, "")
-
-
 def build_solver_messages(problem: str) -> list[dict]:
     """The solver conversation: rules in the system turn, problem in the user turn.
 
@@ -507,52 +168,13 @@ def build_solver_messages(problem: str) -> list[dict]:
     ]
 
 
-_PART1_LABEL = r"^[ \t]*{key}[ \t]*:[ \t]*[\"']?([A-Za-z_]+)"
-
-
-def parse_declared_labels(reply: str) -> tuple[str | None, str | None]:
-    """Read GROUP / SKILL off a reply's PART 1 prose.
-
-    The mutation contract puts the two labels in PART 1 and ends the python
-    block at ``return problem, str(answer)``. That is deliberate: a label line
-    sitting after ``return`` is past the strongest completion boundary in the
-    file and was simply dropped -- 15 of 24 children on one probe -- while a
-    label decided in PART 1, with the solution still in view, is written as
-    part of the reasoning. The cost is that the extracted program has no labels
-    of its own, so they have to be put back from here.
-
-    Returns whatever is recognisable; validation of the pair belongs to
-    :func:`rq_evolve.concepts.validate_label_decl`, which the caller already
-    runs.
-    """
-    text = reply or ""
-    out: list[str | None] = []
-    for key, vocabulary in (("GROUP", GROUPS), ("SKILL", SKILLS)):
-        found = None
-        for match in re.finditer(_PART1_LABEL.format(key=key), text, re.M):
-            value = match.group(1)
-            if value in vocabulary:
-                found = value  # last wins: a reply that restates them means it
-        out.append(found)  # settled late, and PART 2 must not carry any
-    return out[0], out[1]
-
-
 _INFERRED_LABEL = r"^[ \t>*_#-]*INFERRED_{key}[\s*_]*:[ \t]*(.*)$"
 
 
 def parse_inferred_labels(reply: str) -> tuple[str | None, str | None]:
-    """Read INFERRED_GROUP / INFERRED_SKILL off a stage-2 generator reply.
+    """Parse labels from historical probe replies for offline analysis only.
 
-    RETIRED from the live path. Stage 2 no longer emits these lines: it is given
-    the target SKILL and builds for it, and the archive coordinate comes from
-    :meth:`RQEvolver._apply_relabel`. Kept because the offline probes in
-    ``scripts/`` replay recorded stage-2 replies through it.
-
-    Stage 2 is asked to write the labels AFTER the code block, using the
-    ``INFERRED_`` prefix so they are distinct from any ``GROUP = "..."`` /
-    ``SKILL = "..."`` assignment lines in the code itself. The labels are a
-    blind re-derivation: stage 2 never sees stage 1's plan labels, so
-    agreement between the two is genuine cross-verification.
+    The live stage-2 generator no longer emits these historical fields.
 
     Returns ``(group, skill)`` where each is a vocabulary member or None.
     """
@@ -618,7 +240,7 @@ STRUCTURAL_INSPIRATION_USER_BLOCK_FILE = "structural_inspiration_user_block.txt"
 # 17% vs 14%, 20 cells reached vs 17).
 _EXAMPLE_HEAD = re.compile(r"^EXAMPLE \d+ — (.+)$", re.M)
 _WORKED_HEAD = re.compile(r"^WORKED EXAMPLE \d+$", re.M)
-_SKETCH_HEAD = re.compile(r"^(" + "|".join(SKILLS) + r") -- ", re.M)
+_SKETCH_HEAD = re.compile(r"(?!)")
 FAMILY_SHOTS_SHOWN = 3
 GENERATOR_SHOTS_SHOWN = 4
 
@@ -694,40 +316,8 @@ def _renumber(blocks, pattern, label):
     return out
 
 
-TARGET_CELL_BLOCK = """
-TARGET NICHE (the archive cell this child must land in):
-TARGET GROUP: $group
-TARGET SKILL: $skill
-
-The CHILD FAMILY you invent must belong to TARGET GROUP, and the decisive
-reasoning move of its shortest clean solution must be TARGET SKILL. Write the
-GROUP and SKILL lines as exactly these two values. If the parent family cannot
-be pushed into that niche, invent the child from scratch -- the niche matters,
-the parent does not.
-"""
-
-TARGET_CELL_MUTATE_SKILL_BLOCK = """
-TARGET GROUP: $group (Keep the GROUP same as parent)
-
-The CHILD FAMILY you invent must belong to TARGET GROUP, but the decisive
-reasoning move of its shortest clean solution must change to a DIFFERENT SKILL of your choice. Write the
-GROUP and SKILL lines as exactly these two values (the TARGET GROUP and your chosen SKILL). If the parent family cannot
-be pushed into that niche, invent the child from scratch -- the niche matters,
-the parent does not.
-"""
-
-TARGET_CELL_MUTATE_GROUP_BLOCK = """
-TARGET SKILL: $skill (Keep the SKILL same as parent)
-
-The CHILD FAMILY you invent must change to a DIFFERENT GROUP of your choice, but the decisive
-reasoning move of its shortest clean solution must remain TARGET SKILL. Write the
-GROUP and SKILL lines as exactly these two values (your chosen GROUP and the TARGET SKILL). If the parent family cannot
-be pushed into that niche, invent the child from scratch -- the niche matters,
-the parent does not.
-"""
-
 # What a stage-1 reply must carry for the child to be usable.
-FAMILY_KEYS = ("STRUCTURAL MUTATION", "CHILD FAMILY", "GROUP", "SKILL")
+FAMILY_KEYS = ("STRUCTURAL MUTATION", "CHILD FAMILY")
 # Asked for, parsed when present, but NOT required. WHY FINITE makes the model
 # name the clause that bounds its own answer before it labels the problem --
 # 31% of archived champions were judged ill-posed, nearly all of them "find the
@@ -767,11 +357,6 @@ def parse_family_plan(reply: str) -> dict[str, str] | None:
         if not best:
             return None
         out[key] = best
-    group = _first_token(out["GROUP"], GROUPS)
-    skill = _first_token(out["SKILL"], SKILLS)
-    if group is None or skill is None:
-        return None
-    out["GROUP"], out["SKILL"] = group, skill
     for key in OPTIONAL_FAMILY_KEYS:
         for match in re.finditer(
             rf"^[ \t]*{key}[ \t]*:[ \t]*(.+?)(?=^[ \t]*(?:{_FAMILY_KEY_ALT})[ \t]*:|\Z)",
@@ -840,8 +425,6 @@ def build_family_task(
         {
             "parent_template": template,
             "parent_problem": instance,
-            "allowed_groups": _load_definitions(GROUP_DEFINITIONS_FILE),
-            "allowed_skills": _load_definitions(SKILL_DEFINITIONS_FILE),
         },
     )
     if inspiration_template:
@@ -870,25 +453,9 @@ def build_family_task(
         )
         task_provenance["structural_inspiration"] = inspiration_audit
     if target_cell is not None:
-        # Keep the archive's explicit niche constraint AFTER the non-authority
-        # donor block. Qwen is strongly recency-sensitive; putting the random
-        # donor last made it look like the live request and weakened both the
-        # primary-parent relation and the target contract.
-        mutation_strategy = target_cell[2] if len(target_cell) > 2 else None
-        if mutation_strategy == "mutate_skill":
-            block_template = TARGET_CELL_MUTATE_SKILL_BLOCK
-        elif mutation_strategy == "mutate_group":
-            block_template = TARGET_CELL_MUTATE_GROUP_BLOCK
-        else:
-            block_template = TARGET_CELL_BLOCK
-
-        user_prompt = (
-            user_prompt.rstrip()
-            + "\n\n"
-            + _render_template(
-                block_template,
-                {"group": target_cell[0], "skill": target_cell[1]},
-            ).strip()
+        raise ValueError(
+            "target_cell is retired: mutation must not receive a desired "
+            "DOMAIN or PROBLEM_TYPE"
         )
     if inspiration_template:
         inspiration_audit = dict(task_provenance["structural_inspiration"])
@@ -925,37 +492,17 @@ def build_generator_task(
     provenance: dict | None = None,
     inspiration_donor: ProblemProgram | None = None,
 ) -> MutationTask:
-    """Stage 2: write the generator for the fixed child family.
+    """Stage 2: implement and self-label an already fixed child family.
 
-    The parent's label lines are stripped from what the model sees. They would
-    only be copied -- every redaction tried (real labels, ``"..."``, the
-    skeleton placeholder, deletion) produced children whose tail was whatever
-    the parent's tail contained. The labels come from stage 1 and the caller
-    appends them, so they cannot be dropped and cannot disagree with the
-    problem they describe.
-
-    The plan's SKILL is shown, with its definition, as a TARGET the generator
-    must build for. It used to be hidden so stage 2 could re-derive it blind and
-    the caller could reject a mismatch. That gate is gone: it asked whether the
-    model can name what it wrote rather than whether what it wrote demands the
-    skill, and the cell coordinate is now read off the finished program by the
-    relabeller instead. With nothing downstream depending on stage 2's guess,
-    hiding the target only left the child's skill to chance.
+    Stage 1 is the creative mutation and sees no descriptor vocabulary.  This
+    transcription stage may only attach one top-level DOMAIN to the immutable
+    child family; it receives no target cell or parent label.  PROBLEM_TYPE is
+    never model-declared and is derived by deterministic verification code.
     """
     rng = rng or random
-    target_skill = str(plan.get("SKILL") or "").strip()
-    if target_skill not in SKILLS:
-        raise ValueError(
-            f"stage 2 needs a target SKILL from the plan, got {target_skill!r}"
-        )
-    skill_definitions = _load_definitions(SKILL_DEFINITIONS_FILE)
-    if rotate_shots:
-        lines = [l for l in skill_definitions.strip().split("\n") if l.strip()]
-        rng.shuffle(lines)
-        skill_definitions = "\n".join(lines)
     system_prompt = _render_template(
         _load_template(GENERATOR_SYSTEM_PROMPT_FILE),
-        {"skill_definitions": skill_definitions},
+        {"domain_values": ", ".join(DOMAINS)},
     )
     if rotate_shots:
         head, sketches, mid, worked, tail = _split_generator_system(system_prompt)
@@ -984,8 +531,6 @@ def build_generator_task(
                 strip_module_docstring(parent.source_code)
             ),
             "new_problem": plan["CHILD FAMILY"],
-            "target_skill": target_skill,
-            "target_skill_definition": _skill_definition(target_skill),
         },
     )
     return MutationTask(

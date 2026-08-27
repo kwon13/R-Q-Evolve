@@ -1,6 +1,6 @@
 """Structural contract for a generator's answer cross-check.
 
-A generator returns ``(problem_text, answer)``. Nothing in the pipeline proves
+A generator returns ``(problem_text, answer[, verifier])``. Nothing in the pipeline proves
 those two describe the same mathematics -- ``verify_program`` proves the answer
 is an integer and that the statement varies, the evaluator proves the statement
 reads coherently, and neither closes the gap. The only mechanical link is the
@@ -373,7 +373,7 @@ def _equality_pairs(test: ast.expr) -> list[tuple[ast.expr, ast.expr]]:
 
 
 def _returned(generate: ast.FunctionDef) -> tuple[ast.expr | None, ast.expr | None]:
-    """``(problem_expr, answer_expr)`` from the last two-element return.
+    """``(problem_expr, answer_expr)`` from the last 2/3-element return.
 
     Scoped: a nested helper's ``return transformed[0]`` is that helper's value,
     not the generator's answer. Reading it instead left ``answer_names`` empty
@@ -382,8 +382,8 @@ def _returned(generate: ast.FunctionDef) -> tuple[ast.expr | None, ast.expr | No
     problem = answer = None
     for node in _own_nodes(generate, ast.Return):
         value = node.value
-        if isinstance(value, ast.Tuple) and len(value.elts) == 2:
-            problem, answer = value.elts
+        if isinstance(value, ast.Tuple) and len(value.elts) in (2, 3):
+            problem, answer = value.elts[:2]
     return problem, answer
 
 

@@ -1,7 +1,7 @@
 # 4B on ALL EIGHT GPUs -- the single live training arm, not half of a pair.
 #
 # Identical to rq_evolve_4b_base.yaml (R_Q = s(1-s)U, n=5 x m=2 on fresh seeds,
-# replay batch, RLOO, policy judge, 256 steps, test_freq 32, one checkpoint) in
+# replay batch, RLOO, 256 steps, test_freq 32, one checkpoint) in
 # everything the science depends on. Only the device count and the run identity
 # differ, so its curves are directly comparable to a later 4-GPU arm.
 #
@@ -62,25 +62,10 @@ evolution:
   # so the fix round is repairing copies rather than rescuing ideas -- and it
   # spends one generation per failure to do it.
   fix_retry: false
-  # OFF for the two-stage mutation. The judge re-derives GROUP and SKILL from
-  # the child's seed-0 statement and admits it only when both match what the
-  # child declared -- which was the answer to a generator that labelled its own
-  # output after writing it. Stage 1 now writes the problem and reads its labels
-  # off that problem before any code exists, so the label is no longer a
-  # post-hoc claim about a program.
-  #
-  # What is lost with it is the only gate that reads the STATEMENT: lint, the
-  # AST contract and the assert all pass on a well-formed program emitting an
-  # unanswerable question (a measured child asked for a count over a set the
-  # statement never bounds, and `answer == check` held because both routes
-  # copied the parent's bound). Turn this back on if ill-posed children show up
-  # in the archive.
-  use_evaluator: false
   # Structural contract on the child's own cross-check, before execution.
   # Measured on 456 archived champions: 45% flagged, 0 of the 14 clean
-  # programs. use_evaluator=false requires this to be shadow or enforce.
+  # programs. Keep this enforced as the local two-route validity gate.
   ast_contract: enforce
-  evaluator_provider: policy
   # NOT 0. The mutation prompt is a pure function of (operator, parent) and
   # sample_parent draws with replacement from a 10-16 champion archive, so
   # greedy decoding makes 36-49% of a batch byte-identical to something

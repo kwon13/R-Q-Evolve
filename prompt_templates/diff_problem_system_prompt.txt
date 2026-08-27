@@ -1,120 +1,58 @@
-You are given a parameterized competition-math problem family. Create a structurally different child family.
-A Structural Mutation must change the mathematical task itself. The child should require a genuinely different TARGET or a genuinely different DECISIVE REASONING MOVE in its shortest clean solution. Changing only parameters, coefficients, ranges, names, wording, polynomial degree, candidate count, or the direction of the same predicate does not count.
-The CHILD FAMILY must be self-contained and well-posed as written: its requested answer must exist, be finite, unique, and integer-valued.
-The examples below illustrate the intended strength of Structural Mutation. They are not templates to copy. Notice that the child may move far away from the parent's objects and wording when that is needed to create genuinely new mathematics.
+You are given a parameterized competition-math problem family. Invent one
+structurally different child family.
 
+A structural mutation changes the mathematical task, the objects, the requested
+output, or the load-bearing reasoning. Merely changing numbers, coefficients,
+ranges, names, wording, degree, or candidate count is not structural.
 
-EXAMPLE 1 — CASEWORK
+You are free to move in any mathematical direction. No destination or specific
+kind of change is requested. Prefer a natural problem over one written to
+satisfy hidden metadata.
+
+The child must be self-contained and have a finite, unambiguous, automatically
+gradable answer. Solve it internally before answering. Use
+{descriptive_parameter_names} for every quantity that the generator should
+vary.
+
+Give the child one clearly primary mathematical domain. End with one explicit
+output request whose contract is mechanically recognizable: a Yes/No question,
+Find all members of a finite set, How many, a maximum/minimum value, or an
+ordinary Compute/Evaluate/What-is-value request. Choose freely among these;
+none is a requested destination. Do not write a DOMAIN or problem-type label.
+
+EXAMPLE 1 — CHANGE THE OBJECT AND REQUEST
 
 PARENT FAMILY:
 A regular polygon has {side_count} sides. How many diagonals does it have?
 
 OUTPUT:
-STRUCTURAL MUTATION: The target changes from a one-formula count of a polygon's diagonals to counting integer solutions of an absolute-value equation, and the decisive reasoning changes from applying a closed form to splitting into the two sign cases and testing each resulting square equation separately.
-CHILD FAMILY: Let b = {inner_value} and c = {threshold} be positive integers. How many integers x satisfy |x^2 - b| = c?.
-WHY FINITE: the equation pins x^2 to exactly the two values b - c and b + c, and each admits at most two integers, so the count cannot exceed four
-GROUP: algebra
-SKILL: casework
+STRUCTURAL MUTATION: Replace a direct polygon count by recovering every integer compatible with a finite modular observation.
+CHILD FAMILY: Find all integers x with 0 <= x < {modulus} such that x^2 has remainder {residue} when divided by {modulus}.
+WHY FINITE: The explicit interval 0 <= x < modulus makes the requested solution set finite and uniquely determined.
 
-
-EXAMPLE 2 — INDUCTION
+EXAMPLE 2 — CHANGE THE MATHEMATICAL PROCESS
 
 PARENT FAMILY:
-There are {city_count} cities, and every pair of them is joined by exactly one road. How many roads are there?
+Let N = {integer}. How many positive divisors does N have?
 
 OUTPUT:
-STRUCTURAL MUTATION: The target changes from a one-step pair count to counting the regions that lines create in the plane, and the decisive reasoning changes from a single binomial formula to adding one line at a time and proving how many new regions each addition must create.
-CHILD FAMILY: Let n = {line_count}. In the plane, n lines are in general position: no two are parallel and no three pass through one point. Into how many regions do these lines divide the plane?.
-WHY FINITE: n is fixed, and general position fixes the number of intersections, so the region count is one specific integer
-GROUP: geometry
-SKILL: induction
+STRUCTURAL MUTATION: Replace divisor enumeration by determining the terminal state of a fully specified repeated process.
+CHILD FAMILY: The integers 1 through {board_size} are written on a board. Repeatedly erase two numbers a and b and write a + b + ab, until one number remains. Determine the final number.
+WHY FINITE: Each move reduces the number of entries by one and the operation has an order-independent terminal value.
 
-
-EXAMPLE 3 — CONTRADICTION
+EXAMPLE 3 — CHANGE FROM A VALUE TO YES/NO
 
 PARENT FAMILY:
-Let S be a square whose corners are lattice points and whose side length is {side_length}. How many lattice points lie strictly inside S?.
+Evaluate the sum of the first {term_count} positive integers.
 
 OUTPUT:
-STRUCTURAL MUTATION: The target changes from counting interior lattice points to bounding the length of a proper-divisor sequence, and the decisive reasoning changes to assuming one more term exists and deriving a step that removes no prime factor, which is impossible for a proper divisor.
-CHILD FAMILY: A sequence of positive integers a_1, a_2, ..., a_K satisfies a_1 = {starting_value}, and each a_(k+1) is a proper divisor of a_k, meaning a_(k+1) divides a_k and a_(k+1) < a_k. What is the greatest possible value of K?.
-WHY FINITE: every step is a PROPER divisor, so each term strictly drops and loses at least one prime factor; a_1 has finitely many, which caps K
-GROUP: sequence
-SKILL: contradiction
+STRUCTURAL MUTATION: Replace numerical evaluation by a yes/no question about whether a finite configuration exists.
+CHILD FAMILY: Can {vertex_count} people be seated around a circle so that each person has exactly {neighbor_count} adjacent friends among the seated people? Answer Yes or No.
+WHY FINITE: The numbers of people and required adjacencies are fixed, so the existence statement has one Boolean truth value.
 
+Now create a child family for the given parent.
 
-EXAMPLE 4 — INVARIANT
-
-PARENT FAMILY:
-How many ordered pairs (x, y) of positive integers satisfy x + {coefficient} * y = {total}?.
-
-OUTPUT:
-STRUCTURAL MUTATION: The target changes from counting solutions of a linear equation to finding the terminal value of a merging process, and the decisive reasoning changes to noticing that the product of (1 + t) over all numbers t on the board is unchanged by every move.
-CHILD FAMILY: The numbers 1 through {board_size} are written on a blackboard. In each move, two numbers a and b are erased and the single number a + b + a*b is written. After {board_size} - 1 moves one number remains. Determine that number.
-WHY FINITE: the process stops after exactly board_size - 1 moves, and the product of (1 + t) over the board is unchanged by every move, so the last number is the same whatever order is used
-GROUP: algebra
-SKILL: invariant
-
-
-EXAMPLE 5 — CONSTRUCTION
-
-PARENT FAMILY:
-Let N = {modulus}. How many integers k with 1 <= k <= N are coprime to N?.
-
-OUTPUT:
-STRUCTURAL MUTATION: The target changes from counting coprime residues to a guaranteed lower bound on the maximum of a constrained collection, and the decisive reasoning changes to proving the averaging bound and constructing the balanced collection that attains it, so that no larger integer works.
-CHILD FAMILY: Let n = {count} and s = {total} be positive integers with n < s. Positive integers a_1, ..., a_n have sum s. Find the greatest integer L such that in every such collection, the largest of the numbers is at least L.
-WHY FINITE: "in every such collection" is what bounds L: the balanced collection caps it from above and the averaging bound meets it, so one integer is greatest
-GROUP: inequality
-SKILL: construction
-
-
-EXAMPLE 6 — COUNTING
-
-PARENT FAMILY:
-Let x and y be positive integers satisfying {equation}. Find the maximum possible value of x+y.
-
-OUTPUT:
-STRUCTURAL MUTATION: The target changes from optimizing integer solutions of an equation to counting permutations subject to simultaneous forbidden assignments, and the decisive reasoning changes to inclusion-exclusion over overlapping bad events.
-CHILD FAMILY: There are {n} people and {n} distinct hats, with each person owning exactly one hat. In how many assignments of the hats does no person receive their own hat?.
-WHY FINITE: n is fixed, so there are finitely many assignments to classify
-GROUP: combinatorics
-SKILL: counting
-
-
-EXAMPLE 7 — TRANSFORMATION
-
-PARENT FAMILY:
-Among the integers from 1 through {upper_bound}, count those satisfying {divisibility_condition}.
-
-OUTPUT:
-STRUCTURAL MUTATION: The target changes from filtering integers by a divisibility condition to counting solutions of a nonlinear Diophantine equation, and the decisive reasoning changes to converting that equation into a multiplicative factorization.
-CHILD FAMILY: Let N = {positive_integer} be a positive integer. How many ordered pairs of positive integers (x, y) satisfy xy + x + y = N?.
-WHY FINITE: the equation is (x + 1)(y + 1) = N + 1, and N + 1 has finitely many factorisations
-GROUP: number_theory
-SKILL: transformation
-
-
-EXAMPLE 8 — EXTREMAL PRINCIPLE
-
-PARENT FAMILY:
-A binary string has length {length} and contains no two adjacent ones. How many such strings are there?.
-
-OUTPUT:
-STRUCTURAL MUTATION: The target changes from counting constrained binary strings to the maximum size of a graph avoiding a forbidden substructure, and the decisive reasoning changes to bounding the number of edges through the extremal bipartition and exhibiting the complete bipartite graph that attains the bound.
-CHILD FAMILY: Let n = {vertex_count} be a positive integer. Find the maximum number of edges in a simple graph with n vertices that contains no triangle.
-WHY FINITE: "contains no triangle" is what bounds the maximum: without it the complete graph wins trivially; with it the count is at most C(n, 2) and Mantel's bound is attained
-GROUP: combinatorics
-SKILL: extremal_principle
-
-
-Now create a child family for the given PARENT FAMILY.
-
-Solve the child internally before answering so that GROUP and SKILL describe the shortest clean solution, not merely words or operations appearing in the statement.
-
-Reply with exactly these five lines and nothing else:
-STRUCTURAL MUTATION: <one sentence naming the substantive change in TARGET or DECISIVE REASONING MOVE>
-CHILD FAMILY: <the new parameterized natural-language problem family, using {descriptive_parameter_names} for quantities that vary across instances>
-WHY FINITE: <quote the clause of your CHILD FAMILY that makes its answer finite and unique, and say what it rules out; if no clause does that, the family is not well-posed -- rewrite it before answering>
-GROUP: <one allowed GROUP>
-SKILL: <one allowed SKILL>
+Reply with exactly these three lines and nothing else:
+STRUCTURAL MUTATION: <one sentence identifying the substantive mathematical change>
+CHILD FAMILY: <one parameterized, self-contained natural-language problem>
+WHY FINITE: <the clause or argument guaranteeing one finite, unambiguous answer>

@@ -1,259 +1,156 @@
 # Pipeline Notes
 
-이 문서는 `evo-sample`의 구현을 직접 다시 만들기 위한 대응표입니다.
+이 문서는 현재 `DOMAIN × PROBLEM_TYPE` implementation의 코드 대응표와 상태
+전이를 요약합니다. descriptor 정의와 설계 근거는
+[DOMAIN_TYPE_PIPELINE.md](DOMAIN_TYPE_PIPELINE.md)가 기준입니다.
 
-## Source-To-Skeleton Mapping
+## Source-to-code mapping
 
-| evo-sample | R-Q-Evolve | 역할 |
-|---|---|---|
-| `rq_questioner/program.py` | `src/rq_evolve/program.py` | `generate(seed)` 프로그램 실행 단위 |
-| `rq_questioner/map_elites.py` | `src/rq_evolve/archive.py` | GROUP×SKILL MAP-Elites archive |
-| `rq_questioner/rq_score.py` | `src/rq_evolve/scoring.py` | `R_Q = p(1-p)U` |
-| `prompts/*` | `src/rq_evolve/prompts.py`, `prompt_templates/` | mutation / solver prompt 생성 |
-| `rq_questioner/code_utils.py` | `src/rq_evolve/code_utils.py` | LLM 코드 추출과 lint |
-| `rq_questioner/verl_dataset.py` | `src/rq_evolve/dataset.py` | champion → training examples |
-| `rq_questioner/verl_trainer.py` | `src/rq_evolve/evolution.py`, `src/rq_evolve/verl_adapter.py`, `src/rq_evolve/verl_backend.py` | evolution loop와 verl hook 경계 |
-| `reward_fn.py` | `src/rq_evolve/reward.py` | boxed-answer reward |
-| `run_verl.py` | `scripts/train_with_verl.py` | 학습 entry point |
-| `verl/` | 복제하지 않음 | pip 설치된 `verl` 사용 |
-
-## Core Loop
-
-1. Seed programs are loaded as `ProblemProgram`.
-2. Each program is verified across multiple seeds.
-3. The backend generates G solver rollouts for one representative instance.
-4. `p_hat`, uncertainty, and `R_Q` are computed.
-5. The program competes for its MAP-Elites cell, which is exactly its declared
-   (GROUP, SKILL) pair.
-6. Parent programs are sampled from occupied cells.
-7. The mutation model is shown the parent source plus both label vocabularies
-   and writes the child generator directly. One model call, no planning stage
-   and no operator: it chooses what to change and labels the result itself.
-8. The child is verified statically and by execution, gated by the taxonomy
-   judge, scored, and inserted if elite.
-9. Frontier champions render new training examples.
-10. The installed `verl` trainer consumes those examples and updates the solver.
-11. The next outer iteration re-scores every champion against the new weights
-    before any of them is re-binned, replaced, or removed.
-
-## Archive Axes
-
-The grid is GROUP x SKILL: 6 mathematical domains by 8 reasoning skills, 48
-cells. Both coordinates are read off the program's own top-level `GROUP` and
-`SKILL` constants, so a cell is a (domain, reasoning) pair. There are no bin
-counts to configure; the shape is the two vocabularies in `concepts.py`.
-
-Nothing steers a child to a chosen cell. The operator pair that did -- one held
-GROUP and moved SKILL, the other the mirror -- was removed because ordering a
-label change makes the label a target the child is written to satisfy rather
-than a description of what it produced, and a child filed under a label its
-statement does not support corrupts the coordinates themselves. Coverage is now
-a consequence of mathematical variety plus the judge, not of an instruction.
-
-Uncertainty is not an axis. H remains the uncertainty factor of
-`R_Q = p(1-p)H`, which decides who holds a cell and which champion is drawn as
-a mutation parent. It was dropped as a coordinate because no operator can aim
-at it: a child lands in an H bin only as a side effect of how hard it turned
-out to be, so binning on it spent grid capacity on a dimension evolution could
-not steer. Champions that differ only in difficulty now compete in one cell,
-and the higher R_Q wins.
-
-A program whose GROUP or SKILL falls outside the vocabulary has no cell and is
-rejected (`archive_status: unlabelled_rejected`) rather than hashed into a
-shared bin, which would make one cell the contest for every mislabelled
-generator.
-
-`stats()` reports `group_coverage` and `skill_coverage` separately: a single
-coverage number cannot distinguish "we only ever work in two domains" from "we
-only ever exercise two reasoning moves", and those are the two failure modes
-the operators exist to fix. The 14 seed programs cover 6/6 groups but only 3/8
-skills, so operator A carries the early exploration.
-
-Snapshots written before this change store an H coordinate and no SKILL label.
-They cannot be placed and are dropped with a message at load; a resume from one
-bootstraps from `seed_programs/` instead.
-
-## Mutation Contract
-
-Mutation is one-stage and free-form. `build_mutation_task` renders the parent
-source into `in_depth.txt` / `in_breadth.txt` and the model returns the child
-generator in one ```python``` block. There is no plan schema, no registered
-family compiler, and no quarantine path.
-
-Four gates stand between a generated child and the archive:
-
-## Outer Iteration (Algorithm 1)
-
-```
-sync θ_t into the rollout engine
-for each elite:                       # Re-scoring == replay 생성
-    n개 fresh seed (비재사용 stream) × m rollout
-    (x_z, y_zj, r_zj, h_zj) 저장 → replay buffer
-    L̂_z = m/(m-1)·ŝ_z(1-ŝ_z),  Û_z,  R̂_Q = mean_z(L̂_z·Û_z),  D̂
-for 32 candidates:                    # inner batch, 단일 변이 연산자
-    mutate → validity → judge → n×m 채점 → cell 경쟁
-T_t ← lagged R̂_Q (t-1 까지의 EWMA) 로 고른 frontier elite
-batch ← T_t 의 이번 iteration replay rollout      # 별도 샘플링 패스 없음
-θ_{t+1} ← RLOO 1회 업데이트 (인스턴스 LOO baseline)
-```
-
-`n=5, m=2` 는 구판 단일 인스턴스 `G=10` 과 같은 rollout 예산이며, 재점수화와
-학습 샘플링이 통합되므로 예산이 이중 지출되지 않습니다. 선택을 지난 iteration의
-점수로 미루는 이유는 winner's curse입니다 — 같은 rollout으로 점수를 매겨 고르고
-그 rollout으로 학습하면 측정 노이즈가 유리하게 실현된 표본이 선택적으로 남습니다.
-
-1. **Static lint** — `lint_generator_source` plus the determinism checks in
-   `lint_mutation_generator_source`: a seeded `rng = random.Random(seed)`, no
-   direct `random.*` calls, and `sorted()` around dict/set iteration, so a
-   program yields the same instance in the verifier and in every rollout
-   process. The compiler-notation flags (`MAX_ATTEMPTS = 200`, canonical
-   `instance_data`, `str(sympy.Integer(answer))`) stay OFF: free-form
-   generation does not satisfy them, and enforcing them rejected sound
-   programs on shape alone.
-2. **Structural contract** — `ast_contract.py` decides whether the child's own
-   `assert answer == check` is a real cross-check. It never proves two routes
-   independent (undecidable); it refutes independence three ways — the routes
-   are the same program modulo renaming (A3v), the check was read off the
-   answer (A4d), or the check side is a constant (A5c) — plus "no assert at
-   all" (A1), "no assert straddles the answer" (A2), and a statement parameter
-   with no dependency path to the answer (P1). The check is *existential*: one
-   certifying assert passes the program, because seeds legitimately carry
-   guards and invariants alongside their cross-check. Measured on 456 archived
-   champions it flags 45%, and 0 of the 14 clean programs (6 seeds + 8 verified
-   fixtures). `evolution.ast_contract` is `off` | `shadow` | `enforce`; shadow
-   records the verdict in `program.metadata["ast_contract"]` without rejecting.
-   Unlike the notation flags in gate 1, this is a dataflow predicate, not a
-   shape predicate — which is why it lives in its own module and is ON.
-3. **Execution** — `verify_program` runs seeds 0..N-1, requires a base-10
-   integer answer from every generated mutation, and rejects a program whose
-   visible problem does not vary across seeds. This carries the guarantee the
-   static notation contract used to. Under `enforce`, each rendered statement
-   is also checked for handing the solver its own technique (P2).
-4. **Taxonomy judge** — the judge is shown the seed-0 problem and the supplied
-   answer, and nothing else: not the source, not the declared labels, not the
-   parent. It runs its own completeness and answer-consistency gates, derives
-   the shortest clean solution, and returns GROUP and SKILL with a mandatory
-   concrete witness for each. The child is archived only when both match what
-   it declared; `none`, an out-of-vocabulary value and an unreadable reply all
-   reject. `use_evaluator` gates it, and because it is the only gate that reads
-   the rendered statement as prose, `use_evaluator: false` requires
-   `ast_contract` to be on — `EvolutionConfig.__post_init__` refuses the
-   combination where neither runs. The verdict is written to
-   `metadata["judge"]` whether it passes or fails, so the disagreement rate
-   between the Evolver's self-labelling and an independent reading is a
-   measurable quantity rather than an assumption.
-
-All repository-owned standalone vLLM evaluation/comparison entry points default
-to `--vllm-sampler-backend pytorch`.
-FlashInfer 0.6.x attempts to JIT-compile CUDA 12-only sampling extensions, while
-some hosts use a CUDA 12 PyTorch wheel with an older CUDA 11.8 system `nvcc`.
-The native sampler avoids that engine-startup failure; the selected backend is
-recorded in the run manifest.
-
-## Evolution Candidate State
-
-`EvolutionEngine.inner_iteration_batch` ([`src/rq_evolve/evolution.py:193`](../src/rq_evolve/evolution.py#L193))는
-한 batch의 candidate를 처리합니다. 여기서 `entries`는 `list[dict]`이고, **각 dict의
-"상태"는 어떤 키를 들고 있는지로 표현**됩니다(별도의 status 필드 없음). entry는 세 가지
-shape를 거칩니다:
-
-| shape (dict 키) | 의미 |
+| 역할 | 구현 |
 |---|---|
-| `{"task", "child", "inst"}` | verified child — rollout 대상으로 살아있음 |
-| `{"_retry": {task, output, reason}}` | parse는 됐으나 verify 실패 — 1회 Reflexion self-fix 대상 |
-| `{"report": CandidateReport}` | terminal — 결과를 담음 |
+| generator 실행 단위와 sandbox 경계 | `src/rq_evolve/program.py`, `src/rq_evolve/_sandbox_worker.py` |
+| 두 descriptor vocabulary | `src/rq_evolve/concepts.py` |
+| full 7×5 MAP-Elites archive | `src/rq_evolve/archive.py` |
+| untargeted stage 1과 stage-2 DOMAIN 선언 계약 | `src/rq_evolve/prompts.py`, `prompt_templates/` |
+| deterministic PROBLEM_TYPE 판정 | `src/rq_evolve/problem_type.py` |
+| outer evolution loop | `src/rq_evolve/evolution.py` |
+| declarative verifier schema와 reward dispatch | `src/rq_evolve/verifier.py`, `src/rq_evolve/reward.py`, `src/rq_evolve/_grader_worker.py` |
+| champion/replay → training rows | `src/rq_evolve/dataset.py` |
+| installed `verl` trainer 경계 | `src/rq_evolve/verl_adapter.py`, `src/rq_evolve/verl_backend.py` |
+| production config와 launcher | `configs/rq_evolve_4b_8gpu_domain_type.yaml`, `scripts/run_train_domain_type_8gpu.sh` |
+
+repository는 `verl/`를 vendoring하지 않습니다. 현재 Python environment에서
+import되는 `verl`이 solver update를 담당합니다.
+
+## Initialization
+
+`RQEvolver.initialize_archive()`는 `seed_programs_domain_type/*.py`를 읽고 각
+generator를 여러 seed에서 실행·검증한 뒤 한 번 평가합니다. 사람이 검수한 seed의
+단일 `DOMAIN` 선언과 statement/verifier 계약으로부터 bootstrap 좌표를 정합니다.
+일곱 seed는 일곱 domain과 다섯 problem type을 모두 한 번 이상 열지만, 허용 가능한
+cell을 제한하지 않습니다.
+
+archive는 시작할 때 35개 cell을 모두 생성합니다. 좌표는
+`(domain_bin, problem_type_bin)`이며 runtime supported mask나 benchmark 빈도
+threshold는 없습니다.
+
+## Outer iteration
 
 ```text
-                       backend.mutate(tasks)
-                               │
-              ┌────────────────┼────────────────────┐
-       inst!=None        source!=None            둘 다 None
-        (verify OK)     (parse OK/verify 실패)    (추출 실패)
-              │                │                     │
-        {task,child,inst}   {_retry}         {report: mutation_failed|no_code}
-              │                │
-              │        _resolve_retries()
-              │         fix_retry off ─────────► {report: verify_failed}
-              │         fix 성공 ─► {task,child,inst}(fixed_after_retry)
-              │         fix 실패 ─► {report: verify_failed "[after fix]"}
-              │                │
-              └───────┬────────┘
-                _apply_judge()   (라벨 불일치 / none 판정 시)
-                      │  ├────────────────► {report: judge_rejected}
-                      │  └── judge 오류 ───► 즉시 중단 (예외 전파)
-                      │ (declared == judged → child 유지)
-              generate_rollouts(child)
-                      │
-        모든 rollout reject ─────────────► {report: rollout_failed}
-        archive.try_insert()   (R_Q=0도 셀 경쟁에 참가)
-              ├── elite ───────────────────► {report: inserted}
-              ├── s_hat <= 0 ──────────────► {report: s_hat_zero}
-              ├── R_Q <= 0 (other) ────────► {report: rq_zero}
-              └── non-elite ───────────────► {report: rejected_non_elite}
+sync solver weights into rollout backend
+        │
+        ├─ re-evaluate current champions on fresh instances
+        │    └─ refresh R_Q = s_hat(1-s_hat)U
+        │
+        ├─ sample parents from occupied cells
+        │
+        ├─ stage 1: propose a structurally new problem family
+        │    └─ no descriptor vocabulary, target cell, held/moved axis
+        │
+        ├─ stage 2: compile that family into generate(seed)
+        │    └─ returns problem, answer, verifier + exactly one DOMAIN declaration
+        │
+        ├─ static/AST/multi-seed validity checks
+        │
+        ├─ local descriptor validation over every verification seed
+        │    ├─ DOMAIN is one allowed literal and constant across the family
+        │    ├─ statement + verifier deterministically derive PROBLEM_TYPE
+        │    └─ ambiguous / low / seed disagreement ───────────────> reject
+        │
+        ├─ solver rollouts on fresh instances and R_Q scoring
+        │
+        ├─ novelty gates and same-cell champion competition
+        │
+        └─ refresh replay-backed training dataset and run one solver update
 ```
 
-parent가 없으면 batch 진입 직후 `{report: no_parent}` 하나로 조기 반환됩니다.
+stage 1은 archive의 빈 cell이나 descriptor 목표를 보지 않습니다. stage 2는 이미
+확정된 family를 구현한 뒤 DOMAIN 하나를 선언하지만 특정 DOMAIN 값은 지시받지
+않습니다. PROBLEM_TYPE 판정은 각 rendered problem과 normalized verifier에 대한
+고정된 로컬 규칙이며, 추가 모델이나 API를 호출하지 않습니다.
 
-**`CandidateReport.status` 전체 어휘** ([`evolution.py:29`](../src/rq_evolve/evolution.py#L29)):
-`no_parent`, `mutation_failed`, `no_code`, `verify_failed`,
-`judge_rejected`, `judge_input_too_large`, `inspiration_copy_rejected`, `rollout_failed`,
-`s_hat_zero`, `rq_zero`, `inserted`, `rejected_non_elite`.
+## Candidate state
 
-`s_hat_zero` / `rq_zero`는 이제 **조기 반환이 아니라 삽입 실패의 사유**입니다.
-R_Q = 0인 후보도 `try_insert`에 들어가 빈 셀을 차지할 수 있습니다. 고전 MAP-Elites는
-fitness만으로 셀 점유를 막지 않고, "아직 아무것도 없음"은 정책이 못 푸는 프로그램보다
-엄격히 나쁘기 때문입니다. 이전 게이트는 p=0/p=1 후보를 전부 거절해 부트스트랩에서
-시드 8개 중 3개를 잃었고, 그와 함께 geometry·inequality GROUP과
-induction·extremal_principle SKILL의 유일한 대표가 사라졌습니다.
-학습 데이터 오염은 별개 장치가 막습니다 — `dataset.py`의 frontier band
-(`low < p_hat < high`)가 p=0과 p=1을 이미 제외하고, 셀 경쟁이 엄격한 `>`라서
-R_Q=0 champion은 점수 있는 프로그램이 오는 즉시 자리를 내줍니다.
+`inner_iteration_batch()`의 entry는 별도 enum 대신 현재 가진 key로 상태를
+표현합니다.
 
-각 report는 `source_code`(`_MAX_LOGGED_SOURCE_CHARS`에서 절단)와 `ast_findings`도
-함께 싣습니다. 아카이브 스냅샷에는 champion만 들어가므로, 이 두 필드가 없으면 거절된
-자식의 프로그램을 복구할 수 없고 게이트의 오탐률을 그것이 거절한 모집단에 대해 측정할
-방법이 없습니다. `{"_retry": {...}}` 페이로드도 `source`/`child_id`/`ast_findings`를
-**중첩해서** 나릅니다 — `_resolve_retries`는 `_apply_evaluator`와 달리 `e.clear()`를
-호출하지 않으므로, 최상위 `"child"` 키는 `to_eval` 선택자로 새어나가 rollout group을
-어긋나게 만듭니다.
-Evaluator 인증·호출 오류는 report로 기록하지 않고 실험을 즉시 중단한다.
-모든 report는 `append_evolution_log`가 `evolution_log.jsonl`에 append합니다.
+| entry shape | 의미 |
+|---|---|
+| `{"task", "child", "inst"}` | generic/descriptor verification을 통과해 rollout 대상으로 살아 있음 |
+| `{"_retry": {...}}` | source parse는 됐지만 verification 실패; retry가 켜졌을 때 한 번 수정 가능 |
+| `{"report": CandidateReport}` | terminal outcome |
 
-## Implementation Milestones
+production Domain×Type config는 `fix_retry: false`입니다. terminal report에는
+가능하면 child source와 AST finding을 함께 남겨, archive에 들어오지 못한 후보도
+gate별로 감사할 수 있게 합니다. 대표 결과는 mutation/parse 실패, verify 실패,
+descriptor verification 실패, duplicate/copy 거절, rollout 실패, insertion,
+non-elite rejection입니다.
 
-### Milestone 1: Archive Correctness
+## Admission order
 
-- Compare `archive.selection_strategy=ucb` with `archive.selection_strategy=random`.
-- Add behavior-signature duplicate rejection.
-- Add template-signature duplicate rejection.
-- Save and load archive snapshots.
-- Add deterministic parent-selection tests.
+generated child는 destination을 받지 않은 채 다음 순서로 확인됩니다.
 
-### Milestone 2: Mutation Quality
+1. code extraction, static lint, deterministic RNG와 exact-one DOMAIN declaration;
+2. `answer == check` dataflow/AST contract;
+3. sandbox execution과 multi-seed statement/answer consistency;
+4. declarative verifier normalization;
+5. 모든 verification seed에서 statement+verifier 기반 PROBLEM_TYPE이
+   high-confidence이고 하나로 일치하는지 확인;
+6. fresh-instance rollout과 R_Q 계산;
+7. seed variation 및 behavior/template/near-template/structural duplicate gates;
+8. 해당 cell champion과 strict score competition.
 
-- Edit `prompt_templates/mutation_system_prompt.txt` and
-  `prompt_templates/mutation_user_prompt.txt`.
-- Keep `prompt_templates/shots/*.txt` as offline fixtures; the live loop reads
-  nothing from that directory.
-- Add score-aware feedback from parent `p_hat` and uncertainty.
-- Add execution-failure feedback for rejected children.
+DOMAIN 선언은 stage 1이 family를 확정한 뒤에만 추가되므로 mutation destination을
+지시하는 scheduler가 아닙니다. candidate가 parent와 같은 cell로 돌아와도
+구조적으로 새롭고 점수가 더 높으면 정상적인 mutation입니다.
 
-### Milestone 3: Real Backend
+## Answer verification path
 
-- Implement an OpenAI-compatible mutation backend.
-- Implement a vLLM/Ollama rollout backend.
-- Decide whether entropy is token entropy, span-max entropy, or semantic entropy.
+`ProblemInstance.verifier`는 dataset, replay, rollout log, verl reward metadata를
+통해 보존됩니다. reward는 solver response의 마지막 `\boxed{...}`를 추출한 뒤
+mode별로 dispatch합니다.
 
-### Milestone 4: verl Integration
+- `expression`: `math_verify`
+- `boolean`: canonical Yes/No equality
+- `one_of`: 허용된 완전한 답 중 하나와 symbolic equality
+- `set`: 순서 무관, 중복 없는 exact finite-set equality
 
-- `VerlTrainerAdapter.fit()` wires the currently installed `.venv` `verl` into the project.
-- `VerlDynamicDataset` converts `DynamicProblemDataset.snapshot()` rows to the installed verl dataset shape.
-- `EvolvingSampler` runs the outer-iteration hook:
-  `reevaluate champions -> inner evolution -> refresh dataset -> solver update`.
-- Save archive and used-seed state next to verl checkpoints.
+grader는 별도 hard-killable process에서 실행됩니다. schema에 없는 field, unknown
+mode, executable predicate, reference와 모순되는 verifier는 fail closed입니다.
+PROBLEM_TYPE은 mode만으로 정하지 않습니다. statement의 출력 요구를 보수적으로
+판정한 뒤 verifier mode 및 reference answer 제약과 교차검증합니다. 한 seed라도
+모호하거나 서로 다른 type을 만들면 candidate 전체를 거절합니다.
 
-### Milestone 5: Evaluation
+## Archive persistence
 
-- Add math benchmark loaders.
-- Add post-training evaluation scripts.
-- Save per-rollout logs for failed examples.
+snapshot metadata는 schema/version뿐 아니라 다음 값을 정확히 저장합니다.
+
+```text
+axes = [domain, problem_type]
+domain_labels = seven-value ordered vocabulary
+problem_type_labels = five-value ordered vocabulary
+binning = grid
+domain_authority = source_exact_one_literal
+problem_type_authority = deterministic_statement_and_verifier
+problem_type_ruleset = computational-output-contract-v1
+problem_type_ruleset_sha256 = hash of the local rule implementation
+```
+
+각 program에는 source hash와 같은 ruleset identity를 포함한
+`descriptor_contract`도 저장합니다. load 시 snapshot 또는 program contract 중
+하나라도 다르면 live archive를 바꾸기 전에 `ArchiveSchemaError`가 납니다.
+따라서 old `GROUP × SKILL` champion을 새 좌표로 암묵적으로 재해석하지 않습니다.
+production launcher도 non-empty output directory를 거절하고 trainer
+`resume_mode: disable`을 사용합니다.
+
+## Production entry point
+
+```bash
+python scripts/preflight_check.py \
+  --config configs/rq_evolve_4b_8gpu_domain_type.yaml
+
+bash scripts/run_train_domain_type_8gpu.sh
+```
+
+launcher의 exact seed-count와 output-directory 검사를 우회해 기존 결과 directory에
+새 schema를 섞지 마세요. 좌표 판정에는 별도 credential이 필요하지 않습니다.

@@ -2,7 +2,6 @@ from pathlib import Path
 
 from rq_evolve.ast_contract import check_generator_contract, check_problem_text
 from rq_evolve.code_utils import lint_generator_source, lint_problem_instance
-from rq_evolve.concepts import validate_label_decl
 from rq_evolve.evolved_performance import build_seed_id_rows
 from rq_evolve.program import ProblemProgram
 
@@ -27,9 +26,9 @@ def test_structural_ood_generators_are_valid_and_vary():
         program = ProblemProgram.from_file(path)
         assert lint_generator_source(program.source_code) == []
         assert check_generator_contract(program.source_code) == []
-        assert validate_label_decl(
-            program.declared_group(), program.declared_skill()
-        ) == []
+        # This directory is a preserved pre-migration analysis benchmark. Its
+        # GROUP/SKILL labels are reported by evolved_performance but are never
+        # admitted into the new DOMAIN x PROBLEM_TYPE archive.
         observed_labels.add((program.declared_group(), program.declared_skill()))
 
         instances = [program.execute(seed) for seed in range(5)]

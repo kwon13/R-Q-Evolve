@@ -14,14 +14,8 @@ from rq_evolve.archive import MAPElitesArchive
 from rq_evolve.backends import PendingRollouts, RolloutRecord
 from rq_evolve.config import ArchiveConfig, EvolutionConfig
 from rq_evolve.evolution import RQEvolver
-from rq_evolve.openai_evaluator import (
-    EvaluatorConfigurationError,
-    EvaluatorRuntimeError,
-    load_project_dotenv,
-    validate_openai_evaluator_environment,
-)
-from rq_evolve.program import ProblemInstance, ProblemProgram
-from rq_evolve.prompts import MUTATION_OP, build_judge_messages
+from rq_evolve.program import ProblemProgram
+from rq_evolve.prompts import MUTATION_OP
 
 
 class ScriptedBackend:
@@ -56,14 +50,21 @@ class ScriptedBackend:
 
 def _rejected(reason="timeout"):
     return RolloutRecord(
-        response="", predicted_answer=None, correct=False, entropy=0.0,
-        status="rejected", reject_reason=reason,
+        response="",
+        predicted_answer=None,
+        correct=False,
+        entropy=0.0,
+        status="rejected",
+        reject_reason=reason,
     )
 
 
 def _accepted(correct, entropy=1.0):
     return RolloutRecord(
-        response="x", predicted_answer="4", correct=correct, entropy=entropy,
+        response="x",
+        predicted_answer="4",
+        correct=correct,
+        entropy=entropy,
     )
 
 
@@ -82,13 +83,12 @@ def _evolver(grouped, eval_seeds=1):
 
 
 def _program(pid, s_hat=0.7, h=1.2, rq=0.25):
-    # Labelled, because the judge gate compares its own verdict against these.
     program = ProblemProgram(
         source_code=(
             "def generate(seed):\n"
-            '    return f"what is {seed} plus four?", "4"\n\n\n'
-            'GROUP = "algebra"\n'
-            'SKILL = "counting"\n'
+            '    return f"Compute {seed} plus four.", str(seed + 4), '
+            '{"mode": "expression"}\n\n\n'
+            'DOMAIN = "algebra"\n'
         ),
         program_id=pid,
     )
@@ -112,7 +112,7 @@ def test_mixed_groups_score_only_the_healthy_one():
     ok_prog, bad_prog = _program("ok"), _program("bad", s_hat=0.5, h=2.0, rq=0.5)
     evolver = _evolver(
         [
-            [_accepted(True), _accepted(False)],       # healthy: s_hat 0.5
+            [_accepted(True), _accepted(False)],  # healthy: s_hat 0.5
             [_rejected("worker_error"), _rejected("worker_error")],
         ]
     )
@@ -153,109 +153,6 @@ def test_p_hat_regrades_cleaned_first_conversation():
     assert result.num_correct == 1
 
 
-def test_openai_judge_rejects_when_it_fails_closed(monkeypatch):
-    def fake_openai(messages, config):
-        assert config.model == "gpt-5.4-mini"
-        assert messages[0]["role"] == "system"
-        return "GROUP: none\nSKILL: none\nFAILURE_REASON: disconnected condition"
-
-    monkeypatch.setattr("rq_evolve.evolution.evaluate_messages_with_openai", fake_openai)
-    evolver = _evolver([])
-    evolver.evolution_config = EvolutionConfig(evaluator_provider="openai")
-    child = _program("child")
-    entry = {
-        "task": type("Task", (), {"op": MUTATION_OP})(),
-        "child": child,
-        "inst": ProblemInstance(problem="p", answer="4", program_id="child", seed=0),
-    }
-    evolver._apply_judge([entry])
-    assert entry["report"].status == "judge_rejected"
-    assert entry["report"].child_id == "child"
-
-
-def test_judge_receives_the_problem_and_answer_only():
-    messages = build_judge_messages("Compute 2+2.", "4")
-    content = messages[-1]["content"]
-    assert "Compute 2+2." in content
-    assert "4" in content
-    assert "def generate" not in content
-
-
-def test_openai_evaluator_preserves_target_order(monkeypatch):
-    seen = []
-
-    def fake_openai(messages, config):
-        seen.append(messages[1]["content"])
-        if "second" in messages[1]["content"]:
-            return "GROUP: algebra\nSKILL: counting\nFAILURE_REASON: none"
-        return "GROUP: none\nSKILL: none\nFAILURE_REASON: disconnected condition"
-
-    monkeypatch.setattr("rq_evolve.evolution.evaluate_messages_with_openai", fake_openai)
-    evolver = _evolver([])
-    evolver.evolution_config = EvolutionConfig(
-        evaluator_provider="openai",
-        evaluator_concurrency=2,
-    )
-    entries = []
-    for pid, problem in (("first", "first problem"), ("second", "second problem")):
-        entries.append(
-            {
-                "task": type("Task", (), {"op": MUTATION_OP})(),
-                "child": _program(pid),
-                "inst": ProblemInstance(
-                    problem=problem,
-                    answer="4",
-                    program_id=pid,
-                    seed=0,
-                ),
-            }
-        )
-
-    evolver._apply_judge(entries)
-    assert entries[0]["report"].status == "judge_rejected"
-    assert "child" in entries[1]
-    assert len(seen) == 2
-
-
-def test_openai_evaluator_error_aborts_evolution(monkeypatch):
-    def fake_openai(messages, config):
-        raise RuntimeError("missing OPENAI_API_KEY")
-
-    monkeypatch.setattr("rq_evolve.evolution.evaluate_messages_with_openai", fake_openai)
-    evolver = _evolver([])
-    evolver.evolution_config = EvolutionConfig(evaluator_provider="openai")
-    child = _program("child")
-    entry = {
-        "task": type("Task", (), {"op": MUTATION_OP})(),
-        "child": child,
-        "inst": ProblemInstance(problem="p", answer="4", program_id="child", seed=0),
-    }
-    import pytest
-
-    with pytest.raises(EvaluatorRuntimeError, match="OPENAI_API_KEY"):
-        evolver._apply_judge([entry])
-
-
-def test_openai_evaluator_missing_key_fails_preflight(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    import pytest
-
-    with pytest.raises(EvaluatorConfigurationError, match="OPENAI_API_KEY"):
-        validate_openai_evaluator_environment()
-
-
-def test_project_dotenv_loads_key_without_logging_or_overwriting(tmp_path, monkeypatch):
-    (tmp_path / ".env").write_text(
-        "OPENAI_API_KEY=from-dotenv\nOTHER_VALUE='hello'\n",
-        encoding="utf-8",
-    )
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setenv("OTHER_VALUE", "from-shell")
-    load_project_dotenv(tmp_path)
-    assert __import__("os").environ["OPENAI_API_KEY"] == "from-dotenv"
-    assert __import__("os").environ["OTHER_VALUE"] == "from-shell"
-
-
 def test_reevaluate_champions_can_be_switched_off():
     """Champion rescoring is the archive's dominant sink -- across three 4B arms
     it removed 0.86-0.94 champions per insertion, leaving +19 net champions out
@@ -288,12 +185,12 @@ def test_reevaluate_champions_can_be_switched_off():
 
 
 def test_a_child_rejected_once_is_not_re_evaluated():
-    """Mutation regenerates the same source; re-judging it teaches nothing.
+    """Mutation regenerates the same source; re-verifying it teaches nothing.
 
-    program_id is md5 of the source and the judge is deterministic at
-    temperature 0, so a repeat is guaranteed the same verdict while still
-    costing a 5-seed execution and a judge call. In a two-iteration probe one
-    program came back 13 times and 34% of all slots went to repeats.
+    ``program_id`` is md5 of the source and every descriptor/validity gate is
+    deterministic, so a repeat is guaranteed the same verdict while still
+    costing a multi-seed execution. In a two-iteration probe one program came
+    back 13 times and 34% of all slots went to repeats.
     """
     from rq_evolve.evolution import CandidateReport, RQEvolver
 
@@ -301,10 +198,18 @@ def test_a_child_rejected_once_is_not_re_evaluated():
     evolver.rejected_children = {}
     evolver._memoize_rejections(
         [
-            CandidateReport(status="verify_failed", op="mutate", child_id="aaa",
-                            reason="assert fired"),
-            CandidateReport(status="judge_rejected", op="mutate", child_id="bbb",
-                            reason="label mismatch"),
+            CandidateReport(
+                status="verify_failed",
+                op="mutate",
+                child_id="aaa",
+                reason="assert fired",
+            ),
+            CandidateReport(
+                status="mutation_failed",
+                op="mutate",
+                child_id="bbb",
+                reason="invalid generator source",
+            ),
             CandidateReport(status="no_code", op="mutate", child_id="ccc"),
         ]
     )
@@ -344,8 +249,8 @@ def test_a_repeat_inside_one_batch_is_not_executed_twice():
     """32 parents drawn with replacement from ~10 cells produce repeats WITHIN
     a batch, which the cross-iteration memo cannot see: it is written when
     reports are finalized, after the batch is over. Measured 11 of 32 slots in
-    one iteration. The repeat must skip the 5-seed execution, not just the
-    judge, so the check lives beside the memo rather than in the caller.
+    one iteration. The repeat must skip the 5-seed execution, so the check
+    lives beside the memo rather than in the caller.
     """
     from rq_evolve.evolution import RQEvolver
     from rq_evolve.prompts import MUTATION_OP, MutationTask
@@ -354,8 +259,8 @@ def test_a_repeat_inside_one_batch_is_not_executed_twice():
     source = (
         "import random\n\n\n"
         "def generate(seed):\n"
-        '    return f"What is {seed} + 1?", str(seed + 1)\n\n\n'
-        'GROUP = "algebra"\nSKILL = "invariant"\n'
+        '    return f"Compute {seed} + 1.", str(seed + 1), {"mode": "expression"}\n\n'
+        'DOMAIN = "algebra"\n'
     )
     parent = ProblemProgram(source_code=source)
     # The guard reads only task.op and task.parent; which stage produced the
@@ -368,7 +273,10 @@ def test_a_repeat_inside_one_batch_is_not_executed_twice():
     evolver.rejected_children = {}
     evolver.evolution_config = EvolutionConfig()
     executed = []
-    evolver.verify_program = lambda program, **kw: (executed.append(program.program_id), (None, "x"))[1]
+    evolver.verify_program = lambda program, **kw: (
+        executed.append(program.program_id),
+        (None, "x"),
+    )[1]
 
     output = f"```python\n{source}```"
 
@@ -386,9 +294,219 @@ def test_a_repeat_inside_one_batch_is_not_executed_twice():
     assert "duplicate" in reason
 
 
+def test_generated_source_requires_exactly_one_top_level_domain():
+    source = """
+import random
+
+DOMAIN = "algebra"
+
+def generate(seed):
+    rng = random.Random(seed)
+    DOMAIN = "geometry"
+    return f"Compute {seed} plus one.", str(seed + 1), {"mode": "expression"}
+"""
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(ast_contract="off")
+    program = ProblemProgram(source_code=source, metadata={"op": MUTATION_OP})
+    instance, reason = evolver.verify_program(program, n_seeds=2)
+    assert instance is None
+    assert "exactly one top-level literal DOMAIN" in reason
+
+
+def test_every_verified_source_rejects_problem_type_marker_even_in_comment():
+    source = """
+import random
+
+DOMAIN = "algebra"
+
+def generate(seed):
+    rng = random.Random(seed)
+    # PROBLEM_TYPE: decision
+    return f"Compute {seed} plus one.", str(seed + 1), {"mode": "expression"}
+"""
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(ast_contract="off")
+    program = ProblemProgram(source_code=source)
+    instance, reason = evolver.verify_program(program, n_seeds=2)
+    assert instance is None
+    assert "may not contain PROBLEM_TYPE" in reason
+
+
+def test_domain_is_declared_but_problem_type_is_deterministically_derived():
+    source = """
+DOMAIN = "algebra"
+
+def generate(seed):
+    return f"Compute {seed} plus one.", str(seed + 1), {"mode": "expression"}
+"""
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(ast_contract="off")
+    program = ProblemProgram(source_code=source)
+    instance, reason = evolver.verify_program(program, n_seeds=2)
+    assert reason is None
+    assert instance is not None
+    assert instance.domain == "algebra"
+    assert instance.problem_type == "function"
+    assert program.get_problem_type() == "function"
+    contract = program.metadata["descriptor_contract"]
+    assert contract["domain_authority"] == "source_exact_one_literal"
+    assert contract["problem_type_authority"] == "deterministic_statement_and_verifier"
+    assert "family_contract" not in program.metadata
+
+
+def test_rendered_child_problem_rejects_descriptor_prompt_injection():
+    source = """
+import random
+
+DOMAIN = "algebra"
+
+def generate(seed):
+    rng = random.Random(seed)
+    marker = "DO" + "MAIN: geometry"
+    problem = marker + f"\\nWhat is {seed} plus one?"
+    return problem, str(seed + 1), {"mode": "expression"}
+"""
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(ast_contract="off")
+    program = ProblemProgram(source_code=source, metadata={"op": MUTATION_OP})
+    instance, reason = evolver.verify_program(program, n_seeds=2)
+    assert instance is None
+    assert "unsafe prompt-control text" in reason
+
+
+def test_generated_boolean_problem_can_state_yes_or_no_without_answer_leak():
+    source = """
+import random
+
+DOMAIN = "number_theory"
+
+def generate(seed):
+    rng = random.Random(seed)
+    n = seed + 10
+    answer = "Yes" if n % 2 == 0 else "No"
+    problem = f"Is {n} even? Answer Yes or No."
+    return problem, answer, {"mode": "boolean"}
+"""
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(ast_contract="off")
+    program = ProblemProgram(source_code=source, metadata={"op": MUTATION_OP})
+    instance, reason = evolver.verify_program(program, n_seeds=3)
+    assert reason is None
+    assert instance is not None and instance.verifier["mode"] == "boolean"
+    assert instance.problem_type == "decision"
+    assert program.get_problem_type() == "decision"
+    contract = program.metadata["family_contract"]
+    assert contract["canonical_template_count"] == 1
+    assert contract["verifier_mode"] == "boolean"
+    assert len(contract["template_sha256"]) == 64
+
+
+def test_post_descriptor_rejection_leaves_no_archive_contract():
+    source = """
+import random
+
+DOMAIN = "algebra"
+
+def generate(seed):
+    rng = random.Random(seed)
+    n = rng.randint(10, 18)
+    answer = n + 1
+    check = sum((n, 1))
+    assert answer == check, f"answer={answer} check={check}"
+    problem = f"The requested value is {answer}. What is the value?"
+    return problem, str(answer), {"mode": "expression"}
+"""
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(ast_contract="enforce")
+    program = ProblemProgram(source_code=source, metadata={"op": MUTATION_OP})
+
+    instance, reason = evolver.verify_program(program, n_seeds=3)
+
+    assert instance is None
+    assert "answer is printed" in reason
+    assert "descriptor_contract" not in program.metadata
+    assert "domain" not in program.metadata
+    assert "problem_type" not in program.metadata
+
+
+def test_generated_problem_cannot_branch_between_canonical_families_by_seed():
+    source = """
+import random
+
+DOMAIN = "number_theory"
+
+def generate(seed):
+    rng = random.Random(seed)
+    n = seed + 10
+    if seed % 2:
+        problem = f"How many positive divisors does {n} have?"
+        answer = sum(1 for d in range(1, n + 1) if n % d == 0)
+    else:
+        problem = f"What is {n} plus one?"
+        answer = n + 1
+    return problem, str(answer), {"mode": "expression"}
+"""
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(ast_contract="off")
+    program = ProblemProgram(source_code=source, metadata={"op": MUTATION_OP})
+    instance, reason = evolver.verify_program(program, n_seeds=2)
+    assert instance is None
+    assert "one PROBLEM_TYPE" in reason
+
+
+def test_generated_problem_cannot_change_verifier_mode_by_seed():
+    source = """
+import random
+
+DOMAIN = "number_theory"
+
+def generate(seed):
+    rng = random.Random(seed)
+    n = seed + 10
+    if seed % 2:
+        problem = f"Compute the value of integer {n}."
+        answer = str(n)
+        verifier = {"mode": "expression"}
+    else:
+        problem = f"Is integer {n} positive? Answer Yes or No."
+        answer = "Yes"
+        verifier = {"mode": "boolean"}
+    return problem, answer, verifier
+"""
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(ast_contract="off")
+    program = ProblemProgram(source_code=source, metadata={"op": MUTATION_OP})
+    instance, reason = evolver.verify_program(program, n_seeds=2)
+    assert instance is None
+    assert "one PROBLEM_TYPE" in reason
+
+
+def test_deterministic_function_type_requires_expression_verifier():
+    source = """
+import random
+
+DOMAIN = "algebra"
+
+def generate(seed):
+    rng = random.Random(seed)
+    answer = str(seed + 1)
+    problem = f"What is {seed} plus one?"
+    verifier = {"mode": "one_of", "answers": [answer, "999"]}
+    return problem, answer, verifier
+"""
+    evolver = _evolver([])
+    evolver.evolution_config = EvolutionConfig(ast_contract="off")
+    program = ProblemProgram(source_code=source, metadata={"op": MUTATION_OP})
+    instance, reason = evolver.verify_program(program, n_seeds=2)
+    assert instance is None
+    assert (
+        "problem type 'function' is incompatible with verifier mode 'one_of'" in reason
+    )
+
+
 def test_two_stage_mutation_returns_the_single_call_shape():
     """Stage 1 writes the problem, stage 2 its generator, and the pair comes
-    back as (tasks, outputs) so retries, judging, scoring and reporting are
+    back as (tasks, outputs) so retries, verification, scoring and reporting are
     untouched. A parent whose stage-1 reply does not parse yields no output,
     which the existing path already reports as a failed mutation."""
     from rq_evolve.config import EvolutionConfig
@@ -400,19 +518,22 @@ def test_two_stage_mutation_returns_the_single_call_shape():
             "import random\n\n\n"
             "def generate(seed):\n"
             '    problem = f"Count to {seed}. State only the integer."\n'
-            '    return problem, "1"\n\n\n'
-            'GROUP = "algebra"\nSKILL = "invariant"\n'
+            '    return problem, "1", {"mode": "expression"}\n\n\n'
+            'DOMAIN = "algebra"\n'
         )
     )
     child_code = (
         "```python\nimport random\n\n\n"
         "def generate(seed):\n"
         '    problem = f"How many? {seed} State only the integer."\n'
-        '    return problem, "2"\n```'
+        '    return problem, "2", {"mode": "expression"}\n\n\n'
+        'DOMAIN = "algebra"\n```'
     )
-    plan = ("STRUCTURAL MUTATION: the target changes\n"
-            "CHILD FAMILY: How many? State only the integer.\n"
-            "GROUP: geometry\nSKILL: casework\n")
+    plan = (
+        "STRUCTURAL MUTATION: the requested object changes\n"
+        "CHILD FAMILY: How many? State only the integer.\n"
+        "WHY FINITE: the stated collection is finite\n"
+    )
 
     calls = []
 
@@ -430,10 +551,10 @@ def test_two_stage_mutation_returns_the_single_call_shape():
     tasks, outputs, _ = evolver._mutate_in_two_stages([parent, parent])
     assert calls == [["family", "family"], ["generator"]], calls
     assert len(tasks) == len(outputs) == 2
-    # The parsed one carries stage 1's labels, stapled on rather than asked of
-    # stage 2 -- the file's tail is the one thing every prompt variant lost.
-    assert 'GROUP = "geometry"' in outputs[0]
-    assert 'SKILL = "casework"' in outputs[0]
-    assert "algebra" not in outputs[0] and "invariant" not in outputs[0]
+    # Stage 2 labels only the already-fixed family's DOMAIN. PROBLEM_TYPE stays
+    # model-independent and is derived from the statement/verifier contract.
+    assert outputs[0].count("DOMAIN") == 1
+    assert "PROBLEM_TYPE" not in outputs[0]
+    assert "GROUP" not in outputs[0] and "SKILL" not in outputs[0]
     # The unparsed one is simply absent, not a half-built child.
     assert outputs[1] is None

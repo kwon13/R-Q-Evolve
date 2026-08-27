@@ -1,10 +1,8 @@
 import collections
 import hashlib
 import json
-import math
 import random
 import re
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -18,39 +16,34 @@ from .code_utils import (
     lint_generator_source,
     lint_mutation_generator_source,
     lint_problem_instance,
-    set_label_declarations,
+    structural_inspiration_safety_reason,
+    validated_domain_declaration,
 )
-from .concepts import SKILLS, GROUPS, validate_label_decl
+from .concepts import validate_label_decl
 from .config import EvolutionConfig, TrainingDataConfig
+from .constancy import canonical_template
 from .dataset import (
     DynamicProblemDataset,
     build_replay_training_examples,
     build_training_examples,
 )
-from .openai_evaluator import (
-    EvaluatorRuntimeError,
-    OpenAIEvaluatorConfig,
-    evaluate_messages_with_openai,
+from .problem_type import (
+    PROBLEM_TYPE_RULESET,
+    annotate_problem_type,
+    problem_type_contract_errors,
+    problem_type_ruleset_sha256,
 )
-from .reward import grader_stats
+from .reward import answers_match, grader_stats
 from .program import ProblemInstance, ProblemProgram
 from .replay import PreviousRQScoreboard, RolloutReplayBuffer
 from .seed_stream import SeedStream
 from .prompts import (
-    build_relabel_task,
-    build_relabel_group_task,
     MutationTask,
     MUTATION_OP,
-    build_judge_messages,
-    build_judge_task,
     build_family_task,
     build_generator_task,
-    parse_declared_labels,
     parse_family_plan,
-    judge_accepts,
-    parse_judge_verdict,
 )
-from .relabel import SkillOffsets, GroupOffsets, choose_skill, choose_group, logit
 from .scoring import RQResult, compute_rq_program, is_frontier, score_seed
 from .solver_trace import clean_and_grade_solver_rollout
 
@@ -79,31 +72,6 @@ class CandidateReport:
     # unknowable.
     parent_id: str | None = None
     inspiration: dict | None = None
-
-
-def _relabel_p_yes(pair, reply, yes_id) -> float | None:
-    """P(YES) from the sampled token's logprob, else from the decoded text.
-
-    ``pair`` is the ``(token id, logprob)`` the backend recorded for this task.
-    With only two allowed tokens and greedy decoding the sampled side's
-    probability fixes the other's, so one logprob is the whole distribution --
-    which is why the caller asks for one token and one logprob, not a top-k.
-    """
-    if pair is not None and yes_id is not None:
-        try:
-            token_id, logp = pair
-            p = math.exp(float(logp))
-            if 0.0 <= p <= 1.0:
-                return p if int(token_id) == yes_id else 1.0 - p
-        except (TypeError, ValueError, OverflowError):
-            pass
-    if reply:
-        head = str(reply).strip().lstrip("`*_\"' \t\n").upper()
-        if head.startswith("YES"):
-            return 1.0
-        if head.startswith("NO"):
-            return 0.0
-    return None
 
 
 def _logged_source(source: str | None) -> str | None:
@@ -173,10 +141,6 @@ class RQEvolver:
     # already graded on -- which would reopen exactly the overfitting hole that
     # fresh seeds close.
     seed_stream: SeedStream = field(default_factory=SeedStream)
-    # Per-skill logit offsets for relabelling, carried across iterations
-    # and persisted with the archive so a resume does not restart cold.
-    skill_offsets: SkillOffsets = field(default_factory=SkillOffsets)
-    group_offsets: GroupOffsets = field(default_factory=GroupOffsets)
     # This iteration's re-scoring rollouts, kept so the solver update trains on
     # them instead of paying for a second sampling pass over the same programs.
     replay: RolloutReplayBuffer = field(default_factory=RolloutReplayBuffer)
@@ -190,9 +154,9 @@ class RQEvolver:
     # are drawn with replacement from a small archive, so the same source comes
     # back repeatedly: one program was regenerated 13 times in 32 slots, and 34%
     # of a two-iteration probe went on children already rejected. Re-running them
-    # cannot teach us anything -- the judge is deterministic at temperature 0, so
-    # a repeat is guaranteed the same verdict -- while each one still costs a
-    # 5-seed execution and a judge call. Keyed by program_id, which IS
+    # cannot teach us anything -- the source and deterministic gates are
+    # unchanged -- while each one still costs a 5-seed execution. Keyed by
+    # program_id, which IS
     # md5(source_code), so a hit means byte-identical code.
     #
     # Rejections only. Accepted children live in the archive, which has its own
@@ -290,11 +254,29 @@ class RQEvolver:
         program: ProblemProgram,
         n_seeds: int | None = None,
     ) -> tuple[ProblemInstance | None, str | None]:
-        """Multi-seed execution and cheap mathematical sanity checks."""
+        """Multi-seed validity plus deterministic descriptor verification.
+
+        There is no classifier call. DOMAIN is one exact top-level literal
+        written by stage 2 after the child family is fixed. PROBLEM_TYPE is
+        inferred from each rendered request and cross-checked with its verifier;
+        all verification seeds must produce the same high-confidence type.
+        """
         n = n_seeds or self.evolution_config.verify_seeds
         source_errors = lint_generator_source(program.source_code)
         mode = self.evolution_config.ast_contract
         is_generated_mutation = program.metadata.get("op") == MUTATION_OP
+        domain, domain_errors = validated_domain_declaration(program.source_code)
+        source_errors.extend(domain_errors)
+        if re.search(
+            r"\b(?:PROBLEM_TYPE|GROUP|SKILL)\s*[:=]", program.source_code
+        ):
+            source_errors.append(
+                "program may not contain PROBLEM_TYPE/GROUP/SKILL declarations "
+                "or field markers"
+            )
+        # Stale metadata must never override the current source/rules verdict.
+        for key in ("domain", "problem_type", "descriptor_contract"):
+            program.metadata.pop(key, None)
         if is_generated_mutation:
             # Determinism only: a seeded `rng`, no direct `random.*` calls, and
             # sorted() around dict/set iteration, so a program yields the same
@@ -307,11 +289,12 @@ class RQEvolver:
             # rejected mathematically sound programs on shape alone -- observed
             # on 20/20 candidates for instance_data and on 9 of 14 rejections
             # for the notation pair. Execution-level checks carry the guarantee
-            # instead: every verified seed must yield an integer answer below,
-            # and the judge gates the labels before the archive.
+            # instead: every verified seed must satisfy its declarative verifier
+            # and the deterministic descriptor contract below.
             source_errors.extend(
                 lint_mutation_generator_source(
                     program.source_code,
+                    reject_descriptor_markers=False,
                     require_assert=False,
                     reject_trivial_assert=False,
                     reject_unbounded_sampling=False,
@@ -346,22 +329,13 @@ class RQEvolver:
         if source_errors:
             return None, "; ".join(source_errors[:3])
 
-        group = program.declared_group()
-        skill = program.declared_skill()
-        label_errors = validate_label_decl(group, skill)
-        if label_errors:
-            return None, "; ".join(label_errors)
-        # Resolve the two axis labels into metadata once, so a program keeps
-        # them after an archive round-trip without re-parsing its source.
-        program.metadata["group"] = group
-        program.metadata["skill"] = skill
-
         first: ProblemInstance | None = None
         # statement -> the answers it was rendered with. A set would only
         # answer "does the program vary?"; the mapping additionally proves
         # ill-posedness when it does not vary the way it should.
-        seen_problems: dict[str, set[str]] = {}
+        seen_problems: dict[str, set[tuple[str, str]]] = {}
         rendered: list[ProblemInstance] = []
+        type_annotations = []
         for seed in range(n):
             inst = program.execute(seed=seed)
             if inst is None:
@@ -374,6 +348,14 @@ class RQEvolver:
             instance_errors = lint_problem_instance(inst)
             if instance_errors:
                 return None, "; ".join(instance_errors[:3])
+            if is_generated_mutation:
+                unsafe_reason = structural_inspiration_safety_reason(inst.problem)
+                if unsafe_reason:
+                    return (
+                        None,
+                        "rendered problem contains unsafe prompt-control text: "
+                        f"{unsafe_reason}",
+                    )
             if is_generated_mutation and mode == "enforce":
                 # A statement that names its own technique makes the declared
                 # SKILL untrue: the reasoning is quoted, not forced. Needs the
@@ -381,24 +363,47 @@ class RQEvolver:
                 handed_over = check_problem_text(inst.problem)
                 if handed_over:
                     return None, str(handed_over[0])
-            if (
-                is_generated_mutation
-                and re.fullmatch(r"-?\d+", inst.answer.strip()) is None
-            ):
-                # The static `str(sympy.Integer(answer))` contract is checked on
-                # the source above; this takes the same guarantee from the
-                # executed output, which the source text cannot prove.
+            if not answers_match(inst.answer, inst.answer, inst.verifier):
                 return None, (
-                    "generated answer must be a base-10 integer string: "
-                    f"{inst.answer!r} at seed={seed}"
+                    "reference answer is not self-consistent with verifier: "
+                    f"answer={inst.answer!r} verifier={inst.verifier!r}"
                 )
-            if not _answer_parseable(inst.answer):
-                return None, f"answer is not parseable: {inst.answer!r}"
+            annotation = annotate_problem_type(inst.problem)
+            type_errors = problem_type_contract_errors(
+                annotation, inst.verifier, inst.answer
+            )
+            if type_errors:
+                return None, (
+                    f"problem-type contract failed at seed={seed}: "
+                    + "; ".join(type_errors)
+                )
+            type_annotations.append(annotation)
+            if inst.verifier.get("mode") == "one_of":
+                # A generated child must not widen reward by listing the gold
+                # beside arbitrary wrong answers. This pipeline has no trusted
+                # witness predicate, so every accepted spelling must be
+                # mathematically equivalent to the auditable reference. Each
+                # comparison uses the ordinary expression grader and inherits
+                # its hard-kill worker budget.
+                for alternative in inst.verifier.get("answers", []):
+                    if not answers_match(
+                        str(alternative),
+                        inst.answer,
+                        {"mode": "expression"},
+                    ):
+                        return None, (
+                            "one_of verifier contains an alternative that is "
+                            "not equivalent to the reference answer: "
+                            f"{alternative!r} vs {inst.answer!r}"
+                        )
             first = first or inst
             rendered.append(inst)
             key = " ".join(inst.problem.split())
             answers = seen_problems.setdefault(key, set())
-            answers.add(str(inst.answer).strip())
+            verifier_json = json.dumps(
+                inst.verifier, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            )
+            answers.add((str(inst.answer).strip(), verifier_json))
             if len(answers) > 1:
                 # The one ill-posedness result that is a PROOF rather than a
                 # heuristic: the same question, word for word, graded against
@@ -412,24 +417,55 @@ class RQEvolver:
                 # of ways to partition n into distinct prime factors." appeared
                 # twice with answers 1 and 2.
                 return None, (
-                    "the same problem text is graded against two answers "
-                    f"({sorted(answers)}): the statement does not determine it"
+                    "the same problem text is graded against two answer/verifier "
+                    f"contracts ({sorted(answers)}): the statement does not determine it"
                 )
 
         if n > 1 and len(seen_problems) <= 1:
             return None, "program does not vary its visible problem across seeds"
-        # verify_program just rendered seeds 0..n-1 of this program, and the
-        # judge (when enabled) reads the seed-0 instance. Move the stream past
-        # them so the candidate's FIRST scoring draw is genuinely fresh.
-        #
-        # Without this the comment above `draw_instances` -- "A candidate is
-        # graded on n FRESH seeds, not on the seed-0 instance the judge saw" --
-        # is false: SeedStream starts every new program_id at 0 and nothing
-        # else advances it, so `take` returns 0 and the candidate is admitted
-        # on the one instance every structural check already ran against. It is
-        # visible in the persisted cursors: every champion born after iteration
-        # 1 has cursor == (snapshots it appears in) + exactly 1.
-        self.seed_stream.reserve_through(program.program_id, n - 1)
+        inferred_types = {annotation.problem_type for annotation in type_annotations}
+        if len(inferred_types) != 1:
+            return None, (
+                "one problem family must have one PROBLEM_TYPE across all "
+                f"verification seeds; found {sorted(str(x) for x in inferred_types)}"
+            )
+        problem_type = next(iter(inferred_types))
+        label_errors = validate_label_decl(domain, problem_type)
+        if label_errors:
+            return None, "; ".join(label_errors)
+        family_contract = None
+        if is_generated_mutation:
+            canonical_templates = {
+                canonical_template(instance.problem) for instance in rendered
+            }
+            verifier_modes = {
+                str(instance.verifier.get("mode", "")) for instance in rendered
+            }
+            family_contract = {
+                "canonical_template_count": len(canonical_templates),
+                "verifier_mode_count": len(verifier_modes),
+                "verified_seeds": len(rendered),
+            }
+            if len(canonical_templates) != 1:
+                return None, (
+                    "generated mutation must implement one problem family: "
+                    f"found {len(canonical_templates)} canonical templates "
+                    "across verification seeds"
+                )
+            if len(verifier_modes) != 1:
+                return None, (
+                    "generated mutation must use one verifier mode across the "
+                    f"problem family: found {sorted(verifier_modes)}"
+                )
+            canonical = next(iter(canonical_templates))
+            family_contract.update(
+                {
+                    "template_sha256": hashlib.sha256(
+                        canonical.encode("utf-8")
+                    ).hexdigest(),
+                    "verifier_mode": next(iter(verifier_modes)),
+                }
+            )
         if is_generated_mutation and mode == "enforce":
             # Needs every rendered instance, so it cannot live in the per-seed
             # loop above: one coincidental appearance of the answer in the text
@@ -438,6 +474,35 @@ class RQEvolver:
             leaked = answer_leaks_in_every_instance(rendered)
             if leaked:
                 return None, leaked
+        # Stamp authoritative metadata only after every admission gate has
+        # passed. A rejected object must not retain a contract that would let a
+        # later direct archive call bypass the failed family/leak check.
+        program.metadata["domain"] = domain
+        program.metadata["problem_type"] = problem_type
+        for instance in rendered:
+            instance.domain = domain
+            instance.problem_type = problem_type
+        program.metadata["descriptor_contract"] = {
+            "domain_authority": "source_exact_one_literal",
+            "problem_type_authority": "deterministic_statement_and_verifier",
+            "problem_type_ruleset": PROBLEM_TYPE_RULESET,
+            "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
+            "verified_seeds": len(rendered),
+            "domain": domain,
+            "problem_type": problem_type,
+            "type_evidence": sorted(
+                {annotation.evidence for annotation in type_annotations}
+            ),
+            "source_sha256": hashlib.sha256(
+                program.source_code.encode("utf-8")
+            ).hexdigest(),
+        }
+        if family_contract is not None:
+            program.metadata["family_contract"] = family_contract
+        # Move past verification seeds so the first scored instance is fresh.
+        # Doing this after every gate also leaves a rejected candidate with no
+        # certified metadata and no consumed scoring cursor.
+        self.seed_stream.reserve_through(program.program_id, n - 1)
         return first, None
 
     def run_outer_iteration(self, outer_iteration: int) -> dict:
@@ -445,20 +510,6 @@ class RQEvolver:
         attempted = 0
         inserted = 0
         reports: list[CandidateReport] = []
-        # Judge telemetry for this outer iteration only. Accumulated across the
-        # inner batches because the gate runs once per batch, and reset here so
-        # a wandb series reads per-iteration rather than cumulative.
-        self.judge_tally = {
-            "reached": 0,
-            "agreed": 0,
-            "group_agreed": 0,
-            "skill_agreed": 0,
-            "label_mismatch": 0,
-            "failed_closed": 0,
-            "skill_none": 0,
-            "group_none": 0,
-        }
-        self.judge_skill_counts: dict[str, int] = {}
         # Rollouts are on-policy for exactly one update; carrying them across an
         # iteration would need an importance-ratio correction this design does
         # not have, so the buffer starts empty every time.
@@ -527,21 +578,8 @@ class RQEvolver:
         # self-neutralise under the per-instance LOO baseline), so it is the
         # honest measure of how much of the update is wasted.
         replay_metrics = self.replay.stats()
-        tally = getattr(self, "judge_tally", {}) or {}
-        reached = tally.get("reached", 0)
-        judge_metrics = {f"judge_{k}": v for k, v in tally.items()}
-        if reached:
-            judge_metrics["judge_agree_rate"] = tally["agreed"] / reached
-            judge_metrics["judge_group_agree_rate"] = tally["group_agreed"] / reached
-            judge_metrics["judge_skill_agree_rate"] = tally["skill_agreed"] / reached
-            judge_metrics["judge_skill_none_rate"] = tally["skill_none"] / reached
-        # Distinct SKILLs the judge actually emitted, excluding "none".
-        judge_metrics["judge_skill_vocabulary"] = len(
-            [k for k in getattr(self, "judge_skill_counts", {}) if k != "none"]
-        )
         # Why candidates died, not just how many. accept_rate alone cannot tell
-        # "the Evolver writes code that does not run" from "the judge refuses
-        # the labels", and those need opposite fixes.
+        # source/descriptor failures from rollout or cell competition failures.
         status_counts: dict[str, int] = {}
         for report in reports:
             key = f"status_{report.status}"
@@ -641,25 +679,6 @@ class RQEvolver:
         insert_metrics = {f"insert_rejected_{k}": v for k, v in insert_rejects.items()}
         insert_metrics["insert_rejected"] = sum(insert_rejects.values())
 
-        # SKILL relabelling. `relabel_changed` is the one to watch: the declared
-        # label agreed with a reference only 32.4% of the time, so a run where
-        # this stays near zero is not one where the Evolver got the labels
-        # right -- it is one where the relabeller never reached the model.
-        relabel_metrics = dict(getattr(self, "_relabel_stats", {}) or {})
-        if relabel_metrics.get("relabel_decisions"):
-            relabel_metrics["relabel_change_rate"] = (
-                relabel_metrics["relabel_changed"]
-                / relabel_metrics["relabel_decisions"]
-            )
-        # Mean YES-bias per skill, the quantity the offsets subtract out. A
-        # skill drifting far from the rest is one the prompt over-accepts.
-        relabel_metrics["relabel_offsets"] = {
-            k: round(v, 4) for k, v in self.skill_offsets.mean.items()
-        }
-        relabel_metrics["relabel_group_offsets"] = {
-            k: round(v, 4) for k, v in self.group_offsets.mean.items()
-        }
-
         result = {
             "outer_iteration": outer_iteration,
             "attempted": attempted,
@@ -672,11 +691,9 @@ class RQEvolver:
             "train_batch_target": self.evolution_config.train_batch_target,
             **dispersion_metrics,
             **replay_metrics,
-            **judge_metrics,
             **grader_metrics,
             **insert_metrics,
             **inspiration_metrics,
-            **relabel_metrics,
             **status_counts,
             **stats,
         }
@@ -695,14 +712,13 @@ class RQEvolver:
                                                for one Reflexion self-fix;
           * ``{"report": CandidateReport}`` -- terminal; carries the outcome.
 
-        Flow: mutate() -> split into the three shapes -> _resolve_retries
-        (_retry -> child | report) -> _apply_judge (drops mislabelled children
-        -> report) -> generate_rollouts on survivors -> each child scored and
-        archived into a terminal CandidateReport. See docs/PIPELINE.md
+        Flow: mutate() -> deterministic verify and descriptor assignment ->
+        split into the three shapes -> _resolve_retries -> generate_rollouts on
+        survivors -> each child scored and archived into a terminal
+        CandidateReport. See docs/PIPELINE.md
         ("Evolution Candidate State") for the diagram and full status vocabulary.
         """
         parents: list[ProblemProgram] = []
-        targets: list[tuple | None] = []
         for _ in range(batch_size):
             search_rng = self._next_search_rng()
             parent = self.archive.sample_parent(rng=search_rng)
@@ -710,50 +726,7 @@ class RQEvolver:
                 return [CandidateReport(status="no_parent", op="none")]
             parents.append(parent)
 
-            if self.evolution_config.target_cell_injection:
-                # Relabelling updates metadata without rewriting source (the
-                # program id is the source hash). Read the resolved labels or a
-                # resumed child would be mutated from its stale declaration
-                # while the MAP correctly stored it in a different cell.
-                parent_group = parent.get_group()
-                parent_skill = parent.get_skill()
-
-                if parent_group and parent_skill:
-                    mutation_strategy = search_rng.choice(
-                        ["mutate_skill", "mutate_group"]
-                    )
-
-                    if mutation_strategy == "mutate_skill":
-                        targets.append(
-                            (
-                                parent_group,
-                                None,
-                                mutation_strategy,
-                                parent_group,
-                                parent_skill,
-                            )
-                        )
-                    else:
-                        targets.append(
-                            (
-                                None,
-                                parent_skill,
-                                mutation_strategy,
-                                parent_group,
-                                parent_skill,
-                            )
-                        )
-                else:
-                    target_group, target_skill = self.archive.sample_target_cell(
-                        rng=search_rng
-                    )
-                    targets.append(
-                        (target_group, target_skill, "mutate_both", None, None)
-                    )
-            else:
-                targets.append(None)
-
-        # Draw donors only AFTER every primary parent/target draw is complete,
+        # Draw donors only AFTER every primary-parent draw is complete,
         # and with an independent deterministic RNG. Inspiration therefore
         # changes only the prompt context -- it cannot shift the baseline arm's
         # subsequent parent choices through Python's global RNG state.
@@ -771,7 +744,7 @@ class RQEvolver:
                     "evolution.two_stage_mutation: true"
                 )
             tasks, outputs, mutation_strategies = self._mutate_in_two_stages(
-                parents, targets, inspirations
+                parents, inspirations=inspirations
             )
             entries: list[dict] = []
             # Repeats also happen WITHIN one batch: 32 parents are drawn with
@@ -780,8 +753,8 @@ class RQEvolver:
             # the same few programs. self.rejected_children cannot catch those --
             # it is written when reports are finalized, once the batch is over --
             # so the first occurrence in a batch claims the id and the rest are
-            # reported against it. They would have produced the same verdict:
-            # the source is byte-identical and the judge is deterministic.
+            # reported against it. They would have produced the same verdict
+            # because the source and deterministic verification seeds match.
             in_flight: set[str] = set()
             for task, output, mutation_strategy in zip(
                 tasks, outputs, mutation_strategies
@@ -789,11 +762,6 @@ class RQEvolver:
                 child, inst, reason, source = self._make_child_from_output(
                     task, output, in_flight=in_flight
                 )
-                # A cross-lineage context can move either mathematical axis,
-                # even when the scheduler asked stage 1 to preserve one. Never
-                # trust that held label on an inspiration-attached child.
-                if child is not None and task.inspiration_donor is not None:
-                    mutation_strategy = "mutate_both"
                 if child is not None:
                     child.metadata["mutation_strategy"] = mutation_strategy
                 if child is not None and child.program_id in in_flight:
@@ -845,7 +813,7 @@ class RQEvolver:
                     # A donor-copy verdict is relative to (child, donor), not
                     # to child source alone. Claim the batch-wide source id only
                     # after that pair passes, so the same source can still be
-                    # judged against a different assigned donor later in this
+                    # checked against a different assigned donor later in this
                     # batch.
                     in_flight.add(child.program_id)
                     entries.append({"task": task, "child": child, "inst": inst})
@@ -857,8 +825,7 @@ class RQEvolver:
                     # ``source`` and ``child_id`` ride INSIDE the payload on
                     # purpose. _resolve_retries writes e["report"] without
                     # calling e.clear(), so a top-level "child" key would
-                    # survive into _apply_judge's selector and desync the
-                    # zip(to_eval, grouped) that attributes rollout groups.
+                    # incorrectly survive into rollout selection.
                     entries.append(
                         {
                             "_retry": {
@@ -896,30 +863,9 @@ class RQEvolver:
             # generate reuses the already-awake rollout worker.
             self._resolve_retries(entries)
 
-            # Final gate: the judge re-derives GROUP and SKILL from the
-            # seed-0 problem alone and must land on both declared labels.
-            # Runs BEFORE solver rollouts are spent, in the same open session.
-            # Read each surviving child's descriptors off the child, replacing the
-            # label stage 1 was told to write. Inside the same open session and
-            # before rollouts are spent: it needs the policy and costs one
-            # prefill per child. See relabel.py -- the declared label is one the
-            # problem actually requires 37.5% of the time; this is 81.2%.
-            # Inspiration may move both axes. Relabel it BEFORE an optional
-            # judge so the judge compares against the independent readback,
-            # not stage 1's self-declaration. The legacy arm keeps its cheaper
-            # judge-first order and avoids relabelling candidates the judge
-            # already rejects.
-            if self.evolution_config.structural_inspiration:
-                self._apply_relabel(entries)
-                self._apply_judge(entries)
-            else:
-                self._apply_judge(entries)
-                self._apply_relabel(entries)
-
             to_eval = [e for e in entries if "child" in e]
-            # A candidate is graded on n FRESH seeds, not on the seed-0 instance
-            # the judge saw: a generator that special-cases the instance it is
-            # scored on is otherwise indistinguishable from an honest one.
+            # A candidate is graded on fresh seeds beyond those used by the
+            # deterministic verifier.
             for e in to_eval:
                 e["eval_instances"] = self.draw_instances(e["child"])
             pending = self.backend.generate_rollouts(
@@ -1041,9 +987,8 @@ class RQEvolver:
         _record_inspiration_copy_gate(task, child, verdict)
         return verdict
 
-    # Only rejections that are a property of the SOURCE, and so cannot come out
-    # differently later. The code either runs or it does not; the judge is
-    # deterministic at temperature 0 and sees only the seed-0 problem.
+    # Only rejections that are a deterministic property of the source and its
+    # verification seeds, and so cannot come out differently later.
     #
     # Deliberately excluded: s_hat_zero, rq_zero, rejected_non_elite and
     # rollout_failed. Those are verdicts about the CURRENT policy and the
@@ -1057,8 +1002,6 @@ class RQEvolver:
             "verify_failed",
             "no_code",
             "mutation_failed",
-            "judge_rejected",
-            "judge_input_too_large",
         }
     )
 
@@ -1118,30 +1061,23 @@ class RQEvolver:
         batch paid its worst sample twice per iteration.
 
         Returns ``(tasks, outputs)`` in the shape the single-call path returns,
-        so everything downstream -- retries, judging, scoring, reporting -- is
+        so everything downstream -- retries, scoring, and reporting -- is
         untouched. A parent whose stage-1 reply does not parse yields an empty
         output, which ``_make_child_from_output`` already reports as a failed
         mutation.
 
-        The labels come from stage 1 and are stapled onto the program here
-        rather than asked of stage 2, because the ONE thing every variant of
-        this prompt got wrong was the file's tail: whatever the parent's last
-        two lines contained is what the child's contained, including nothing.
-
-        Stage 2 is TOLD the target SKILL and is asked to build a family whose
-        shortest solution turns on it. It used to be asked the opposite -- to
-        re-derive the label blind, so the caller could reject a mismatch -- and
-        that gate is gone. It was answering the wrong question: whether the
-        model can name what it wrote, not whether what it wrote demands the
-        skill. It agreed 32.4% of the time against a reference, and most of its
-        recoverable vocabulary was the four skills its own worked examples
-        demonstrate. The cell coordinate now comes from :meth:`_apply_relabel`,
-        which reads the finished program, so nothing downstream needs stage 2
-        to guess.
+        Stage 1 receives no descriptor names, definitions, parent labels, or a
+        desired cell. Stage 2 sees the fixed family and the DOMAIN vocabulary
+        only to attach one self-description; it receives no destination and
+        cannot change the family. PROBLEM_TYPE is derived by verification code.
+        ``targets`` is retained only to fail loudly for stale callers.
         """
         cfg = self.evolution_config
         rotate = cfg.rotate_few_shots
-        targets = targets or [None] * len(parents)
+        if targets not in (None, []):
+            raise ValueError(
+                "target-directed mutation is retired; targets must be omitted"
+            )
         inspirations = inspirations or [None] * len(parents)
         if len(inspirations) != len(parents):
             raise ValueError(
@@ -1166,7 +1102,6 @@ class RQEvolver:
                 temperature=cfg.code_temperature,
                 top_p=cfg.code_top_p,
                 max_output_tokens=cfg.family_max_output_tokens,
-                target_cell=target,
                 rotate_shots=rotate,
                 rng=prompt_rngs[index][0],
                 inspiration_template=(selection.template if selection else None),
@@ -1177,8 +1112,8 @@ class RQEvolver:
                     else None
                 ),
             )
-            for index, (parent, target, selection) in enumerate(
-                zip(parents, targets, inspirations)
+            for index, (parent, selection) in enumerate(
+                zip(parents, inspirations)
             )
         ]
 
@@ -1194,8 +1129,6 @@ class RQEvolver:
                     "STRUCTURAL MUTATION",
                     "CHILD FAMILY",
                     "WHY FINITE",
-                    "GROUP",
-                    "SKILL",
                 )
                 if key in plan
             }
@@ -1262,7 +1195,7 @@ class RQEvolver:
 
         tasks = list(family_tasks)
         outputs: list[str | None] = [None] * len(parents)
-        mutation_strategies = ["mutate_both"] * len(parents)
+        mutation_strategies = ["untargeted"] * len(parents)
         for i, plan in enumerate(plans):
             if plan is None:
                 continue
@@ -1277,30 +1210,7 @@ class RQEvolver:
             if source is None:
                 continue
 
-            target = targets[i] if targets else None
-            mutation_strategy = "mutate_both"
-            if target is not None and len(target) >= 5:
-                _, _, mutation_strategy, parent_group, parent_skill = target
-                if mutation_strategy == "mutate_skill":
-                    final_group = parent_group
-                    final_skill = plan.get("SKILL")
-                elif mutation_strategy == "mutate_group":
-                    final_group = plan.get("GROUP")
-                    final_skill = parent_skill
-                else:
-                    final_group = plan.get("GROUP")
-                    final_skill = plan.get("SKILL")
-            else:
-                final_group = plan.get("GROUP")
-                final_skill = plan.get("SKILL")
-
-            if final_group is None:
-                final_group = "UNKNOWN"
-            if final_skill is None:
-                final_skill = "UNKNOWN"
-
-            outputs[i] = set_label_declarations(source, final_group, final_skill)
-            mutation_strategies[i] = mutation_strategy
+            outputs[i] = source
 
         return tasks, outputs, mutation_strategies
 
@@ -1321,23 +1231,6 @@ class RQEvolver:
         source = extract_generator_code(output)
         if source is None:
             return None, None, "no parseable generate() in output", None
-        if self.evolution_config.two_stage_mutation:
-            # Stage 2's reply was already extracted and had stage 1's labels
-            # stapled on; re-extracting would take the fenced block back out of
-            # it and lose them again.
-            source = output
-
-        # The contract puts GROUP / SKILL in PART 1 and ends the python block
-        # at `return problem, str(answer)`, so the extracted program carries no
-        # labels of its own. Put them back from the prose. A label line after
-        # `return` sits past the strongest completion boundary in the file and
-        # was simply dropped -- 15 of 24 children on one probe -- whereas one
-        # decided in PART 1, with the solution still in view, gets written.
-        # Missing or out-of-vocabulary labels are left alone here so that
-        # verify_program reports them through validate_label_decl as before.
-        group, skill = parse_declared_labels(output)
-        if group and skill:
-            source = set_label_declarations(source, group, skill)
 
         metadata = _child_metadata(task)
         child = ProblemProgram(
@@ -1346,13 +1239,13 @@ class RQEvolver:
             generation=task.parent.generation + 1,
             metadata=metadata,
         )
-        # Before execution, not after: a repeat costs 5 sandbox runs and a judge
-        # call, and the verdict is already known. `source=None` in the return
+        # Before execution, not after: a repeat costs 5 sandbox runs and the
+        # verdict is already known. `source=None` in the return
         # also keeps it out of the self-fix retry, which would re-derive the
         # same program from the same reason.
         if in_flight is not None and child.program_id in in_flight:
             # Same batch, same source. Checked here rather than in the caller so
-            # the repeat skips the 5-seed execution too, not just the judge.
+            # the repeat skips the 5-seed execution.
             return child, None, "duplicate of an earlier candidate in this batch", None
         memo = self.rejected_children.get(child.program_id)
         if memo is not None:
@@ -1389,330 +1282,6 @@ class RQEvolver:
                 ast_findings=list(info.get("ast_findings") or []),
                 **_report_context(task),
             )
-
-    def _apply_relabel(self, entries: list[dict]) -> None:
-        """Blindly re-read every descriptor axis the mutation was free to move.
-
-        ``mutate_skill`` probes all eight skills, ``mutate_group`` probes all six
-        groups, and ``mutate_both`` probes both. The last case is the label-free
-        structural-inspiration arm: trusting stage 1 on GROUP there would make
-        only half of its supposedly blind MAP coordinate independent.
-
-        Silent no-op when ``relabel_skill`` is off. Falls back to the decoded
-        text when the backend cannot return logprobs -- that is the greedy
-        variant, measured at 0.641 against this one's 0.812, and it is what runs
-        if patches/verl_agent_loop_sampling.py is missing its logprobs key.
-        """
-        self._relabel_stats = {}
-        if not self.evolution_config.relabel_skill:
-            return
-        live = [e for e in entries if "child" in e and e.get("inst") is not None]
-        if not live:
-            return
-        skills = list(SKILLS)
-        groups = list(GROUPS)
-        yes_id, no_id = self._relabel_token_ids()
-        allowed = [yes_id, no_id] if yes_id is not None and no_id is not None else None
-
-        tasks = []
-        task_offsets = (
-            []
-        )  # To keep track of which tasks belong to which entry and label type
-
-        for i, e in enumerate(live):
-            strategy = e["child"].metadata.get("mutation_strategy", "mutate_both")
-            if strategy in ("mutate_skill", "mutate_both"):
-                for skill in skills:
-                    tasks.append(
-                        build_relabel_task(
-                            parent=e["task"].parent,
-                            child_family=e["inst"].problem,
-                            child_source=e["child"].source_code,
-                            skill=skill,
-                            allowed_token_ids=allowed,
-                        )
-                    )
-                    task_offsets.append((i, "skill", skill))
-            if strategy in ("mutate_group", "mutate_both"):
-                for group in groups:
-                    tasks.append(
-                        build_relabel_group_task(
-                            parent=e["task"].parent,
-                            child_family=e["inst"].problem,
-                            child_source=e["child"].source_code,
-                            group=group,
-                            allowed_token_ids=allowed,
-                        )
-                    )
-                    task_offsets.append((i, "group", group))
-
-        replies = self.backend.mutate(tasks)
-        pairs = getattr(self.backend, "last_mutation_logprobs", None) or []
-
-        changed = agreed = 0
-        margins: list[float] = []
-
-        # Group replies by entry and label type
-        entry_results = collections.defaultdict(lambda: collections.defaultdict(dict))
-        for idx, (i, ltype, label) in enumerate(task_offsets):
-            p = _relabel_p_yes(
-                pairs[idx] if idx < len(pairs) else None,
-                replies[idx] if idx < len(replies) else None,
-                yes_id,
-            )
-            if p is not None:
-                entry_results[i][ltype][label] = p
-
-        for i, e in enumerate(live):
-            results = entry_results[i]
-            strategy = e["child"].metadata.get("mutation_strategy", "mutate_both")
-
-            if "skill" in results:
-                p_yes = results["skill"]
-                self.skill_offsets.observe({s: logit(v) for s, v in p_yes.items()})
-                picked, margin, _ = choose_skill(p_yes, self.skill_offsets)
-                if picked is not None:
-                    declared = e["child"].metadata.get("skill")
-                    margins.append(margin)
-                    if picked == declared:
-                        agreed += 1
-                    else:
-                        changed += 1
-                    e["child"].metadata["skill"] = picked
-                    e["child"].metadata["skill_declared"] = declared
-                    e["child"].metadata["skill_margin"] = round(float(margin), 4)
-
-            if "group" in results:
-                p_yes = results["group"]
-                self.group_offsets.observe({g: logit(v) for g, v in p_yes.items()})
-                picked, margin, _ = choose_group(p_yes, self.group_offsets)
-                if picked is not None:
-                    declared = e["child"].metadata.get("group")
-                    margins.append(margin)
-                    if picked == declared:
-                        agreed += 1
-                    else:
-                        changed += 1
-                    e["child"].metadata["group"] = picked
-                    e["child"].metadata["group_declared"] = declared
-                    e["child"].metadata["group_margin"] = round(float(margin), 4)
-
-        self._relabel_stats = {
-            "relabel_children": len(live),
-            "relabel_decisions": changed + agreed,
-            "relabel_changed": changed,
-            "relabel_agreed": agreed,
-            "relabel_margin_mean": (
-                round(sum(margins) / len(margins), 4) if margins else 0.0
-            ),
-        }
-
-    def _relabel_token_ids(self) -> tuple[int | None, int | None]:
-        """Token ids for a leading YES / NO, or (None, None) without a tokenizer."""
-        cached = getattr(self, "_relabel_ids", None)
-        if cached is not None:
-            return cached
-        ids: tuple[int | None, int | None] = (None, None)
-        tok = getattr(self.backend, "tokenizer", None)
-        if tok is not None:
-            try:
-                y = tok.encode("YES", add_special_tokens=False)
-                n = tok.encode("NO", add_special_tokens=False)
-                if y and n:
-                    ids = (int(y[0]), int(n[0]))
-            except Exception:
-                ids = (None, None)
-        self._relabel_ids = ids
-        return ids
-
-    def _apply_judge(self, entries: list[dict]) -> None:
-        """Label gate: the judge must independently reach both declared labels.
-
-        For each ``{"task","child","inst"}`` entry the judge sees ONLY the seed-0
-        problem text and the supplied answer -- never the source, the declared
-        GROUP/SKILL, or the parent. It runs its own validity gates, reconstructs
-        the shortest human solution, and returns a GROUP and a SKILL. The child
-        survives only when both agree with what it declared.
-
-        That is the whole point of the redesign. The Evolver labels its own
-        output, and a label it invented is unfalsifiable until something else
-        derives one from the visible problem. A child whose statement says one
-        thing and whose label says another does not merely score badly -- it is
-        filed in the wrong cell, so the MAP's coordinates stop meaning anything
-        and both the parent sampler and the coverage metric read a fiction.
-
-        With ``evaluator_provider=policy`` one batched ``mutate`` runs inside the
-        already-open vLLM session; with ``openai`` the same messages go to the
-        Responses API. Judge configuration or runtime failures raise immediately
-        -- continuing would silently admit unlabelled children.
-        """
-        if not self.evolution_config.use_evaluator:
-            return
-        targets = [e for e in entries if "child" in e]
-        if not targets:
-            return
-        targets = self._drop_oversized_judge_inputs(targets)
-        if not targets:
-            return
-        if self.evolution_config.evaluator_provider == "openai":
-            outputs = self._run_openai_judge(targets)
-        else:
-            judge_tasks = [
-                build_judge_task(
-                    e["child"],
-                    e["inst"].problem,
-                    e["inst"].answer,
-                    temperature=self.evolution_config.judge_temperature,
-                    top_p=self.evolution_config.judge_top_p,
-                    rubric_file=self.evolution_config.judge_rubric,
-                )
-                for e in targets
-            ]
-            try:
-                outputs = self.backend.mutate(judge_tasks)
-            except Exception as exc:
-                raise EvaluatorRuntimeError(
-                    "Judge backend failed; aborting R_Q-Evolve instead of "
-                    f"continuing with an invalid curriculum: {exc}"
-                ) from exc
-        for e, output in zip(targets, outputs):
-            if isinstance(output, Exception):
-                raise EvaluatorRuntimeError(
-                    "Judge call failed; aborting R_Q-Evolve instead of "
-                    f"discarding the candidate and continuing: {output}"
-                ) from output
-            child = e["child"]
-            verdict = parse_judge_verdict(output or "")
-            accepted, reason = judge_accepts(
-                verdict,
-                child.get_group(),
-                child.get_skill(),
-            )
-            # Recorded either way: the disagreements are the measurement that
-            # says whether the Evolver's self-labelling is trustworthy at all.
-            child.metadata["judge"] = {
-                "accepted": accepted,
-                "reason": reason,
-                **verdict.to_dict(),
-            }
-            tally = getattr(self, "judge_tally", None)
-            if tally is not None:
-                tally["reached"] += 1
-                tally["agreed"] += int(accepted)
-                tally["group_agreed"] += int(verdict.group == child.get_group())
-                tally["skill_agreed"] += int(verdict.skill == child.get_skill())
-                tally["skill_none"] += int(verdict.skill is None)
-                tally["group_none"] += int(verdict.group is None)
-                if not accepted:
-                    key = (
-                        "failed_closed"
-                        if verdict.group is None or verdict.skill is None
-                        else "label_mismatch"
-                    )
-                    tally[key] += 1
-                # Which SKILLs the judge is willing to emit at all. A label it
-                # never returns is a label no child can be archived under, so
-                # this bounds reachable coverage independently of how often the
-                # Evolver is right -- measured at 3 of 8 for one judge and 6 of
-                # 8 for another over the same corpus.
-                name = verdict.skill or "none"
-                self.judge_skill_counts[name] = self.judge_skill_counts.get(name, 0) + 1
-            if accepted:
-                continue
-            task = e["task"]
-            e.clear()
-            e["report"] = CandidateReport(
-                status="judge_rejected",
-                op=task.op,
-                child_id=child.program_id,
-                reason=reason,
-                source_code=_logged_source(child.source_code),
-                ast_findings=_ast_findings(child),
-                **_report_context(task),
-            )
-
-    def _drop_oversized_judge_inputs(self, targets: list[dict]) -> list[dict]:
-        """Convert candidates with an over-budget judge prompt into reports.
-
-        The budget is read off the backend's own context window when it exposes
-        one, so this tracks ``rollout.max_model_len`` instead of duplicating it.
-        Without a window to read, nothing is dropped: refusing to guess is
-        better than silently rejecting valid children on an invented limit.
-
-        Batched generation fails as a unit, so one oversized prompt would
-        otherwise raise for a whole batch that has nothing wrong with it.
-        """
-        budget = getattr(self.backend, "max_prompt_chars", None)
-        if budget is None:
-            window = getattr(self.backend, "max_model_len", None)
-            if not window:
-                return targets
-            # Reserve room for the verdict itself, then convert the token
-            # window to characters at a deliberately conservative ratio -- 2
-            # chars/token is below anything real text produces, so the guard
-            # trips early rather than one token too late.
-            budget = max(0, int(window) - 512) * 2
-        entry_rubric = self.evolution_config.judge_rubric
-        kept: list[dict] = []
-        for entry in targets:
-            task = build_judge_task(
-                entry["child"],
-                entry["inst"].problem,
-                entry["inst"].answer,
-                rubric_file=entry_rubric,
-            )
-            size = sum(len(m.get("content", "")) for m in task.messages or [])
-            if size <= budget:
-                kept.append(entry)
-                continue
-            mutation_task, child = entry["task"], entry["child"]
-            self.events.append(
-                {
-                    "event": "judge_input_too_large",
-                    "program_id": child.program_id,
-                    "op": mutation_task.op,
-                    "prompt_chars": size,
-                    "budget_chars": budget,
-                }
-            )
-            entry.clear()
-            entry["report"] = CandidateReport(
-                status="judge_input_too_large",
-                op=mutation_task.op,
-                child_id=child.program_id,
-                reason=(
-                    f"judge prompt is {size} chars, over the {budget}-char "
-                    "context budget; dropping this candidate instead of "
-                    "failing the batch"
-                ),
-                source_code=_logged_source(child.source_code),
-                ast_findings=_ast_findings(child),
-                **_report_context(mutation_task),
-            )
-        return kept
-
-    def _run_openai_judge(self, targets: list[dict]) -> list[str | Exception]:
-        cfg = OpenAIEvaluatorConfig(
-            model=self.evolution_config.evaluator_model,
-            reasoning_effort=self.evolution_config.evaluator_reasoning_effort,
-            timeout_s=self.evolution_config.evaluator_timeout_s,
-            max_output_tokens=self.evolution_config.evaluator_max_output_tokens,
-        )
-
-        def judge_one(e: dict) -> str | Exception:
-            messages = build_judge_messages(
-                e["inst"].problem,
-                e["inst"].answer,
-                rubric_file=self.evolution_config.judge_rubric,
-            )
-            try:
-                return evaluate_messages_with_openai(messages, cfg)
-            except Exception as exc:
-                return exc
-
-        max_workers = min(self.evolution_config.evaluator_concurrency, len(targets))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            return list(executor.map(judge_one, targets))
 
     def _score_from_rollouts(
         self,
@@ -2041,9 +1610,11 @@ class RQEvolver:
         rq_score: float,
         source: str = "mutation",
     ) -> bool:
-        target_cell = self.archive.target_cell(program)
+        placement_cell = self.archive.placement_cell(program)
         incumbent = (
-            self.archive.grid[target_cell].champion if target_cell is not None else None
+            self.archive.grid[placement_cell].champion
+            if placement_cell is not None
+            else None
         )
         inserted = self.archive.try_insert(
             program=program,
@@ -2061,7 +1632,7 @@ class RQEvolver:
             #
             # This is the most expensive rejection in the pipeline. try_insert
             # takes rq_score, so the child has already paid for verification,
-            # relabelling and its full rollout budget by the time it gets here.
+            # classification and its full rollout budget by the time it gets here.
             self.events.append(
                 {
                     "event": "insert_rejected",
@@ -2071,7 +1642,9 @@ class RQEvolver:
                     ),
                     "program_id": program.program_id,
                     "rq_score": float(rq_score),
-                    "target_cell": list(target_cell) if target_cell else None,
+                    "placement_cell": (
+                        list(placement_cell) if placement_cell is not None else None
+                    ),
                 }
             )
         if (
@@ -2083,8 +1656,10 @@ class RQEvolver:
                 {
                     "event": "champion_replaced",
                     "source": source,
-                    "target_cell": list(target_cell),
-                    "target_labels": list(self.archive.cell_labels(target_cell)),
+                    "placement_cell": list(placement_cell),
+                    "placement_labels": list(
+                        self.archive.cell_labels(placement_cell)
+                    ),
                     "incoming_program_id": program.program_id,
                     "incoming_rq": float(rq_score),
                     "evicted_program_id": incumbent.program_id,
@@ -2276,11 +1851,6 @@ class RQEvolver:
                     "seed_cursor": self.seed_stream.to_dict(),
                     "previous_rq_scores": self.previous_rq.to_dict(),
                     "rejected_children": self.rejected_children,
-                    # Per-skill YES-bias, learned across iterations. A cold
-                    # start re-learns it from the first batch alone, and the
-                    # picker is worst exactly while the means are noisiest.
-                    "skill_offsets": self.skill_offsets.to_dict(),
-                    "group_offsets": self.group_offsets.to_dict(),
                     "inspiration_draw_count": self.inspiration_draw_count,
                     "mutation_prompt_draw_count": self.mutation_prompt_draw_count,
                     "search_draw_count": self.search_draw_count,
@@ -2311,8 +1881,7 @@ class RQEvolver:
         Unlike the archive (latest snapshot only), this is append-only, so the
         full evolution trajectory is preserved: per-iteration metrics plus every
         candidate report. ``CandidateReport.status`` is one of: no_parent,
-        mutation_failed, no_code, verify_failed, judge_rejected,
-        judge_input_too_large, inspiration_copy_rejected, rollout_failed,
+        mutation_failed, no_code, verify_failed, inspiration_copy_rejected, rollout_failed,
         s_hat_zero, rq_zero, inserted, rejected_non_elite (each with op, rq_score, s_hat,
         u_score; see docs/PIPELINE.md "Evolution Candidate State").
 
@@ -2347,9 +1916,9 @@ class RQEvolver:
             return False
         n_champions = self.archive.load(directory)
         if n_champions == 0:
-            # A snapshot written before the GROUP x SKILL migration carries no
-            # SKILL label, so ``archive.load`` drops every champion and hands
-            # back an empty grid. Reporting that as a successful resume made the
+            # An incompatible legacy snapshot can leave no canonical
+            # DOMAIN x PROBLEM_TYPE champions after ``archive.load``. Reporting
+            # that as a successful resume made the
             # caller skip seed bootstrapping, and the trainer then died on its
             # first batch with "VerlDynamicDataset is empty". Nothing to resume
             # is the same as no snapshot. Returning before ``used_seeds`` is
@@ -2373,12 +1942,6 @@ class RQEvolver:
                 or payload.get("lagged_scores"),
             )
             self.rejected_children = dict(payload.get("rejected_children") or {})
-            offsets = payload.get("skill_offsets")
-            if offsets:
-                self.skill_offsets = SkillOffsets.from_dict(offsets)
-            group_offsets = payload.get("group_offsets")
-            if group_offsets:
-                self.group_offsets = GroupOffsets.from_dict(group_offsets)
             self.inspiration_draw_count = int(
                 payload.get("inspiration_draw_count", self.inspiration_draw_count)
             )
@@ -2413,17 +1976,3 @@ class RQEvolver:
         self.refresh_dataset()
         self.events.append({"event": "archive_restored", "champions": n_champions})
         return True
-
-
-def _answer_parseable(answer: str) -> bool:
-    try:
-        from sympy import sympify
-
-        sympify(str(answer).replace("^", "**"))
-        return True
-    except Exception:
-        try:
-            float(answer)
-            return True
-        except Exception:
-            return False

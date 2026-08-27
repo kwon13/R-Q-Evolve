@@ -13,6 +13,7 @@ from .backends import EvolutionBackend, PendingRollouts, RolloutRecord
 from .program import ProblemInstance
 from .prompts import MutationTask, build_solver_messages
 from .reward import answers_match, extract_boxed
+from .verifier import normalize_verifier
 
 
 class VerlPolicyBackend(EvolutionBackend):
@@ -340,6 +341,7 @@ class VerlPolicyBackend(EvolutionBackend):
                 "raw_prompt",
                 "data_source",
                 "reward_model",
+                "extra_info",
             ],
         )
         if task.max_output_tokens is not None:
@@ -519,6 +521,7 @@ class VerlPolicyBackend(EvolutionBackend):
             n_repeat=n,
             messages=messages,
             ground_truths=[inst.answer for inst in instances],
+            verifier_specs=[inst.verifier for inst in instances],
         )
         responses = output.batch.get("responses")
         if responses is None:
@@ -583,6 +586,7 @@ class VerlPolicyBackend(EvolutionBackend):
                     for inst in chunk_instances
                 ],
                 ground_truths=[inst.answer for inst in chunk_instances],
+                verifier_specs=[inst.verifier for inst in chunk_instances],
             )
             gen_batch = batch.pop(
                 batch_keys=["input_ids", "attention_mask", "position_ids"],
@@ -591,6 +595,7 @@ class VerlPolicyBackend(EvolutionBackend):
                     "raw_prompt",
                     "data_source",
                     "reward_model",
+                    "extra_info",
                 ],
             )
             batch.non_tensor_batch["uid"] = np.array(
@@ -702,7 +707,9 @@ class VerlPolicyBackend(EvolutionBackend):
                     RolloutRecord(
                         response=text,
                         predicted_answer=pred,
-                        correct=bool(pred and answers_match(pred, inst.answer)),
+                        correct=bool(
+                            pred and answers_match(pred, inst.answer, inst.verifier)
+                        ),
                         entropy=entropies[idx] if idx < len(entropies) else 0.0,
                     )
                 )
@@ -738,12 +745,16 @@ class VerlPolicyBackend(EvolutionBackend):
         temperature: float | None = None,
         top_p: float | None = None,
         ground_truths: list[str] | None = None,
+        verifier_specs: list[dict] | None = None,
         logprobs: int | None = None,
         allowed_token_ids: list[int] | None = None,
     ):
         trainer = self._require_trainer()
         batch = self._make_prompt_batch(
-            prompts, messages=messages, ground_truths=ground_truths
+            prompts,
+            messages=messages,
+            ground_truths=ground_truths,
+            verifier_specs=verifier_specs,
         )
         gen_batch = batch.pop(
             batch_keys=["input_ids", "attention_mask", "position_ids"],
@@ -752,6 +763,7 @@ class VerlPolicyBackend(EvolutionBackend):
                 "raw_prompt",
                 "data_source",
                 "reward_model",
+                "extra_info",
             ],
         )
         batch.non_tensor_batch["uid"] = np.array(
@@ -1008,6 +1020,7 @@ class VerlPolicyBackend(EvolutionBackend):
         prompts: list[str],
         messages: list | None = None,
         ground_truths: list[str] | None = None,
+        verifier_specs: list[dict] | None = None,
     ):
         tokenizer = self._require_tokenizer()
         max_prompt_length = self.max_prompt_length or 1024
@@ -1084,11 +1097,27 @@ class VerlPolicyBackend(EvolutionBackend):
         # have no ground truth and still pass "".
         data_source_arr = np.array(["rq_evolve"] * len(prompts), dtype=object)
         reward_model_arr = np.empty(len(prompts), dtype=object)
+        extra_info_arr = np.empty(len(prompts), dtype=object)
         for i in range(len(prompts)):
             truth = ""
             if ground_truths is not None and i < len(ground_truths):
                 truth = str(ground_truths[i] or "")
+            verifier = normalize_verifier(
+                verifier_specs[i]
+                if verifier_specs is not None and i < len(verifier_specs)
+                else None,
+                answer=truth if truth else None,
+            )
+            # Keep this first assignment explicit: replay's source-level guard
+            # asserts that the live answer, never an empty placeholder, reaches
+            # the agent-loop reward path.
             reward_model_arr[i] = {"ground_truth": truth}
+            reward_model_arr[i]["verifier"] = verifier
+            # Recent verl reward managers pass this object as compute_score's
+            # ``extra_info`` argument.  Keeping the same contract in
+            # reward_model as well makes the generated batch self-describing
+            # across version-specific manager plumbing.
+            extra_info_arr[i] = {"verifier": verifier}
         data = {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
@@ -1097,6 +1126,7 @@ class VerlPolicyBackend(EvolutionBackend):
             "raw_prompt": raw_prompt_arr,
             "data_source": data_source_arr,
             "reward_model": reward_model_arr,
+            "extra_info": extra_info_arr,
         }
         return DataProto.from_single_dict(data)
 

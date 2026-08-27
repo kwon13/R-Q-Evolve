@@ -3,11 +3,13 @@ omegaconf>=2.3.0
 sympy>=1.12
 numpy>=1.24
 python-dotenv>=1.0
-openai>=2.0.0
 # Answer grading (reward.answers_match) uses math_verify exclusively.
 math-verify>=0.7.0
 latex2sympy2_extended>=1.10.0
 verl==0.7.1
+
+# Legacy standalone GPT recheck/probe scripts, when explicitly needed:
+#   pip install -e '.[offline-openai]'
 
 # Install these when you are ready to connect the skeleton to real training.
 # verl    0.7.1

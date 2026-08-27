@@ -1,5 +1,6 @@
 """Fresh seeds are an integrity device, not a convenience."""
 
+import hashlib
 import json
 from dataclasses import asdict
 
@@ -8,12 +9,16 @@ from rq_evolve.backends import PendingRollouts, RolloutRecord
 from rq_evolve.config import ArchiveConfig, EvolutionConfig
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.program import ProblemProgram
+from rq_evolve.problem_type import (
+    PROBLEM_TYPE_RULESET,
+    problem_type_ruleset_sha256,
+)
 from rq_evolve.seed_stream import SeedStream
 
 HONEST = (
     "def generate(seed):\n"
     '    return f"what is {seed} plus one?", str(seed + 1)\n\n\n'
-    'GROUP = "algebra"\nSKILL = "counting"\n'
+    'DOMAIN = "algebra"\n'
 )
 
 # The failure fresh seeds exist to catch: calibrated on the graded instance,
@@ -23,8 +28,28 @@ TAIL_OVERFIT = (
     "    if seed == 0:\n"
     '        return "a genuinely open question about 0", "7"\n'
     '    return f"trivial: what is {seed}?", str(seed)\n\n\n'
-    'GROUP = "algebra"\nSKILL = "counting"\n'
+    'DOMAIN = "algebra"\n'
 )
+
+
+def _certify(program: ProblemProgram, problem_type: str = "function") -> None:
+    program.metadata.update(
+        {
+            "domain": "algebra",
+            "problem_type": problem_type,
+            "descriptor_contract": {
+                "domain_authority": "source_exact_one_literal",
+                "problem_type_authority": "deterministic_statement_and_verifier",
+                "problem_type_ruleset": PROBLEM_TYPE_RULESET,
+                "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
+                "domain": "algebra",
+                "problem_type": problem_type,
+                "source_sha256": hashlib.sha256(
+                    program.source_code.encode("utf-8")
+                ).hexdigest(),
+            },
+        }
+    )
 
 
 def test_seeds_are_never_reissued():
@@ -63,23 +88,38 @@ class _Backend:
     def __init__(self):
         self.seen_problems = []
 
-    def begin_session(self): pass
-    def end_session(self): pass
-    def sync_weights(self): pass
-    def mutate(self, tasks): return [None] * len(tasks)
+    def begin_session(self):
+        pass
+
+    def end_session(self):
+        pass
+
+    def sync_weights(self):
+        pass
+
+    def mutate(self, tasks):
+        return [None] * len(tasks)
 
     def generate_rollouts(self, instances, n_rollouts):
         self.seen_problems.extend(i.problem for i in instances)
         grouped = [
-            [RolloutRecord(response="x", predicted_answer="1",
-                           correct=(k % 2 == 0), entropy=1.0)
-             for k in range(n_rollouts)]
+            [
+                RolloutRecord(
+                    response="x",
+                    predicted_answer="1",
+                    correct=(k % 2 == 0),
+                    entropy=1.0,
+                )
+                for k in range(n_rollouts)
+            ]
             for _ in instances
         ]
-        return PendingRollouts(instances=list(instances), n_rollouts=n_rollouts,
-                               grouped=grouped)
+        return PendingRollouts(
+            instances=list(instances), n_rollouts=n_rollouts, grouped=grouped
+        )
 
-    def finalize_rollouts(self, pending): return pending.grouped
+    def finalize_rollouts(self, pending):
+        return pending.grouped
 
 
 def _evolver(backend, group_size=2):
@@ -103,9 +143,9 @@ def test_r_q_is_one_fresh_instance_however_many_are_drawn():
         [ProblemProgram(source_code=HONEST)], instance_counts=[5]
     )[0]
 
-    assert result.num_seeds == 1              # scored on the first instance
-    assert result.num_rollouts == 2           # G
-    assert len(set(backend.seen_problems)) == 5   # all five were rolled out
+    assert result.num_seeds == 1  # scored on the first instance
+    assert result.num_rollouts == 2  # G
+    assert len(set(backend.seen_problems)) == 5  # all five were rolled out
 
 
 def test_a_second_evaluation_uses_different_instances():
@@ -146,6 +186,7 @@ def test_the_cursor_is_persisted_and_restored(tmp_path):
     backend = _Backend()
     evolver = _evolver(backend)
     program = ProblemProgram(source_code=HONEST)
+    _certify(program)
     evolver.archive.try_insert(program=program, u_value=1.0, rq_score=0.5)
     evolver.evaluate_programs([program], instance_counts=[3])
     evolver.save_state(tmp_path, iteration=0)

@@ -139,6 +139,6 @@ def clean_and_grade_solver_rollout(
         predicted = extract_boxed(cleaned)
         is_correct = bool(
             predicted is not None
-            and answers_match(predicted, instance.answer)
+            and answers_match(predicted, instance.answer, instance.verifier)
         )
     return cleaned, predicted, is_correct

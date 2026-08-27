@@ -311,11 +311,10 @@ def test_an_accumulator_initialised_from_a_parameter_is_not_an_alias():
 
 
 def test_transitive_dependence_on_the_answer_is_not_consumption():
-    """In ``seed_..._primitive_root.py`` the answer is the sampled parameter ``d`` and
-    the prime is chosen so that ``t | p - 1``, so every route reaches ``t``
-    through the construction. Only a DIRECT read is consumption."""
+    """A current number-theory seed may share sampled construction inputs
+    across its two routes; only a direct read of ``answer`` is consumption."""
     source = ROOT.joinpath(
-        "seed_programs", "seed_number_theory_transformation_primitive_root.py"
+        "seed_programs_domain_type", "02_number_theory_counting.py"
     ).read_text()
     assert check_generator_contract(source) == []
 
@@ -434,16 +433,29 @@ def test_tombstone_the_answer_need_not_depend_on_every_stated_parameter():
     its DESCENDANT, and neither is a defect. The surviving form is the
     undirected component, so the whole seed corpus must stay clean of P1.
     """
-    for path in sorted(ROOT.joinpath("seed_programs").glob("*.py")):
+    for path in sorted(ROOT.joinpath("seed_programs_domain_type").glob("*.py")):
         assert "P1" not in _codes(path.read_text()), path.name
 
 
 def test_tombstone_a_shared_helper_is_not_by_itself_a_defect():
     """REJECTED: "both routes call the same helper, so they are not
-    independent." ``12_derangement_fixed_points.py`` routes both go through
-    ``_derangement``; the seed mitigates it with a separate identity assert.
+    independent." A shared helper can be a primitive used by otherwise
+    independent computations, so helper sharing alone must not gate.
     """
-    source = ROOT.joinpath(
-        "seed_programs", "seed_geometry_extremal_principle_min_area_triangle.py"
-    ).read_text()
+    source = '''
+import random
+
+
+def identity(value):
+    return value
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    n = rng.randint(3, 12)
+    answer = identity(n * (n + 1) // 2)
+    check = sum(identity(k) for k in range(1, n + 1))
+    assert answer == check, f"answer={answer} check={check}"
+    return f"Compute 1+...+{n}.", str(answer)
+'''
     assert check_generator_contract(source) == []

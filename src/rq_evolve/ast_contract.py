@@ -264,7 +264,34 @@ def _rename(node: ast.AST, mapping: dict[str, str]) -> ast.AST:
     for child in ast.walk(clone):
         if isinstance(child, ast.Name) and child.id in mapping:
             child.id = mapping[child.id]
-    return clone
+    return _IdempotentMinMax().visit(clone)
+
+
+class _IdempotentMinMax(ast.NodeTransformer):
+    """Fold ``min(x, x)``/``max(x, x)`` before route comparison.
+
+    Repeating one expression inside an idempotent built-in is not an
+    independent verification route.  Without this normalization a candidate
+    can turn ``check = answer_expression`` into ``max(expr, expr)`` and evade
+    the alpha-equivalent-route gate without performing a second computation.
+    """
+
+    def visit_Call(self, node: ast.Call):  # noqa: N802 - ast API spelling
+        node = self.generic_visit(node)
+        if (
+            isinstance(node.func, ast.Name)
+            and node.func.id in {"min", "max"}
+            and len(node.args) >= 2
+            and not any(isinstance(argument, ast.Starred) for argument in node.args)
+            and not node.keywords
+        ):
+            fingerprints = {
+                ast.dump(argument, include_attributes=False)
+                for argument in node.args
+            }
+            if len(fingerprints) == 1:
+                return node.args[0]
+        return node
 
 
 def _resolve_alias(operand: ast.expr, visible: list[ast.stmt]) -> ast.expr:
@@ -441,6 +468,22 @@ def _name_graph(body: list[ast.stmt]) -> list[tuple[set[str], set[str]]]:
     """
     edges: list[tuple[set[str], set[str]]] = []
 
+    def assignment_edges(
+        target: ast.expr, value: ast.expr
+    ) -> list[tuple[set[str], set[str]]]:
+        """Keep pairwise tuple unpacking from coupling unrelated values."""
+
+        if (
+            isinstance(target, (ast.Tuple, ast.List))
+            and isinstance(value, (ast.Tuple, ast.List))
+            and len(target.elts) == len(value.elts)
+        ):
+            split: list[tuple[set[str], set[str]]] = []
+            for child_target, child_value in zip(target.elts, value.elts):
+                split.extend(assignment_edges(child_target, child_value))
+            return split
+        return [(_stored_names(target), _loaded_names(value))]
+
     def loop_controlled(
         nested: list[tuple[set[str], set[str]]], control_reads: set[str]
     ) -> None:
@@ -482,6 +525,13 @@ def _name_graph(body: list[ast.stmt]) -> list[tuple[set[str], set[str]]]:
                 edges.extend(_name_graph(handler.body))
             edges.extend(_name_graph(stmt.orelse))
             edges.extend(_name_graph(stmt.finalbody))
+        elif (
+            isinstance(stmt, ast.Assign)
+            and len(stmt.targets) == 1
+            and isinstance(stmt.targets[0], (ast.Tuple, ast.List))
+            and isinstance(stmt.value, (ast.Tuple, ast.List))
+        ):
+            edges.extend(assignment_edges(stmt.targets[0], stmt.value))
         elif isinstance(stmt, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
             edges.append((_targets(stmt), _reads(stmt)))
     return edges

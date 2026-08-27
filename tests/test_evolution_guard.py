@@ -551,8 +551,9 @@ def test_two_stage_mutation_returns_the_single_call_shape():
     tasks, outputs, _ = evolver._mutate_in_two_stages([parent, parent])
     assert calls == [["family", "family"], ["generator"]], calls
     assert len(tasks) == len(outputs) == 2
-    # Stage 2 labels only the already-fixed family's DOMAIN. PROBLEM_TYPE stays
-    # model-independent and is derived from the statement/verifier contract.
+    # Legacy/default compatibility mode still carries DOMAIN in Stage 2;
+    # production domain-type configs enable the later independent labeler.
+    # PROBLEM_TYPE stays deterministic in both modes.
     assert outputs[0].count("DOMAIN") == 1
     assert "PROBLEM_TYPE" not in outputs[0]
     assert "GROUP" not in outputs[0] and "SKILL" not in outputs[0]

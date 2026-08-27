@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .code_utils import (
+    TRUSTED_ASSEMBLER_VERSION,
     extract_problem_statement_template,
     lint_problem_instance,
     structural_inspiration_safety_reason,
@@ -18,11 +19,18 @@ from .constancy import check_constancy
 from .concepts import DOMAINS, PROBLEM_TYPES, axis_index
 from .program import ProblemProgram
 from .problem_type import PROBLEM_TYPE_RULESET, problem_type_ruleset_sha256
+from .prompts import DOMAIN_LABELING_METHOD, domain_labeling_ruleset_sha256
 from .scoring import selection_priority
 from .structural_fingerprint import exact_top_level_build_instance
 
 ARCHIVE_SCHEMA = "rq-evolve-domain-problem-type-v2"
 ARCHIVE_SCHEMA_VERSION = 2
+CONFIRMED_ARCHIVE_SCHEMA = "rq-evolve-domain-problem-type-v3"
+CONFIRMED_ARCHIVE_SCHEMA_VERSION = 3
+SOURCE_DOMAIN_AUTHORITY = "source_exact_one_literal"
+CONFIRMED_DOMAIN_AUTHORITY = "manual_seed_or_policy_binary_label_v1"
+GENERATED_DOMAIN_AUTHORITY = "local_policy_binary_label_v1"
+MANUAL_DOMAIN_AUTHORITY = "manual_seed_source_literal_v1"
 
 
 @dataclass
@@ -57,12 +65,12 @@ class ArchiveSchemaError(ValueError):
 class MAPElitesArchive:
     """Complete DOMAIN x PROBLEM_TYPE MAP-Elites grid.
 
-    Both coordinates are fixed behavioural descriptors. ``DOMAIN`` is the
-    generator's exact-one self-declared top-level Omni-MATH domain;
-    ``PROBLEM_TYPE`` is deterministically inferred from the visible output
-    request and verifier across all verification seeds. The grid is always the
-    complete 7 x 5 Cartesian product. There is no supported-cell mask, mutation
-    target, or auxiliary classifier.
+    Both coordinates are fixed behavioural descriptors. In production,
+    ``DOMAIN`` is assigned from the fixed family by a label-blind local-policy
+    binary labeler; Stage 2 emits no domain label. ``PROBLEM_TYPE`` is
+    deterministically inferred from the visible output request and verifier
+    across all verification seeds. The grid is always the complete 7 x 5
+    Cartesian product. There is no supported-cell mask or mutation target.
 
     Uncertainty is NOT an axis. H stays in the fitness, ``R_Q = p(1-p)H``, which
     decides who holds a cell and which champion is sampled as a parent. Binning
@@ -78,6 +86,9 @@ class MAPElitesArchive:
         select_ignores_uncertainty: bool = False,
         select_ignores_variance: bool = False,
         binning: str = "grid",
+        require_domain_labeling: bool = False,
+        domain_labeling_min_probability: float = 0.55,
+        domain_labeling_min_logit_margin: float = 0.50,
     ) -> None:
         if selection_strategy not in {"ucb", "random"}:
             raise ValueError(f"unknown selection_strategy: {selection_strategy}")
@@ -107,6 +118,17 @@ class MAPElitesArchive:
         # reserving capacity per behaviour cell -- is actually buying.
         # Labels are still read and recorded, so coverage stays measurable.
         self.binning = binning
+        self.require_domain_labeling = bool(require_domain_labeling)
+        self.domain_labeling_min_probability = float(
+            domain_labeling_min_probability
+        )
+        self.domain_labeling_min_logit_margin = float(
+            domain_labeling_min_logit_margin
+        )
+        if not 0.0 <= self.domain_labeling_min_probability <= 1.0:
+            raise ValueError("domain_labeling_min_probability must be in [0, 1]")
+        if self.domain_labeling_min_logit_margin < 0.0:
+            raise ValueError("domain_labeling_min_logit_margin must be >= 0")
         self.total_insertions = 0
         self.total_replacements = 0
         self.total_selections = 0
@@ -121,16 +143,29 @@ class MAPElitesArchive:
         }
 
     def program_to_cell(self, program: ProblemProgram) -> tuple[int, int] | None:
-        """Grid coordinate from the program's own labels, None if unlabelled.
+        """Grid coordinate from pinned descriptor provenance, else ``None``.
 
         None rather than a hashed fallback: a program whose DOMAIN or
         PROBLEM_TYPE is outside the vocabulary has no meaningful niche, and
         folding unknown labels into one bin would make a single cell the
         contest for every misclassified generator.
         """
-        domain, domain_errors = validated_domain_declaration(program.source_code)
-        if domain_errors:
-            return None
+        is_generated = (program.metadata or {}).get("op") == "mutate"
+        if self.require_domain_labeling and is_generated:
+            try:
+                tree = ast.parse(program.source_code)
+            except SyntaxError:
+                return None
+            if any(
+                isinstance(node, ast.Name) and node.id == "DOMAIN"
+                for node in ast.walk(tree)
+            ):
+                return None
+            domain = (program.metadata or {}).get("domain")
+        else:
+            domain, domain_errors = validated_domain_declaration(program.source_code)
+            if domain_errors:
+                return None
         if re.search(
             r"\b(?:PROBLEM_TYPE|GROUP|SKILL)\s*[:=]", program.source_code
         ):
@@ -146,17 +181,16 @@ class MAPElitesArchive:
             return None
         return (domain_bin, problem_type_bin)
 
-    @staticmethod
     def _descriptor_contract_matches(
-        program: ProblemProgram, domain: str | None, contract: object
+        self, program: ProblemProgram, domain: str | None, contract: object
     ) -> bool:
         """Whether cached descriptor provenance matches source and rules."""
 
         if not isinstance(contract, dict):
             return False
+        is_generated = (program.metadata or {}).get("op") == "mutate"
         problem_type = (program.metadata or {}).get("problem_type")
         expected = {
-            "domain_authority": "source_exact_one_literal",
             "problem_type_authority": "deterministic_statement_and_verifier",
             "problem_type_ruleset": PROBLEM_TYPE_RULESET,
             "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
@@ -166,7 +200,132 @@ class MAPElitesArchive:
                 program.source_code.encode("utf-8")
             ).hexdigest(),
         }
-        return all(contract.get(key) == value for key, value in expected.items())
+        if not all(contract.get(key) == value for key, value in expected.items()):
+            return False
+        if not self.require_domain_labeling:
+            return contract.get("domain_authority") == SOURCE_DOMAIN_AUTHORITY
+
+        labeling = contract.get("domain_labeling")
+        if not isinstance(labeling, dict):
+            return False
+        if is_generated:
+            probabilities = labeling.get("probabilities")
+            generator_contract = (program.metadata or {}).get("generator_contract")
+            if not bool(
+                contract.get("domain_authority") == GENERATED_DOMAIN_AUTHORITY
+                and labeling
+                == (program.metadata or {}).get("domain_labeling")
+                and labeling.get("method") == DOMAIN_LABELING_METHOD
+                and labeling.get("passed") is True
+                and labeling.get("failure_kind") is None
+                and labeling.get("predicted") == domain
+                and (program.metadata or {}).get("domain") == domain
+                and isinstance(probabilities, dict)
+                and set(probabilities) == set(DOMAINS)
+                and all(
+                    not isinstance(value, bool)
+                    and isinstance(value, (int, float))
+                    and math.isfinite(float(value))
+                    and 0.0 <= float(value) <= 1.0
+                    for value in probabilities.values()
+                )
+                and labeling.get("ruleset_sha256")
+                == domain_labeling_ruleset_sha256()
+                and isinstance(generator_contract, dict)
+                and generator_contract.get("version") == TRUSTED_ASSEMBLER_VERSION
+                and labeling.get("family_sha256")
+                == generator_contract.get("family_sha256")
+                and isinstance(generator_contract.get("family_sha256"), str)
+                and len(generator_contract["family_sha256"]) == 64
+                and not isinstance(labeling.get("policy_iteration"), bool)
+                and isinstance(labeling.get("policy_iteration"), int)
+                and labeling.get("policy_iteration") >= -1
+                and program.generation >= 1
+                and bool(program.parent_id)
+            ):
+                return False
+
+            ranked = sorted(
+                ((candidate, float(probabilities[candidate])) for candidate in DOMAINS),
+                key=lambda item: item[1],
+                reverse=True,
+            )
+            predicted, top_probability = ranked[0]
+            runner_probability = ranked[1][1]
+            try:
+                recorded_top = float(labeling["top_probability"])
+                recorded_margin = float(labeling["logit_margin"])
+                min_probability = float(labeling["min_probability"])
+                min_margin = float(labeling["min_logit_margin"])
+            except (KeyError, TypeError, ValueError):
+                return False
+            if not all(
+                math.isfinite(value)
+                for value in (
+                    recorded_top,
+                    recorded_margin,
+                    min_probability,
+                    min_margin,
+                )
+            ):
+                return False
+            bounded_top = min(max(top_probability, 1e-6), 1.0 - 1e-6)
+            bounded_runner = min(max(runner_probability, 1e-6), 1.0 - 1e-6)
+            recomputed_margin = math.log(bounded_top / (1.0 - bounded_top)) - math.log(
+                bounded_runner / (1.0 - bounded_runner)
+            )
+            return bool(
+                predicted == domain
+                and min_probability == self.domain_labeling_min_probability
+                and min_margin == self.domain_labeling_min_logit_margin
+                and math.isclose(recorded_top, top_probability, abs_tol=1e-12)
+                and math.isclose(recorded_margin, recomputed_margin, abs_tol=1e-12)
+                and top_probability >= min_probability
+                and recomputed_margin >= min_margin
+            )
+        seed_source = (program.metadata or {}).get("manual_seed_source")
+        return bool(
+            contract.get("domain_authority") == MANUAL_DOMAIN_AUTHORITY
+            and labeling.get("method") == "manual_seed_source_literal_v1"
+            and labeling.get("passed") is True
+            and labeling.get("declared") == domain
+            and labeling.get("predicted") == domain
+            and program.generation == 0
+            and not program.parent_id
+            and isinstance(seed_source, dict)
+            and seed_source.get("method") == "loaded_seed_file_v1"
+            and seed_source.get("source_file")
+            == (program.metadata or {}).get("source_file")
+            and seed_source.get("source_sha256")
+            == hashlib.sha256(program.source_code.encode("utf-8")).hexdigest()
+            and labeling.get("seed_source") == seed_source
+        )
+
+    def _schema_contract(self) -> dict:
+        """Snapshot identity for legacy or independently labeled archives."""
+
+        if self.require_domain_labeling:
+            return {
+                "schema": CONFIRMED_ARCHIVE_SCHEMA,
+                "schema_version": CONFIRMED_ARCHIVE_SCHEMA_VERSION,
+                "domain_authority": CONFIRMED_DOMAIN_AUTHORITY,
+                "domain_labeling_required": True,
+                "domain_labeling_method": DOMAIN_LABELING_METHOD,
+                "domain_labeling_ruleset_sha256": (
+                    domain_labeling_ruleset_sha256()
+                ),
+                "domain_labeling_min_probability": (
+                    self.domain_labeling_min_probability
+                ),
+                "domain_labeling_min_logit_margin": (
+                    self.domain_labeling_min_logit_margin
+                ),
+            }
+        return {
+            "schema": ARCHIVE_SCHEMA,
+            "schema_version": ARCHIVE_SCHEMA_VERSION,
+            "domain_authority": SOURCE_DOMAIN_AUTHORITY,
+        }
 
     def _insert_cell(self, program: ProblemProgram) -> tuple[int, int] | None:
         """Slot the program competes for.
@@ -891,6 +1050,7 @@ class MAPElitesArchive:
         donor: ProblemProgram,
         *,
         max_token_jaccard: float | None = None,
+        near_duplicate_min_chars: int | None = None,
     ) -> dict:
         """Apply the archive's copy gates directly to one assigned donor.
 
@@ -921,12 +1081,17 @@ class MAPElitesArchive:
             if union:
                 token_jaccard = len(child_tokens & donor_tokens) / len(union)
 
+        comparison_min_chars = (
+            self.near_duplicate_min_chars
+            if near_duplicate_min_chars is None
+            else max(0, int(near_duplicate_min_chars))
+        )
         near_template_ratio: float | None = None
         if (
             child_text
             and donor_text
-            and len(child_text) >= self.near_duplicate_min_chars
-            and len(donor_text) >= self.near_duplicate_min_chars
+            and len(child_text) >= comparison_min_chars
+            and len(donor_text) >= comparison_min_chars
         ):
             shorter, longer = sorted((len(child_text), len(donor_text)))
             if shorter / max(1, longer) >= self.near_duplicate_length_ratio:
@@ -988,6 +1153,7 @@ class MAPElitesArchive:
             "max_token_jaccard": (
                 float(max_token_jaccard) if max_token_jaccard is not None else None
             ),
+            "near_duplicate_min_chars": comparison_min_chars,
             "near_template_ratio": (
                 round(near_template_ratio, 6)
                 if near_template_ratio is not None
@@ -1110,14 +1276,13 @@ class MAPElitesArchive:
         """In-memory snapshot of the archive (same structure written to
         ``archive.json``). Used to embed the live MAP into the verl ``data.pt``
         checkpoint so the grid is restored atomically with the weights."""
+        schema_contract = self._schema_contract()
         return {
             "meta": {
-                "schema": ARCHIVE_SCHEMA,
-                "schema_version": ARCHIVE_SCHEMA_VERSION,
+                **schema_contract,
                 "axes": ["domain", "problem_type"],
                 "domain_labels": list(DOMAINS),
                 "problem_type_labels": list(PROBLEM_TYPES),
-                "domain_authority": "source_exact_one_literal",
                 "problem_type_authority": "deterministic_statement_and_verifier",
                 "problem_type_ruleset": PROBLEM_TYPE_RULESET,
                 "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
@@ -1167,12 +1332,10 @@ class MAPElitesArchive:
             raise ArchiveSchemaError("archive payload has no metadata mapping")
 
         expected = {
-            "schema": ARCHIVE_SCHEMA,
-            "schema_version": ARCHIVE_SCHEMA_VERSION,
+            **self._schema_contract(),
             "axes": ["domain", "problem_type"],
             "domain_labels": list(DOMAINS),
             "problem_type_labels": list(PROBLEM_TYPES),
-            "domain_authority": "source_exact_one_literal",
             "problem_type_authority": "deterministic_statement_and_verifier",
             "problem_type_ruleset": PROBLEM_TYPE_RULESET,
             "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),

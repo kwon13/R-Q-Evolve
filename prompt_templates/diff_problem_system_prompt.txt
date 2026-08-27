@@ -1,27 +1,16 @@
-You are given a parameterized competition-math problem family. Invent one
-structurally different child family.
+You are given a parameterized competition-math problem family. Invent one structurally different child family.
+A structural mutation changes the mathematical task, the objects, the requested output, or the load-bearing reasoning. Merely changing numbers, coefficients, ranges, names, wording, degree, or candidate count is not structural.
+You are free to move in any mathematical direction. No destination or specific kind of change is requested. Prefer a mathematically natural child problem over an artificial mutation designed only to appear structurally different.
 
-A structural mutation changes the mathematical task, the objects, the requested
-output, or the load-bearing reasoning. Merely changing numbers, coefficients,
-ranges, names, wording, degree, or candidate count is not structural.
-
-You are free to move in any mathematical direction. No destination or specific
-kind of change is requested. Prefer a natural problem over one written to
-satisfy hidden metadata.
-
-The child must be self-contained and have a finite, unambiguous, automatically
-gradable answer. Solve it internally before answering. In CHILD FAMILY, write
-every quantity that the generator should vary as a collision-free placeholder
-of the form [[descriptive_name]], using a descriptive lower_snake_case name.
+The child must be self-contained and have a finite, unambiguous, automatically gradable answer. Solve it internally before answering.
+Choose which quantities define the parameterized child family, and represent every such varying quantity as a unique placeholder of the form [[descriptive_name]], using descriptive lower_snake_case names.
 Do not use Python-format {name} placeholders in the child family.
 
-Give the child one clearly primary mathematical domain. End with one explicit
-output request whose contract is mechanically recognizable: a Yes/No question,
-Find all members of a finite set, How many, a maximum/minimum value, or an
-ordinary Compute/Evaluate/What-is-value request. Choose freely among these;
-none is a requested destination. Do not write a DOMAIN or problem-type label.
+End with one explicit output request whose contract is mechanically recognizable: a Yes/No question,
+Find all members of a finite set, How many, a maximum/minimum value, or an ordinary Compute/Evaluate/What-is-value request. Choose freely among these; none is a requested destination. Do not write a DOMAIN or problem-type label.
 
-EXAMPLE 1 — CHANGE THE OBJECT AND REQUEST
+<FAMILY_EXAMPLE>
+EXAMPLE — CHANGE THE OBJECT AND REQUEST
 
 PARENT FAMILY:
 A regular polygon has {side_count} sides. How many diagonals does it have?
@@ -30,26 +19,31 @@ OUTPUT:
 STRUCTURAL MUTATION: Replace a direct polygon count by recovering every integer compatible with a finite modular observation.
 CHILD FAMILY: Find all integers x with 0 <= x < [[modulus]] such that x^2 has remainder [[residue]] when divided by [[modulus]].
 WHY FINITE: The explicit interval 0 <= x < modulus makes the requested solution set finite and uniquely determined.
+</FAMILY_EXAMPLE>
 
-EXAMPLE 2 — CHANGE THE MATHEMATICAL PROCESS
+<FAMILY_EXAMPLE>
+EXAMPLE — CHANGE THE MATHEMATICAL PROCESS
 
 PARENT FAMILY:
 Let N = {integer}. How many positive divisors does N have?
 
 OUTPUT:
 STRUCTURAL MUTATION: Replace divisor enumeration by determining the terminal state of a fully specified repeated process.
-CHILD FAMILY: The integers 1 through [[board_size]] are written on a board. Repeatedly erase two numbers a and b and write a + b + ab, until one number remains. Determine the final number.
+CHILD FAMILY: The integers 1 through [[board_size]] are written on a board. Repeatedly erase two numbers a and b and write a + b + ab, until one number remains. Compute the final number.
 WHY FINITE: Each move reduces the number of entries by one and the operation has an order-independent terminal value.
+</FAMILY_EXAMPLE>
 
-EXAMPLE 3 — CHANGE FROM A VALUE TO YES/NO
+<FAMILY_EXAMPLE>
+EXAMPLE — CHANGE FROM A VALUE TO YES/NO
 
 PARENT FAMILY:
 Evaluate the sum of the first {term_count} positive integers.
 
 OUTPUT:
-STRUCTURAL MUTATION: Replace numerical evaluation by a yes/no question about whether a finite configuration exists.
-CHILD FAMILY: Can [[vertex_count]] people be seated around a circle so that each person has exactly [[neighbor_count]] adjacent friends among the seated people? Answer Yes or No.
-WHY FINITE: The numbers of people and required adjacencies are fixed, so the existence statement has one Boolean truth value.
+STRUCTURAL MUTATION: Replace numerical evaluation by a yes/no existence question about a fully specified finite graph.
+CHILD FAMILY: Does there exist a simple graph on [[vertex_count]] labeled vertices in which every vertex has exactly [[vertex_degree]] neighbors? Answer Yes or No.
+WHY FINITE: There are finitely many simple graphs on a fixed labeled vertex set, so the stated regularity condition has one Boolean truth value.
+</FAMILY_EXAMPLE>
 
 Now create a child family for the given parent.
 
@@ -58,7 +52,4 @@ STRUCTURAL MUTATION: <one sentence identifying the substantive mathematical chan
 CHILD FAMILY: <one parameterized, self-contained natural-language problem>
 WHY FINITE: <the clause or argument guaranteeing one finite, unambiguous answer>
 
-Before replying, verify that CHILD FAMILY contains at least one complete
-[[lower_snake_case]] placeholder, contains no {name} placeholder, and that WHY
-FINITE explains why both instance generation and exact answer computation are
-bounded. A reply missing any of these three fields is invalid.
+Before replying, verify that CHILD FAMILY contains at least one complete [[lower_snake_case]] placeholder, contains no {name} placeholder, and that WHY FINITE explains why every rendered instance has one finite, unambiguous, exactly computable answer.

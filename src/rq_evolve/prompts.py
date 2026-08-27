@@ -1,12 +1,16 @@
+import ast
 import hashlib
 import os
 import random
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from string import Template
 
 from .code_utils import (
+    compile_stage2_reply,
+    extract_problem_statement_template,
     extract_problem_template,
     strip_label_declarations,
     strip_module_docstring,
@@ -25,9 +29,9 @@ SOLVER_SYSTEM_PROMPT = (
 # label a target instead of a description, and the child was written to satisfy
 # the order: the archived GROUP/SKILL then disagreed with what the visible
 # problem actually demanded, which is the one error the MAP cannot survive.
-# Stage 1 receives no descriptor or destination. Stage 2 labels the already
-# fixed child with one DOMAIN, and deterministic code derives PROBLEM_TYPE from
-# the visible request and verifier contract.
+# Stage 1 receives no descriptor or destination. Stage 2 only implements the
+# fixed child. A later seven-arm YES/NO labeler assigns DOMAIN, and deterministic
+# code derives PROBLEM_TYPE from the visible request and verifier contract.
 MUTATION_OP = "mutate"
 
 
@@ -43,7 +47,7 @@ class MutationTask:
     max_output_tokens: int | None = None
     temperature: float | None = None
     top_p: float | None = None
-    # Relabelling probe. With logprobs on and the answer restricted to the YES
+    # DOMAIN-labeling probe. With logprobs on and the answer restricted to YES
     # and NO token ids, one greedy token plus its logprob determines the whole
     # two-way distribution: the sampled side is exp(logprob) and the other is
     # its complement. Nothing else in the mutation path sets these.
@@ -57,6 +61,10 @@ class MutationTask:
     # frozen batch donor alive lets the copy gate compare against it even if a
     # later archive insertion evicts that donor from the live MAP.
     inspiration_donor: ProblemProgram | None = None
+    # Executable one-shot examples shown by Stage 2. They are comparison-only
+    # references: a child copying one is rejected before solver rollouts. Like
+    # the inspiration donor, these never enter provenance or a prompt payload.
+    copy_exclusion_examples: tuple[ProblemProgram, ...] = ()
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -116,11 +124,50 @@ def _template_context(parent: ProblemProgram) -> dict[str, str]:
         # children declared the cell their parent already occupied, across only
         # 12 distinct cells. The completed child is classified only after both
         # mutation stages have finished.
-        "parent_source": strip_label_declarations(
-            strip_module_docstring(parent.source_code)
-        ),
+        "parent_source": _stage2_parent_source(parent.source_code),
         "parent_problem": _parent_problem_text(parent),
     }
+
+
+def _neutralize_prompt_control_text(text: str) -> str:
+    """Keep model-generated text inside its data boundary in a later prompt.
+
+    Parents and child families are themselves model outputs.  A Python comment
+    or string can legally contain chat-template tokens or our XML closing tag;
+    copying it verbatim would let one generation create instructions for the
+    next.  Zero-width separators preserve human/model readability while making
+    those control sequences lexically inert.
+    """
+
+    value = str(text or "").replace("\x00", "")
+    for marker in (
+        "<PARENT_GENERATOR_PYTHON>",
+        "</PARENT_GENERATOR_PYTHON>",
+        "<FIXED_CHILD_FAMILY>",
+        "</FIXED_CHILD_FAMILY>",
+    ):
+        value = value.replace(marker, marker.replace("<", "<\u200b", 1))
+    return (
+        value.replace("<|", "<\u200b|")
+        .replace("|>", "|\u200b>")
+        .replace("[INST]", "[\u200bINST]")
+        .replace("[/INST]", "[\u200b/INST]")
+    )
+
+
+def _stage2_parent_source(source_code: str) -> str:
+    """Descriptor-free, comment-free parent program used as read-only data."""
+
+    cleaned = strip_label_declarations(strip_module_docstring(source_code)).strip()
+    try:
+        # Canonical rendering removes comments (the easiest injection channel)
+        # while retaining the complete executable program and literal family.
+        cleaned = ast.unparse(ast.parse(cleaned)).strip()
+    except (SyntaxError, ValueError):
+        # Archived parents are validated before insertion, but keep prompt
+        # construction diagnostic-safe for hand-built/offline objects.
+        pass
+    return _neutralize_prompt_control_text(cleaned)
 
 
 def _parent_problem_text(parent: ProblemProgram) -> str:
@@ -198,11 +245,9 @@ def parse_inferred_labels(reply: str) -> tuple[str | None, str | None]:
 
 # --- two-stage mutation -----------------------------------------------------
 #
-# Stage 1 writes the child PROBLEM in prose, with no program in front of it;
-# stage 2 receives only that fixed family, its finiteness argument, and its
-# placeholder names. It never receives the parent statement or source. This
-# keeps stage 2 a constrained implementation task instead of a second mutation
-# opportunity or a code-copying task.
+# Stage 1 writes the child PROBLEM in prose. Stage 2 receives the fixed family
+# plus descriptor-free parent source/family as transformation context, then
+# implements only that already-fixed child. It never emits a descriptor.
 
 FAMILY_SYSTEM_PROMPT_FILE = "diff_problem_system_prompt.txt"
 FAMILY_USER_PROMPT_FILE = "diff_problem_user_prompt.txt"
@@ -210,52 +255,188 @@ GENERATOR_SYSTEM_PROMPT_FILE = "gen_program_system_prompt.txt"
 GENERATOR_USER_PROMPT_FILE = "gen_program_user_prompt.txt"
 STRUCTURAL_INSPIRATION_SYSTEM_NOTE_FILE = "structural_inspiration_system_note.txt"
 STRUCTURAL_INSPIRATION_USER_BLOCK_FILE = "structural_inspiration_user_block.txt"
+DOMAIN_LABELING_SYSTEM_PROMPT_FILE = "domain_labeling_system_prompt.txt"
+DOMAIN_LABELING_USER_PROMPT_FILE = "domain_labeling_user_prompt.txt"
+DOMAIN_DEFINITIONS_FILE = "domain_definitions.txt"
+DOMAIN_LABELING_RULESET = "omni-top-level-local-policy-binary-labeler-v2"
+DOMAIN_LABELING_METHOD = "local_policy_binary_label_v1"
 
 # --- few-shot rotation ------------------------------------------------------
 #
-# The stage-1 prompt's eight EXAMPLE blocks are fixed, and the policy copies them:
-# 20.4% of children on the base model, 25.6% after 224 RL steps, with EXAMPLE 8
-# (Mantel) alone accounting for 12-16% and holding a MAP cell outright. Showing a
-# random three of the eight per call breaks that attractor -- copying falls to
-# 10%, and no single example exceeds 2.5%. Stage 2 has no examples: the
-# fixed-family implementation contract is rendered verbatim on every call.
-_EXAMPLE_HEAD = re.compile(r"^EXAMPLE \d+ — (.+)$", re.M)
+# Stage 1 rotates semantically tagged examples. Human-facing titles inside the
+# tags are deliberately not parser syntax, so prompt wording can evolve without
+# silently breaking rotation. Stage 2 likewise uses semantic child/reply tags
+# inside its interface example and compiles that example into the executable
+# copy-exclusion reference.
+_FAMILY_EXAMPLE_RE = re.compile(
+    r"<FAMILY_EXAMPLE>\s*.*?</FAMILY_EXAMPLE>", re.DOTALL
+)
 FAMILY_SHOTS_SHOWN = 3
+
+_COPY_EXCLUDED_EXAMPLE_RE = re.compile(
+    r"<EXAMPLE>\s*.*?"
+    r"<CHILD_FAMILY>\s*(.*?)\s*</CHILD_FAMILY>.*?"
+    r"<ACCEPTED_REPLY>\s*(.*?)\s*</ACCEPTED_REPLY>\s*"
+    r"</EXAMPLE>",
+    re.DOTALL,
+)
+
+
+@lru_cache(maxsize=8)
+def _stage2_copy_exclusion_examples(system_prompt: str) -> tuple[ProblemProgram, ...]:
+    """Compile every tagged Stage-2 example into a frozen copy reference.
+
+    The example and the compiler must evolve together. A malformed tag or an
+    example that no longer compiles therefore fails prompt construction rather
+    than silently disabling the leakage gate.
+    """
+
+    tags = list(_COPY_EXCLUDED_EXAMPLE_RE.finditer(system_prompt or ""))
+    prompt_text = str(system_prompt or "")
+    marker_counts = (
+        prompt_text.count("<EXAMPLE>"),
+        prompt_text.count("</EXAMPLE>"),
+        prompt_text.count("<CHILD_FAMILY>"),
+        prompt_text.count("</CHILD_FAMILY>"),
+        prompt_text.count("<ACCEPTED_REPLY>"),
+        prompt_text.count("</ACCEPTED_REPLY>"),
+    )
+    if any(count != len(tags) for count in marker_counts):
+        raise ValueError(
+            "every <EXAMPLE> block must contain exactly one <CHILD_FAMILY> "
+            "and one <ACCEPTED_REPLY> block"
+        )
+    examples: list[ProblemProgram] = []
+    for index, match in enumerate(tags, start=1):
+        family = match.group(1).strip()
+        reply = match.group(2).strip()
+        source, reason = compile_stage2_reply(
+            reply,
+            family,
+            require_domain=reply.startswith("DOMAIN: "),
+        )
+        if source is None:
+            raise ValueError(
+                f"Stage-2 copy-excluded example {index} does not compile: {reason}"
+            )
+        example = ProblemProgram(
+            source_code=source,
+            metadata={
+                "prompt_copy_exclusion_index": index,
+                "family_sha256": hashlib.sha256(family.encode("utf-8")).hexdigest(),
+            },
+        )
+        for seed in range(5):
+            if example.execute(seed) is None:
+                raise ValueError(
+                    f"Stage-2 copy-excluded example {index} fails at seed={seed}: "
+                    f"{example.last_execution_error or 'unknown execution error'}"
+                )
+        examples.append(example)
+    if not examples:
+        raise ValueError(
+            "Stage-2 system prompt must contain at least one <EXAMPLE> block"
+        )
+    return tuple(examples)
+
+
+def _domain_definitions() -> dict[str, str]:
+    definitions: dict[str, str] = {}
+    for line in _load_template(DOMAIN_DEFINITIONS_FILE).splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if ":" not in line:
+            raise ValueError(
+                f"{DOMAIN_DEFINITIONS_FILE} contains a line without ':'"
+            )
+        key, definition = line.split(":", 1)
+        key, definition = key.strip(), definition.strip()
+        if key in definitions or not definition:
+            raise ValueError(
+                f"invalid or duplicate domain definition for {key!r}"
+            )
+        definitions[key] = definition
+    if set(definitions) != set(DOMAINS):
+        raise ValueError(
+            f"{DOMAIN_DEFINITIONS_FILE} must define exactly {list(DOMAINS)!r}; "
+            f"got {sorted(definitions)!r}"
+        )
+    return definitions
+
+
+def domain_labeling_ruleset_sha256() -> str:
+    """Hash the exact binary readback rubric and seven domain definitions."""
+
+    payload = "\0".join(
+        (
+            DOMAIN_LABELING_RULESET,
+            _load_template(DOMAIN_LABELING_SYSTEM_PROMPT_FILE),
+            _load_template(DOMAIN_LABELING_USER_PROMPT_FILE),
+            _load_template(DOMAIN_DEFINITIONS_FILE),
+        )
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def build_domain_labeling_task(
+    *,
+    parent: ProblemProgram,
+    child_family: str,
+    domain: str,
+    allowed_token_ids: list[int] | None = None,
+) -> MutationTask:
+    """One binary arm of the independent seven-way DOMAIN labeler."""
+
+    definitions = _domain_definitions()
+    if domain not in definitions:
+        raise ValueError(f"unknown domain labeling candidate: {domain!r}")
+    system = _load_template(DOMAIN_LABELING_SYSTEM_PROMPT_FILE).strip()
+    user = _render_template(
+        _load_template(DOMAIN_LABELING_USER_PROMPT_FILE),
+        {
+            "child_family": _neutralize_prompt_control_text(
+                str(child_family).strip()
+            ),
+            "domain": domain,
+            "domain_definition": definitions[domain],
+        },
+    ).strip()
+    return MutationTask(
+        op="domain_labeling",
+        prompt=user,
+        parent=parent,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        stage="domain_labeling",
+        max_output_tokens=1,
+        temperature=0.0,
+        top_p=1.0,
+        logprobs=1,
+        allowed_token_ids=allowed_token_ids,
+    )
 
 
 def _split_family_system(text: str):
-    """(head, [example blocks], tail) for diff_problem_system_prompt.txt."""
-    hits = list(_EXAMPLE_HEAD.finditer(text))
+    """Return prompt head, semantic example blocks, and untouched task tail."""
+
+    hits = list(_FAMILY_EXAMPLE_RE.finditer(text))
     if not hits:
         return text, [], ""
+    if text.count("<FAMILY_EXAMPLE>") != len(hits) or text.count(
+        "</FAMILY_EXAMPLE>"
+    ) != len(hits):
+        raise ValueError("every Stage-1 example must be one complete <FAMILY_EXAMPLE>")
+    for left, right in zip(hits, hits[1:]):
+        if text[left.end() : right.start()].strip():
+            raise ValueError(
+                "text between <FAMILY_EXAMPLE> blocks must be whitespace only"
+            )
     head = text[: hits[0].start()]
-    blocks = []
-    for i, m in enumerate(hits):
-        end = hits[i + 1].start() if i + 1 < len(hits) else None
-        blocks.append(text[m.start() : end] if end else text[m.start() :])
-    cut = blocks[-1].find("Now create a child family")
-    tail = blocks[-1][cut:] if cut >= 0 else ""
-    if cut >= 0:
-        blocks[-1] = blocks[-1][:cut]
+    blocks = [match.group(0).strip() + "\n\n" for match in hits]
+    tail = text[hits[-1].end() :].lstrip()
     return head, blocks, tail
-
-
-def _renumber(blocks, pattern, label):
-    """Rewrite each block's ordinal so a rotated set still reads 1..N.
-
-    ``_EXAMPLE_HEAD`` captures the block's title ("EXAMPLE 3 - CONTRADICTION");
-    that has to survive, because the title is the only place stage 1 is told
-    which SKILL the block demonstrates.
-    """
-    out = []
-    for i, block in enumerate(blocks, 1):
-
-        def repl(m, i=i):
-            title = m.group(1) if m.re.groups else None
-            return f"{label} {i} \u2014 {title}" if title else f"{label} {i}"
-
-        out.append(pattern.sub(repl, block, count=1))
-    return out
 
 
 # All three fields are part of the live Stage-1 contract.  In particular,
@@ -351,11 +532,11 @@ def build_family_task(
 ) -> MutationTask:
     """Stage 1: mutate the parent's problem FAMILY, in prose, with no program.
 
-    The parent goes in as its ``problem = ...`` f-string rather than as one
-    rendered instance. Shown concrete numbers a model changes the numbers --
-    85-89% of children were near-copies of the statement they were given, one
-    reporting its own mutation as "a different prime p and a different range".
-    Against the braces, substituting values is visibly not a change.
+    The parent goes in as its available family representation (a trusted
+    ``[[placeholder]]`` template, a ``problem = ...`` assignment, or a rendered
+    fallback) together with one rendered instance. This keeps the mathematical
+    structure visible without claiming that every archived representation is a
+    Python f-string.
     """
     instance = _parent_problem_text(parent)
     template = extract_problem_template(parent.source_code) or instance
@@ -369,9 +550,7 @@ def build_family_task(
         else:
             blocks = list(blocks)
             rng.shuffle(blocks)
-        system_prompt = (
-            head + "".join(_renumber(blocks, _EXAMPLE_HEAD, "EXAMPLE")) + tail
-        )
+        system_prompt = head + "".join(blocks) + tail
     if inspiration_template:
         # The behavioural rules belong in the system turn; the donor's one
         # permitted artefact (its parameterized statement skeleton) belongs in
@@ -452,18 +631,31 @@ def build_generator_task(
     rng: random.Random | None = None,
     provenance: dict | None = None,
     inspiration_donor: ProblemProgram | None = None,
+    emit_legacy_domain: bool = False,
 ) -> MutationTask:
-    """Stage 2: implement and self-label an already fixed child family.
+    """Stage 2: implement an already fixed child family from parent context.
 
     Stage 1 is the creative mutation and sees no descriptor vocabulary. This
-    transcription stage receives no parent artefact and may only attach one
-    DOMAIN header to the immutable child family. PROBLEM_TYPE is never
-    model-declared and is derived by deterministic verification code.
+    transcription stage sees the descriptor-free parent generator/family as a
+    worked transformation reference, but the child family remains immutable.
+    It emits no DOMAIN or PROBLEM_TYPE; those are assigned downstream.
     """
-    system_prompt = _render_template(
-        _load_template(GENERATOR_SYSTEM_PROMPT_FILE),
-        {"domain_values": ", ".join(DOMAINS)},
-    )
+    system_prompt = _load_template(GENERATOR_SYSTEM_PROMPT_FILE)
+    if emit_legacy_domain:
+        system_prompt = system_prompt.replace(
+            "<ACCEPTED_REPLY>\nMODE:",
+            "<ACCEPTED_REPLY>\nDOMAIN: geometry\nMODE:",
+            1,
+        )
+        system_prompt += (
+            "\n\nLEGACY SOURCE-DOMAIN COMPATIBILITY MODE:\n"
+            "Prepend exactly `DOMAIN: token` before MODE, choosing one token "
+            "from: "
+            + ", ".join(DOMAINS)
+            + ". This compatibility header is required only because the local "
+            "DOMAIN labeler is disabled for this run.\n"
+        )
+    copy_exclusion_examples = _stage2_copy_exclusion_examples(system_prompt)
     placeholder_names = _family_placeholder_names(plan["CHILD FAMILY"])
     if placeholder_names is None:
         raise ValueError(
@@ -475,12 +667,19 @@ def build_generator_task(
     rendered_placeholder_names = "\n".join(
         f"- {name}" for name in placeholder_names
     )
+    parent_source = _stage2_parent_source(parent.source_code)
+    parent_family = (
+        extract_problem_statement_template(parent.source_code)
+        or "Parent family unavailable from source; use the fixed child family."
+    )
     user_prompt = _render_template(
         _load_template(GENERATOR_USER_PROMPT_FILE),
         {
-            "new_problem": plan["CHILD FAMILY"],
-            "why_finite": why_finite,
+            "new_problem": _neutralize_prompt_control_text(plan["CHILD FAMILY"]),
+            "why_finite": _neutralize_prompt_control_text(why_finite),
             "placeholder_names": rendered_placeholder_names,
+            "parent_source": parent_source,
+            "parent_family": _neutralize_prompt_control_text(parent_family),
         },
     )
     return MutationTask(
@@ -495,8 +694,9 @@ def build_generator_task(
         temperature=temperature,
         top_p=top_p,
         max_output_tokens=max_output_tokens,
-        # Carried for reporting only. No provenance field is substituted into
-        # either generator prompt, so stage 2 cannot see the donor.
+        # Donor provenance is reporting-only. The primary parent is now shown
+        # explicitly, but structural-inspiration donor content remains absent.
         provenance=dict(provenance or {}),
         inspiration_donor=inspiration_donor,
+        copy_exclusion_examples=copy_exclusion_examples,
     )

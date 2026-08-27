@@ -115,6 +115,8 @@ def test_legacy_v2_config_is_rejected_instead_of_becoming_new_production():
     assert not hasattr(fresh.evolution, "evaluator_provider")
     assert fresh.evolution.target_cell_injection is False
     assert fresh.evolution.relabel_skill is False
+    assert fresh.evolution.independent_domain_labeling is True
+    assert fresh.archive.require_domain_labeling is True
     assert fresh.evolution.manual_certified_seed_files == ()
     raw_fresh = load_raw_config("configs/rq_evolve_4b_8gpu_domain_type.yaml")
     assert raw_fresh.verl_config.trainer.resume_mode == "disable"
@@ -145,6 +147,8 @@ def test_domain_type_production_configs_share_descriptor_contract(
     assert cfg.evolution.two_stage_mutation is True
     assert cfg.evolution.target_cell_injection is False
     assert cfg.evolution.relabel_skill is False
+    assert cfg.evolution.independent_domain_labeling is True
+    assert cfg.archive.require_domain_labeling is True
     assert cfg.evolution.structural_inspiration is False
     assert cfg.training_data.training_budget == 32
     assert raw.verl_config.trainer.n_gpus_per_node == gpu_count

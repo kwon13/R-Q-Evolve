@@ -7,13 +7,14 @@ that was tried, measured against the clean corpus, and rejected.
 
 from __future__ import annotations
 
+import ast
 import glob
 import re
 from pathlib import Path
 
 import pytest
 
-from rq_evolve.ast_contract import check_generator_contract, check_problem_text
+from rq_evolve.ast_contract import _rename, check_generator_contract, check_problem_text
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "mutation_pairs"
@@ -94,6 +95,14 @@ def test_a_check_that_recomputes_the_answer_the_same_way_is_not_a_check():
     its prompt.
     """
     assert "A3v" in _codes(VACUOUS_CHAMPION)
+
+
+def test_single_iterable_minmax_is_not_folded_as_an_idempotent_call():
+    expression = ast.parse("max(range(n))", mode="eval").body
+    normalized = _rename(expression, {})
+    assert isinstance(normalized, ast.Call)
+    assert isinstance(normalized.func, ast.Name)
+    assert normalized.func.id == "max"
 
 
 def test_a_genuinely_independent_cross_check_survives():

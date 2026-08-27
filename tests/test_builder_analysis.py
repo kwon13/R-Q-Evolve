@@ -14,8 +14,7 @@ from rq_evolve.structural_fingerprint import (
 )
 
 
-STAGE2_REPLY = '''DOMAIN: algebra
-MODE: expression
+STAGE2_REPLY = '''MODE: expression
 CORE:
 ```python
 def build_instance(rng):

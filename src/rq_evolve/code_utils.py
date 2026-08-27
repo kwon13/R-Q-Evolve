@@ -12,7 +12,7 @@ from .ast_contract import check_generator_contract
 from .program import ALLOWED_IMPORT_ROOTS, ProblemInstance
 
 
-TRUSTED_ASSEMBLER_VERSION = "trusted-instance-v1"
+TRUSTED_ASSEMBLER_VERSION = "trusted-instance-v2"
 
 FORBIDDEN_SOURCE_PATTERNS = (
     "open(",
@@ -322,11 +322,11 @@ def lint_generator_source(source_code: str) -> list[str]:
 def validated_domain_declaration(source_code: str) -> tuple[str | None, list[str]]:
     """Read one exact top-level literal ``DOMAIN`` declaration.
 
-    The current mutation model labels its own already-designed family in the
-    same stage-2 response; there is no auxiliary classifier.  To keep that
-    declaration from becoming an executable or ambiguous label channel, every
-    occurrence is constrained here: one top-level store, a literal closed-vocab
-    value, and no later reads, deletes, branch-local writes, or reassignments.
+    This is the compatibility/manual-seed path. New Stage-2 children contain no
+    DOMAIN declaration: the downstream local-policy YES/NO labeler writes their
+    label into pinned metadata. For source-labelled programs, every occurrence
+    remains constrained here to one top-level literal closed-vocabulary store
+    with no reads, deletes, branch-local writes, or reassignment.
     """
 
     try:
@@ -387,13 +387,52 @@ def validated_domain_declaration(source_code: str) -> tuple[str | None, list[str
 # ---------------------------------------------------------------------------
 
 _STAGE2_PROTOCOL_RE = re.compile(
-    r"\ADOMAIN: ([a-z_]+)\n"
-    r"MODE: (expression|boolean|set)\n"
+    r"\A(?:DOMAIN: ([a-z_]+)\n)?MODE: (expression|boolean|set)\n"
     r"CORE:\n```python\n(.*?)\n```\Z",
     re.DOTALL,
 )
 _STAGE2_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 _FAMILY_PLACEHOLDER_RE = re.compile(r"\[\[([A-Za-z_][A-Za-z0-9_]*)\]\]")
+_UNBOUNDED_LINE_DISTANCE_RE = re.compile(
+    r"\b(?:maximum|greatest|largest)\s+(?:possible\s+)?distance\b"
+    r"\s+from\s+(?:the\s+)?(?:origin|(?:given|fixed|specific)\s+point|"
+    r"point\s+(?:[A-Z]|\([^)]{1,80}\)))\s+to\s+"
+    r"(?:any|arbitrary)\s+point\s+on\s+(?:an?\s+|the\s+)?"
+    r"(?:infinite\s+)?(?:straight\s+)?line\b(?!\s+segment)",
+    re.IGNORECASE | re.DOTALL,
+)
+_LOCAL_LINE_BOUND_RE = re.compile(
+    r"\b(?:within|inside|restricted\s+to|up\s+to|between)\b.{0,100}$|"
+    r"\bline\b.{0,100}\b(?:within|inside|intersection\s+with|bounded\s+by)\b",
+    re.IGNORECASE,
+)
+_UNSPECIFIED_DISTINCT_SET_RE = re.compile(
+    r"\b(?:given|let|consider)\s+(?:an?\s+)?set\s+of\s+"
+    r"\[\[[A-Za-z_][A-Za-z0-9_]*\]\]\s+distinct\s+"
+    r"(?:integers|numbers)\b",
+    re.IGNORECASE,
+)
+_CONTENT_SENSITIVE_SET_PREDICATE_RE = re.compile(
+    r"\b(?:sum|product|divisib\w*|remainder|congruen\w*|gcd|lcm|"
+    r"greatest\s+common\s+divisor|least\s+common\s+multiple|average|"
+    r"mean|median)\b",
+    re.IGNORECASE,
+)
+_SUBSET_REQUEST_RE = re.compile(
+    r"\b(?:how\s+many|(?:find|determine|compute)\s+(?:the\s+)?number\s+of|"
+    r"count)\b.{0,700}\bsubsets?\b.*",
+    re.IGNORECASE | re.DOTALL,
+)
+_SPECIFIED_SET_ELEMENTS_RE = re.compile(
+    r"\b(?:namely|whose\s+elements\s+are|consisting\s+exactly\s+of)\s+"
+    r"(?:\[\[[A-Za-z_][A-Za-z0-9_]*\]\]|\{[^{}]+\})",
+    re.IGNORECASE,
+)
+_BOOLEAN_TRICHOTOMY_RE = re.compile(
+    r"\b(?:inside\s*,?\s*on\s*,?\s*or\s*outside|"
+    r"positive\s*,?\s*zero\s*,?\s*or\s*negative)\b",
+    re.IGNORECASE,
+)
 _STAGE2_DESCRIPTOR_NAMES = frozenset(
     {
         "DOMAIN",
@@ -533,6 +572,49 @@ def _stage2_family_parts(
             "family_template requires at least one [[identifier]] placeholder",
         )
     return parts, tuple(sorted(keys)), None
+
+
+def _stage2_family_semantic_error(
+    family_template: str, *, mode: str
+) -> str | None:
+    """Reject narrow, provably ill-posed fixed-family statement shapes.
+
+    This is deliberately not a general natural-language oracle.  Each rule is
+    restricted to a shape whose missing contract is mathematically decisive,
+    so ordinary neighbouring questions remain admissible.
+    """
+
+    text = " ".join(str(family_template or "").split())
+    unbounded = _UNBOUNDED_LINE_DISTANCE_RE.search(text)
+    local_clause = text[unbounded.start() : unbounded.end() + 140] if unbounded else ""
+    if unbounded and not _LOCAL_LINE_BOUND_RE.search(local_clause):
+        return (
+            "fixed family asks for a maximum distance over an unbounded line; "
+            "restrict the feasible points to a bounded set"
+        )
+    unspecified_set = _UNSPECIFIED_DISTINCT_SET_RE.search(text)
+    subset_request = (
+        _SUBSET_REQUEST_RE.search(text, unspecified_set.end())
+        if unspecified_set
+        else None
+    )
+    if (
+        unspecified_set
+        and subset_request
+        and _CONTENT_SENSITIVE_SET_PREDICATE_RE.search(subset_request.group(0))
+        and not _SPECIFIED_SET_ELEMENTS_RE.search(text)
+    ):
+        return (
+            "fixed family gives only the cardinality of a set of distinct "
+            "integers, but asks a value-dependent subset property without "
+            "specifying the elements or their construction"
+        )
+    if mode == "boolean" and _BOOLEAN_TRICHOTOMY_RE.search(text):
+        return (
+            "fixed family requests one of three outcomes but declares a "
+            "Yes/No output contract"
+        )
+    return None
 
 
 def _stage2_function_shape_errors(function: ast.FunctionDef) -> list[str]:
@@ -911,7 +993,13 @@ def _synthesized_stage2_generate(
                 keywords=[],
             ),
         ),
-        *copy.deepcopy(builder.body[:-1]),
+        # The penultimate statement is the validated ``parameters = {...}``
+        # output snapshot.  Keeping it in this synthetic analysis function
+        # connects every placeholder through one dict node, making P1 treat an
+        # answer-irrelevant statement parameter as mathematically coupled to
+        # every other one.  Rendering below already reads the parameter locals
+        # directly, so the snapshot belongs only to the trusted runtime shell.
+        *copy.deepcopy(builder.body[:-2]),
         ast.Assert(
             test=ast.Compare(
                 left=ast.Name(id="answer", ctx=ast.Load()),
@@ -970,7 +1058,7 @@ def _synthesized_stage2_generate(
 def _trusted_stage2_source(
     *,
     core: str,
-    domain: str,
+    domain: str | None,
     mode: str,
     family_template: str,
     family_parts: list[tuple[str, str]],
@@ -978,6 +1066,7 @@ def _trusted_stage2_source(
 ) -> str:
     """Attach the fixed data-only assembler to a validated candidate CORE."""
 
+    domain_line = f"DOMAIN = {domain!r}\n" if domain is not None else ""
     return f"""import math
 import random
 
@@ -1069,7 +1158,7 @@ def __rq_render_parameter(value):
 {core.rstrip()}
 
 
-DOMAIN = {domain!r}
+{domain_line.rstrip()}
 FAMILY_TEMPLATE = {family_template!r}
 TRUSTED_ASSEMBLER_VERSION = {TRUSTED_ASSEMBLER_VERSION!r}
 __rq_mode = {mode!r}
@@ -1166,6 +1255,8 @@ def generate(seed):
 def compile_stage2_reply(
     reply: str,
     family_template: str,
+    *,
+    require_domain: bool = False,
 ) -> tuple[str | None, str | None]:
     """Compile one strict stage-2 reply into a self-contained generator.
 
@@ -1192,16 +1283,23 @@ def compile_stage2_reply(
     protocol = _STAGE2_PROTOCOL_RE.fullmatch(normalized)
     if protocol is None:
         return None, (
-            "stage2 reply must be exact DOMAIN/MODE/CORE with one python fence, "
+            "stage2 reply must be exact MODE/CORE with one python fence, "
             "or one line `INVALID: <specific reason>`"
         )
     domain, mode, core = protocol.groups()
-    if domain not in DOMAINS:
+    if require_domain and domain is None:
+        return None, "stage2 legacy path requires one DOMAIN header"
+    if not require_domain and domain is not None:
+        return None, "stage2 DOMAIN is assigned downstream and must be omitted"
+    if domain is not None and domain not in DOMAINS:
         return None, "stage2 DOMAIN must be one of " + ", ".join(DOMAINS)
 
     family_parts, placeholder_keys, family_error = _stage2_family_parts(family_template)
     if family_error:
         return None, family_error
+    semantic_error = _stage2_family_semantic_error(family_template, mode=mode)
+    if semantic_error:
+        return None, "stage2 fixed family failed semantic contract: " + semantic_error
     tree, builder, parameter_locals, core_error = _validate_stage2_core(
         core, placeholder_keys
     )
@@ -2109,11 +2207,11 @@ def extract_problem_template(source_code: str) -> str | None:
 def extract_problem_statement_template(source_code: str) -> str | None:
     """Return only the text skeleton of the final ``problem`` assignment.
 
-    This is deliberately narrower than :func:`extract_problem_template`, which
-    returns the Python assignment verbatim for the primary-parent prompt.  A
-    structural-inspiration donor is untrusted context, so it contributes only
-    the natural-language statement: no assignment syntax, helper code, label
-    declarations, answer/check route, comments, or metadata.
+    This is deliberately narrower than :func:`extract_problem_template`. It is
+    used both for the Stage-2 parent-family summary and for an untrusted
+    structural-inspiration donor, so it contributes only the natural-language
+    statement: no assignment syntax, helper code, label declarations,
+    answer/check route, comments, or metadata.
 
     Literal strings and f-strings joined with ``+`` are supported.  A template
     that interpolates the program's ``answer`` or ``check`` variable is rejected

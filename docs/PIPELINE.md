@@ -11,7 +11,7 @@
 | generator 실행 단위와 sandbox 경계 | `src/rq_evolve/program.py`, `src/rq_evolve/_sandbox_worker.py` |
 | 두 descriptor vocabulary | `src/rq_evolve/concepts.py` |
 | full 7×5 MAP-Elites archive | `src/rq_evolve/archive.py` |
-| untargeted stage 1과 stage-2 DOMAIN 선언 계약 | `src/rq_evolve/prompts.py`, `prompt_templates/` |
+| untargeted stage 1, Stage-2 trusted core, DOMAIN labeler | `src/rq_evolve/prompts.py`, `prompt_templates/` |
 | deterministic PROBLEM_TYPE 판정 | `src/rq_evolve/problem_type.py` |
 | outer evolution loop | `src/rq_evolve/evolution.py` |
 | declarative verifier schema와 reward dispatch | `src/rq_evolve/verifier.py`, `src/rq_evolve/reward.py`, `src/rq_evolve/_grader_worker.py` |
@@ -47,15 +47,16 @@ sync solver weights into rollout backend
         ├─ stage 1: propose a structurally new problem family
         │    └─ no descriptor vocabulary, target cell, held/moved axis
         │
-        ├─ stage 2: compile that family into generate(seed)
-        │    └─ returns problem, answer, verifier + exactly one DOMAIN declaration
+        ├─ stage 2: implement build_instance(rng)
+        │    ├─ sees descriptor-free parent program/family as transformation context
+        │    └─ trusted assembler owns generate(seed), renderer, and verifier shell
         │
         ├─ static/AST/multi-seed validity checks
         │
-        ├─ local descriptor validation over every verification seed
-        │    ├─ DOMAIN is one allowed literal and constant across the family
+        ├─ local descriptor assignment and validation
+        │    ├─ 7 restricted YES/NO arms directly assign one DOMAIN
         │    ├─ statement + verifier deterministically derive PROBLEM_TYPE
-        │    └─ ambiguous / low / seed disagreement ───────────────> reject
+        │    └─ missing/ambiguous score or type disagreement ──────> reject
         │
         ├─ solver rollouts on fresh instances and R_Q scoring
         │
@@ -65,9 +66,10 @@ sync solver weights into rollout backend
 ```
 
 stage 1은 archive의 빈 cell이나 descriptor 목표를 보지 않습니다. stage 2는 이미
-확정된 family를 구현한 뒤 DOMAIN 하나를 선언하지만 특정 DOMAIN 값은 지시받지
-않습니다. PROBLEM_TYPE 판정은 각 rendered problem과 normalized verifier에 대한
-고정된 로컬 규칙이며, 추가 모델이나 API를 호출하지 않습니다.
+확정된 family를 구현할 뿐 DOMAIN을 선언하지 않습니다. 그 뒤 같은 로컬 policy에
+7개 candidate-domain YES/NO 질문을 한 batch로 보내 argmax 하나를 직접 라벨로
+사용합니다. PROBLEM_TYPE 판정은 각 rendered problem과 normalized verifier에 대한
+고정된 로컬 규칙입니다. 별도 모델이나 외부 API를 추가하지 않습니다.
 
 ## Candidate state
 
@@ -77,30 +79,32 @@ stage 1은 archive의 빈 cell이나 descriptor 목표를 보지 않습니다. s
 | entry shape | 의미 |
 |---|---|
 | `{"task", "child", "inst"}` | generic/descriptor verification을 통과해 rollout 대상으로 살아 있음 |
-| `{"_retry": {...}}` | source parse는 됐지만 verification 실패; retry가 켜졌을 때 한 번 수정 가능 |
+| `{"_retry": {...}}` | source parse는 됐지만 verification 실패; 현재 two-stage 경로에서는 terminal report로 변환 |
 | `{"report": CandidateReport}` | terminal outcome |
 
 production Domain×Type config는 `fix_retry: false`입니다. terminal report에는
 가능하면 child source와 AST finding을 함께 남겨, archive에 들어오지 못한 후보도
 gate별로 감사할 수 있게 합니다. 대표 결과는 mutation/parse 실패, verify 실패,
-descriptor verification 실패, duplicate/copy 거절, rollout 실패, insertion,
+DOMAIN labeling 실패, duplicate/copy 거절, rollout 실패, insertion,
 non-elite rejection입니다.
 
 ## Admission order
 
 generated child는 destination을 받지 않은 채 다음 순서로 확인됩니다.
 
-1. code extraction, static lint, deterministic RNG와 exact-one DOMAIN declaration;
+1. strict MODE/CORE parsing, trusted assembler 조립, deterministic RNG;
 2. `answer == check` dataflow/AST contract;
 3. sandbox execution과 multi-seed statement/answer consistency;
 4. declarative verifier normalization;
 5. 모든 verification seed에서 statement+verifier 기반 PROBLEM_TYPE이
    high-confidence이고 하나로 일치하는지 확인;
-6. fresh-instance rollout과 R_Q 계산;
-7. seed variation 및 behavior/template/near-template/structural duplicate gates;
-8. 해당 cell champion과 strict score competition.
+6. prompt-example 및 optional structural-donor copy rejection;
+7. 7개 restricted YES/NO score의 argmax·confidence로 DOMAIN 하나 할당;
+8. fresh-instance rollout과 R_Q 계산;
+9. seed variation 및 behavior/template/near-template/structural duplicate gates;
+10. 해당 cell champion과 strict score competition.
 
-DOMAIN 선언은 stage 1이 family를 확정한 뒤에만 추가되므로 mutation destination을
+DOMAIN labeler는 stage 1/2에 원하는 cell을 전달하지 않으므로 mutation destination을
 지시하는 scheduler가 아닙니다. candidate가 parent와 같은 cell로 돌아와도
 구조적으로 새롭고 점수가 더 높으면 정상적인 mutation입니다.
 

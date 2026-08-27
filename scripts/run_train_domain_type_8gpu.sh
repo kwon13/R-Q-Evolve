@@ -75,6 +75,14 @@ if not output.is_absolute():
     output = (Path.cwd() / output).resolve()
 
 keep = get("verl_config.trainer.max_actor_ckpt_to_keep")
+if float(get("evolution.domain_labeling_min_probability")) != float(
+    get("archive.domain_labeling_min_probability")
+):
+    raise SystemExit("evolution/archive DOMAIN-label probability thresholds differ")
+if float(get("evolution.domain_labeling_min_logit_margin")) != float(
+    get("archive.domain_labeling_min_logit_margin")
+):
+    raise SystemExit("evolution/archive DOMAIN-label margin thresholds differ")
 print(output)
 print(get("verl_config.trainer.n_gpus_per_node"))
 print(get("verl_config.trainer.save_freq"))
@@ -85,6 +93,8 @@ print(get("evolution.seed_programs_dir"))
 print(str(get("evolution.two_stage_mutation")).lower())
 print(str(get("evolution.target_cell_injection")).lower())
 print(str(get("evolution.relabel_skill")).lower())
+print(str(get("evolution.independent_domain_labeling")).lower())
+print(str(get("archive.require_domain_labeling")).lower())
 print(str(get("evolution.structural_inspiration")).lower())
 print(get("evolution.ast_contract"))
 print(str(OmegaConf.select(cfg, "evolution.use_evaluator", default=False)).lower())
@@ -108,11 +118,13 @@ SEED_DIR="${VALUES[6]}"
 TWO_STAGE="${VALUES[7]}"
 TARGET_INJECTION="${VALUES[8]}"
 RELABEL_SKILL="${VALUES[9]}"
-STRUCTURAL_INSPIRATION="${VALUES[10]}"
-AST_CONTRACT="${VALUES[11]}"
-USE_EVALUATOR="${VALUES[12]}"
-SELECTION_STRATEGY="${VALUES[13]}"
-RESUME_MODE="${VALUES[14]}"
+DOMAIN_LABELING="${VALUES[10]}"
+ARCHIVE_DOMAIN_LABELING="${VALUES[11]}"
+STRUCTURAL_INSPIRATION="${VALUES[12]}"
+AST_CONTRACT="${VALUES[13]}"
+USE_EVALUATOR="${VALUES[14]}"
+SELECTION_STRATEGY="${VALUES[15]}"
+RESUME_MODE="${VALUES[16]}"
 
 [[ "$EXPECTED_GPUS" == "8" ]] || { echo "[domain-type-8gpu] config must request eight GPUs" >&2; exit 1; }
 [[ "$SAVE_FREQ" == "32" ]] || { echo "[domain-type-8gpu] save_freq must be 32" >&2; exit 1; }
@@ -121,9 +133,11 @@ RESUME_MODE="${VALUES[14]}"
 [[ "$TWO_STAGE" == "true" ]] || { echo "[domain-type-8gpu] two-stage mutation must be enabled" >&2; exit 1; }
 [[ "$TARGET_INJECTION" == "false" ]] || { echo "[domain-type-8gpu] targeted mutation must be disabled" >&2; exit 1; }
 [[ "$RELABEL_SKILL" == "false" ]] || { echo "[domain-type-8gpu] legacy skill relabelling must be disabled" >&2; exit 1; }
+[[ "$DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-8gpu] local independent DOMAIN labeling must be enabled" >&2; exit 1; }
+[[ "$ARCHIVE_DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-8gpu] archive must require DOMAIN labeling" >&2; exit 1; }
 [[ "$STRUCTURAL_INSPIRATION" == "false" ]] || { echo "[domain-type-8gpu] donor context must be disabled for the clean run" >&2; exit 1; }
 [[ "$AST_CONTRACT" == "enforce" ]] || { echo "[domain-type-8gpu] AST contract must be enforce" >&2; exit 1; }
-[[ "$USE_EVALUATOR" == "false" ]] || { echo "[domain-type-8gpu] evaluator/classifier must be disabled" >&2; exit 1; }
+[[ "$USE_EVALUATOR" == "false" ]] || { echo "[domain-type-8gpu] external evaluator/API classifier must be disabled" >&2; exit 1; }
 [[ "$SELECTION_STRATEGY" == "random" ]] || { echo "[domain-type-8gpu] archive selection must be random" >&2; exit 1; }
 [[ "$RESUME_MODE" == "disable" ]] || { echo "[domain-type-8gpu] resume_mode must be disable" >&2; exit 1; }
 
@@ -173,7 +187,8 @@ echo "[domain-type-8gpu] output      : $CKPT_DIR"
 echo "[domain-type-8gpu] GPUs        : $CUDA_VISIBLE_DEVICES"
 echo "[domain-type-8gpu] steps/save  : $TOTAL_STEPS / every $SAVE_FREQ"
 echo "[domain-type-8gpu] descriptors : 7 DOMAIN x 5 PROBLEM_TYPE"
-echo "[domain-type-8gpu] mutation    : untargeted Stage 1 + trusted Stage 2 assembler"
+echo "[domain-type-8gpu] mutation    : untargeted; Stage 2 emits no DOMAIN"
+echo "[domain-type-8gpu] domain label: local-policy 7-way YES/NO readback"
 echo "[domain-type-8gpu] selection   : random"
 
 if $DRY_RUN; then
@@ -181,6 +196,12 @@ if $DRY_RUN; then
   exit 0
 fi
 
+if ! PATCH_RESULT="$(python3 patches/verl_agent_loop_sampling.py 2>&1)"; then
+  echo "[domain-type-8gpu] failed to install required verl sampling patch:" >&2
+  echo "$PATCH_RESULT" >&2
+  exit 1
+fi
+echo "[domain-type-8gpu] verl patch  : $PATCH_RESULT"
 mkdir -p "$CKPT_DIR" "$LOG_DIR"
 
 MERGE_PID=""

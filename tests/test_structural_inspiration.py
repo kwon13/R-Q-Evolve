@@ -545,7 +545,7 @@ def test_donor_relative_copy_rejection_does_not_poison_same_source_for_another_d
     archive = MAPElitesArchive()
     _place(archive, parent, donor_a, donor_b)
     archive.sample_parent = lambda rng=None: parent
-    archive.compare_with_structural_inspiration = lambda child, donor: {
+    archive.compare_with_structural_inspiration = lambda child, donor, **_kwargs: {
         "checked": True,
         "rejected": donor is donor_a,
         "reason": "exact_source" if donor is donor_a else None,
@@ -645,7 +645,7 @@ def test_in_flight_duplicate_keeps_copy_verdict_for_its_own_assigned_donor():
     archive = MAPElitesArchive()
     _place(archive, parent, donor_a, donor_b)
     archive.sample_parent = lambda rng=None: parent
-    archive.compare_with_structural_inspiration = lambda child, donor: {
+    archive.compare_with_structural_inspiration = lambda child, donor, **_kwargs: {
         "checked": True,
         "rejected": donor is donor_b,
         "reason": "exact_source" if donor is donor_b else None,

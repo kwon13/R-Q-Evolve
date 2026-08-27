@@ -205,6 +205,89 @@ def generate(seed):
     assert "P1" in _codes(source)
 
 
+def test_a_loop_bound_is_a_real_dependency_of_a_loop_carried_answer():
+    """P1 must include control dependence through the iteration count."""
+    source = '''
+import random
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    string_length = rng.randint(4, 11)
+    previous, current = 1, 2
+    for _ in range(string_length - 1):
+        previous, current = current, previous + current
+    answer = current
+    check = 0
+    for mask in range(1 << string_length):
+        if all(((mask >> position) & 3) != 3 for position in range(string_length - 1)):
+            check += 1
+    assert answer == check
+    problem = f"Count binary strings of length {string_length} with no adjacent ones."
+    return problem, str(answer)
+'''
+    assert "P1" not in _codes(source)
+
+
+def test_control_dependencies_do_not_hide_an_unrelated_stated_parameter():
+    source = '''
+import random
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    irrelevant_radius = rng.randint(2, 9)
+    item_count = rng.randint(3, 12)
+    answer = 0
+    for _ in range(item_count):
+        answer += 1
+    check = sum(1 for _ in range(item_count))
+    assert answer == check
+    problem = f"A circle has radius {irrelevant_radius}. Count {item_count} marked items."
+    return problem, str(answer)
+'''
+    assert "P1" in _codes(source)
+
+
+def test_repeating_a_constant_does_not_create_loop_bound_dependence():
+    source = '''
+import random
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    iteration_count = rng.randint(2, 9)
+    answer = 0
+    for _ in range(iteration_count):
+        answer = 0
+    check = len([])
+    assert answer == check
+    problem = f"A process repeats {iteration_count} times. Compute its fixed output."
+    return problem, str(answer)
+'''
+    assert "P1" in _codes(source)
+
+
+def test_identical_constant_branches_do_not_create_condition_dependence():
+    source = '''
+import random
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    irrelevant_condition = rng.randint(2, 9)
+    if irrelevant_condition > 0:
+        answer = 1
+    else:
+        answer = 1
+    check = len([0])
+    assert answer == check
+    problem = f"The displayed parameter is {irrelevant_condition}. Compute one."
+    return problem, str(answer)
+'''
+    assert "P1" in _codes(source)
+
+
 def test_a_declared_distractor_opts_out_of_the_statement_rule():
     """A deliberate red herring is a legitimate device; it just has to be
     declared, so the default stays "a stated parameter can matter"."""

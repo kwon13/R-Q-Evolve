@@ -531,7 +531,7 @@ def test_two_stage_mutation_returns_the_single_call_shape():
     )
     plan = (
         "STRUCTURAL MUTATION: the requested object changes\n"
-        "CHILD FAMILY: How many? State only the integer.\n"
+            "CHILD FAMILY: How many objects are in a collection of [[item_count]] objects? State only the integer.\n"
         "WHY FINITE: the stated collection is finite\n"
     )
 

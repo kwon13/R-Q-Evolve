@@ -199,27 +199,15 @@ def parse_inferred_labels(reply: str) -> tuple[str | None, str | None]:
 # --- two-stage mutation -----------------------------------------------------
 #
 # Stage 1 writes the child PROBLEM in prose, with no program in front of it;
-# stage 2 writes that problem's generator, with the parent pair shown only as a
-# worked example of the statement-to-program mapping. Measured against asking
-# one call to mutate the parent program: child/parent source similarity fell
-# from 0.99 to 0.14, and the share of children declaring their parent's own
-# cell fell from 96% to 0%. Both follow from the same thing -- a base policy
-# shown a complete program to "mutate" reproduces it, and a base policy shown a
-# program it must not reproduce (because the target statement is already fixed
-# and different) does not.
+# stage 2 receives only that fixed family, its finiteness argument, and its
+# placeholder names. It never receives the parent statement or source. This
+# keeps stage 2 a constrained implementation task instead of a second mutation
+# opportunity or a code-copying task.
 
 FAMILY_SYSTEM_PROMPT_FILE = "diff_problem_system_prompt.txt"
 FAMILY_USER_PROMPT_FILE = "diff_problem_user_prompt.txt"
 GENERATOR_SYSTEM_PROMPT_FILE = "gen_program_system_prompt.txt"
 GENERATOR_USER_PROMPT_FILE = "gen_program_user_prompt.txt"
-# Four authored WORKED EXAMPLEs for the skills the shipped stage-2 prompt never
-# demonstrates. Its own four answer INFERRED_SKILL with transformation /
-# extremal_principle / counting / casework, and measured over 376 gated children
-# those same four absorb 86.7% of everything stage 2 infers -- `invariant` came
-# back 4 times in 376 and `construction` 4. The gate is therefore reading its own
-# demo set more than the code. With the pool at eight, invariant's pass rate goes
-# 2% -> 17% and construction's 46% -> 43-71%.
-GENERATOR_EXTRA_EXAMPLES_FILE = "gen_program_extra_examples.txt"
 STRUCTURAL_INSPIRATION_SYSTEM_NOTE_FILE = "structural_inspiration_system_note.txt"
 STRUCTURAL_INSPIRATION_USER_BLOCK_FILE = "structural_inspiration_user_block.txt"
 
@@ -229,20 +217,10 @@ STRUCTURAL_INSPIRATION_USER_BLOCK_FILE = "structural_inspiration_user_block.txt"
 # 20.4% of children on the base model, 25.6% after 224 RL steps, with EXAMPLE 8
 # (Mantel) alone accounting for 12-16% and holding a MAP cell outright. Showing a
 # random three of the eight per call breaks that attractor -- copying falls to
-# 10%, and no single example exceeds 2.5%. Stage-2's examples are NOT copied
-# (0.3%): it transcribes a fixed specification, so there is nothing to invent and
-# nothing to plagiarise. Its rotation buys label coverage instead.
-#
-# Neither rotation looks at the target cell. A stage-2 pool that always contained
-# the target skill's example would leak the answer into INFERRED_SKILL, and the
-# whole value of that gate is that it is a BLIND re-derivation. Measured both
-# ways: target-blind selection is not worse, it is slightly better (invariant
-# 17% vs 14%, 20 cells reached vs 17).
+# 10%, and no single example exceeds 2.5%. Stage 2 has no examples: the
+# fixed-family implementation contract is rendered verbatim on every call.
 _EXAMPLE_HEAD = re.compile(r"^EXAMPLE \d+ — (.+)$", re.M)
-_WORKED_HEAD = re.compile(r"^WORKED EXAMPLE \d+$", re.M)
-_SKETCH_HEAD = re.compile(r"(?!)")
 FAMILY_SHOTS_SHOWN = 3
-GENERATOR_SHOTS_SHOWN = 4
 
 
 def _split_family_system(text: str):
@@ -260,42 +238,6 @@ def _split_family_system(text: str):
     if cut >= 0:
         blocks[-1] = blocks[-1][:cut]
     return head, blocks, tail
-
-
-def _split_generator_system(text: str):
-    """(head, skill sketches, mid, worked examples, tail) for the stage-2 prompt."""
-    sm = list(_SKETCH_HEAD.finditer(text))
-    wm = list(_WORKED_HEAD.finditer(text))
-    if not sm or not wm:
-        return text, [], "", [], ""
-    head = text[: sm[0].start()]
-    sketches = []
-    for i, m in enumerate(sm):
-        end = sm[i + 1].start() if i + 1 < len(sm) else wm[0].start()
-        sketches.append(text[m.start() : end])
-    mid = text[sm[-1].start() : wm[0].start()][len(sketches[-1]) :]
-    worked = []
-    for i, m in enumerate(wm):
-        end = wm[i + 1].start() if i + 1 < len(wm) else None
-        worked.append(text[m.start() : end] if end else text[m.start() :])
-    cut = worked[-1].find("After the closing ```")
-    tail = worked[-1][cut:] if cut >= 0 else ""
-    if cut >= 0:
-        worked[-1] = worked[-1][:cut]
-    return head, sketches, mid, worked, tail
-
-
-def _extra_worked_blocks() -> list[str]:
-    try:
-        text = _load_template(GENERATOR_EXTRA_EXAMPLES_FILE)
-    except FileNotFoundError:
-        return []
-    hits = list(_WORKED_HEAD.finditer(text))
-    out = []
-    for i, m in enumerate(hits):
-        end = hits[i + 1].start() if i + 1 < len(hits) else None
-        out.append(text[m.start() : end] if end else text[m.start() :])
-    return out
 
 
 def _renumber(blocks, pattern, label):
@@ -316,22 +258,38 @@ def _renumber(blocks, pattern, label):
     return out
 
 
-# What a stage-1 reply must carry for the child to be usable.
-FAMILY_KEYS = ("STRUCTURAL MUTATION", "CHILD FAMILY")
-# Asked for, parsed when present, but NOT required. WHY FINITE makes the model
-# name the clause that bounds its own answer before it labels the problem --
-# 31% of archived champions were judged ill-posed, nearly all of them "find the
-# maximum X" with the clause that made X finite dropped somewhere in the
-# mutation. Requiring it would be the wrong trade: stage-1 parse failures are
-# already the largest single loss (230 mutation_failed of 2144 candidates), and
-# a fifth mandatory field buys more of them. The value is in writing it, not in
-# gating on it.
-OPTIONAL_FAMILY_KEYS = ("WHY FINITE",)
+# All three fields are part of the live Stage-1 contract.  In particular,
+# accepting a family without WHY FINITE only to ask Stage 2 to return INVALID
+# wastes a model call and records the failure at the wrong boundary.
+FAMILY_KEYS = ("STRUCTURAL MUTATION", "CHILD FAMILY", "WHY FINITE")
+OPTIONAL_FAMILY_KEYS: tuple[str, ...] = ()
 # EVERY header the reply may contain, required or not. The lookahead that ends
 # one field has to know all of them: a header missing from this list is not a
 # boundary, so its whole line is swallowed into the previous field's value --
 # which would have quietly appended the finiteness prose to CHILD FAMILY.
 _FAMILY_KEY_ALT = "|".join(FAMILY_KEYS + OPTIONAL_FAMILY_KEYS)
+_FAMILY_PLACEHOLDER_RE = re.compile(r"\[\[([a-z][a-z0-9_]*)\]\]")
+# A bare one-letter braced symbol such as ``{x}`` is common mathematical set
+# notation.  Multi-character names are the legacy Python-format spelling the
+# live family contract retired; an all-legacy family is rejected independently
+# because it contains no valid ``[[...]]`` token at all.
+_LEGACY_FAMILY_PLACEHOLDER_RE = re.compile(
+    r"(?<!\\)\{(?:[a-z][a-z0-9_]*_[a-z0-9_]*|[a-z][a-z0-9_]+)\}"
+)
+
+
+def _family_placeholder_names(family: str) -> list[str] | None:
+    """Unique placeholder names, or None when the family syntax is invalid."""
+
+    names = list(dict.fromkeys(_FAMILY_PLACEHOLDER_RE.findall(family or "")))
+    if not names:
+        return None
+    without_placeholders = _FAMILY_PLACEHOLDER_RE.sub("", family)
+    if "[[" in without_placeholders or "]]" in without_placeholders:
+        return None
+    if _LEGACY_FAMILY_PLACEHOLDER_RE.search(family):
+        return None
+    return names
 
 
 def parse_family_plan(reply: str) -> dict[str, str] | None:
@@ -366,6 +324,9 @@ def parse_family_plan(reply: str) -> dict[str, str] | None:
             value = match.group(1).strip()
             if value and not value.startswith("<"):
                 out[key] = value
+
+    if _family_placeholder_names(out["CHILD FAMILY"]) is None:
+        return None
     return out
 
 
@@ -494,43 +455,32 @@ def build_generator_task(
 ) -> MutationTask:
     """Stage 2: implement and self-label an already fixed child family.
 
-    Stage 1 is the creative mutation and sees no descriptor vocabulary.  This
-    transcription stage may only attach one top-level DOMAIN to the immutable
-    child family; it receives no target cell or parent label.  PROBLEM_TYPE is
-    never model-declared and is derived by deterministic verification code.
+    Stage 1 is the creative mutation and sees no descriptor vocabulary. This
+    transcription stage receives no parent artefact and may only attach one
+    DOMAIN header to the immutable child family. PROBLEM_TYPE is never
+    model-declared and is derived by deterministic verification code.
     """
-    rng = rng or random
     system_prompt = _render_template(
         _load_template(GENERATOR_SYSTEM_PROMPT_FILE),
         {"domain_values": ", ".join(DOMAINS)},
     )
-    if rotate_shots:
-        head, sketches, mid, worked, tail = _split_generator_system(system_prompt)
-        if worked:
-            pool = list(worked) + _extra_worked_blocks()
-            shown = (
-                rng.sample(pool, GENERATOR_SHOTS_SHOWN)
-                if len(pool) > GENERATOR_SHOTS_SHOWN
-                else list(pool)
-            )
-            rng.shuffle(shown)
-            rng.shuffle(sketches)
-            system_prompt = (
-                head
-                + "".join(sketches)
-                + mid
-                + "".join(_renumber(shown, _WORKED_HEAD, "WORKED EXAMPLE"))
-                + tail
-            )
+    placeholder_names = _family_placeholder_names(plan["CHILD FAMILY"])
+    if placeholder_names is None:
+        raise ValueError(
+            "Stage 2 requires valid [[lower_snake_case]] placeholder syntax"
+        )
+    why_finite = plan.get("WHY FINITE", "").strip()
+    if not why_finite:
+        raise ValueError("Stage 2 requires a nonempty WHY FINITE argument")
+    rendered_placeholder_names = "\n".join(
+        f"- {name}" for name in placeholder_names
+    )
     user_prompt = _render_template(
         _load_template(GENERATOR_USER_PROMPT_FILE),
         {
-            "parent_template": extract_problem_template(parent.source_code)
-            or _parent_problem_text(parent),
-            "parent_source": strip_label_declarations(
-                strip_module_docstring(parent.source_code)
-            ),
             "new_problem": plan["CHILD FAMILY"],
+            "why_finite": why_finite,
+            "placeholder_names": rendered_placeholder_names,
         },
     )
     return MutationTask(

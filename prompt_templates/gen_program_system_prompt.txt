@@ -1,49 +1,87 @@
-Write a Python generator for the supplied parameterized competition-math
-problem family. The reference generator demonstrates only the program shape;
-do not copy its mathematics.
+Implement the supplied, already fixed parameterized competition-math CHILD
+FAMILY. You receive only that family, its finiteness argument, and the exact
+placeholder names. Do not reinterpret or replace the family to fit a label.
 
-Reply with exactly one fenced ```python block and nothing else. Do not add
-archive metadata other than the single DOMAIN declaration required below.
+Reply in exactly one of these two forms and with no additional prose:
 
-The mathematical family is already fixed. Do not change it to fit a label.
-After reading it, choose its one primary top-level mathematical domain from:
+DOMAIN: token
+MODE: expression|boolean|set
+CORE:
+```python
+<core implementation>
+```
+
+or, when the fixed family cannot be implemented safely and unambiguously:
+
+INVALID: <specific reason>
+
+Replace `token` with one allowed domain token, and choose exactly one MODE item
+from the pipe-separated alternatives.
+
+Choose exactly one primary domain token. The allowed domains and their meanings
+are:
+- algebra: equations, identities, polynomials, inequalities, and algebraic structures;
+- geometry: Euclidean or analytic geometric objects and spatial relations;
+- number_theory: integers, divisibility, primes, congruences, and Diophantine relations;
+- discrete_mathematics: finite combinatorial structures, graphs, and discrete processes;
+- applied_mathematics: probability, statistics, modelling, or other applied quantitative settings;
+- calculus: limits, derivatives, integrals, series, and continuous change;
+- precalculus: functions, trigonometry, sequences, and coordinate methods below calculus.
+
+DOMAIN is a self-description of the completed fixed family, never a requested
+destination. Use exactly one token from this list:
 $domain_values
 
-Write exactly one top-level literal assignment `DOMAIN = "<value>"`, using one
-of those exact tokens. This is a self-description of the completed family, not
-a requested destination. Do not declare PROBLEM_TYPE, GROUP, or SKILL; the
-runtime derives the problem type deterministically from the visible request and
-verifier contract.
+MODE is the answer/verifier contract forced by the visible request:
+- boolean: a Yes/No request; answer and check are Python bool values;
+- set: a request for all members of a complete finite unordered set; answer and
+  check are materialized finite collections, never generators;
+- expression: a single value or mathematical expression, including How-many,
+  maximum/minimum-value, and ordinary Compute/Evaluate/What-is-value requests.
 
-The generator must:
-- define generate(seed);
-- create rng = random.Random(seed) and draw every varying parameter from it;
-- return exactly (problem, str(answer), verifier);
-- use a raw string literal for any statement containing LaTeX or backslashes;
-- instantiate exactly the supplied family and make every sampled parameter
-  visibly affect both the statement and its answer;
-- compute answer by solving the question;
-- compute check by a materially independent route, preferably bounded brute
-  force over the stated finite range;
-- contain assert answer == check with an informative message;
-- define or import every referenced name;
-- run for seeds 0 through 4 in seconds and yield at least two distinct problems.
+The runtime derives PROBLEM_TYPE deterministically from the fixed statement and
+MODE: a Boolean request is decision, a complete-set request is search, a
+How-many expression is counting, a maximum/minimum expression is optimization,
+and any other expression request is function. Do not output PROBLEM_TYPE or try
+to steer the family toward any type.
 
-verifier is declarative JSON-safe data. Use exactly one of these forms:
-- {"mode": "expression"} for a single mathematical value or expression;
-- {"mode": "boolean"} for Yes/No (the answer must be "Yes" or "No");
-- {"mode": "set", "elements": ["..."]} when the answer is a complete finite
-  unordered set. In set mode, answer should be a readable rendering of exactly
-  those elements.
+The fenced CORE must obey all of the following:
+- It may contain safe imports and helper definitions, and must contain exactly
+  one function named `def build_instance(rng):`.
+- Do not import `random`; the runtime supplies the seeded `rng` object.
+- Do not define `generate`, assign `DOMAIN`, or emit DOMAIN, PROBLEM_TYPE,
+  GROUP, SKILL, verifier, or other label metadata inside the Python code.
+- Do not render the natural-language problem and do not define a `problem`
+  variable. The runtime renders the fixed CHILD FAMILY by replacing its
+  [[placeholder]] tokens with the returned parameters.
+- Draw every varying quantity through `rng`. Use exactly the supplied
+  placeholder names as parameter keys, with no missing or extra keys.
+- Compute `answer` by solving the fixed question and compute `check` by a
+  materially independent route, preferably a separate bounded enumeration.
+  `check = answer`, aliases, and two calls to the same solving helper are not
+  independent routes.
+- `answer` and `check` must be fully materialized, non-callable values matching
+  MODE. Do not return predicates, lambdas, iterators, generators, or executable
+  verifier logic.
+- End `build_instance` with the assignment
+  `parameters = {"placeholder": local_name, ...}` using the exact supplied
+  names and local values, followed by exactly
+  `return parameters, answer, check`.
+- Bound every sample, loop, search, and collection explicitly. The function
+  must finish in seconds for seeds 0 through 4. Do not use filesystem, network,
+  subprocesses, dynamic imports, `eval`, or `exec`.
 
-Do not emit executable verifier code, a callable, a predicate, or extra keys.
-The verifier describes equivalence only; it does not replace the independent
-answer/check assertion.
+If any placeholder cannot be sampled consistently, the family has no finite
+unambiguous contract, the two independent routes cannot be implemented, or the
+required bounds would be unsafe, return INVALID instead of silently changing
+the family. If the primary domain is genuinely ambiguous from the fixed
+statement, return INVALID rather than guessing.
 
-The visible request and verifier must use one of these mechanically checkable
-contracts, chosen by the supplied family rather than by a target:
-- a Yes/No request uses {"mode": "boolean"};
-- a request for all valid objects uses a complete finite set and set mode;
-- a How-many request returns a nonnegative integer in expression mode;
-- a maximum/minimum-value request returns the extremal value in expression mode;
-- an ordinary Compute/Evaluate/What-is-value request uses expression mode.
+Before replying, verify all five conditions:
+1. Every supplied placeholder appears exactly as a key in `parameters`.
+2. MODE matches the final requested output; a maximum/minimum value is
+   expression, while only a request for all objects is set.
+3. DOMAIN describes the fixed family and is unambiguous.
+4. The name `random` does not occur in CORE; use the supplied `rng` directly.
+5. `answer` and `check` visibly use different computations, such as a formula
+   versus bounded enumeration or a closed form versus bounded accumulation.

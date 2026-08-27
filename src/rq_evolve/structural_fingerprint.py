@@ -34,6 +34,82 @@ _LOOPISH = (ast.For, ast.While, ast.comprehension)
 _COMPS = (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
 
 
+def _stored_name(target: ast.AST, name: str) -> bool:
+    """Whether an assignment target binds ``name`` at module scope."""
+
+    return any(
+        isinstance(node, ast.Name)
+        and isinstance(node.ctx, ast.Store)
+        and node.id == name
+        for node in ast.walk(target)
+    )
+
+
+def _build_instance_bindings(tree: ast.Module) -> list[ast.AST]:
+    """Every top-level claim on the trusted builder entrypoint name.
+
+    The assembler contract is exact-one, not last-definition-wins.  Counting
+    assignments and imports as well as functions prevents a valid-looking
+    ``def build_instance(rng)`` from being silently replaced later in the
+    module before the canonical wrapper calls it.
+    """
+
+    bindings: list[ast.AST] = []
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name == "build_instance":
+                bindings.append(node)
+        elif isinstance(node, ast.Assign):
+            if any(_stored_name(target, "build_instance") for target in node.targets):
+                bindings.append(node)
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
+            if _stored_name(node.target, "build_instance"):
+                bindings.append(node)
+        elif isinstance(node, ast.Import):
+            if any((alias.asname or alias.name.split(".", 1)[0]) == "build_instance"
+                   for alias in node.names):
+                bindings.append(node)
+        elif isinstance(node, ast.ImportFrom):
+            if any((alias.asname or alias.name) == "build_instance" for alias in node.names):
+                bindings.append(node)
+    return bindings
+
+
+def exact_top_level_build_instance(
+    tree: ast.Module,
+) -> tuple[ast.FunctionDef | None, bool]:
+    """Return ``(builder, claimed)`` for the assembled-source contract.
+
+    ``claimed`` distinguishes a legacy module (no top-level binding by this
+    name) from a malformed assembled module.  Callers may preserve their legacy
+    ``generate`` behaviour only in the former case; the latter must not fall
+    through to the common canonical wrapper and accidentally analyse it.
+    """
+
+    bindings = _build_instance_bindings(tree)
+    if not bindings:
+        return None, False
+    if len(bindings) != 1 or not isinstance(bindings[0], ast.FunctionDef):
+        return None, True
+
+    fn = bindings[0]
+    args = fn.args
+    exact_signature = (
+        not fn.decorator_list
+        and not args.posonlyargs
+        and len(args.args) == 1
+        and args.args[0].arg == "rng"
+        and args.args[0].annotation is None
+        and fn.returns is None
+        and not args.vararg
+        and not args.kwonlyargs
+        and not args.kw_defaults
+        and not args.kwarg
+        and not args.defaults
+    )
+    return (fn if exact_signature else None), True
+
+
 def _generate_fn(tree: ast.AST) -> ast.FunctionDef | None:
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == "generate":
@@ -149,7 +225,12 @@ def structural_fingerprint(source_code: str) -> dict | None:
         tree = ast.parse(source_code)
     except (SyntaxError, ValueError):
         return None
-    fn = _generate_fn(tree)
+    builder, builder_claimed = exact_top_level_build_instance(tree)
+    if builder_claimed and builder is None:
+        # Duplicate/rebound/malformed builder: do not fingerprint the trusted
+        # wrapper as though it were the model-owned algorithm.
+        return None
+    fn = builder or _generate_fn(tree)
     if fn is None:
         return None
 
@@ -177,6 +258,7 @@ def structural_fingerprint(source_code: str) -> dict | None:
     check_names = {n.id for st in check for n in ast.walk(st) if isinstance(n, ast.Name)}
 
     return {
+        "entrypoint": fn.name,
         "n_params": len(drawn),
         "draw_kinds": sorted(set(drawn.values())),
         "answer_shape": route_shape(answer, drawn),
@@ -195,6 +277,8 @@ def structural_fingerprint(source_code: str) -> dict | None:
 
 def render_fingerprint(fp: dict) -> str:
     """The exact block that goes into the ``skeleton_forbidden`` prompt."""
+    entrypoint = fp.get("entrypoint", "generate")
+
     def _route(label, shape, count):
         # The statement count is informative for a real route and noise after a
         # degenerate one ("a BARE COPY ..., written as 1 statement(s)").
@@ -208,7 +292,7 @@ def render_fingerprint(fp: dict) -> str:
         _route("CHECK", fp["check_shape"], fp["check_stmts"]),
         "- helper functions: "
         + (", ".join(fp["helpers"]) + (f" ({len(fp['recursive_helpers'])} recursive)" if fp["recursive_helpers"] else "")
-           if fp["helpers"] else "none -- every step is inline in generate()"),
+           if fp["helpers"] else f"none -- every step is inline in {entrypoint}()"),
         f"- control constructs it uses: {', '.join(fp['control']) or 'straight-line code only'}",
     ]
     if fp["check_reads_answer"]:

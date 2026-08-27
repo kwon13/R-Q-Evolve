@@ -34,6 +34,8 @@ from .safe_parse import safe_ast_parse
 import re
 from dataclasses import dataclass
 
+from .structural_fingerprint import exact_top_level_build_instance
+
 # Masked in the canonical template: digits, and the quoted/bracketed entities a
 # generator most often permutes while leaving the mathematics fixed.
 _NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
@@ -69,9 +71,13 @@ def _generate_function(tree: ast.Module) -> ast.FunctionDef | None:
     return None
 
 
-def _rng_names(generate: ast.FunctionDef) -> set[str]:
+def _rng_names(generate: ast.FunctionDef, *, builder_entrypoint: bool = False) -> set[str]:
     """Names bound to a seeded RNG -- reading one IS reading the seed."""
-    names = {"seed"}
+    # The trusted wrapper constructs ``rng = random.Random(seed)`` and passes it
+    # into ``build_instance(rng)``.  Inside that model-owned entrypoint the
+    # argument is therefore the seed-tainted root even though ``seed`` itself is
+    # deliberately absent.
+    names = {"rng"} if builder_entrypoint else {"seed"}
     for node in ast.walk(generate):
         if not isinstance(node, ast.Assign):
             continue
@@ -99,11 +105,17 @@ def z_sensitive_fraction(source: str) -> float:
         tree = safe_ast_parse(source)
     except (SyntaxError, ValueError):
         return 1.0
-    generate = _generate_function(tree)
+    builder, builder_claimed = exact_top_level_build_instance(tree)
+    if builder_claimed and builder is None:
+        # A duplicate, rebound, or malformed builder must not inherit the
+        # canonical wrapper's perfect-looking sensitivity.  Returning zero is
+        # fail-closed at the archive's min_z_sensitive gate.
+        return 0.0
+    generate = builder or _generate_function(tree)
     if generate is None:
         return 1.0
 
-    tainted = _rng_names(generate)
+    tainted = _rng_names(generate, builder_entrypoint=builder is not None)
     edges: list[tuple[set[str], set[str]]] = []
     for node in ast.walk(generate):
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):

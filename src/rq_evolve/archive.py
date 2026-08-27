@@ -19,6 +19,7 @@ from .concepts import DOMAINS, PROBLEM_TYPES, axis_index
 from .program import ProblemProgram
 from .problem_type import PROBLEM_TYPE_RULESET, problem_type_ruleset_sha256
 from .scoring import selection_priority
+from .structural_fingerprint import exact_top_level_build_instance
 
 ARCHIVE_SCHEMA = "rq-evolve-domain-problem-type-v2"
 ARCHIVE_SCHEMA_VERSION = 2
@@ -503,13 +504,24 @@ class MAPElitesArchive:
         Cached on the program's metadata like ``template_text``, so the archive
         sweep costs one parse per program rather than one per comparison.
         """
-        cached = (program.metadata or {}).get("_ast_skeleton")
+        # v2 selects the model-owned build_instance subtree when the trusted
+        # assembler contract is present.  Never reuse the pre-builder cache:
+        # those entries flatten the whole module and are dominated by the common
+        # canonical generate wrapper.
+        cache_key = "_ast_skeleton_v2_builder_aware"
+        cached = (program.metadata or {}).get(cache_key)
         if cached is not None:
             return tuple(cached) or None
         try:
             tree = ast.parse(program.source_code)
         except SyntaxError:
-            program.metadata["_ast_skeleton"] = []
+            program.metadata[cache_key] = []
+            return None
+        builder, builder_claimed = exact_top_level_build_instance(tree)
+        if builder_claimed and builder is None:
+            # Never fall through to the shared wrapper when the builder name is
+            # duplicated/rebound or its signature is malformed.
+            program.metadata[cache_key] = []
             return None
         seq: list[str] = []
 
@@ -518,8 +530,11 @@ class MAPElitesArchive:
             for child in ast.iter_child_nodes(node):
                 walk(child)
 
-        walk(tree)
-        program.metadata["_ast_skeleton"] = seq
+        # Legacy generate-only sources retain the old whole-module fingerprint.
+        # Assembled sources intentionally exclude imports, the frozen family
+        # template, DOMAIN, and the canonical generate shell.
+        walk(builder or tree)
+        program.metadata[cache_key] = seq
         return tuple(seq)
 
     def _find_structural_duplicate(

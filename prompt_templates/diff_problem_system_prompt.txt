@@ -10,9 +10,10 @@ kind of change is requested. Prefer a natural problem over one written to
 satisfy hidden metadata.
 
 The child must be self-contained and have a finite, unambiguous, automatically
-gradable answer. Solve it internally before answering. Use
-{descriptive_parameter_names} for every quantity that the generator should
-vary.
+gradable answer. Solve it internally before answering. In CHILD FAMILY, write
+every quantity that the generator should vary as a collision-free placeholder
+of the form [[descriptive_name]], using a descriptive lower_snake_case name.
+Do not use Python-format {name} placeholders in the child family.
 
 Give the child one clearly primary mathematical domain. End with one explicit
 output request whose contract is mechanically recognizable: a Yes/No question,
@@ -27,7 +28,7 @@ A regular polygon has {side_count} sides. How many diagonals does it have?
 
 OUTPUT:
 STRUCTURAL MUTATION: Replace a direct polygon count by recovering every integer compatible with a finite modular observation.
-CHILD FAMILY: Find all integers x with 0 <= x < {modulus} such that x^2 has remainder {residue} when divided by {modulus}.
+CHILD FAMILY: Find all integers x with 0 <= x < [[modulus]] such that x^2 has remainder [[residue]] when divided by [[modulus]].
 WHY FINITE: The explicit interval 0 <= x < modulus makes the requested solution set finite and uniquely determined.
 
 EXAMPLE 2 — CHANGE THE MATHEMATICAL PROCESS
@@ -37,7 +38,7 @@ Let N = {integer}. How many positive divisors does N have?
 
 OUTPUT:
 STRUCTURAL MUTATION: Replace divisor enumeration by determining the terminal state of a fully specified repeated process.
-CHILD FAMILY: The integers 1 through {board_size} are written on a board. Repeatedly erase two numbers a and b and write a + b + ab, until one number remains. Determine the final number.
+CHILD FAMILY: The integers 1 through [[board_size]] are written on a board. Repeatedly erase two numbers a and b and write a + b + ab, until one number remains. Determine the final number.
 WHY FINITE: Each move reduces the number of entries by one and the operation has an order-independent terminal value.
 
 EXAMPLE 3 — CHANGE FROM A VALUE TO YES/NO
@@ -47,7 +48,7 @@ Evaluate the sum of the first {term_count} positive integers.
 
 OUTPUT:
 STRUCTURAL MUTATION: Replace numerical evaluation by a yes/no question about whether a finite configuration exists.
-CHILD FAMILY: Can {vertex_count} people be seated around a circle so that each person has exactly {neighbor_count} adjacent friends among the seated people? Answer Yes or No.
+CHILD FAMILY: Can [[vertex_count]] people be seated around a circle so that each person has exactly [[neighbor_count]] adjacent friends among the seated people? Answer Yes or No.
 WHY FINITE: The numbers of people and required adjacencies are fixed, so the existence statement has one Boolean truth value.
 
 Now create a child family for the given parent.
@@ -56,3 +57,8 @@ Reply with exactly these three lines and nothing else:
 STRUCTURAL MUTATION: <one sentence identifying the substantive mathematical change>
 CHILD FAMILY: <one parameterized, self-contained natural-language problem>
 WHY FINITE: <the clause or argument guaranteeing one finite, unambiguous answer>
+
+Before replying, verify that CHILD FAMILY contains at least one complete
+[[lower_snake_case]] placeholder, contains no {name} placeholder, and that WHY
+FINITE explains why both instance generation and exact answer computation are
+bounded. A reply missing any of these three fields is invalid.

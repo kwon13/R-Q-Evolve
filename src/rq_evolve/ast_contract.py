@@ -431,16 +431,47 @@ def _alias_closure(generate: ast.FunctionDef, names: set[str]) -> set[str]:
 
 
 def _name_graph(body: list[ast.stmt]) -> list[tuple[set[str], set[str]]]:
-    """``(targets, reads)`` per leaf assignment, never entering a nested def."""
+    """``(targets, reads)`` data/control dependencies, excluding nested defs.
+
+    A value updated in ``for _ in range(n)`` depends on ``n`` through the
+    number of updates even when the loop body never reads ``n`` directly.
+    Likewise, a branch assignment depends on its condition.  Omitting these
+    control edges falsely labels ordinary recurrence and enumeration programs
+    as having statement parameters disconnected from their answers.
+    """
     edges: list[tuple[set[str], set[str]]] = []
+
+    def loop_controlled(
+        nested: list[tuple[set[str], set[str]]], control_reads: set[str]
+    ) -> None:
+        edges.extend(nested)
+        # Only an accumulator/recurrence that re-reads a value it assigns is
+        # coupled to the iteration count solely through control flow.  A plain
+        # ``value = 0`` repeated n times is still semantically constant and
+        # must not acquire a spurious dependency on n.
+        carried = {
+            name
+            for assigned, reads in nested
+            for name in assigned
+            if name in reads
+        }
+        if carried and control_reads:
+            edges.append((carried, control_reads))
+
     for stmt in body:
         if isinstance(stmt, _SCOPES):
             edges.append(({stmt.name}, _loaded_names(stmt)))
         elif isinstance(stmt, (ast.For, ast.AsyncFor)):
             edges.append((_stored_names(stmt.target), _loaded_names(stmt.iter)))
-            edges.extend(_name_graph(stmt.body))
+            loop_controlled(_name_graph(stmt.body), _loaded_names(stmt.iter))
             edges.extend(_name_graph(stmt.orelse))
-        elif isinstance(stmt, (ast.While, ast.If)):
+        elif isinstance(stmt, ast.While):
+            loop_controlled(_name_graph(stmt.body), _loaded_names(stmt.test))
+            edges.extend(_name_graph(stmt.orelse))
+        elif isinstance(stmt, ast.If):
+            # General semantic control dependence is deliberately not claimed:
+            # ``if n: answer = 1; else: answer = 1`` does not make answer
+            # depend on n.  Direct data reads inside either branch remain.
             edges.extend(_name_graph(stmt.body))
             edges.extend(_name_graph(stmt.orelse))
         elif isinstance(stmt, (ast.With, ast.AsyncWith)):

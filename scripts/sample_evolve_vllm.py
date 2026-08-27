@@ -22,6 +22,7 @@ import os
 import sys
 import time
 from collections import Counter
+from dataclasses import asdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +30,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from rq_evolve.archive import MAPElitesArchive  # noqa: E402
 from rq_evolve.backends import PendingRollouts, RolloutRecord  # noqa: E402
-from rq_evolve.concepts import GROUPS, SKILLS  # noqa: E402
+from rq_evolve.concepts import DOMAINS, PROBLEM_TYPES  # noqa: E402
 from rq_evolve.config import load_config  # noqa: E402
 from rq_evolve.evolution import RQEvolver  # noqa: E402
 from rq_evolve.openai_evaluator import load_project_dotenv  # noqa: E402
@@ -74,6 +75,7 @@ class VLLMBackend:
         self.n_mutate_calls = 0
         self.n_generated = 0
         self.transcript: list[dict] = []
+        self.last_mutation_logprobs: list[tuple[int, float] | None] = []
 
     # --- session lifecycle: a resident engine has nothing to wake or push ---
     def sync_weights(self) -> None:
@@ -85,7 +87,17 @@ class VLLMBackend:
     def end_session(self) -> None:
         pass
 
-    def _chat(self, messages, *, temperature, top_p, max_tokens, stop=None):
+    def _chat(
+        self,
+        messages,
+        *,
+        temperature,
+        top_p,
+        max_tokens,
+        stop=None,
+        logprobs=0,
+        allowed_token_ids=None,
+    ):
         from vllm import SamplingParams
 
         prompts = [
@@ -99,7 +111,8 @@ class VLLMBackend:
             top_p=top_p,
             max_tokens=max_tokens,
             stop=list(stop) if stop else None,
-            logprobs=0,
+            logprobs=logprobs,
+            allowed_token_ids=allowed_token_ids,
         )
         return self.llm.generate(prompts, params)
 
@@ -113,23 +126,54 @@ class VLLMBackend:
             or [{"role": "user", "content": task.prompt}]
             for task in tasks
         ]
-        # A mutation writes a whole generator; a judge verdict is seven fields.
+        logprob_values = {task.logprobs for task in tasks}
+        allowed_values = {
+            tuple(task.allowed_token_ids) if task.allowed_token_ids is not None else None
+            for task in tasks
+        }
+        if len(logprob_values) != 1 or len(allowed_values) != 1:
+            raise ValueError(
+                "one standalone vLLM mutation batch must share logprobs and "
+                "allowed_token_ids"
+            )
+        # Stage-2 writes a core, while a DOMAIN label arm writes one token.
         max_tokens = max(
             (
-                self.args.judge_tokens
-                if task.stage == "judge"
-                else self.args.mutate_tokens
+                int(task.max_output_tokens)
+                if task.max_output_tokens is not None
+                else (
+                    self.args.judge_tokens
+                    if task.stage == "judge"
+                    else self.args.mutate_tokens
+                )
             )
             for task in tasks
         )
+        requested_logprobs = next(iter(logprob_values))
+        allowed_token_ids = next(iter(allowed_values))
         outputs = self._chat(
             conversations,
             temperature=tasks[0].temperature if tasks[0].temperature is not None else 0.0,
             top_p=tasks[0].top_p if tasks[0].top_p is not None else 1.0,
             max_tokens=max_tokens,
+            logprobs=requested_logprobs or 0,
+            allowed_token_ids=(
+                list(allowed_token_ids) if allowed_token_ids is not None else None
+            ),
         )
         self.n_generated += len(outputs)
         texts = [o.outputs[0].text for o in outputs]
+        self.last_mutation_logprobs = []
+        for output in outputs:
+            sample = output.outputs[0]
+            pair = None
+            try:
+                token_id = int(sample.token_ids[0])
+                token_logprob = sample.logprobs[0][token_id]
+                pair = (token_id, float(token_logprob.logprob))
+            except (IndexError, KeyError, TypeError, ValueError, AttributeError):
+                pair = None
+            self.last_mutation_logprobs.append(pair)
         # Keep every raw generation. A CandidateReport carries only a reason
         # string, so without this the source behind "execute failed at seed=0"
         # is unrecoverable and the failure cannot be diagnosed after the fact.
@@ -139,8 +183,8 @@ class VLLMBackend:
                     "stage": stage,
                     "op": task.op,
                     "parent_id": getattr(task.parent, "program_id", ""),
-                    "parent_group": getattr(task.parent, "get_group", lambda: None)(),
-                    "parent_skill": getattr(task.parent, "get_skill", lambda: None)(),
+                    "parent_domain": task.parent.get_domain(),
+                    "parent_problem_type": task.parent.get_problem_type(),
                     "finish_reason": out.outputs[0].finish_reason,
                     "output_tokens": len(out.outputs[0].token_ids),
                     "text": text,
@@ -210,13 +254,16 @@ def render_grid(archive: MAPElitesArchive, title: str) -> str:
     occupied = {
         archive.program_to_cell(c): c for c in archive.champions()
     }
-    lines = [title, "     " + "".join(f"{s[:7]:>9}" for s in SKILLS)]
-    for gi, group in enumerate(GROUPS):
+    lines = [
+        title,
+        " " * 16 + "".join(f"{kind[:7]:>9}" for kind in PROBLEM_TYPES),
+    ]
+    for domain_index, domain in enumerate(DOMAINS):
         row = "".join(
-            "        O" if (gi, si) in occupied else "        ."
-            for si in range(len(SKILLS))
+            "        O" if (domain_index, type_index) in occupied else "        ."
+            for type_index in range(len(PROBLEM_TYPES))
         )
-        lines.append(f"{group[:13]:<14}{row}")
+        lines.append(f"{domain[:15]:<16}{row}")
     return "\n".join(lines)
 
 
@@ -260,11 +307,7 @@ def main() -> int:
     backend = VLLMBackend(args.model, args)
     print(f"[sample] engine ready in {time.monotonic() - t0:.0f}s", flush=True)
 
-    archive = MAPElitesArchive(
-        epsilon=cfg.archive.epsilon,
-        ucb_c=cfg.archive.ucb_c,
-        selection_strategy=cfg.archive.selection_strategy,
-    )
+    archive = MAPElitesArchive(**asdict(cfg.archive))
     evolution = cfg.evolution
     evolution.inner_iterations = args.steps
     evolution.inner_iteration_batch_size = min(args.batch, args.steps)

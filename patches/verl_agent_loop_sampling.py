@@ -36,7 +36,10 @@ import shutil
 import sys
 from pathlib import Path
 
-MARKER = "# [rq-evolve] per-call sampling overrides from meta_info"
+# v2 adds `logprobs` and `allowed_token_ids`, which the authoritative DOMAIN
+# labeler needs. A versioned marker makes an environment carrying the earlier
+# temperature-only patch fail preflight and receive the additive v2 block.
+MARKER = "# [rq-evolve] per-call sampling overrides from meta_info v2"
 
 ANCHOR = """        # override sampling params for validation
         if validate:
@@ -57,8 +60,8 @@ INSERT = f"""
         # which already lets a caller override sampling per call. Validation
         # keeps precedence: its overrides are set above and a validation batch
         # carries none of these keys.
-        # logprobs / allowed_token_ids carry the relabelling probe: one binary
-        # question per SKILL at max_tokens=1, with the answer restricted to the
+        # logprobs / allowed_token_ids carry the DOMAIN labeler: one binary
+        # question per candidate domain at max_tokens=1, restricted to the
         # YES and NO token ids so exp(logprob) is the exact two-way probability
         # rather than a renormalised slice of the top-k.
         for _rq_key in (

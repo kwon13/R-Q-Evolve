@@ -52,9 +52,10 @@ MAP은 `Mathematics` 바로 아래의 `Geometry`에 해당하는 `geometry`만 �
 수용하지 않습니다.
 
 `DOMAINS`와 `PROBLEM_TYPES` tuple은 행/열의 어휘와 표시 순서를 정할 뿐입니다.
-코드 순서가 라벨을 판정하지 않습니다. DOMAIN은 fixed child family의 단일 선언을
-검증하고, PROBLEM_TYPE은 statement의 출력 요구와 답안 verifier를 함께 보는
-결정적 규칙으로 판정합니다.
+코드 순서가 라벨을 판정하지 않습니다. 생성 child의 DOMAIN은 fixed child family에
+대한 7개의 로컬 YES/NO 점수 중 최고값으로 할당하고, PROBLEM_TYPE은 statement의
+출력 요구와 답안 verifier를 함께 보는 결정적 규칙으로 판정합니다. Stage 2는
+DOMAIN을 출력하지 않습니다.
 
 ## 2. Full 7 × 5 archive
 
@@ -65,16 +66,19 @@ runtime archive는 35개 Cartesian-product cell을 항상 모두 만듭니다. b
 프로그램 하나는 정확히 한 cell에만 들어갑니다. 생성된 child는 다음 로컬 검증을
 모두 통과한 경우에만 좌표를 얻습니다.
 
-- stage 2 source가 허용 어휘의 top-level DOMAIN을 정확히 하나 선언한다.
+- stage 2 source에 DOMAIN 선언이 없고, 7개 one-vs-rest YES/NO 점수가 모두 존재한다.
+- 최고 점수와 차점 점수의 확률·margin이 설정된 신뢰도 문턱을 통과한다.
 - 각 verification seed의 statement에서 출력 계약이 모호하지 않게 판정된다.
 - 그 판정과 normalized verifier/reference answer가 호환된다.
 - 모든 verification seed가 동일한 high-confidence PROBLEM_TYPE을 만든다.
 
-DOMAIN 의미를 별도 모델로 재판정하지 않습니다. stage 1에서 family가 이미
-확정된 뒤 stage 2가 하나의 허용값을 선언하며, 코드는 선언의 개수·위치·어휘를
-fail closed로 검사합니다. 다중 라벨, metadata override, secondary cell 복제,
-fallback bin은 사용하지 않습니다. 이 계약은 DOMAIN 의미 판정을 외부 모델의
-변동성에서 분리하는 대신, 선언 자체를 auditable source contract로 취급합니다.
+DOMAIN은 Stage 2의 self-label을 검증하는 값이 아니라 후단 레이블러가 직접 정하는
+값입니다. 같은 학습 중 로컬 policy에 candidate domain별 YES/NO 질문을 보내며,
+출력을 두 토큰으로 제한한 뒤 processed token log-probability에서 P(YES)를 읽습니다.
+7개 중 argmax 하나만 metadata와 cell에 기록합니다. 점수가 누락되거나 모호하면
+solver rollout 전에 fail closed하며, 다중 라벨·secondary cell 복제·fallback bin은
+사용하지 않습니다. 별도 모델이나 외부 API는 추가하지 않습니다. 레이블 시점의
+`policy_iteration`, 7개 확률, prompt/ruleset hash를 archive에 함께 남깁니다.
 
 초기 seed는 빈 archive를 시작하기 위한 최소 bootstrap이며 mask가 아닙니다.
 표의 PROBLEM_TYPE은 source 상수가 아니라 같은 로컬 규칙으로 확인되는 기대
@@ -100,21 +104,25 @@ mutation은 cell coverage 방향을 입력받지 않습니다. `target_cell`, �
    instance를 보고, descriptor 어휘 없이 구조적으로 다른 child family를 자연어로
    제안합니다. 선택적 structural inspiration을 사용할 때도 donor의 문제
    skeleton만 보여 줍니다.
-2. **Stage 2 — generator compilation**: 확정된 child family를 deterministic
-   `generate(seed)` 코드로 옮기고 허용 어휘에서 DOMAIN 하나를 선언합니다. parent
-   코드는 코드 형태의 참고 자료일 뿐이며 parent label과 target cell은 전달되지
-   않습니다.
+2. **Stage 2 — core implementation**: descriptor가 제거된 parent 프로그램 전문과
+   parent family를 변환 예시 문맥으로 보고, 확정된 child family에 대해
+   `build_instance(rng)` 핵심만 작성합니다. trusted assembler가 statement renderer,
+   `generate(seed)`, verifier 골격을 조립합니다. DOMAIN·parent label·target cell은
+   전달하거나 출력하지 않습니다.
 3. **Generic verification**: source, 독립 `answer == check`, 여러 seed 실행,
    statement/answer 일관성을 descriptor와 무관하게 검사합니다.
-4. **Local descriptor validation**: DOMAIN 선언을 정적으로 검증하고, 모든 rendered
-   seed에 대해 statement+verifier 규칙으로 PROBLEM_TYPE을 판정합니다. 한 seed라도
-   모호하거나 결과가 다르면 거절합니다.
+4. **Local descriptor labeling**: fixed child family에 대한 7개 YES/NO 확률로 DOMAIN
+   하나를 할당하고, 모든 rendered seed에 대해 statement+verifier 규칙으로
+   PROBLEM_TYPE을 판정합니다. DOMAIN score가 모호하거나 type 결과가 seed마다
+   다르면 거절합니다.
 5. **Scoring and insertion**: fresh instances에서 rollout을 만들고 `R_Q`로 해당
    cell champion과 경쟁합니다. 같은 cell에 머무는 구조적 변이도 허용됩니다.
 
-좌표 검증은 순수 로컬 코드이므로 업데이트되는 solver policy나 별도 모델의 응답에
-의존하지 않습니다. `structural_inspiration`은 label-free 선택 사항이고 첫 clean
-run에서는 꺼져 있습니다.
+PROBLEM_TYPE과 verifier 검사는 순수 로컬 코드입니다. DOMAIN 레이블은 별도 모델이
+아니라 현재 solver policy의 restricted YES/NO readback을 사용하므로 학습 시점에
+따라 달라질 수 있습니다. 이를 숨기지 않고 `policy_iteration`을 provenance로
+고정합니다. `structural_inspiration`은 label-free 선택 사항이고 첫 clean run에서는
+꺼져 있습니다.
 
 ## 4. Declarative verifier와 type rules
 
@@ -162,7 +170,7 @@ schema에서 수학적으로 동치인 표기 대안을 표현할 수 있지만 
 - hard-killable sandbox에서 여러 seed 실행, visible problem variation, 같은 문장에
   서로 다른 gold가 붙지 않는지 확인;
 - 선언형 verifier schema 및 reference answer consistency;
-- exact-one/in-vocabulary DOMAIN source contract;
+- Stage-2 source의 DOMAIN 부재와 7-way YES/NO label score 완전성·confidence;
 - 전 verification seed의 deterministic PROBLEM_TYPE high-confidence 합의;
 - optional donor-copy rejection;
 - seed-variation, behavior duplicate, template duplicate, near-template duplicate,

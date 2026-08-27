@@ -171,8 +171,9 @@ class ProblemProgram:
     s_hat: float = 0.0
     u_score: float = 0.0
     rq_score: float = 0.0
-    # Canonical Domain x Computational-Problem-Type coordinate. DOMAIN is an
-    # exact-one source declaration; PROBLEM_TYPE is cached only after the
+    # Canonical Domain x Computational-Problem-Type coordinate. Generated
+    # DOMAIN is cached only after local family labeling; bootstrap seeds retain
+    # an exact source declaration. PROBLEM_TYPE is cached only after the
     # deterministic statement/verifier contract passes on every verify seed.
     niche_domain: int = -1
     niche_problem_type: int = -1
@@ -222,9 +223,9 @@ class ProblemProgram:
         return None
 
     # --- MAP-Elites axis labels -------------------------------------------
-    # Mutation never receives either label as a target. Stage 2 self-declares
-    # DOMAIN after the mathematical family is fixed; PROBLEM_TYPE is inferred
-    # by verification code and cached in metadata.
+    # Mutation never receives either label as a target. Stage 2 emits no DOMAIN;
+    # a later label-blind family readback writes generated metadata.
+    # PROBLEM_TYPE is inferred by verification code and cached in metadata.
 
     def declared_domain(self) -> str | None:
         return self._top_level_string_constant("DOMAIN")
@@ -233,7 +234,20 @@ class ProblemProgram:
         return self._top_level_string_constant("PROBLEM_TYPE")
 
     def get_domain(self) -> str | None:
-        return self.declared_domain()
+        declared = self.declared_domain()
+        if declared is not None:
+            return declared
+        contract = self.metadata.get("descriptor_contract") or {}
+        labeling = self.metadata.get("domain_labeling") or {}
+        domain = self.metadata.get("domain")
+        if (
+            self.metadata.get("op") == "mutate"
+            and labeling.get("passed") is True
+            and labeling.get("predicted") == domain
+            and contract.get("domain") == domain
+        ):
+            return domain
+        return None
 
     def get_problem_type(self) -> str | None:
         # A source declaration is never authoritative. Live verification clears

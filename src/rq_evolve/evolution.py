@@ -1,12 +1,20 @@
 import collections
+import ast
 import hashlib
 import json
+import math
 import random
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .archive import MAPElitesArchive, StructuralInspirationSelection
+from .archive import (
+    GENERATED_DOMAIN_AUTHORITY,
+    MANUAL_DOMAIN_AUTHORITY,
+    SOURCE_DOMAIN_AUTHORITY,
+    MAPElitesArchive,
+    StructuralInspirationSelection,
+)
 from .ast_contract import check_generator_contract, check_problem_text
 from .backends import EvolutionBackend, RolloutRecord
 from .code_utils import (
@@ -21,7 +29,7 @@ from .code_utils import (
     TRUSTED_ASSEMBLER_VERSION,
     validated_domain_declaration,
 )
-from .concepts import validate_label_decl
+from .concepts import DOMAINS, validate_label_decl
 from .config import EvolutionConfig, TrainingDataConfig
 from .constancy import canonical_template
 from .dataset import (
@@ -40,10 +48,13 @@ from .program import ProblemInstance, ProblemProgram
 from .replay import PreviousRQScoreboard, RolloutReplayBuffer
 from .seed_stream import SeedStream
 from .prompts import (
+    DOMAIN_LABELING_METHOD,
     MutationTask,
     MUTATION_OP,
+    build_domain_labeling_task,
     build_family_task,
     build_generator_task,
+    domain_labeling_ruleset_sha256,
     parse_family_plan,
 )
 from .scoring import RQResult, compute_rq_program, is_frontier, score_seed
@@ -74,6 +85,11 @@ class CandidateReport:
     # unknowable.
     parent_id: str | None = None
     inspiration: dict | None = None
+    # Full one-vs-rest DOMAIN score audit on labeler rejection. Accepted rows
+    # retain the same mapping in child/archive metadata.
+    domain_labeling: dict | None = None
+    # Detailed prompt-copy comparison for rejected Stage-2 one-shot copies.
+    copy_audit: dict | None = None
 
 
 def _logged_source(source: str | None) -> str | None:
@@ -99,6 +115,35 @@ def _report_context(task: "MutationTask | None") -> dict:
         "parent_id": getattr(parent, "program_id", None),
         "inspiration": dict(inspiration) if inspiration is not None else None,
     }
+
+
+def _binary_p_yes(
+    pair: tuple[int, float] | None,
+    yes_id: int | None,
+    no_id: int | None,
+) -> float | None:
+    """Recover exact P(YES) from one restricted-token sampled log-prob.
+
+    Decoded text is deliberately not a fallback: without the sampled token's
+    processed log-prob, a greedy YES cannot distinguish 0.51 from 0.99 and
+    would fabricate confidence for the authoritative DOMAIN labeler.
+    """
+
+    if pair is not None and yes_id is not None and no_id is not None:
+        try:
+            token_id, log_probability = pair
+            probability = math.exp(float(log_probability))
+            token_id = int(token_id)
+            if 0.0 <= probability <= 1.0 and token_id in {yes_id, no_id}:
+                return probability if token_id == yes_id else 1.0 - probability
+        except (TypeError, ValueError, OverflowError):
+            pass
+    return None
+
+
+def _probability_logit(probability: float) -> float:
+    bounded = min(max(float(probability), 1e-6), 1.0 - 1e-6)
+    return math.log(bounded / (1.0 - bounded))
 
 
 def _child_metadata(task: "MutationTask") -> dict:
@@ -185,11 +230,45 @@ class RQEvolver:
     mutation_prompt_draw_count: int = 0
     search_draw_count: int = 0
 
+    def __post_init__(self) -> None:
+        expected = bool(self.evolution_config.independent_domain_labeling)
+        actual = bool(self.archive.require_domain_labeling)
+        if expected != actual:
+            raise ValueError(
+                "evolution.independent_domain_labeling must match "
+                "archive.require_domain_labeling so direct insertion and "
+                "snapshot resume cannot bypass the admission gate"
+            )
+        if expected:
+            evolution_probability = float(
+                self.evolution_config.domain_labeling_min_probability
+            )
+            evolution_margin = float(
+                self.evolution_config.domain_labeling_min_logit_margin
+            )
+            if (
+                evolution_probability
+                != self.archive.domain_labeling_min_probability
+                or evolution_margin
+                != self.archive.domain_labeling_min_logit_margin
+            ):
+                raise ValueError(
+                    "evolution and archive DOMAIN-label thresholds must match "
+                    "exactly so snapshots cannot weaken the admission contract"
+                )
+
     def load_seed_programs(self, seed_dir: str | Path) -> list[ProblemProgram]:
         programs: list[ProblemProgram] = []
         certified_files = set(self.evolution_config.manual_certified_seed_files)
         for path in sorted(Path(seed_dir).glob("*.py")):
             program = ProblemProgram.from_file(path, generation=0)
+            program.metadata["manual_seed_source"] = {
+                "method": "loaded_seed_file_v1",
+                "source_file": path.name,
+                "source_sha256": hashlib.sha256(
+                    program.source_code.encode("utf-8")
+                ).hexdigest(),
+            }
             # Each authored seed begins one primary-parent lineage. Descendants
             # inherit this id; structural inspirations never create a second
             # ancestry edge.
@@ -258,17 +337,52 @@ class RQEvolver:
     ) -> tuple[ProblemInstance | None, str | None]:
         """Multi-seed validity plus deterministic descriptor verification.
 
-        There is no classifier call. DOMAIN is one exact top-level literal
-        written by stage 2 after the child family is fixed. PROBLEM_TYPE is
-        inferred from each rendered request and cross-checked with its verifier;
-        all verification seeds must produce the same high-confidence type.
+        In production, generated Stage-2 source contains no DOMAIN. A separate
+        batched, label-blind policy readback assigns DOMAIN from the already
+        fixed family after this local verification and before solver rollouts.
+        Hand-authored bootstrap seeds retain an exact source DOMAIN tied to
+        their loaded-file hash. PROBLEM_TYPE is inferred from each rendered
+        request and cross-checked with its verifier on every verification seed.
         """
         n = n_seeds or self.evolution_config.verify_seeds
         source_errors = lint_generator_source(program.source_code)
         mode = self.evolution_config.ast_contract
         is_generated_mutation = program.metadata.get("op") == MUTATION_OP
-        domain, domain_errors = validated_domain_declaration(program.source_code)
-        source_errors.extend(domain_errors)
+        requires_labeler = self.archive.require_domain_labeling
+        manual_seed_source = program.metadata.get("manual_seed_source")
+        is_loaded_manual_seed = bool(
+            not is_generated_mutation
+            and program.generation == 0
+            and not program.parent_id
+            and isinstance(manual_seed_source, dict)
+            and manual_seed_source.get("method") == "loaded_seed_file_v1"
+            and manual_seed_source.get("source_file")
+            == program.metadata.get("source_file")
+            and manual_seed_source.get("source_sha256")
+            == hashlib.sha256(program.source_code.encode("utf-8")).hexdigest()
+        )
+        if requires_labeler and is_generated_mutation:
+            domain = None
+            try:
+                source_tree = ast.parse(program.source_code)
+            except SyntaxError:
+                source_tree = None
+            if source_tree is None or any(
+                isinstance(node, ast.Name) and node.id == "DOMAIN"
+                for node in ast.walk(source_tree)
+            ):
+                source_errors.append(
+                    "generated Stage-2 source must not declare or read DOMAIN; "
+                    "the local family labeler assigns it later"
+                )
+        else:
+            domain, domain_errors = validated_domain_declaration(program.source_code)
+            source_errors.extend(domain_errors)
+            if requires_labeler and not is_loaded_manual_seed:
+                source_errors.append(
+                    "confirmed archives accept source DOMAIN only from a seed "
+                    "loaded by load_seed_programs"
+                )
         if re.search(
             r"\b(?:PROBLEM_TYPE|GROUP|SKILL)\s*[:=]", program.source_code
         ):
@@ -277,7 +391,12 @@ class RQEvolver:
                 "or field markers"
             )
         # Stale metadata must never override the current source/rules verdict.
-        for key in ("domain", "problem_type", "descriptor_contract"):
+        for key in (
+            "domain",
+            "problem_type",
+            "descriptor_contract",
+            "domain_labeling",
+        ):
             program.metadata.pop(key, None)
         if is_generated_mutation:
             # Determinism only: a seeded `rng`, no direct `random.*` calls, and
@@ -469,7 +588,8 @@ class RQEvolver:
                 f"verification seeds; found {sorted(str(x) for x in inferred_types)}"
             )
         problem_type = next(iter(inferred_types))
-        label_errors = validate_label_decl(domain, problem_type)
+        descriptor_domain = domain if domain is not None else DOMAINS[0]
+        label_errors = validate_label_decl(descriptor_domain, problem_type)
         if label_errors:
             return None, "; ".join(label_errors)
         family_contract = None
@@ -516,13 +636,30 @@ class RQEvolver:
         # Stamp authoritative metadata only after every admission gate has
         # passed. A rejected object must not retain a contract that would let a
         # later direct archive call bypass the failed family/leak check.
-        program.metadata["domain"] = domain
+        if domain is not None:
+            program.metadata["domain"] = domain
         program.metadata["problem_type"] = problem_type
         for instance in rendered:
             instance.domain = domain
             instance.problem_type = problem_type
-        program.metadata["descriptor_contract"] = {
-            "domain_authority": "source_exact_one_literal",
+        if self.archive.require_domain_labeling:
+            if is_generated_mutation:
+                domain_authority = "pending_local_policy_binary_label_v1"
+                domain_labeling = None
+            else:
+                domain_authority = MANUAL_DOMAIN_AUTHORITY
+                domain_labeling = {
+                    "method": "manual_seed_source_literal_v1",
+                    "passed": True,
+                    "declared": domain,
+                    "predicted": domain,
+                    "seed_source": dict(manual_seed_source),
+                }
+        else:
+            domain_authority = SOURCE_DOMAIN_AUTHORITY
+            domain_labeling = None
+        descriptor_contract = {
+            "domain_authority": domain_authority,
             "problem_type_authority": "deterministic_statement_and_verifier",
             "problem_type_ruleset": PROBLEM_TYPE_RULESET,
             "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
@@ -536,6 +673,9 @@ class RQEvolver:
                 program.source_code.encode("utf-8")
             ).hexdigest(),
         }
+        if domain_labeling is not None:
+            descriptor_contract["domain_labeling"] = domain_labeling
+        program.metadata["descriptor_contract"] = descriptor_contract
         if family_contract is not None:
             program.metadata["family_contract"] = family_contract
         # Move past verification seeds so the first scored instance is fresh.
@@ -546,6 +686,7 @@ class RQEvolver:
 
     def run_outer_iteration(self, outer_iteration: int) -> dict:
         self.current_iteration = int(outer_iteration)
+        self._domain_labeling_stats = collections.Counter()
         attempted = 0
         inserted = 0
         reports: list[CandidateReport] = []
@@ -717,6 +858,9 @@ class RQEvolver:
         )
         insert_metrics = {f"insert_rejected_{k}": v for k, v in insert_rejects.items()}
         insert_metrics["insert_rejected"] = sum(insert_rejects.values())
+        domain_labeling_metrics = dict(
+            getattr(self, "_domain_labeling_stats", {}) or {}
+        )
 
         result = {
             "outer_iteration": outer_iteration,
@@ -732,6 +876,7 @@ class RQEvolver:
             **replay_metrics,
             **grader_metrics,
             **insert_metrics,
+            **domain_labeling_metrics,
             **inspiration_metrics,
             **status_counts,
             **stats,
@@ -751,10 +896,10 @@ class RQEvolver:
                                                for one Reflexion self-fix;
           * ``{"report": CandidateReport}`` -- terminal; carries the outcome.
 
-        Flow: mutate() -> deterministic verify and descriptor assignment ->
-        split into the three shapes -> _resolve_retries -> generate_rollouts on
-        survivors -> each child scored and archived into a terminal
-        CandidateReport. See docs/PIPELINE.md
+        Flow: mutate() -> deterministic local verification -> split into the
+        three shapes -> _resolve_retries -> independent DOMAIN labeling ->
+        generate_rollouts on survivors -> each child scored and archived into
+        a terminal CandidateReport. See docs/PIPELINE.md
         ("Evolution Candidate State") for the diagram and full status vocabulary.
         """
         parents: list[ProblemProgram] = []
@@ -833,6 +978,37 @@ class RQEvolver:
                         }
                     )
                 elif inst is not None:
+                    prompt_copy = self._check_prompt_example_copy(task, child)
+                    if prompt_copy and prompt_copy["rejected"]:
+                        comparison = next(
+                            (
+                                item
+                                for item in prompt_copy["comparisons"]
+                                if item.get("rejected")
+                            ),
+                            {},
+                        )
+                        copy_reason = (
+                            f"example={prompt_copy.get('example_index')} "
+                            f"reason={prompt_copy.get('reason')} "
+                            f"near={comparison.get('near_template_ratio')} "
+                            f"structural={comparison.get('structural_ratio')}"
+                        )
+                        entries.append(
+                            {
+                                "report": CandidateReport(
+                                    status="prompt_example_copy_rejected",
+                                    op=task.op,
+                                    child_id=child.program_id,
+                                    reason=copy_reason,
+                                    source_code=_logged_source(child.source_code),
+                                    ast_findings=_ast_findings(child),
+                                    copy_audit=prompt_copy,
+                                    **_report_context(task),
+                                )
+                            }
+                        )
+                        continue
                     copy_verdict = self._check_structural_inspiration_copy(task, child)
                     if copy_verdict and copy_verdict["rejected"]:
                         entries.append(
@@ -913,6 +1089,7 @@ class RQEvolver:
             # reason and re-verify. Runs inside the open vLLM session so the extra
             # generate reuses the already-awake rollout worker.
             self._resolve_retries(entries)
+            self._apply_domain_labeling(entries)
 
             to_eval = [e for e in entries if "child" in e]
             # A candidate is graded on fresh seeds beyond those used by the
@@ -1038,6 +1215,237 @@ class RQEvolver:
         _record_inspiration_copy_gate(task, child, verdict)
         return verdict
 
+    def _check_prompt_example_copy(
+        self, task: MutationTask, child: ProblemProgram
+    ) -> dict | None:
+        """Reject a child copied from a concrete example visible to Stage 2."""
+
+        examples = tuple(getattr(task, "copy_exclusion_examples", ()) or ())
+        if not examples:
+            return None
+        verdicts = []
+        for example in examples:
+            verdict = self.archive.compare_with_structural_inspiration(
+                child,
+                example,
+                # The accepted interface example is intentionally concise.
+                # The archive-wide floor protects arbitrary short champions;
+                # here the comparison target is a known, exact prompt source.
+                near_duplicate_min_chars=40,
+            )
+            verdict["example_index"] = int(
+                (example.metadata or {}).get("prompt_copy_exclusion_index", 0)
+            )
+            verdict["family_sha256"] = str(
+                (example.metadata or {}).get("family_sha256", "")
+            )
+            # A bare AST-shape collision is too broad for a short prompt
+            # example: unrelated product/counting families can share the same
+            # anonymized skeleton. Require some textual overlap when structure
+            # is the sole signal; exact behavior/template gates remain strict.
+            if verdict.get("reason") == "structural_duplicate" and not (
+                float(verdict.get("near_template_ratio") or 0.0) >= 0.55
+                or float(verdict.get("token_jaccard") or 0.0) >= 0.35
+            ):
+                verdict["raw_structural_rejected"] = True
+                verdict["rejected"] = False
+                verdict["reason"] = None
+            verdicts.append(verdict)
+        rejected = next(
+            (verdict for verdict in verdicts if verdict.get("rejected")), None
+        )
+        audit = {
+            "checked": True,
+            "rejected": rejected is not None,
+            "reason": (rejected or {}).get("reason"),
+            "example_index": (rejected or {}).get("example_index"),
+            "comparisons": verdicts,
+        }
+        child.metadata["prompt_example_copy_gate"] = audit
+        return audit
+
+    def _domain_labeling_token_ids(self) -> tuple[int | None, int | None]:
+        """Exact single-token ids for YES/NO, or no restriction if unavailable."""
+
+        cached = getattr(self, "_domain_labeling_ids", None)
+        if cached is not None:
+            return cached
+        ids: tuple[int | None, int | None] = (None, None)
+        tokenizer = getattr(self.backend, "tokenizer", None)
+        if tokenizer is not None:
+            try:
+                yes = tokenizer.encode("YES", add_special_tokens=False)
+                no = tokenizer.encode("NO", add_special_tokens=False)
+                if len(yes) == len(no) == 1 and int(yes[0]) != int(no[0]):
+                    ids = (int(yes[0]), int(no[0]))
+            except Exception:
+                ids = (None, None)
+        self._domain_labeling_ids = ids
+        return ids
+
+    def _apply_domain_labeling(self, entries: list[dict]) -> None:
+        """Assign generated DOMAIN with the local seven-arm binary labeler.
+
+        Stage 2 supplies no DOMAIN.  Each fixed family is paired with every
+        Omni top-level domain, and the current local policy emits a token from
+        the restricted vocabulary {YES, NO}.  The one-vs-rest argmax is the
+        authoritative label—not a check of a generator-proposed label—only
+        when both confidence thresholds pass.
+        """
+
+        if not self.evolution_config.independent_domain_labeling:
+            return
+        live = [entry for entry in entries if "child" in entry and "inst" in entry]
+        if not live:
+            return
+
+        yes_id, no_id = self._domain_labeling_token_ids()
+        token_contract_error = (
+            None
+            if yes_id is not None and no_id is not None
+            else "tokenizer does not encode YES and NO as two distinct tokens"
+        )
+        allowed = [yes_id, no_id] if token_contract_error is None else None
+        tasks: list[MutationTask] = []
+        ownership: list[tuple[int, str]] = []
+        families: list[str] = []
+        for index, entry in enumerate(live):
+            family = str(
+                ((entry["task"].provenance or {}).get("family_plan") or {}).get(
+                    "CHILD FAMILY", ""
+                )
+            ).strip()
+            families.append(family)
+            if family and token_contract_error is None:
+                for domain in DOMAINS:
+                    tasks.append(
+                        build_domain_labeling_task(
+                            parent=entry["task"].parent,
+                            child_family=family,
+                            domain=domain,
+                            allowed_token_ids=allowed,
+                        )
+                    )
+                    ownership.append((index, domain))
+
+        if tasks:
+            self.backend.mutate(tasks)
+        pairs = getattr(self.backend, "last_mutation_logprobs", None) or []
+        by_child: dict[int, dict[str, float]] = collections.defaultdict(dict)
+        for offset, (child_index, domain) in enumerate(ownership):
+            probability = _binary_p_yes(
+                pairs[offset] if offset < len(pairs) else None,
+                yes_id,
+                no_id,
+            )
+            if probability is not None:
+                by_child[child_index][domain] = float(probability)
+
+        stats = getattr(self, "_domain_labeling_stats", None)
+        if stats is None:
+            stats = collections.Counter()
+            self._domain_labeling_stats = stats
+        ruleset_hash = domain_labeling_ruleset_sha256()
+        for index, entry in enumerate(live):
+            child = entry["child"]
+            task = entry["task"]
+            probabilities = by_child.get(index, {})
+            ranked = sorted(
+                probabilities.items(), key=lambda item: item[1], reverse=True
+            )
+            predicted = ranked[0][0] if ranked else None
+            top_probability = ranked[0][1] if ranked else 0.0
+            margin = (
+                _probability_logit(ranked[0][1])
+                - _probability_logit(ranked[1][1])
+                if len(ranked) >= 2
+                else 0.0
+            )
+            failure = None
+            failure_kind = None
+            if not families[index]:
+                failure_kind = "missing_family"
+                failure = "DOMAIN labeler has no fixed CHILD FAMILY"
+            elif token_contract_error is not None:
+                failure_kind = "tokenizer_contract"
+                failure = token_contract_error
+            elif set(probabilities) != set(DOMAINS):
+                failure_kind = "incomplete"
+                missing = sorted(set(DOMAINS) - set(probabilities))
+                failure = "DOMAIN labeler returned no score for " + ", ".join(
+                    missing
+                )
+            elif top_probability < float(
+                self.evolution_config.domain_labeling_min_probability
+            ):
+                failure_kind = "low_probability"
+                failure = (
+                    f"top domain probability {top_probability:.4f} is below "
+                    f"{self.evolution_config.domain_labeling_min_probability:.4f}"
+                )
+            elif margin < float(
+                self.evolution_config.domain_labeling_min_logit_margin
+            ):
+                failure_kind = "low_margin"
+                failure = (
+                    f"top-vs-runner logit margin {margin:.4f} is below "
+                    f"{self.evolution_config.domain_labeling_min_logit_margin:.4f}"
+                )
+            family_sha = str(
+                ((child.metadata or {}).get("generator_contract") or {}).get(
+                    "family_sha256", ""
+                )
+            )
+            labeling = {
+                "method": DOMAIN_LABELING_METHOD,
+                "passed": failure is None,
+                "predicted": predicted,
+                "probabilities": {
+                    domain: float(probabilities[domain])
+                    for domain in DOMAINS
+                    if domain in probabilities
+                },
+                "top_probability": float(top_probability),
+                "logit_margin": float(margin),
+                "min_probability": float(
+                    self.evolution_config.domain_labeling_min_probability
+                ),
+                "min_logit_margin": float(
+                    self.evolution_config.domain_labeling_min_logit_margin
+                ),
+                "ruleset_sha256": ruleset_hash,
+                "family_sha256": family_sha,
+                "policy_iteration": int(self.current_iteration),
+                "failure_kind": failure_kind,
+            }
+            child.metadata["domain_labeling"] = labeling
+            stats["domain_labeling_attempted"] += 1
+            if failure is not None:
+                stats["domain_labeling_rejected"] += 1
+                stats[f"domain_labeling_rejected_{failure_kind}"] += 1
+                report = CandidateReport(
+                    status="domain_labeling_failed",
+                    op=task.op,
+                    child_id=child.program_id,
+                    reason=failure,
+                    source_code=_logged_source(child.source_code),
+                    ast_findings=_ast_findings(child),
+                    domain_labeling=labeling,
+                    **_report_context(task),
+                )
+                entry.clear()
+                entry["report"] = report
+                continue
+
+            child.metadata["domain"] = predicted
+            descriptor = dict(child.metadata.get("descriptor_contract") or {})
+            descriptor["domain_authority"] = GENERATED_DOMAIN_AUTHORITY
+            descriptor["domain"] = predicted
+            descriptor["domain_labeling"] = labeling
+            child.metadata["descriptor_contract"] = descriptor
+            entry["inst"].domain = predicted
+            stats["domain_labeling_passed"] += 1
+
     # Only rejections that are a deterministic property of the source and its
     # verification seeds, and so cannot come out differently later.
     #
@@ -1118,10 +1526,13 @@ class RQEvolver:
         mutation.
 
         Stage 1 receives no descriptor names, definitions, parent labels, or a
-        desired cell. Stage 2 sees the fixed family and the DOMAIN vocabulary
-        only to attach one self-description; it receives no destination and
-        cannot change the family. PROBLEM_TYPE is derived by verification code.
-        ``targets`` is retained only to fail loudly for stale callers.
+        desired cell. Stage 2 receives the descriptor-free parent program and
+        parent family only as transformation context, plus the immutable child
+        family implementation contract. It receives neither the DOMAIN
+        vocabulary nor a destination and cannot change the child family. The
+        later label-blind readback assigns DOMAIN. PROBLEM_TYPE is derived by
+        verification code. ``targets`` is retained only to fail loudly for
+        stale callers.
         """
         cfg = self.evolution_config
         rotate = cfg.rotate_few_shots
@@ -1198,6 +1609,9 @@ class RQEvolver:
                 rng=prompt_rngs[index][1],
                 provenance=provenance,
                 inspiration_donor=family_tasks[index].inspiration_donor,
+                emit_legacy_domain=(
+                    not cfg.independent_domain_labeling
+                ),
             )
 
         plans: list[dict | None] = [None] * len(parents)
@@ -1288,7 +1702,13 @@ class RQEvolver:
                     "Stage-2 task has no fixed CHILD FAMILY to assemble",
                     None,
                 )
-            source, compile_error = compile_stage2_reply(output, family)
+            source, compile_error = compile_stage2_reply(
+                output,
+                family,
+                require_domain=(
+                    not self.evolution_config.independent_domain_labeling
+                ),
+            )
             if source is None:
                 return None, None, compile_error or "Stage-2 compile failed", None
         else:

@@ -13,6 +13,14 @@ class ArchiveConfig:
     epsilon: float = 0.3
     ucb_c: float = 1.0
     selection_strategy: str = "ucb"
+    # When enabled, a generated child cannot enter or resume in the archive
+    # until the local restricted-token labeler assigns DOMAIN from its fixed
+    # family. Hand-authored bootstrap seeds carry an explicit file contract.
+    require_domain_labeling: bool = False
+    # Duplicated in the archive contract on purpose: snapshot resume must keep
+    # the same score thresholds without trusting mutable evolution metadata.
+    domain_labeling_min_probability: float = 0.55
+    domain_labeling_min_logit_margin: float = 0.50
 
 
 @dataclass(slots=True)
@@ -201,6 +209,12 @@ class EvolutionConfig:
     # silently ignored by dataclass loading.
     relabel_skill: bool = False
     target_cell_injection: bool = False
+    # Label-blind DOMAIN assignment from the already fixed family. Seven
+    # one-token YES/NO calls run as one local-policy batch before solver
+    # rollouts; Stage 2 emits no DOMAIN and no external evaluator/API is used.
+    independent_domain_labeling: bool = False
+    domain_labeling_min_probability: float = 0.55
+    domain_labeling_min_logit_margin: float = 0.50
     # Deterministically reshuffle/sample the available few-shot examples per
     # proposal. Rotation never consults DOMAIN, PROBLEM_TYPE, archive occupancy,
     # or any desired destination.
@@ -306,6 +320,14 @@ class EvolutionConfig:
                 "evolution.relabel_skill is retired: DOMAIN is declared once "
                 "by the fixed child family and PROBLEM_TYPE is derived by "
                 "deterministic statement/verifier rules"
+            )
+        if not 0.0 <= float(self.domain_labeling_min_probability) <= 1.0:
+            raise ValueError(
+                "evolution.domain_labeling_min_probability must be in [0, 1]"
+            )
+        if float(self.domain_labeling_min_logit_margin) < 0.0:
+            raise ValueError(
+                "evolution.domain_labeling_min_logit_margin must be >= 0"
             )
         if float(self.code_temperature) < 0.0:
             raise ValueError("evolution.code_temperature must be >= 0")

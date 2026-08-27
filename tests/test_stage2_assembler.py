@@ -12,9 +12,8 @@ from rq_evolve.code_utils import (
 from rq_evolve.program import ProblemProgram
 
 
-def _reply(core: str, *, domain: str = "algebra", mode: str = "expression") -> str:
+def _reply(core: str, *, mode: str = "expression") -> str:
     return (
-        f"DOMAIN: {domain}\n"
         f"MODE: {mode}\n"
         "CORE:\n"
         "```python\n"
@@ -27,12 +26,9 @@ def _compile(
     core: str,
     family: str = "Let n = [[n]]. Compute the sum from 1 through n.",
     *,
-    domain: str = "algebra",
     mode: str = "expression",
 ) -> str:
-    source, reason = compile_stage2_reply(
-        _reply(core, domain=domain, mode=mode), family
-    )
+    source, reason = compile_stage2_reply(_reply(core, mode=mode), family)
     assert source is not None, reason
     assert reason is None
     return source
@@ -116,12 +112,12 @@ def test_set_answer_and_check_are_compared_as_unordered_members():
     assert instance.verifier["elements"] == sorted(instance.verifier["elements"])
 
 
-def test_compiled_source_embeds_the_trusted_contract_and_one_domain():
+def test_compiled_source_embeds_contract_but_no_stage2_domain():
     family = "Let n = [[n]]. Compute the sum from 1 through n."
-    source = _compile(EXPRESSION_CORE, family, domain="number_theory")
+    source = _compile(EXPRESSION_CORE, family)
     assert f"TRUSTED_ASSEMBLER_VERSION = {TRUSTED_ASSEMBLER_VERSION!r}" in source
     assert f"FAMILY_TEMPLATE = {family!r}" in source
-    assert source.count("DOMAIN = 'number_theory'") == 1
+    assert "DOMAIN" not in source
     assert source.count("def generate(seed):") == 1
     assert "exact built-in data only" in source
 
@@ -131,6 +127,156 @@ def test_compiled_family_template_is_the_next_generation_and_donor_template():
     source = _compile(EXPRESSION_CORE, family)
     assert extract_problem_template(source) == family
     assert extract_problem_statement_template(source) == family
+
+
+def test_unused_visible_placeholder_is_rejected_by_dependency_contract():
+    core = """
+def build_instance(rng):
+    n = rng.randint(3, 20)
+    radius = rng.randint(2, 9)
+    answer = n * (n + 1) // 2
+    check = sum(range(1, n + 1))
+    parameters = {"n": n, "radius": radius}
+    return parameters, answer, check
+"""
+    source, reason = compile_stage2_reply(
+        _reply(core),
+        "Let n = [[n]] and let an auxiliary circle have radius [[radius]]. "
+        "Compute the sum from 1 through n.",
+    )
+    assert source is None
+    assert "P1" in reason
+    assert "radius" in reason
+
+
+def test_tuple_sampling_does_not_hide_an_unused_visible_placeholder():
+    core = """
+def build_instance(rng):
+    n, radius = rng.randint(3, 20), rng.randint(2, 9)
+    answer = n * (n + 1) // 2
+    check = sum(range(1, n + 1))
+    parameters = {"n": n, "radius": radius}
+    return parameters, answer, check
+"""
+    source, reason = compile_stage2_reply(
+        _reply(core),
+        "Let n = [[n]] and an auxiliary radius be [[radius]]. Compute the "
+        "sum from 1 through n.",
+    )
+    assert source is None
+    assert "P1" in reason
+    assert "radius" in reason
+
+
+def test_repeated_minmax_argument_is_not_an_independent_check():
+    core = """
+def build_instance(rng):
+    n = rng.randint(3, 20)
+    answer = n * n
+    check = max(n * n, n * n)
+    parameters = {"n": n}
+    return parameters, answer, check
+"""
+    source, reason = compile_stage2_reply(
+        _reply(core), "Let n = [[n]]. Compute n squared."
+    )
+    assert source is None
+    assert "A3v" in reason
+
+
+def test_unbounded_full_line_maximum_is_rejected_but_bounded_neighbors_pass():
+    core = """
+def build_instance(rng):
+    length = rng.randint(2, 20)
+    answer = length + 0
+    check = max(range(length + 1))
+    parameters = {"length": length}
+    return parameters, answer, check
+"""
+    unbounded = (
+        "Given a line with parameter [[length]], find the maximum distance "
+        "from the origin to any point on the line."
+    )
+    source, reason = compile_stage2_reply(_reply(core), unbounded)
+    assert source is None
+    assert "unbounded line" in reason
+
+    for bounded in (
+        "Given a line segment of length [[length]], find the maximum distance "
+        "between its endpoints.",
+        "Given a line with parameter [[length]], find the minimum distance "
+        "from the origin to any point on the line.",
+    ):
+        source, reason = compile_stage2_reply(_reply(core), bounded)
+        assert source is not None, reason
+
+    source, reason = compile_stage2_reply(
+        _reply(core),
+        "Given a bounded integer [[length]], find the maximum distance from "
+        "the origin to any point on the line.",
+    )
+    assert source is None
+    assert "unbounded line" in reason
+
+
+def test_value_dependent_subsets_require_the_set_elements_or_a_rule():
+    cardinality_only_core = """
+def build_instance(rng):
+    cardinality = rng.randint(3, 12)
+    answer = 2 ** cardinality
+    check = sum(1 for _ in range(2 ** cardinality))
+    parameters = {"cardinality": cardinality}
+    return parameters, answer, check
+"""
+    underspecified = (
+        "Given a set of [[cardinality]] distinct integers, how many subsets "
+        "have a sum divisible by 3?"
+    )
+    source, reason = compile_stage2_reply(
+        _reply(cardinality_only_core), underspecified
+    )
+    assert source is None
+    assert "only the cardinality" in reason
+
+    source, reason = compile_stage2_reply(
+        _reply(cardinality_only_core),
+        "Given a set of [[cardinality]] distinct integers, how many subsets "
+        "does it have?",
+    )
+    assert source is not None, reason
+
+    source, reason = compile_stage2_reply(
+        _reply(cardinality_only_core),
+        "Given a set of [[cardinality]] distinct integers whose sum is 0, "
+        "how many subsets does it have?",
+    )
+    assert source is not None, reason
+
+    source, reason = compile_stage2_reply(
+        _reply(cardinality_only_core),
+        "Given a set of [[cardinality]] distinct integers chosen from 1 to 100, "
+        "how many subsets have a sum divisible by 3?",
+    )
+    assert source is None
+    assert "only the cardinality" in reason
+
+
+def test_boolean_mode_rejects_a_three_way_output_request():
+    family = (
+        "Let n = [[n]]. Determine whether n is positive, zero, or negative. "
+        "Answer Yes or No."
+    )
+    source, reason = compile_stage2_reply(
+        _reply(BOOLEAN_CORE, mode="boolean"), family
+    )
+    assert source is None
+    assert "three outcomes" in reason
+
+    source, reason = compile_stage2_reply(
+        _reply(BOOLEAN_CORE, mode="boolean"),
+        "Let n = [[n]]. Is n positive? Answer Yes or No.",
+    )
+    assert source is not None, reason
 
 
 def test_legacy_problem_template_extraction_is_unchanged():
@@ -163,7 +309,7 @@ def test_invalid_requires_and_preserves_a_specific_single_line_reason():
     for malformed in ("INVALID", "INVALID: ", "INVALID: first\nsecond"):
         source, reason = compile_stage2_reply(malformed, "Compute [[n]].")
         assert source is None
-        assert "exact DOMAIN/MODE/CORE" in reason
+        assert "exact MODE/CORE" in reason
 
 
 @pytest.mark.parametrize(
@@ -171,8 +317,8 @@ def test_invalid_requires_and_preserves_a_specific_single_line_reason():
     [
         "<think>never closed\n" + _reply(EXPRESSION_CORE),
         _reply(EXPRESSION_CORE) + "\n```python\npass\n```",
-        "DOMAIN: algebra\nMODE: expression\nCORE:\n" + EXPRESSION_CORE,
-        "DOMAIN: algebra\nMODE: one_of\nCORE:\n```python\npass\n```",
+        "MODE: expression\nCORE:\n" + EXPRESSION_CORE,
+        "MODE: one_of\nCORE:\n```python\npass\n```",
     ],
 )
 def test_malformed_or_multiple_fence_protocol_fails_closed(reply):

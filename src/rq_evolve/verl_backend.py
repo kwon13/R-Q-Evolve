@@ -64,7 +64,7 @@ class VerlPolicyBackend(EvolutionBackend):
         self.current_iteration = -1
         # (token id, logprob) of each row's first generated token from the most
         # recent mutate() call, aligned with its task list. Only filled when the
-        # tasks asked for logprobs; the SKILL relabeller reads it.
+        # tasks asked for logprobs; restricted binary readback gates consume it.
         self.last_mutation_logprobs: list[tuple[int, float] | None] = []
 
     def bind(self, trainer) -> None:
@@ -80,8 +80,8 @@ class VerlPolicyBackend(EvolutionBackend):
         self._sleep_enabled = free_cache_engine and enable_sleep_mode
         window = getattr(rollout_cfg, "max_model_len", None)
         self.max_model_len = int(window) if window else None
-        # Which logits the engine turns into logprobs. The relabeller's whole
-        # arithmetic rests on this; see _require_two_way_logprobs.
+        # Which logits the engine turns into logprobs. Restricted binary
+        # readback arithmetic rests on this; see _require_two_way_logprobs.
         self._logprobs_mode = str(
             getattr(rollout_cfg, "logprobs_mode", "processed_logprobs")
         )
@@ -113,8 +113,8 @@ class VerlPolicyBackend(EvolutionBackend):
             )
         # logprobs / allowed_token_ids ride on DataProto.meta_info, which is
         # per-batch, not per-row -- so like temperature they must agree across
-        # the batch. The relabel path builds all 8 skill calls from one
-        # template, so they do; a mixed batch is a caller bug, not a silent
+        # the batch. Binary readback paths build every call from one template,
+        # so they do; a mixed batch is a caller bug, not a silent
         # "some rows get logprobs".
         logprob_opts = {
             int(task.logprobs) for task in tasks if task.logprobs is not None
@@ -159,8 +159,8 @@ class VerlPolicyBackend(EvolutionBackend):
     def _require_two_way_logprobs(self) -> None:
         """Refuse to score a restricted-vocabulary call under raw logprobs.
 
-        The relabeller reads ONE token's logprob and takes the other side to be
-        its complement. That is exact only when the logprob is a log_softmax
+        A binary readback reads ONE token's logprob and takes the other side to
+        be its complement. That is exact only when the logprob is a log_softmax
         over the MASKED logits -- after ``allowed_token_ids`` has set every
         other token to -inf. vLLM does that only under
         ``logprobs_mode="processed_logprobs"``: at sampler.py:88 the mask is
@@ -179,9 +179,9 @@ class VerlPolicyBackend(EvolutionBackend):
         if mode != "processed_logprobs":
             raise ValueError(
                 f"actor_rollout_ref.rollout.logprobs_mode is {mode!r}; the "
-                "SKILL relabeller needs 'processed_logprobs' for its "
+                "restricted binary readback gate needs 'processed_logprobs' for its "
                 "allowed_token_ids logprob to be a normalised two-way "
-                "probability. Set it, or turn off evolution.relabel_skill."
+                "probability. Set it, or disable the binary DOMAIN labeler."
             )
 
     def _first_token_logprobs(self, output, n: int) -> list[tuple[int, float] | None]:
@@ -191,7 +191,7 @@ class VerlPolicyBackend(EvolutionBackend):
         ``rollout_log_probs`` is only present when the request asked for
         logprobs (agent_loop.py:822-824) AND patches/verl_agent_loop_sampling.py
         is applied to forward the key; otherwise every entry is None and the
-        caller falls back to the decoded text.
+        caller fails closed; decoded text is never treated as confidence.
         """
         pairs: list[tuple[int, float] | None] = [None] * n
         responses = output.batch.get("responses") if output is not None else None
@@ -366,8 +366,8 @@ class VerlPolicyBackend(EvolutionBackend):
         asked for logprobs (agent_loop.py:822-824), which is what
         MutationTask.logprobs turns on -- and that key only reaches the sampler
         because patches/verl_agent_loop_sampling.py forwards it from meta_info.
-        Without the patch this returns None and the caller falls back to reading
-        the decoded text.
+        Without the patch this returns None so confidence-sensitive callers can
+        fail closed instead of trusting decoded text.
         """
         if output is None:
             return None

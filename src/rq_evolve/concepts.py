@@ -5,11 +5,13 @@ Every accepted generator receives exactly one value on each independent axis::
     DOMAIN = "number_theory"
     # PROBLEM_TYPE is deterministically inferred as "counting"
 
-``DOMAIN`` is a single source declaration of the top-level Omni-MATH domain.
-``PROBLEM_TYPE`` is inferred from the output contract requested by the visible
-problem and checked against its verifier on every verification seed. Neither
-axis refines the other, and the runtime archive is the complete Cartesian
-product: all 35 domain/type pairs exist, with no mask or frequency threshold.
+Generated ``DOMAIN`` is assigned from the fixed family through seven
+label-blind binary checks; Stage 2 never emits it. Hand-authored bootstrap
+seeds retain a file-pinned source declaration. ``PROBLEM_TYPE`` is inferred from
+the output contract requested by the visible problem and checked against its
+verifier on every verification seed. Neither axis refines the other, and the
+runtime archive is the complete Cartesian product: all 35 domain/type pairs
+exist, with no mask or frequency threshold.
 """
 
 # Axis 1 -- top-level Omni-MATH mathematical domain.

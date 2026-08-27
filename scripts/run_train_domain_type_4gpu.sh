@@ -75,6 +75,14 @@ if not output.is_absolute():
     output = (Path.cwd() / output).resolve()
 
 keep = get("verl_config.trainer.max_actor_ckpt_to_keep")
+if float(get("evolution.domain_labeling_min_probability")) != float(
+    get("archive.domain_labeling_min_probability")
+):
+    raise SystemExit("evolution/archive DOMAIN-label probability thresholds differ")
+if float(get("evolution.domain_labeling_min_logit_margin")) != float(
+    get("archive.domain_labeling_min_logit_margin")
+):
+    raise SystemExit("evolution/archive DOMAIN-label margin thresholds differ")
 print(output)
 print(get("verl_config.trainer.n_gpus_per_node"))
 print(get("verl_config.trainer.save_freq"))
@@ -84,6 +92,8 @@ print(get("verl_config.actor_rollout_ref.model.path"))
 print(get("evolution.seed_programs_dir"))
 print(str(get("evolution.target_cell_injection")).lower())
 print(str(get("evolution.relabel_skill")).lower())
+print(str(get("evolution.independent_domain_labeling")).lower())
+print(str(get("archive.require_domain_labeling")).lower())
 print(str(get("evolution.structural_inspiration")).lower())
 print(str(get("verl_config.trainer.resume_mode")).lower())
 PY
@@ -103,8 +113,10 @@ MODEL_PATH="${VALUES[5]}"
 SEED_DIR="${VALUES[6]}"
 TARGET_INJECTION="${VALUES[7]}"
 RELABEL_SKILL="${VALUES[8]}"
-STRUCTURAL_INSPIRATION="${VALUES[9]}"
-RESUME_MODE="${VALUES[10]}"
+DOMAIN_LABELING="${VALUES[9]}"
+ARCHIVE_DOMAIN_LABELING="${VALUES[10]}"
+STRUCTURAL_INSPIRATION="${VALUES[11]}"
+RESUME_MODE="${VALUES[12]}"
 
 [[ "$EXPECTED_GPUS" == "4" ]] || { echo "[domain-type-4gpu] config must request four GPUs" >&2; exit 1; }
 [[ "$SAVE_FREQ" == "32" ]] || { echo "[domain-type-4gpu] save_freq must be 32" >&2; exit 1; }
@@ -112,6 +124,8 @@ RESUME_MODE="${VALUES[10]}"
 [[ "$SEED_DIR" == "seed_programs_domain_type" ]] || { echo "[domain-type-4gpu] wrong seed directory: $SEED_DIR" >&2; exit 1; }
 [[ "$TARGET_INJECTION" == "false" ]] || { echo "[domain-type-4gpu] targeted mutation must be disabled" >&2; exit 1; }
 [[ "$RELABEL_SKILL" == "false" ]] || { echo "[domain-type-4gpu] legacy skill relabelling must be disabled" >&2; exit 1; }
+[[ "$DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-4gpu] local independent DOMAIN labeling must be enabled" >&2; exit 1; }
+[[ "$ARCHIVE_DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-4gpu] archive must require DOMAIN labeling" >&2; exit 1; }
 [[ "$STRUCTURAL_INSPIRATION" == "false" ]] || { echo "[domain-type-4gpu] donor context must be disabled for the clean run" >&2; exit 1; }
 [[ "$RESUME_MODE" == "disable" ]] || { echo "[domain-type-4gpu] resume_mode must be disable" >&2; exit 1; }
 
@@ -156,13 +170,20 @@ echo "[domain-type-4gpu] output      : $CKPT_DIR"
 echo "[domain-type-4gpu] GPUs        : $CUDA_VISIBLE_DEVICES"
 echo "[domain-type-4gpu] steps/save  : $TOTAL_STEPS / every $SAVE_FREQ"
 echo "[domain-type-4gpu] descriptors : 7 DOMAIN x 5 PROBLEM_TYPE"
-echo "[domain-type-4gpu] mutation    : untargeted; local admission only"
+echo "[domain-type-4gpu] mutation    : untargeted; Stage 2 emits no DOMAIN"
+echo "[domain-type-4gpu] domain label: local-policy 7-way YES/NO readback"
 
 if $DRY_RUN; then
   echo "[domain-type-4gpu] dry-run complete; no process started"
   exit 0
 fi
 
+if ! PATCH_RESULT="$(python3 patches/verl_agent_loop_sampling.py 2>&1)"; then
+  echo "[domain-type-4gpu] failed to install required verl sampling patch:" >&2
+  echo "$PATCH_RESULT" >&2
+  exit 1
+fi
+echo "[domain-type-4gpu] verl patch  : $PATCH_RESULT"
 mkdir -p "$CKPT_DIR" "$LOG_DIR"
 
 MERGE_PID=""

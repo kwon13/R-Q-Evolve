@@ -61,9 +61,9 @@ class MutationTask:
     # frozen batch donor alive lets the copy gate compare against it even if a
     # later archive insertion evicts that donor from the live MAP.
     inspiration_donor: ProblemProgram | None = None
-    # Executable one-shot examples shown by Stage 2. They are comparison-only
-    # references: a child copying one is rejected before solver rollouts. Like
-    # the inspiration donor, these never enter provenance or a prompt payload.
+    # Executable references corresponding to one-shot examples shown by Stage 2.
+    # The reference objects themselves are model-invisible comparison data: a
+    # child copying one is rejected before solver rollouts.
     copy_exclusion_examples: tuple[ProblemProgram, ...] = ()
 
 
@@ -132,23 +132,17 @@ def _template_context(parent: ProblemProgram) -> dict[str, str]:
 def _neutralize_prompt_control_text(text: str) -> str:
     """Keep model-generated text inside its data boundary in a later prompt.
 
-    Parents and child families are themselves model outputs.  A Python comment
-    or string can legally contain chat-template tokens or our XML closing tag;
-    copying it verbatim would let one generation create instructions for the
-    next.  Zero-width separators preserve human/model readability while making
-    those control sequences lexically inert.
+    Parents and child families are themselves model outputs. A Python string can
+    legally contain chat-template tokens or a Markdown fence; copying it
+    verbatim would let one generation create instructions for the next.
+    Zero-width separators preserve human/model readability while making those
+    control sequences lexically inert.
     """
 
     value = str(text or "").replace("\x00", "")
-    for marker in (
-        "<PARENT_GENERATOR_PYTHON>",
-        "</PARENT_GENERATOR_PYTHON>",
-        "<FIXED_CHILD_FAMILY>",
-        "</FIXED_CHILD_FAMILY>",
-    ):
-        value = value.replace(marker, marker.replace("<", "<\u200b", 1))
     return (
-        value.replace("<|", "<\u200b|")
+        value.replace("```", "``\u200b`")
+        .replace("<|", "<\u200b|")
         .replace("|>", "|\u200b>")
         .replace("[INST]", "[\u200bINST]")
         .replace("[/INST]", "[\u200b/INST]")
@@ -263,81 +257,64 @@ DOMAIN_LABELING_METHOD = "local_policy_binary_label_v1"
 
 # --- few-shot rotation ------------------------------------------------------
 #
-# Stage 1 rotates semantically tagged examples. Human-facing titles inside the
-# tags are deliberately not parser syntax, so prompt wording can evolve without
-# silently breaking rotation. Stage 2 likewise uses semantic child/reply tags
-# inside its interface example and compiles that example into the executable
-# copy-exclusion reference.
+# Stage 1 rotates semantically tagged examples. Stage 2 deliberately has no
+# model-visible XML tags: the 4B policy copied those tags and continued into the
+# surrounding prompt instead of returning the raw MODE/CORE protocol. Its
+# executable copy-exclusion reference is kept below as model-invisible data.
 _FAMILY_EXAMPLE_RE = re.compile(
     r"<FAMILY_EXAMPLE>\s*.*?</FAMILY_EXAMPLE>", re.DOTALL
 )
 FAMILY_SHOTS_SHOWN = 3
 
-_COPY_EXCLUDED_EXAMPLE_RE = re.compile(
-    r"<EXAMPLE>\s*.*?"
-    r"<CHILD_FAMILY>\s*(.*?)\s*</CHILD_FAMILY>.*?"
-    r"<ACCEPTED_REPLY>\s*(.*?)\s*</ACCEPTED_REPLY>\s*"
-    r"</EXAMPLE>",
-    re.DOTALL,
+_STAGE2_COPY_EXCLUSION_FAMILY = (
+    "Find the area of a rectangle with integer side lengths [[length]] and "
+    "[[width]]."
 )
+_STAGE2_COPY_EXCLUSION_REPLY = """MODE: expression
+CORE:
+```python
+def build_instance(rng):
+    length = rng.randint(2, 20)
+    width = rng.randint(2, 20)
+    answer = length * width
+    check = sum(1 for _row in range(length) for _column in range(width))
+    parameters = {"length": length, "width": width}
+    return parameters, answer, check
+```"""
 
 
-@lru_cache(maxsize=8)
-def _stage2_copy_exclusion_examples(system_prompt: str) -> tuple[ProblemProgram, ...]:
-    """Compile every tagged Stage-2 example into a frozen copy reference.
+@lru_cache(maxsize=2)
+def _stage2_copy_exclusion_examples(
+    require_domain: bool = False,
+) -> tuple[ProblemProgram, ...]:
+    """Compile the model-invisible Stage-2 one-shot copy reference."""
 
-    The example and the compiler must evolve together. A malformed tag or an
-    example that no longer compiles therefore fails prompt construction rather
-    than silently disabling the leakage gate.
-    """
-
-    tags = list(_COPY_EXCLUDED_EXAMPLE_RE.finditer(system_prompt or ""))
-    prompt_text = str(system_prompt or "")
-    marker_counts = (
-        prompt_text.count("<EXAMPLE>"),
-        prompt_text.count("</EXAMPLE>"),
-        prompt_text.count("<CHILD_FAMILY>"),
-        prompt_text.count("</CHILD_FAMILY>"),
-        prompt_text.count("<ACCEPTED_REPLY>"),
-        prompt_text.count("</ACCEPTED_REPLY>"),
+    reply = _STAGE2_COPY_EXCLUSION_REPLY
+    if require_domain:
+        reply = "DOMAIN: geometry\n" + reply
+    source, reason = compile_stage2_reply(
+        reply,
+        _STAGE2_COPY_EXCLUSION_FAMILY,
+        require_domain=require_domain,
     )
-    if any(count != len(tags) for count in marker_counts):
-        raise ValueError(
-            "every <EXAMPLE> block must contain exactly one <CHILD_FAMILY> "
-            "and one <ACCEPTED_REPLY> block"
-        )
-    examples: list[ProblemProgram] = []
-    for index, match in enumerate(tags, start=1):
-        family = match.group(1).strip()
-        reply = match.group(2).strip()
-        source, reason = compile_stage2_reply(
-            reply,
-            family,
-            require_domain=reply.startswith("DOMAIN: "),
-        )
-        if source is None:
+    if source is None:
+        raise ValueError(f"Stage-2 copy-excluded example does not compile: {reason}")
+    example = ProblemProgram(
+        source_code=source,
+        metadata={
+            "prompt_copy_exclusion_index": 1,
+            "family_sha256": hashlib.sha256(
+                _STAGE2_COPY_EXCLUSION_FAMILY.encode("utf-8")
+            ).hexdigest(),
+        },
+    )
+    for seed in range(5):
+        if example.execute(seed) is None:
             raise ValueError(
-                f"Stage-2 copy-excluded example {index} does not compile: {reason}"
+                f"Stage-2 copy-excluded example fails at seed={seed}: "
+                f"{example.last_execution_error or 'unknown execution error'}"
             )
-        example = ProblemProgram(
-            source_code=source,
-            metadata={
-                "prompt_copy_exclusion_index": index,
-                "family_sha256": hashlib.sha256(family.encode("utf-8")).hexdigest(),
-            },
-        )
-        for seed in range(5):
-            if example.execute(seed) is None:
-                raise ValueError(
-                    f"Stage-2 copy-excluded example {index} fails at seed={seed}: "
-                    f"{example.last_execution_error or 'unknown execution error'}"
-                )
-        examples.append(example)
-    if not examples:
-        raise ValueError(
-            "Stage-2 system prompt must contain at least one <EXAMPLE> block"
-        )
-    return tuple(examples)
+    return (example,)
 
 
 def _domain_definitions() -> dict[str, str]:
@@ -643,8 +620,8 @@ def build_generator_task(
     system_prompt = _load_template(GENERATOR_SYSTEM_PROMPT_FILE)
     if emit_legacy_domain:
         system_prompt = system_prompt.replace(
-            "<ACCEPTED_REPLY>\nMODE:",
-            "<ACCEPTED_REPLY>\nDOMAIN: geometry\nMODE:",
+            "MODE: expression\nCORE:",
+            "DOMAIN: geometry\nMODE: expression\nCORE:",
             1,
         )
         system_prompt += (
@@ -655,7 +632,7 @@ def build_generator_task(
             + ". This compatibility header is required only because the local "
             "DOMAIN labeler is disabled for this run.\n"
         )
-    copy_exclusion_examples = _stage2_copy_exclusion_examples(system_prompt)
+    copy_exclusion_examples = _stage2_copy_exclusion_examples(emit_legacy_domain)
     placeholder_names = _family_placeholder_names(plan["CHILD FAMILY"])
     if placeholder_names is None:
         raise ValueError(

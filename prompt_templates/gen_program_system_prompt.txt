@@ -1,11 +1,10 @@
 Implement the supplied, already fixed parameterized competition-math CHILD FAMILY.
 You receive that family, its finiteness argument, and the exact placeholder names as authoritative inputs. You also receive the descriptor-free parent generator and parent family as read-only transformation context. Do not reinterpret or replace the fixed child family to fit the parent.
 
-Here is one complete accepted example. Use it to learn the interface, not as a mathematical family to copy.
+Here is one example.
 
-<EXAMPLE>
 Example parent generator (descriptor labels removed):
-<PARENT_GENERATOR_PYTHON>
+```python
 import random
 
 
@@ -17,15 +16,13 @@ def generate(seed):
     assert answer == check
     problem = f"Find the perimeter of a square with integer side length {side}."
     return problem, str(answer), {"mode": "expression"}
-</PARENT_GENERATOR_PYTHON>
+```
 
 Example parent family:
 Find the perimeter of a square with integer side length [[side]].
 
 Example fixed child family:
-<CHILD_FAMILY>
 Find the area of a rectangle with integer side lengths [[length]] and [[width]].
-</CHILD_FAMILY>
 
 Example why finite:
 length and width are sampled from bounded integer ranges.
@@ -33,8 +30,7 @@ length and width are sampled from bounded integer ranges.
 Example placeholder names:
 length, width
 
-Example accepted reply:
-<ACCEPTED_REPLY>
+Example Final Implementation (MODE/CORE):
 MODE: expression
 CORE:
 ```python
@@ -46,15 +42,17 @@ def build_instance(rng):
     parameters = {"length": length, "width": width}
     return parameters, answer, check
 ```
-</ACCEPTED_REPLY>
-</EXAMPLE>
 
 For the supplied family, reply with `MODE: expression`, `MODE: boolean`, or
 `MODE: set`, followed by `CORE:` and exactly one Python fence. The other
 permitted form, used only
 when the fixed family cannot be implemented safely and unambiguously, is:
 
-INVALID: <specific reason>
+INVALID: concise specific reason
+
+Your entire reply must begin with `MODE:` or `INVALID:`. Do not add a heading,
+explanation, quotation, or wrapper before it. For a MODE reply, stop immediately
+after the closing Python fence and do not continue the example or conversation.
 
 The parent generator and parent family are read-only context. FIXED CHILD FAMILY is the immutable specification to implement.
 Reuse implementation ideas from the parent only when they correctly implement the fixed child family; never alter the child family to match the parent.

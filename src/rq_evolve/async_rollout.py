@@ -388,7 +388,9 @@ class ChunkedRolloutScheduler:
                     accepted = reject_reason is None
                     # spend sympy/math_verify only on samples that will count
                     correct = bool(
-                        accepted and pred is not None and answers_match(pred, inst.answer)
+                        accepted
+                        and pred is not None
+                        and answers_match(pred, inst.answer, inst.verifier)
                     )
                     record = RolloutRecord(
                         response=text,
@@ -478,6 +480,7 @@ class ChunkedRolloutScheduler:
                 # never evaluated): null, not false -- false means graded-wrong.
                 correct=record.correct if record.status == "accepted" else None,
                 predicted_answer=record.predicted_answer,
+                verifier_mode=str(getattr(inst, "verifier", {}).get("mode", "expression")),
                 prompt_tokens=0,  # per-sample prompt tokens not tracked (chunk-level in metrics)
                 response_tokens=record.response_tokens,
                 latency_s=latency_s,

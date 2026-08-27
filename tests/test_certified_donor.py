@@ -1,38 +1,91 @@
 """Contracts for the manually certified structural-donor v2 arm."""
 
+import hashlib
 import random
 
+import pytest
+
 from rq_evolve.archive import MAPElitesArchive
-from rq_evolve.config import load_config, load_raw_config
+from rq_evolve.config import EvolutionConfig, load_config, load_raw_config
 from rq_evolve.evolution import RQEvolver
+from rq_evolve.problem_type import PROBLEM_TYPE_RULESET, problem_type_ruleset_sha256
 from rq_evolve.program import ProblemProgram
 
 
 def _program(
     statement: str,
-    group: str,
-    skill: str,
+    domain: str,
+    problem_type: str,
     *,
     root: str,
     certified: bool,
     rq: float,
 ) -> ProblemProgram:
+    request = {
+        "decision": (
+            'answer = "Yes" if n + 1 > n else "No"\n'
+            '    check = "Yes"\n'
+            '    problem = f"{prefix} Let n = {n}. Is n + 1 greater than n? '
+            'Answer Yes or No."\n'
+            '    verifier = {"mode": "boolean"}'
+        ),
+        "search": (
+            'values = [n, n + 1]\n'
+            '    answer = r"\\{" + ",".join(str(x) for x in values) + r"\\}"\n'
+            '    checked_values = [x for x in range(n - 1, n + 3) if n <= x <= n + 1]\n'
+            '    check = r"\\{" + ",".join(str(x) for x in checked_values) + r"\\}"\n'
+            '    problem = f"{prefix} Let n = {n}. Find all integers x such that '
+            'n <= x <= n + 1."\n'
+            '    verifier = {"mode": "set", "elements": [str(x) for x in values]}'
+        ),
+        "counting": (
+            'answer = n + 1\n'
+            '    check = sum(1 for x in range(n + 1) if 0 <= x <= n)\n'
+            '    problem = f"{prefix} Let n = {n}. How many integers x satisfy '
+            '0 <= x <= n?"\n'
+            '    verifier = {"mode": "expression"}'
+        ),
+        "optimization": (
+            'answer = n + 1\n'
+            '    check = max(range(n + 2))\n'
+            '    problem = f"{prefix} Let n = {n}. Find the maximum value of an '
+            'integer x satisfying 0 <= x <= n + 1."\n'
+            '    verifier = {"mode": "expression"}'
+        ),
+        "function": (
+            'answer = n + 1\n'
+            '    check = sum((n, 1))\n'
+            '    problem = f"{prefix} Let n = {n}. Compute n + 1."\n'
+            '    verifier = {"mode": "expression"}'
+        ),
+    }[problem_type]
     source = f"""
 import random
 
 def generate(seed):
     rng = random.Random(seed)
     n = rng.randint(10, 40)
-    answer = n + 1
-    check = 1 + n
+    prefix = {statement!r}
+    {request}
     assert answer == check
-    problem = f"{statement} Let n = {{n}}. Determine n plus one."
-    return problem, str(answer)
+    return problem, str(answer), verifier
 
-GROUP = "{group}"
-SKILL = "{skill}"
+DOMAIN = "{domain}"
 """
-    metadata = {"lineage_root_id": root}
+    metadata = {
+        "lineage_root_id": root,
+        "problem_type": problem_type,
+        "descriptor_contract": {
+            "domain_authority": "source_exact_one_literal",
+            "problem_type_authority": "deterministic_statement_and_verifier",
+            "problem_type_ruleset": PROBLEM_TYPE_RULESET,
+            "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
+            "verified_seeds": 5,
+            "domain": domain,
+            "problem_type": problem_type,
+            "source_sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+        },
+    }
     if certified:
         metadata["structural_donor_certification"] = {
             "passed": True,
@@ -53,22 +106,18 @@ def _place(archive: MAPElitesArchive, *programs: ProblemProgram) -> None:
             archive.structural_donors[program.program_id] = program
 
 
-def test_v2_config_uses_manual_donors_without_any_evaluator():
-    cfg = load_config(
-        "configs/rq_evolve_4b_4gpu_structural_inspiration_v2.yaml"
-    ).evolution
-    raw = load_raw_config("configs/rq_evolve_4b_4gpu_structural_inspiration_v2.yaml")
+def test_legacy_v2_config_is_rejected_instead_of_becoming_new_production():
+    with pytest.raises(ValueError, match="relabel_skill is retired"):
+        load_config("configs/rq_evolve_4b_4gpu_structural_inspiration_v2.yaml")
 
-    assert cfg.structural_inspiration is True
-    assert cfg.use_evaluator is False
-    assert cfg.verify_seeds == 32
-    assert cfg.structural_inspiration_require_certified_donor is True
-    assert cfg.structural_inspiration_require_positive_rq is True
-    assert cfg.structural_inspiration_max_token_jaccard == 0.45
-    assert len(cfg.manual_certified_seed_files) == 6
-    assert raw.verl_config.trainer.default_local_dir.endswith(
-        "rq_evolve_4b_4gpu_certified_structural_inspiration_v2"
-    )
+    fresh = load_config("configs/rq_evolve_4b_8gpu_domain_type.yaml")
+    assert not hasattr(fresh.evolution, "use_evaluator")
+    assert not hasattr(fresh.evolution, "evaluator_provider")
+    assert fresh.evolution.target_cell_injection is False
+    assert fresh.evolution.relabel_skill is False
+    assert fresh.evolution.manual_certified_seed_files == ()
+    raw_fresh = load_raw_config("configs/rq_evolve_4b_8gpu_domain_type.yaml")
+    assert raw_fresh.verl_config.trainer.resume_mode == "disable"
 
 
 def test_uncertified_children_can_enter_map_but_not_donor_pool():
@@ -76,7 +125,7 @@ def test_uncertified_children_can_enter_map_but_not_donor_pool():
     program = _program(
         "A finite algebra problem.",
         "algebra",
-        "transformation",
+        "function",
         root="root-a",
         certified=False,
         rq=0.2,
@@ -92,8 +141,8 @@ def test_donor_pool_requires_both_certificate_and_positive_current_rq():
     )
     good = _program(
         "Certified positive donor.",
-        "sequence",
-        "contradiction",
+        "discrete_mathematics",
+        "decision",
         root="good",
         certified=True,
         rq=0.1,
@@ -101,7 +150,7 @@ def test_donor_pool_requires_both_certificate_and_positive_current_rq():
     zero = _program(
         "Certified but zero donor.",
         "geometry",
-        "invariant",
+        "function",
         root="zero",
         certified=True,
         rq=0.0,
@@ -109,7 +158,7 @@ def test_donor_pool_requires_both_certificate_and_positive_current_rq():
     uncertified = _program(
         "Positive but uncertified donor.",
         "number_theory",
-        "casework",
+        "search",
         root="uncertified",
         certified=False,
         rq=0.3,
@@ -137,16 +186,16 @@ def test_manual_donor_survives_map_eviction_and_snapshot_roundtrip():
     )
     donor = _program(
         "Persistent reviewed seed.",
-        "sequence",
-        "contradiction",
+        "discrete_mathematics",
+        "decision",
         root="seed",
         certified=True,
         rq=0.1,
     )
     replacement = _program(
         "Later generated champion.",
-        "sequence",
-        "contradiction",
+        "discrete_mathematics",
+        "decision",
         root="child",
         certified=False,
         rq=0.9,
@@ -174,7 +223,7 @@ def test_token_jaccard_rejects_a_donor_restatement():
     archive = MAPElitesArchive()
     donor = _program(
         "For each ordered pair of positive integers call the pair feasible when real numbers satisfy the sum and product constraints.",
-        "inequality",
+        "applied_mathematics",
         "counting",
         root="donor",
         certified=True,
@@ -183,7 +232,7 @@ def test_token_jaccard_rejects_a_donor_restatement():
     child = _program(
         "For every ordered pair of positive integers call it feasible if real numbers satisfy the product and sum constraints.",
         "algebra",
-        "transformation",
+        "function",
         root="child",
         certified=True,
         rq=0.1,
@@ -198,22 +247,42 @@ def test_token_jaccard_rejects_a_donor_restatement():
     assert verdict["reason"] == "donor_token_jaccard"
 
 
-def test_only_allowlisted_seeds_receive_structural_donor_certification():
-    config = load_config(
-        "configs/rq_evolve_4b_4gpu_structural_inspiration_v2.yaml"
-    ).evolution
+def test_only_allowlisted_fresh_seeds_receive_structural_donor_certification(
+    tmp_path,
+):
+    allowed = _program(
+        "Allowed seed.",
+        "calculus",
+        "function",
+        root="allowed",
+        certified=False,
+        rq=0.0,
+    )
+    ordinary = _program(
+        "Ordinary seed.",
+        "precalculus",
+        "optimization",
+        root="ordinary",
+        certified=False,
+        rq=0.0,
+    )
+    (tmp_path / "allowed.py").write_text(allowed.source_code, encoding="utf-8")
+    (tmp_path / "ordinary.py").write_text(ordinary.source_code, encoding="utf-8")
+    config = EvolutionConfig(manual_certified_seed_files=("allowed.py",))
     evolver = RQEvolver(
         archive=MAPElitesArchive(), backend=None, evolution_config=config
     )
 
-    seeds = evolver.load_seed_programs("seed_programs")
+    seeds = evolver.load_seed_programs(tmp_path)
 
     certified = [
         p
         for p in seeds
         if p.metadata.get("structural_donor_certification", {}).get("passed")
     ]
-    assert len(certified) == 6
+    assert len(seeds) == 2
+    assert [p.declared_domain() for p in certified] == ["calculus"]
+    assert len(certified) == 1
     assert all(
         p.metadata["structural_donor_certification"]["source"]
         == "manual_seed_allowlist"

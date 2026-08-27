@@ -9,6 +9,7 @@ import torch
 
 from .program import ProblemProgram
 from .prompts import SOLVER_SYSTEM_PROMPT
+from .verifier import normalize_verifier
 
 
 STATIC_ID_ALIASES: dict[str, tuple[str, ...]] = {
@@ -153,6 +154,11 @@ def load_static_training_jsonl(
         if not answer:
             errors.append(f"line {line_number}: answer must be non-empty")
             continue
+        try:
+            verifier = normalize_verifier(row.get("verifier"), answer=answer)
+        except (TypeError, ValueError) as exc:
+            errors.append(f"line {line_number}: invalid verifier ({exc})")
+            continue
 
         identifiers: dict[str, str] = {}
         missing_identifiers: list[str] = []
@@ -231,6 +237,7 @@ def load_static_training_jsonl(
             "condition": condition,
             "problem": problem,
             "answer": answer,
+            "verifier": verifier,
             "prompt_token_count": row_prompt_tokens,
             "reference_answer_token_count": row_reference_tokens,
             "token_count": row_prompt_tokens,
@@ -444,6 +451,7 @@ class VerlDynamicDataset:
         row = rows[(item + self.pad_offset) % len(rows)]
         problem = row["problem"]
         answer = row["answer"]
+        verifier = normalize_verifier(row.get("verifier"), answer=str(answer))
         extra = {
             "index": item,
             "program_id": row.get("program_id"),
@@ -451,8 +459,11 @@ class VerlDynamicDataset:
             "rq_score": row.get("rq_score"),
             "s_hat": row.get("s_hat"),
             "u_score": row.get("u_score"),
-            "group_bin": row.get("group_bin"),
-            "skill_bin": row.get("skill_bin"),
+            "domain_bin": row.get("domain_bin"),
+            "problem_type_bin": row.get("problem_type_bin"),
+            "domain": row.get("domain"),
+            "problem_type": row.get("problem_type"),
+            "verifier": verifier,
         }
         # Fixed expansion-study datasets carry explicit experimental units.
         # Preserve them in extra_info so rollout logs can be joined back to the
@@ -491,7 +502,7 @@ class VerlDynamicDataset:
             "raw_prompt": messages,
             "dummy_tensor": torch.tensor([0], dtype=torch.uint8),
             "data_source": self.data_source,
-            "reward_model": {"ground_truth": answer},
+            "reward_model": {"ground_truth": answer, "verifier": verifier},
             "extra_info": extra,
             "index": item,
         }
@@ -563,13 +574,20 @@ def build_replay_training_examples(
                 {
                     "problem": group.instance.problem,
                     "answer": group.instance.answer,
+                    "verifier": dict(group.instance.verifier),
+                    "domain": group.instance.domain or champion.get_domain(),
+                    "problem_type": (
+                        group.instance.problem_type or champion.get_problem_type()
+                    ),
                     "program_id": champion.program_id,
                     "seed": group.instance.seed,
                     "rq_score": champion.rq_score,
                     "s_hat": champion.s_hat,
                     "u_score": champion.u_score,
-                    "group_bin": int(getattr(champion, "niche_group", -1)),
-                    "skill_bin": int(getattr(champion, "niche_skill", -1)),
+                    "domain_bin": int(getattr(champion, "niche_domain", -1)),
+                    "problem_type_bin": int(
+                        getattr(champion, "niche_problem_type", -1)
+                    ),
                     "previous_rq": score,
                     "replay_rollouts": group.size,
                 }
@@ -644,7 +662,7 @@ def build_training_examples(
     emitted_signatures: set[tuple[str, str]] = set()
 
     def _try_emit(
-        champ: ProblemProgram, group_bin: int, skill_bin: int
+        champ: ProblemProgram, domain_bin: int, problem_type_bin: int
     ) -> tuple[bool, bool]:
         """Emit one instance. Returns (appended, advanced).
 
@@ -672,13 +690,16 @@ def build_training_examples(
             {
                 "problem": inst.problem,
                 "answer": inst.answer,
+                "verifier": dict(inst.verifier),
+                "domain": inst.domain or champ.get_domain(),
+                "problem_type": inst.problem_type or champ.get_problem_type(),
                 "program_id": pid,
                 "seed": inst.seed,
                 "rq_score": champ.rq_score,
                 "s_hat": champ.s_hat,
                 "u_score": champ.u_score,
-                "group_bin": group_bin,
-                "skill_bin": skill_bin,
+                "domain_bin": domain_bin,
+                "problem_type_bin": problem_type_bin,
             }
         )
         emitted_per_program[pid] = emitted_per_program.get(pid, 0) + 1
@@ -686,13 +707,13 @@ def build_training_examples(
 
     MAX_FAILED_ATTEMPTS = 2
     for champ in ranked_champions:
-        group_bin = int(getattr(champ, "niche_group", -1))
-        skill_bin = int(getattr(champ, "niche_skill", -1))
+        domain_bin = int(getattr(champ, "niche_domain", -1))
+        problem_type_bin = int(getattr(champ, "niche_problem_type", -1))
         failed_attempts = 0
         while len(examples) < budget:
             if emitted_per_program.get(champ.program_id, 0) >= instances_per_program:
                 break
-            appended, advanced = _try_emit(champ, group_bin, skill_bin)
+            appended, advanced = _try_emit(champ, domain_bin, problem_type_bin)
             if appended:
                 failed_attempts = 0
                 continue

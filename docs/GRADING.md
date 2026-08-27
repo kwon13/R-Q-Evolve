@@ -9,6 +9,10 @@ parity를 위해 의도적으로 다릅니다.** 처음 보는 사람이 "평가
 byte 단위로 맞추기 위해 존재하고(보존된 버그 포함), trainer val은 학습 reward에서
 length guard만 뺀 것입니다. 각자 다른 목적을 가진 세 경로입니다.
 
+> Domain × Problem Type의 좌표 판정과 학습 reward에는 OpenAI/GPT 호출이 없습니다.
+> 아래 2b의 GPT recheck는 과거 R-Zero 수치 재현용 standalone offline 옵션이며,
+> production dependency에도 포함되지 않습니다.
+
 ## 그룹 1 — 학습 reward (training)
 
 | | |

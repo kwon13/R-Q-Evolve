@@ -12,17 +12,22 @@ from .code_utils import (
     extract_problem_statement_template,
     lint_problem_instance,
     structural_inspiration_safety_reason,
+    validated_domain_declaration,
 )
 from .constancy import check_constancy
-from .concepts import GROUPS, SKILLS, axis_index
+from .concepts import DOMAINS, PROBLEM_TYPES, axis_index
 from .program import ProblemProgram
+from .problem_type import PROBLEM_TYPE_RULESET, problem_type_ruleset_sha256
 from .scoring import selection_priority
+
+ARCHIVE_SCHEMA = "rq-evolve-domain-problem-type-v2"
+ARCHIVE_SCHEMA_VERSION = 2
 
 
 @dataclass
 class Niche:
-    group_bin: int
-    skill_bin: int
+    domain_bin: int
+    problem_type_bin: int
     champion: ProblemProgram | None = None
     champion_rq: float = -1.0
     selection_count: int = 0
@@ -44,20 +49,24 @@ class StructuralInspirationSelection:
     provenance: dict
 
 
-class MAPElitesArchive:
-    """GROUP x SKILL MAP-Elites grid.
+class ArchiveSchemaError(ValueError):
+    """The snapshot cannot be interpreted as this archive schema."""
 
-    Both axes are behavioural descriptors read off a program's own declared
-    labels: GROUP is the mathematical domain, SKILL the reasoning the visible
-    problem forces. The grid is therefore a fixed ``len(GROUPS) x len(SKILLS)``
-    and needs no bin-count configuration -- a cell is a (domain, reasoning)
-    pair, and the two mutation operators each move exactly one coordinate.
+
+class MAPElitesArchive:
+    """Complete DOMAIN x PROBLEM_TYPE MAP-Elites grid.
+
+    Both coordinates are fixed behavioural descriptors. ``DOMAIN`` is the
+    generator's exact-one self-declared top-level Omni-MATH domain;
+    ``PROBLEM_TYPE`` is deterministically inferred from the visible output
+    request and verifier across all verification seeds. The grid is always the
+    complete 7 x 5 Cartesian product. There is no supported-cell mask, mutation
+    target, or auxiliary classifier.
 
     Uncertainty is NOT an axis. H stays in the fitness, ``R_Q = p(1-p)H``, which
     decides who holds a cell and which champion is sampled as a parent. Binning
-    on H as well would have meant one grid coordinate the mutation operators
-    cannot aim at: a child lands in an H bin only as a side effect of how hard
-    it turned out to be.
+    on H as well would add a coordinate no generator can control: a child lands
+    in an H bin only as a side effect of how hard it turned out to be.
     """
 
     def __init__(
@@ -79,8 +88,8 @@ class MAPElitesArchive:
                 "mutually exclusive: enabling both drops every R_Q factor and "
                 "leaves a constant (signal-free) selection priority."
             )
-        self.n_group_bins = len(GROUPS)
-        self.n_skill_bins = len(SKILLS)
+        self.n_domain_bins = len(DOMAINS)
+        self.n_problem_type_bins = len(PROBLEM_TYPES)
         self.epsilon = float(epsilon)
         self.ucb_c = float(ucb_c)
         self.selection_strategy = selection_strategy
@@ -89,10 +98,10 @@ class MAPElitesArchive:
         # or binned -- champion_rq and the cell labels stay real.
         self.select_ignores_uncertainty = bool(select_ignores_uncertainty)
         self.select_ignores_variance = bool(select_ignores_variance)
-        # Ablation: "flat" keeps the same 48 slots, the same validity gates and
+        # Ablation: "flat" keeps the same 35 slots, the same validity gates and
         # the same parent sampling, but a candidate no longer competes only
-        # against the champion sharing its (GROUP, SKILL). It takes any free
-        # slot, and once full it competes against the weakest occupant. That
+        # against the champion sharing its (DOMAIN, PROBLEM_TYPE). It takes any
+        # free slot, and once full it competes against the weakest occupant. That
         # turns the MAP into a plain top-K pool and isolates what the grid --
         # reserving capacity per behaviour cell -- is actually buying.
         # Labels are still read and recorded, so coverage stays measurable.
@@ -105,33 +114,67 @@ class MAPElitesArchive:
         # silently turn off the treatment later in the same run.
         self.structural_donors: dict[str, ProblemProgram] = {}
         self.grid: dict[tuple[int, int], Niche] = {
-            (g, s): Niche(group_bin=g, skill_bin=s)
-            for g in range(self.n_group_bins)
-            for s in range(self.n_skill_bins)
+            (d, t): Niche(domain_bin=d, problem_type_bin=t)
+            for d in range(self.n_domain_bins)
+            for t in range(self.n_problem_type_bins)
         }
 
     def program_to_cell(self, program: ProblemProgram) -> tuple[int, int] | None:
         """Grid coordinate from the program's own labels, None if unlabelled.
 
-        None rather than a hashed fallback: a program whose GROUP or SKILL is
-        outside the vocabulary has no meaningful niche, and folding those into
-        one bin would make a single cell the contest for every mislabelled
-        generator.
+        None rather than a hashed fallback: a program whose DOMAIN or
+        PROBLEM_TYPE is outside the vocabulary has no meaningful niche, and
+        folding unknown labels into one bin would make a single cell the
+        contest for every misclassified generator.
         """
-        group_bin = axis_index("group", program.get_group())
-        skill_bin = axis_index("skill", program.get_skill())
-        if group_bin is None or skill_bin is None:
+        domain, domain_errors = validated_domain_declaration(program.source_code)
+        if domain_errors:
             return None
-        return (group_bin, skill_bin)
+        if re.search(
+            r"\b(?:PROBLEM_TYPE|GROUP|SKILL)\s*[:=]", program.source_code
+        ):
+            return None
+        contract = (program.metadata or {}).get("descriptor_contract")
+        if contract is None or not self._descriptor_contract_matches(
+            program, domain, contract
+        ):
+            return None
+        domain_bin = axis_index("domain", domain)
+        problem_type_bin = axis_index("problem_type", program.get_problem_type())
+        if domain_bin is None or problem_type_bin is None:
+            return None
+        return (domain_bin, problem_type_bin)
+
+    @staticmethod
+    def _descriptor_contract_matches(
+        program: ProblemProgram, domain: str | None, contract: object
+    ) -> bool:
+        """Whether cached descriptor provenance matches source and rules."""
+
+        if not isinstance(contract, dict):
+            return False
+        problem_type = (program.metadata or {}).get("problem_type")
+        expected = {
+            "domain_authority": "source_exact_one_literal",
+            "problem_type_authority": "deterministic_statement_and_verifier",
+            "problem_type_ruleset": PROBLEM_TYPE_RULESET,
+            "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
+            "domain": domain,
+            "problem_type": problem_type,
+            "source_sha256": hashlib.sha256(
+                program.source_code.encode("utf-8")
+            ).hexdigest(),
+        }
+        return all(contract.get(key) == value for key, value in expected.items())
 
     def _insert_cell(self, program: ProblemProgram) -> tuple[int, int] | None:
         """Slot the program competes for.
 
-        Under ``binning="grid"`` that is its own (GROUP, SKILL) cell. Under
-        ``"flat"`` the grid is only storage: the program takes the first free
-        slot, and once all 48 are occupied it challenges the weakest one. Same
-        capacity, same gates, same sampling -- only the reservation of capacity
-        per behaviour cell is removed.
+        Under ``binning="grid"`` that is its own (DOMAIN, PROBLEM_TYPE) cell.
+        Under ``"flat"`` the grid is only storage: the program takes the first
+        free slot, and once all 35 are occupied it challenges the weakest one.
+        Same capacity, same gates, same sampling -- only the reservation of
+        capacity per behaviour cell is removed.
 
         A program with no usable label is still rejected in both modes. Letting
         it in under "flat" would relax the label contract too, and the arm is
@@ -150,7 +193,7 @@ class MAPElitesArchive:
         )
 
     def cell_labels(self, cell: tuple[int, int]) -> tuple[str, str]:
-        return (GROUPS[cell[0]], SKILLS[cell[1]])
+        return (DOMAINS[cell[0]], PROBLEM_TYPES[cell[1]])
 
     def try_insert(
         self,
@@ -162,10 +205,10 @@ class MAPElitesArchive:
         if cell is None:
             program.metadata["archive_status"] = "unlabelled_rejected"
             return False
-        group_bin, skill_bin = cell
+        domain_bin, problem_type_bin = cell
 
-        program.niche_group = group_bin
-        program.niche_skill = skill_bin
+        program.niche_domain = domain_bin
+        program.niche_problem_type = problem_type_bin
         # U is not a coordinate, but it is the uncertainty factor of
         # R_Q = s(1-s)U, so it is recorded on the program exactly as before.
         program.u_score = float(u_value)
@@ -178,10 +221,8 @@ class MAPElitesArchive:
         # fitness alone: a cell holds the best thing found for it so far, and
         # "nothing yet" is strictly worse than a program the policy cannot
         # solve. The earlier gate here rejected every p=0 and p=1 candidate,
-        # which cost the bootstrap 3 of 8 seeds and with them the ONLY
-        # representative of geometry, inequality, induction and
-        # extremal_principle -- the grid lost two GROUPs and three SKILLs
-        # before a single mutation ran.
+        # which can remove an axis value from the bootstrap before a single
+        # mutation runs.
         #
         # Nothing downstream needs the gate: training examples are drained by
         # the frontier band in dataset.py (low < s_hat < high), which excludes
@@ -207,8 +248,8 @@ class MAPElitesArchive:
             program.metadata["duplicate_of"] = tdup.program_id
             return False
         # 4. Near-duplicate: the same statement a few words apart. Exact hashes
-        #    miss it, and with SKILL labels only ~22% accurate the restatement
-        #    lands in a different cell and counts as new coverage.
+        #    miss it, and a noisy descriptor can put the restatement in another
+        #    cell where it would count as false coverage.
         near = self._find_near_duplicate_template(program)
         if near is not None:
             other, ratio = near
@@ -264,13 +305,12 @@ class MAPElitesArchive:
             return True
         return False
 
-    def target_cell(self, program: ProblemProgram) -> tuple[int, int] | None:
-        """Return the cell a program would target without mutating the MAP.
+    def placement_cell(self, program: ProblemProgram) -> tuple[int, int] | None:
+        """Return the post-hoc cell a verified program would enter.
 
-        None when the program carries no usable GROUP/SKILL pair, matching what
-        :meth:`try_insert` would do with it -- including under
-        ``binning="flat"``, where the slot is chosen by occupancy rather than
-        by label, so the telemetry names the champion actually challenged.
+        This is insertion bookkeeping only: it neither selects nor communicates
+        a mutation destination. None means the program has no usable
+        DOMAIN/PROBLEM_TYPE pair, matching :meth:`try_insert`.
         """
         return self._insert_cell(program)
 
@@ -413,7 +453,7 @@ class MAPElitesArchive:
     #
     #   parent : "... Construct a specific coloring ... all the same color."
     #   child  : "... Prove that it is impossible to construct a specific
-    #             coloring ... all the same color."   SKILL relabelled.
+    #             coloring ... all the same color."   Descriptor relabelled.
     #
     # Byte-identical code. Template similarity 0.746 -- under the 0.90 bar.
     # Skeleton similarity 1.000. It entered a second cell and counted as
@@ -560,7 +600,7 @@ class MAPElitesArchive:
             # them with the default and 23 (17%) without it; the pair it most
             # obviously had to catch -- identical source, "Construct a ..."
             # reworded to "Prove that it is impossible to construct a ...", the
-            # SKILL relabelled, landing in a second cell -- scores 0.746 with
+            # descriptor relabelled, landing in a second cell -- scores 0.746 with
             # autojunk and 1.000 without. The gate had never once fired.
             matched = sum(
                 block.size
@@ -796,49 +836,21 @@ class MAPElitesArchive:
                 provenance={**base, "attached": False, "omitted_reason": reason},
             )
 
-        # "Conceptual family" has no ground-truth field. Use two independent,
-        # observable proxies without turning the donor into a target: lineage
-        # must differ, and among those candidates prefer a donor whose GROUP
-        # and SKILL descriptors both differ. Labels choose context only; they
-        # are never shown in the prompt. Fall back gracefully when the small
-        # early archive offers no orthogonal descriptor pair.
-        parent_group, parent_skill = parent.get_group(), parent.get_skill()
-        cross_descriptor = [
-            item
-            for item in usable
-            if item[0].get_group() != parent_group
-            and item[0].get_skill() != parent_skill
-        ]
-        different_cell = [
-            item
-            for item in usable
-            if (
-                item[0].get_group() != parent_group
-                or item[0].get_skill() != parent_skill
-            )
-        ]
-        if cross_descriptor:
-            selection_pool = cross_descriptor
-            selection_tier = "cross_lineage_cross_descriptor"
-        elif different_cell:
-            selection_pool = different_cell
-            selection_tier = "cross_lineage_different_cell"
-        else:
-            selection_pool = usable
-            selection_tier = "cross_lineage"
-
-        donor, template = rng.choice(selection_pool)
+        # Directionless mutation means descriptors cannot influence which
+        # inspiration is shown. Lineage and safety gates define eligibility;
+        # the donor is otherwise uniform over the complete usable pool.
+        donor, template = rng.choice(usable)
         provenance = {
             **base,
             "attached": True,
-            "selection_tier": selection_tier,
-            "selection_pool_size": len(selection_pool),
+            "selection_tier": "cross_lineage_uniform",
+            "selection_pool_size": len(usable),
             "program_id": donor.program_id,
             "lineage_root_id": donor.lineage_root_id(),
-            # Labels stay out of the prompt but remain useful for the ablation
-            # audit after the donor may have been evicted from the live MAP.
-            "group": donor.get_group(),
-            "skill": donor.get_skill(),
+            # Descriptors stay out of the prompt and out of selection, but are
+            # persisted for audit after donor eviction.
+            "domain": donor.get_domain(),
+            "problem_type": donor.get_problem_type(),
             "donor_rq_score": float(donor.rq_score),
             "donor_certification_source": str(
                 (
@@ -1007,7 +1019,7 @@ class MAPElitesArchive:
         # pool was 5 of 10 champions and every excluded cell was s_hat = 0 --
         # casework, induction, invariant, extremal_principle, inequality/counting
         # -- the five the policy cannot solve yet. Two of the five survivors were
-        # `counting`, so 40% of parents came from one skill column and both
+        # `counting`, so 40% of parents came from one descriptor column and both
         # evolved children landed there.
         #
         # R_Q = 0 covers two opposite situations and neither is a reason to
@@ -1028,35 +1040,6 @@ class MAPElitesArchive:
         self.total_selections += 1
         assert niche.champion is not None
         return niche.champion
-
-    def sample_target_cell(self, rng: random.Random | None = None) -> tuple[str, str]:
-        """A niche for the next child to aim at: uniform over the whole grid.
-
-        NOT uniform over the EMPTY cells. Measured over 7,776 candidates of the
-        4B run, only 16 (0.2%) ever declared a cell that was free, and the
-        archive gained exactly the 11 that got in -- mutation was a random walk
-        in descriptor space with no goal, so 26 of 48 cells were never even
-        aimed at. Naming a target fixes that (empty-cell survival 1.0% -> 17%,
-        distinct cells reached 3 -> 18-21 per 400 attempts).
-
-        Restricting the draw to empty cells would buy more of that -- 69% of
-        draws land empty instead of 54% -- and cost the thing MAP-Elites is for:
-        an occupied cell would never be challenged again. This grid has cells
-        that need challenging. Eight to nine champions sit at s_hat = 1 (solved,
-        R_Q = 0, contributing nothing to the frontier) and two are ill-posed
-        (`number_theory/construction` asks about a collection its statement
-        never defines). Under an empty-only draw none of them can ever be
-        replaced. Measured, the whole-grid draw reaches the same 17 distinct
-        cells and the policy follows the target BETTER (GROUP compliance
-        66% -> 78%), because it is no longer being pushed only into the
-        combinations it was avoiding for a reason.
-
-        Uniform over SKILL then over GROUP is exactly uniform over the 48 cells,
-        the grid being a complete product -- the spelling below is the one that
-        stays uniform per axis if either vocabulary ever changes length.
-        """
-        rng = rng or random
-        return (rng.choice(GROUPS), rng.choice(SKILLS))
 
     def _sample_ucb(self, occupied: list[tuple[tuple[int, int], Niche]]):
         # Exploitation term ranks by selection priority: real R_Q in production,
@@ -1087,19 +1070,19 @@ class MAPElitesArchive:
     def stats(self) -> dict[str, float | int]:
         champions = self.champions()
         rqs = [p.rq_score for p in champions]
-        total = self.n_group_bins * self.n_skill_bins
-        # Per-axis coverage separates "we only ever work in two domains" from
-        # "we only ever exercise two reasoning moves" -- the two failure modes
-        # the operators are meant to fix, and they look identical in the single
-        # coverage number.
-        groups_hit = {p.get_group() for p in champions if p.get_group()}
-        skills_hit = {p.get_skill() for p in champions if p.get_skill()}
+        total = self.n_domain_bins * self.n_problem_type_bins
+        domains_hit = {p.get_domain() for p in champions if p.get_domain()}
+        problem_types_hit = {
+            p.get_problem_type() for p in champions if p.get_problem_type()
+        }
         return {
             "num_champions": len(champions),
             "total_niches": total,
             "coverage": len(champions) / total if total else 0.0,
-            "group_coverage": len(groups_hit) / self.n_group_bins,
-            "skill_coverage": len(skills_hit) / self.n_skill_bins,
+            "domain_coverage": len(domains_hit) / self.n_domain_bins,
+            "problem_type_coverage": (
+                len(problem_types_hit) / self.n_problem_type_bins
+            ),
             "mean_rq": sum(rqs) / len(rqs) if rqs else 0.0,
             "max_rq": max(rqs) if rqs else 0.0,
             "total_insertions": self.total_insertions,
@@ -1114,9 +1097,16 @@ class MAPElitesArchive:
         checkpoint so the grid is restored atomically with the weights."""
         return {
             "meta": {
-                "axes": ["group", "skill"],
-                "group_labels": list(GROUPS),
-                "skill_labels": list(SKILLS),
+                "schema": ARCHIVE_SCHEMA,
+                "schema_version": ARCHIVE_SCHEMA_VERSION,
+                "axes": ["domain", "problem_type"],
+                "domain_labels": list(DOMAINS),
+                "problem_type_labels": list(PROBLEM_TYPES),
+                "domain_authority": "source_exact_one_literal",
+                "problem_type_authority": "deterministic_statement_and_verifier",
+                "problem_type_ruleset": PROBLEM_TYPE_RULESET,
+                "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
+                "binning": self.binning,
                 "epsilon": self.epsilon,
                 "ucb_c": self.ucb_c,
                 "selection_strategy": self.selection_strategy,
@@ -1128,8 +1118,8 @@ class MAPElitesArchive:
             ],
             "niches": [
                 {
-                    "group_bin": niche.group_bin,
-                    "skill_bin": niche.skill_bin,
+                    "domain_bin": niche.domain_bin,
+                    "problem_type_bin": niche.problem_type_bin,
                     "selection_count": niche.selection_count,
                     "update_count": niche.update_count,
                     "history": list(niche.history),
@@ -1150,18 +1140,171 @@ class MAPElitesArchive:
     def load_payload(self, payload: dict) -> int:
         """Restore champions from an in-memory payload (see :meth:`to_payload`).
 
-        Shares all placement/re-binning logic with :meth:`load`; the file-based
-        ``load`` is a thin reader that delegates here.
+        Snapshot compatibility is exact and checked before the live archive is
+        changed. Old GROUP x SKILL archives, reordered vocabularies, and a
+        snapshot from the other binning arm all raise :class:`ArchiveSchemaError`
+        instead of being partially resumed or silently rebinned.
         """
-        meta = payload.get("meta", {})
-        pre_migration = meta.get("axes") != ["group", "skill"]
-        if pre_migration and payload.get("champions"):
-            print(
-                "[archive.load] snapshot predates the GROUP x SKILL grid "
-                f"(axes={meta.get('axes') or 'h x diversity'}). Its champions "
-                "carry no SKILL label, so they cannot be placed on the skill "
-                "axis and are dropped; the run bootstraps from seed_programs."
+        if not isinstance(payload, dict):
+            raise ArchiveSchemaError("archive payload must be a mapping")
+        meta = payload.get("meta")
+        if not isinstance(meta, dict):
+            raise ArchiveSchemaError("archive payload has no metadata mapping")
+
+        expected = {
+            "schema": ARCHIVE_SCHEMA,
+            "schema_version": ARCHIVE_SCHEMA_VERSION,
+            "axes": ["domain", "problem_type"],
+            "domain_labels": list(DOMAINS),
+            "problem_type_labels": list(PROBLEM_TYPES),
+            "domain_authority": "source_exact_one_literal",
+            "problem_type_authority": "deterministic_statement_and_verifier",
+            "problem_type_ruleset": PROBLEM_TYPE_RULESET,
+            "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
+            "binning": self.binning,
+        }
+        mismatches = [
+            f"{key}={meta.get(key)!r} (expected {value!r})"
+            for key, value in expected.items()
+            if meta.get(key) != value
+        ]
+        if mismatches:
+            raise ArchiveSchemaError(
+                "incompatible archive snapshot: " + "; ".join(mismatches)
             )
+
+        champion_rows = payload.get("champions", [])
+        donor_rows = payload.get("structural_donors", [])
+        niche_rows = payload.get("niches", [])
+        if not isinstance(champion_rows, list):
+            raise ArchiveSchemaError("archive champions must be a list")
+        if not isinstance(donor_rows, list):
+            raise ArchiveSchemaError("archive structural_donors must be a list")
+        if not isinstance(niche_rows, list):
+            raise ArchiveSchemaError("archive niches must be a list")
+        if len(champion_rows) > len(self.grid):
+            raise ArchiveSchemaError(
+                f"archive has {len(champion_rows)} champions for "
+                f"{len(self.grid)} cells"
+            )
+
+        # Decode and validate everything first. A failed load leaves the live
+        # archive untouched, which is the fail-closed contract used on resume.
+        decoded_champions: list[tuple[ProblemProgram, tuple[int, int]]] = []
+        descriptor_cells: set[tuple[int, int]] = set()
+        champion_ids: set[str] = set()
+        for i, row in enumerate(champion_rows):
+            try:
+                program = ProblemProgram.from_dict(row)
+                descriptor_cell = self.program_to_cell(program)
+                float(program.s_hat)
+                float(program.u_score)
+                float(program.rq_score)
+            except Exception as exc:
+                raise ArchiveSchemaError(f"invalid champion row {i}: {exc}") from exc
+            if descriptor_cell is None:
+                raise ArchiveSchemaError(
+                    f"champion row {i} has no valid DOMAIN/PROBLEM_TYPE pair"
+                )
+            contract = (program.metadata or {}).get("descriptor_contract")
+            if contract is None:
+                raise ArchiveSchemaError(
+                    f"champion row {i} has no deterministic descriptor contract"
+                )
+            if program.program_id in champion_ids:
+                raise ArchiveSchemaError(
+                    f"duplicate champion program_id {program.program_id!r}"
+                )
+            champion_ids.add(program.program_id)
+            if self.binning == "grid" and descriptor_cell in descriptor_cells:
+                raise ArchiveSchemaError(
+                    f"multiple champions claim grid cell {descriptor_cell}"
+                )
+            descriptor_cells.add(descriptor_cell)
+            decoded_champions.append((program, descriptor_cell))
+
+        decoded_donors: list[ProblemProgram] = []
+        donor_ids: set[str] = set()
+        for i, row in enumerate(donor_rows):
+            try:
+                donor = ProblemProgram.from_dict(row)
+                donor_cell = self.program_to_cell(donor)
+                float(donor.rq_score)
+            except Exception as exc:
+                raise ArchiveSchemaError(
+                    f"invalid structural donor row {i}: {exc}"
+                ) from exc
+            if donor_cell is None:
+                raise ArchiveSchemaError(
+                    f"structural donor row {i} has no valid " "DOMAIN/PROBLEM_TYPE pair"
+                )
+            certification = (donor.metadata or {}).get(
+                "structural_donor_certification"
+            )
+            if certification is not None and not isinstance(certification, dict):
+                raise ArchiveSchemaError(
+                    f"invalid structural donor certification in row {i}: "
+                    "expected a mapping"
+                )
+            contract = (donor.metadata or {}).get("descriptor_contract")
+            if contract is None:
+                raise ArchiveSchemaError(
+                    f"structural donor row {i} has no deterministic "
+                    "descriptor contract"
+                )
+            if donor.program_id in donor_ids:
+                raise ArchiveSchemaError(
+                    f"duplicate structural donor program_id {donor.program_id!r}"
+                )
+            donor_ids.add(donor.program_id)
+            decoded_donors.append(donor)
+
+        decoded_niches: list[tuple[tuple[int, int], int, int, list]] = []
+        seen_niche_cells: set[tuple[int, int]] = set()
+        for i, row in enumerate(niche_rows):
+            if not isinstance(row, dict):
+                raise ArchiveSchemaError(f"invalid niche row {i}: not a mapping")
+            try:
+                cell = (
+                    int(row["domain_bin"]),
+                    int(row["problem_type_bin"]),
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ArchiveSchemaError(
+                    f"invalid niche coordinates in row {i}"
+                ) from exc
+            if cell not in self.grid:
+                raise ArchiveSchemaError(
+                    f"niche row {i} is outside the 7 x 5 grid: {cell}"
+                )
+            if cell in seen_niche_cells:
+                raise ArchiveSchemaError(f"duplicate niche row for cell {cell}")
+            seen_niche_cells.add(cell)
+            try:
+                selection_count = int(row.get("selection_count", 0))
+                update_count = int(row.get("update_count", 0))
+            except (TypeError, ValueError) as exc:
+                raise ArchiveSchemaError(f"invalid counters in niche row {i}") from exc
+            if selection_count < 0 or update_count < 0:
+                raise ArchiveSchemaError(f"negative counters in niche row {i}")
+            history = row.get("history") or []
+            if not isinstance(history, list):
+                raise ArchiveSchemaError(
+                    f"invalid history in niche row {i}: expected a list"
+                )
+            decoded_niches.append((cell, selection_count, update_count, list(history)))
+
+        saved_stats = meta.get("stats") or {}
+        if not isinstance(saved_stats, dict):
+            raise ArchiveSchemaError("archive stats must be a mapping")
+        try:
+            saved_totals = (
+                int(saved_stats.get("total_insertions", 0)),
+                int(saved_stats.get("total_replacements", 0)),
+                int(saved_stats.get("total_selections", 0)),
+            )
+        except (TypeError, ValueError) as exc:
+            raise ArchiveSchemaError("archive totals must be integers") from exc
 
         for niche in self.grid.values():
             niche.champion = None
@@ -1170,14 +1313,7 @@ class MAPElitesArchive:
             niche.update_count = 0
             niche.history = []
         self.structural_donors = {}
-
-        donor_rows = payload.get("structural_donors")
-        if donor_rows is None:
-            # Backward-compatible recovery for snapshots written before the
-            # dedicated registry existed.
-            donor_rows = payload.get("champions", [])
-        for donor_dict in donor_rows:
-            donor = ProblemProgram.from_dict(donor_dict)
+        for donor in decoded_donors:
             certified = (
                 (donor.metadata or {}).get("structural_donor_certification") or {}
             ).get("passed")
@@ -1185,28 +1321,22 @@ class MAPElitesArchive:
                 self.structural_donors[donor.program_id] = donor
 
         placed = 0
-        unlabelled = 0
-        for champ_dict in payload.get("champions", []):
-            program = ProblemProgram.from_dict(champ_dict)
+        for program, _descriptor_cell in decoded_champions:
             # _insert_cell, NOT program_to_cell: it is the only thing that reads
             # self.binning. Under "grid" the two are identical, so this changes
             # nothing for a grid archive; under "flat" it is the difference
             # between restoring the archive and collapsing it, because every
-            # champion sharing a (GROUP, SKILL) pair would otherwise land on one
-            # cell and overwrite the others. A flat run that resumed from a
-            # snapshot silently became a partly-grid run.
+            # champion sharing a descriptor pair may occupy a separate slot.
             cell = self._insert_cell(program)
-            if cell is None:
-                unlabelled += 1
-                continue
+            assert cell is not None  # validated above
             # The saved coordinates are re-derived rather than trusted: both
             # axes are pure functions of the program's own labels, so a stored
             # coordinate can only ever agree or be stale.
             if (
-                program.niche_group,
-                program.niche_skill,
+                program.niche_domain,
+                program.niche_problem_type,
             ) != cell:
-                program.niche_group, program.niche_skill = cell
+                program.niche_domain, program.niche_problem_type = cell
             niche = self.grid[cell]
             incumbent = niche.champion
             if incumbent is not None and self._select_priority(
@@ -1217,35 +1347,25 @@ class MAPElitesArchive:
             niche.champion_rq = float(program.rq_score)
             niche.update_count += 1
             placed += 1
-        for row in payload.get("niches", []):
-            try:
-                cell = (int(row["group_bin"]), int(row["skill_bin"]))
-                niche = self.grid[cell]
-            except (KeyError, TypeError, ValueError):
-                continue
-            niche.selection_count = int(row.get("selection_count", 0))
-            niche.update_count = int(row.get("update_count", niche.update_count))
-            niche.history = list(row.get("history") or [])
-        saved_stats = meta.get("stats") or {}
-        self.total_insertions = int(saved_stats.get("total_insertions", 0))
-        self.total_replacements = int(saved_stats.get("total_replacements", 0))
-        self.total_selections = int(saved_stats.get("total_selections", 0))
-        if unlabelled:
-            print(
-                f"[archive.load] dropped {unlabelled} champion(s) without a "
-                "usable GROUP/SKILL pair"
-            )
+        for cell, selection_count, update_count, history in decoded_niches:
+            niche = self.grid[cell]
+            niche.selection_count = selection_count
+            niche.update_count = update_count
+            niche.history = history
+        (
+            self.total_insertions,
+            self.total_replacements,
+            self.total_selections,
+        ) = saved_totals
         return placed
 
     def load(self, path: str | Path) -> int:
         """Restore champions written by :meth:`save`.
 
-        Returns the number of champions placed. Every niche is cleared first so
-        the restored grid reflects exactly the saved state. Each champion's cell
-        is re-derived from its own GROUP/SKILL labels rather than trusted from
-        the snapshot, because both coordinates are pure functions of those
-        labels. Validity/RQ gates are not re-applied -- the saved state is
-        reproduced as-is -- and a champion with no usable label pair is dropped.
+        Returns the number of champions placed. Schema, ordered vocabularies,
+        and every champion's DOMAIN/PROBLEM_TYPE assignment are validated before
+        the live archive is cleared. Validity and R_Q gates are not re-applied;
+        this restores a compatible saved state exactly.
         """
         path = Path(path)
         archive_file = path / "archive.json" if path.is_dir() else path

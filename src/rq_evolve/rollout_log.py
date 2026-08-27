@@ -78,6 +78,7 @@ def make_sample_record(
     global_step: int,
     source_checkpoint: str,
     entropy: float | None = None,
+    verifier_mode: str | None = None,
 ) -> dict:
     """Schema-in-one-place constructor for a rollout_samples.jsonl line."""
     return {
@@ -90,6 +91,7 @@ def make_sample_record(
         "reject_reason": reject_reason,        # null when accepted
         "correct": correct,
         "predicted_answer": predicted_answer,
+        "verifier_mode": verifier_mode,
         "prompt_tokens": int(prompt_tokens),
         "response_tokens": int(response_tokens),
         "latency_s": round(float(latency_s), 3),

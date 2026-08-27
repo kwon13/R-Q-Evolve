@@ -1,14 +1,35 @@
+import hashlib
+
 import pytest
 
 from rq_evolve.archive import MAPElitesArchive
+from rq_evolve.problem_type import PROBLEM_TYPE_RULESET, problem_type_ruleset_sha256
 from rq_evolve.program import ProblemProgram
 
 
-def _program(
-    group: str, value: int, skill: str = "transformation"
+def _certify(
+    program: ProblemProgram, domain: str, problem_type: str
 ) -> ProblemProgram:
-    return ProblemProgram(
-        source_code=f'''
+    """Emulate the metadata written by ``RQEvolver.verify_program``."""
+    program.metadata["problem_type"] = problem_type
+    program.metadata["descriptor_contract"] = {
+        "domain_authority": "source_exact_one_literal",
+        "problem_type_authority": "deterministic_statement_and_verifier",
+        "problem_type_ruleset": PROBLEM_TYPE_RULESET,
+        "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
+        "verified_seeds": 5,
+        "domain": domain,
+        "problem_type": problem_type,
+        "source_sha256": hashlib.sha256(
+            program.source_code.encode("utf-8")
+        ).hexdigest(),
+    }
+    return program
+
+
+def _program(domain: str, value: int, problem_type: str = "function") -> ProblemProgram:
+    program = ProblemProgram(
+        source_code=f"""
 import random
 
 
@@ -16,10 +37,10 @@ def generate(seed):
     return f"What is {value} + {{seed}}?", str({value} + seed)
 
 
-GROUP = "{group}"
-SKILL = "{skill}"
-'''
+DOMAIN = "{domain}"
+"""
     )
+    return _certify(program, domain, problem_type)
 
 
 def test_random_selection_strategy_does_not_call_ucb():
@@ -43,13 +64,12 @@ def test_unknown_selection_strategy_is_rejected():
 
 def test_seed_variation_allows_varied_problems_with_constant_answer():
     program = ProblemProgram(
-        source_code='''
+        source_code="""
 def generate(seed):
     return f"Find the value of {seed} - {seed}.", "0"
 
-GROUP = "algebra"
-SKILL = "invariant"
-'''
+DOMAIN = "algebra"
+"""
     )
     archive = MAPElitesArchive()
 
@@ -60,13 +80,12 @@ SKILL = "invariant"
 
 def test_seed_variation_rejects_unchanged_visible_problem_with_hidden_answers():
     program = ProblemProgram(
-        source_code='''
+        source_code="""
 def generate(seed):
     return "Find the hidden number.", str(seed)
 
-GROUP = "algebra"
-SKILL = "construction"
-'''
+DOMAIN = "algebra"
+"""
     )
     archive = MAPElitesArchive()
 
@@ -80,31 +99,32 @@ def test_every_occupied_niche_can_be_a_mutation_parent():
     and never mutated, so the cells most in need of new material -- the ones
     the policy cannot solve yet -- were exactly the ones evolution could not
     start from. On a 4B probe that left 5 of 10 champions eligible, two of them
-    in the same skill column, and both evolved children landed there.
+    in the same problem-type column, and both evolved children landed there.
 
     R_Q = 0 covers two opposite cases and the test pins both: s_hat = 0
     (unsolvable today) and s_hat = 1 (solved outright).
     """
-    def _distinct(group: str, skill: str, template: str) -> ProblemProgram:
+
+    def _distinct(domain: str, problem_type: str, template: str) -> ProblemProgram:
         # Distinct problem TEMPLATES: the archive rejects a second champion whose
         # statement skeleton matches an existing one, which would make this test
         # about template dedup rather than about the parent pool.
-        return ProblemProgram(
+        program = ProblemProgram(
             source_code=(
                 "import random\n\n\n"
                 "def generate(seed):\n"
                 f'    return f"{template}", str(seed)\n\n\n'
-                f'GROUP = "{group}"\n'
-                f'SKILL = "{skill}"\n'
+                f'DOMAIN = "{domain}"\n'
             )
         )
+        return _certify(program, domain, problem_type)
 
     archive = MAPElitesArchive(selection_strategy="random")
     unsolvable = _distinct(
-        "geometry", "extremal_principle", "Largest triangle with perimeter {seed}?"
+        "geometry", "optimization", "Largest triangle with perimeter {seed}?"
     )
     solved_outright = _distinct(
-        "algebra", "invariant", "Constant term after {seed} shifts?"
+        "algebra", "function", "Constant term after {seed} shifts?"
     )
     unsolvable.s_hat, unsolvable.u_score = 0.0, 0.4
     solved_outright.s_hat, solved_outright.u_score = 1.0, 0.4
@@ -120,8 +140,8 @@ def test_every_occupied_niche_can_be_a_mutation_parent():
     )
 
 
-def _family(group: str, skill: str, statement: str) -> ProblemProgram:
-    return ProblemProgram(
+def _family(domain: str, problem_type: str, statement: str) -> ProblemProgram:
+    program = ProblemProgram(
         source_code=(
             "import random\n\n\n"
             "def generate(seed):\n"
@@ -131,9 +151,10 @@ def _family(group: str, skill: str, statement: str) -> ProblemProgram:
             # instance lint rejects it before the duplicate gate is reached.
             "    answer = n * 7 + 3\n"
             f'    return f"{statement}", str(answer)\n\n\n'
-            f'GROUP = "{group}"\nSKILL = "{skill}"\n'
+            f'DOMAIN = "{domain}"\n'
         )
     )
+    return _certify(program, domain, problem_type)
 
 
 def test_a_restatement_of_another_cell_is_not_new_coverage():
@@ -143,22 +164,24 @@ def test_a_restatement_of_another_cell_is_not_new_coverage():
         Let n = N be a positive integer. How many distinct prime factors does n have?
 
     hold two different cells: five words apart, two different hashes. With
-    SKILL labels around 22% accurate the restatement reliably lands somewhere
-    else and reports as coverage the curriculum does not have.
+    noisy problem-type labels can make the restatement land somewhere else and
+    report coverage the curriculum does not have.
     """
     archive = MAPElitesArchive(selection_strategy="random")
     first = _family(
-        "number_theory", "counting",
+        "number_theory",
+        "counting",
         "Let n = {n}. How many distinct prime factors does n have? State only the integer.",
     )
     restated = _family(
-        "number_theory", "transformation",
+        "number_theory",
+        "function",
         "Let n = {n} be a positive integer. How many distinct prime factors does n have? State only the integer.",
     )
     assert archive.try_insert(first, u_value=0.4, rq_score=0.2)
-    assert not archive.try_insert(restated, u_value=0.4, rq_score=0.9), (
-        "a higher score must not buy a second cell for the same question"
-    )
+    assert not archive.try_insert(
+        restated, u_value=0.4, rq_score=0.9
+    ), "a higher score must not buy a second cell for the same question"
     assert restated.metadata["archive_status"] == "near_duplicate_template_rejected"
     assert restated.metadata["duplicate_of"] == first.program_id
     assert restated.metadata["duplicate_ratio"] >= 0.9
@@ -170,11 +193,13 @@ def test_a_genuinely_different_question_still_gets_its_cell():
     sameness -- so it sits high enough that neighbouring questions survive."""
     archive = MAPElitesArchive(selection_strategy="random")
     divisors = _family(
-        "number_theory", "counting",
+        "number_theory",
+        "counting",
         "Let n = {n}. How many positive divisors does n have? State only the integer.",
     )
     triangle = _family(
-        "geometry", "extremal_principle",
+        "geometry",
+        "optimization",
         "A triangle has integer sides and perimeter {n}. Find its greatest possible area doubled. State only the integer.",
     )
     assert archive.try_insert(divisors, u_value=0.4, rq_score=0.2)

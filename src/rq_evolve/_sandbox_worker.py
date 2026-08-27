@@ -7,6 +7,8 @@ import random
 import resource
 import sys
 
+from verifier import normalize_verifier
+
 # Names the model writes without importing. `comb` alone killed 370 candidates on
 # the 4B run -- 3 of the 4 stage-2 worked examples open with a bare
 # `import random`, so the file's first line is emitted long before the model
@@ -74,12 +76,16 @@ def _run(source: str, seed: int):
     if generate is None:
         return None
     result = generate(seed)
-    if not isinstance(result, (tuple, list)) or len(result) != 2:
+    if not isinstance(result, (tuple, list)) or len(result) not in (2, 3):
         return None
     problem, answer = str(result[0]), str(result[1])
     if not problem.strip() or not answer.strip():
         return None
-    return {"problem": problem, "answer": answer}
+    verifier = normalize_verifier(
+        result[2] if len(result) == 3 else None,
+        answer=answer,
+    )
+    return {"problem": problem, "answer": answer, "verifier": verifier}
 
 
 def _warm_imports() -> None:
@@ -129,7 +135,9 @@ def main() -> None:
             if out is not None:
                 resp.update(out)
             else:
-                resp["error"] = "generate returned no usable (problem, answer)"
+                resp["error"] = (
+                    "generate returned no usable (problem, answer[, verifier])"
+                )
         except BaseException as exc:
             # Carry the failure back. Collapsing every failure into a bare
             # ok=False made "execute failed at seed=0" the single largest

@@ -1,18 +1,17 @@
-"""The GROUP x SKILL grid: what a cell is, and what H is no longer."""
+"""The complete DOMAIN x PROBLEM_TYPE archive and its resume contract."""
+
+import copy
+import hashlib
+import random
 
 import pytest
 
-from rq_evolve.archive import MAPElitesArchive
-from rq_evolve.concepts import GROUPS, SKILLS
+from rq_evolve.archive import ArchiveSchemaError, MAPElitesArchive
+from rq_evolve.concepts import DOMAINS, PROBLEM_TYPES
+from rq_evolve.problem_type import PROBLEM_TYPE_RULESET, problem_type_ruleset_sha256
 from rq_evolve.program import ProblemProgram
 
 
-# Two vocabularies, multiplied, give 48 statements that are pairwise unalike --
-# enough to fill the whole grid. They have to be genuinely different questions,
-# not one question with a word swapped: the archive rejects a champion whose
-# numeric-free statement is largely contained in one already held, so a fixture
-# built from a shared skeleton plus a short tag would be turned away by that
-# gate rather than by the capacity rule the flat-binning tests are probing.
 _SUBJECTS = (
     "lattice points inside a convex hull",
     "prime gaps below a bound",
@@ -20,6 +19,7 @@ _SUBJECTS = (
     "coins stacked in decreasing piles",
     "tilings of a strip by dominoes",
     "chords crossing inside a circle",
+    "roots arranged around the unit disk",
 )
 _ACTIONS = (
     "counted after a single shuffle",
@@ -27,332 +27,319 @@ _ACTIONS = (
     "summed over every odd index",
     "compared against their mirror images",
     "grouped by residue modulo three",
-    "ordered by increasing weight",
-    "paired off until none remain",
-    "relabelled by a fixed permutation",
 )
 
 
 def _distinct_tags(count: int) -> list[str]:
-    """``count`` phrases no two of which read as the same question."""
     assert count <= len(_SUBJECTS) * len(_ACTIONS)
     return [
-        f"{_SUBJECTS[i % len(_SUBJECTS)]} {_ACTIONS[i // len(_SUBJECTS)]}"
+        f"{_SUBJECTS[i % len(_SUBJECTS)]} " f"{_ACTIONS[i // len(_SUBJECTS)]}"
         for i in range(count)
     ]
 
 
-def _program(
-    group: str, skill: str, value: int = 1, tag: str = ""
+def _certify(
+    program: ProblemProgram, domain: str, problem_type: str
 ) -> ProblemProgram:
-    """A minimal generator carrying one (GROUP, SKILL) pair.
+    """Emulate the source-bound result of deterministic verification."""
+    program.metadata["problem_type"] = problem_type
+    program.metadata["descriptor_contract"] = {
+        "domain_authority": "source_exact_one_literal",
+        "problem_type_authority": "deterministic_statement_and_verifier",
+        "problem_type_ruleset": PROBLEM_TYPE_RULESET,
+        "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
+        "verified_seeds": 5,
+        "domain": domain,
+        "problem_type": problem_type,
+        "source_sha256": hashlib.sha256(
+            program.source_code.encode("utf-8")
+        ).hexdigest(),
+    }
+    return program
 
-    ``tag`` supplies the wording, and it carries the whole statement rather than
-    filling a slot in a fixed sentence -- see ``_distinct_tags``. The archive
-    rejects two champions whose numeric-free problem skeletons match, so
-    programs that must coexist need distinct phrasing, not just distinct
-    numbers.
-    """
-    phrase = tag or f"{group} studied by {skill}"
-    return ProblemProgram(
-        source_code=f'''
+
+def _program(
+    domain: str,
+    problem_type: str,
+    value: int = 1,
+    tag: str = "",
+) -> ProblemProgram:
+    phrase = tag or f"{domain} studied as a {problem_type} problem"
+    program = ProblemProgram(
+        source_code=f"""
 def generate(seed):
-    return f"{phrase}, then add {{seed}} to {value}.", str({value} + seed)
+    problem = f"{phrase}, then add {{seed}} to {value}."
+    return problem, str({value} + seed)
 
 
-GROUP = "{group}"
-SKILL = "{skill}"
-'''
+DOMAIN = "{domain}"
+"""
     )
+    return _certify(program, domain, problem_type)
 
 
-def test_grid_shape_is_the_two_vocabularies():
+def test_grid_is_the_unmasked_seven_by_five_product():
     archive = MAPElitesArchive()
-    assert archive.n_group_bins == len(GROUPS)
-    assert archive.n_skill_bins == len(SKILLS)
-    assert len(archive.grid) == len(GROUPS) * len(SKILLS)
+    assert archive.n_domain_bins == len(DOMAINS) == 7
+    assert archive.n_problem_type_bins == len(PROBLEM_TYPES) == 5
+    assert set(archive.grid) == {
+        (domain_bin, type_bin) for domain_bin in range(7) for type_bin in range(5)
+    }
+    assert len(archive.grid) == 35
+    assert not hasattr(archive, "sample_target_cell")
 
 
-def test_cell_is_a_pure_function_of_the_declared_labels():
+def test_cell_is_a_pure_function_of_the_post_hoc_descriptors():
     archive = MAPElitesArchive()
-    cell = archive.program_to_cell(_program("geometry", "casework"))
-    assert cell == (GROUPS.index("geometry"), SKILLS.index("casework"))
-    assert archive.cell_labels(cell) == ("geometry", "casework")
+    program = _program("geometry", "search")
+    cell = archive.program_to_cell(program)
+    assert cell == (DOMAINS.index("geometry"), PROBLEM_TYPES.index("search"))
+    assert archive.cell_labels(cell) == ("geometry", "search")
 
 
-def test_uncertainty_no_longer_moves_a_program_between_cells():
-    """H is fitness, not a coordinate: the same labels land in the same cell."""
+def test_structural_inspiration_selection_is_descriptor_blind():
     archive = MAPElitesArchive()
-    low = _program("algebra", "induction", value=1, tag="first")
-    high = _program("algebra", "induction", value=2, tag="second")
+    parent = _program("algebra", "function", tag="primary recurrence family")
+    same_domain = _program(
+        "algebra", "counting", tag="finite coefficient counting family"
+    )
+    other_domain = _program(
+        "geometry", "search", tag="coordinate intersection witness family"
+    )
+    for program, root in (
+        (parent, "root-a"),
+        (same_domain, "root-b"),
+        (other_domain, "root-c"),
+    ):
+        program.metadata["lineage_root_id"] = root
+        cell = archive.program_to_cell(program)
+        assert cell is not None
+        archive.grid[cell].champion = program
+
+    selection = archive.sample_structural_inspiration(parent, rng=random.Random(4))
+    assert selection.donor in (same_domain, other_domain)
+    assert selection.provenance["eligible_count"] == 2
+    assert selection.provenance["selection_pool_size"] == 2
+    assert selection.provenance["selection_tier"] == "cross_lineage_uniform"
+    assert "domain" in selection.provenance
+    assert "problem_type" in selection.provenance
+    assert "group" not in selection.provenance
+    assert "skill" not in selection.provenance
+
+
+def test_fitness_never_changes_a_programs_cell():
+    archive = MAPElitesArchive()
+    low = _program("algebra", "function", value=1, tag="first relation")
+    high = _program("algebra", "function", value=2, tag="second relation")
     assert archive.program_to_cell(low) == archive.program_to_cell(high)
 
-    archive.try_insert(low, u_value=0.05, rq_score=0.1)
-    archive.try_insert(high, u_value=5.0, rq_score=0.2)
-    # One cell, so the higher R_Q wins it outright rather than both surviving
-    # in separate u_score bands.
-    assert len(archive.champions()) == 1
-    assert archive.champions()[0].program_id == high.program_id
+    assert archive.try_insert(low, u_value=0.05, rq_score=0.1)
+    assert archive.try_insert(high, u_value=5.0, rq_score=0.2)
+    assert [p.program_id for p in archive.champions()] == [high.program_id]
+    assert high.u_score == pytest.approx(5.0)
 
 
-def test_h_is_still_recorded_and_still_decides_the_champion():
+def test_missing_or_out_of_vocabulary_descriptors_are_rejected():
     archive = MAPElitesArchive()
-    winner = _program("algebra", "counting", value=7, tag="winner")
-    archive.try_insert(winner, u_value=0.42, rq_score=0.3)
-    assert archive.champions()[0].u_score == pytest.approx(0.42)
-
-    # Same cell, lower R_Q -> loses, and the incumbent is untouched.
-    loser = _program("algebra", "counting", value=8, tag="loser")
-    assert archive.try_insert(loser, u_value=9.9, rq_score=0.01) is False
-    assert archive.champions()[0].program_id == winner.program_id
-
-
-def test_the_operators_each_move_exactly_one_coordinate():
-    archive = MAPElitesArchive()
-    parent = _program("algebra", "counting")
-    skill_shifted = _program("algebra", "invariant")   # operator A
-    domain_shifted = _program("geometry", "counting")  # operator B
-
-    pg, ps = archive.program_to_cell(parent)
-    ag, as_ = archive.program_to_cell(skill_shifted)
-    bg, bs = archive.program_to_cell(domain_shifted)
-
-    assert (ag, as_ != ps) == (pg, True), "A holds GROUP, moves SKILL"
-    assert (bs, bg != pg) == (ps, True), "B holds SKILL, moves GROUP"
-
-
-def test_an_unlabelled_program_is_rejected_not_hashed_into_a_cell():
-    archive = MAPElitesArchive()
-    unlabelled = ProblemProgram(
+    missing = ProblemProgram(
         source_code='def generate(seed):\n    return "q", str(seed)\n'
     )
-    assert archive.program_to_cell(unlabelled) is None
-    assert archive.target_cell(unlabelled) is None
-    assert archive.try_insert(
-        unlabelled, u_value=1.0, rq_score=0.5
-    ) is False
-    assert unlabelled.metadata["archive_status"] == "unlabelled_rejected"
+    invalid_domain = _program("topology", "counting")
+    invalid_type = _program("algebra", "proof")
+
+    for program in (missing, invalid_domain, invalid_type):
+        assert archive.program_to_cell(program) is None
+        assert archive.placement_cell(program) is None
+        assert not archive.try_insert(program, u_value=1.0, rq_score=0.5)
+        assert program.metadata["archive_status"] == "unlabelled_rejected"
     assert archive.champions() == []
 
 
-def test_out_of_vocabulary_labels_are_rejected_too():
+def test_missing_stale_or_ambiguous_descriptor_contract_is_rejected():
     archive = MAPElitesArchive()
-    for group, skill in (("topology", "counting"), ("algebra", "handwaving")):
-        assert archive.program_to_cell(_program(group, skill)) is None
+
+    missing = _program("algebra", "function", tag="missing provenance")
+    missing.metadata.pop("descriptor_contract")
+    # A source declaration must not revive the retired type-authority path.
+    missing.source_code += '\nPROBLEM_TYPE = "function"\n'
+
+    stale_rules = _program("geometry", "search", tag="stale rules")
+    stale_rules.metadata["descriptor_contract"][
+        "problem_type_ruleset_sha256"
+    ] = "0" * 64
+
+    stale_source = _program("number_theory", "counting", tag="stale source")
+    stale_source.metadata["descriptor_contract"]["source_sha256"] = "f" * 64
+
+    base = _program("calculus", "function", tag="ambiguous domain")
+    ambiguous = ProblemProgram(
+        source_code=base.source_code + '\nDOMAIN = "geometry"\n'
+    )
+    _certify(ambiguous, "calculus", "function")
+
+    for program in (missing, stale_rules, stale_source, ambiguous):
+        assert archive.program_to_cell(program) is None
+        assert not archive.try_insert(program, u_value=1.0, rq_score=0.5)
+        assert program.metadata["archive_status"] == "unlabelled_rejected"
+    assert archive.champions() == []
 
 
-def test_stats_report_per_axis_coverage():
-    """One number cannot tell 'two domains only' from 'two skills only'."""
+def test_stats_report_both_axis_coverages_over_all_35_cells():
     archive = MAPElitesArchive()
-    for i, skill in enumerate(("counting", "invariant", "induction")):
-        archive.try_insert(
-            _program("algebra", skill, value=i),
+    rows = (
+        ("algebra", "decision"),
+        ("algebra", "counting"),
+        ("geometry", "function"),
+    )
+    tags = _distinct_tags(3)
+    for i, (domain, problem_type) in enumerate(rows):
+        assert archive.try_insert(
+            _program(domain, problem_type, value=i + 1, tag=tags[i]),
             u_value=1.0,
             rq_score=0.1 * (i + 1),
         )
     stats = archive.stats()
     assert stats["num_champions"] == 3
-    assert stats["group_coverage"] == pytest.approx(1 / len(GROUPS))
-    assert stats["skill_coverage"] == pytest.approx(3 / len(SKILLS))
+    assert stats["total_niches"] == 35
+    assert stats["coverage"] == pytest.approx(3 / 35)
+    assert stats["domain_coverage"] == pytest.approx(2 / 7)
+    assert stats["problem_type_coverage"] == pytest.approx(3 / 5)
+    assert "group_coverage" not in stats
+    assert "skill_coverage" not in stats
 
 
-def test_snapshot_round_trip_preserves_cells():
+def test_snapshot_round_trip_preserves_schema_and_cells():
     archive = MAPElitesArchive()
-    for group, skill in (("algebra", "counting"), ("geometry", "invariant")):
-        archive.try_insert(
-            _program(group, skill, value=len(group)),
+    rows = (("algebra", "counting"), ("geometry", "search"))
+    tags = _distinct_tags(2)
+    for i, (domain, problem_type) in enumerate(rows):
+        assert archive.try_insert(
+            _program(domain, problem_type, value=i + 3, tag=tags[i]),
             u_value=1.0,
             rq_score=0.5,
         )
+
     payload = archive.to_payload()
-    assert payload["meta"]["axes"] == ["group", "skill"]
+    assert payload["meta"]["axes"] == ["domain", "problem_type"]
+    assert payload["meta"]["domain_labels"] == list(DOMAINS)
+    assert payload["meta"]["problem_type_labels"] == list(PROBLEM_TYPES)
+    assert payload["meta"]["schema_version"] == 2
+    assert payload["meta"]["problem_type_ruleset"] == PROBLEM_TYPE_RULESET
+    assert (
+        payload["meta"]["problem_type_ruleset_sha256"]
+        == problem_type_ruleset_sha256()
+    )
+    assert "supported_cells" not in payload["meta"]
+    assert payload["niches"]
+    assert all("domain_bin" in row for row in payload["niches"])
+    assert all("problem_type_bin" in row for row in payload["niches"])
+    assert all("group_bin" not in row for row in payload["niches"])
+    assert all("skill_bin" not in row for row in payload["niches"])
 
     restored = MAPElitesArchive()
     assert restored.load_payload(payload) == 2
-    before = {archive.program_to_cell(p) for p in archive.champions()}
-    after = {restored.program_to_cell(p) for p in restored.champions()}
-    assert before == after
-
-
-def test_a_pre_migration_snapshot_is_dropped_rather_than_misplaced(capsys):
-    """Old champions carry no SKILL, so there is no honest cell for them."""
-    archive = MAPElitesArchive()
-    legacy = {
-        "meta": {"n_h_bins": 10, "n_div_bins": 6, "diversity_axis": "concept_group"},
-        "champions": [
-            {
-                "source_code": (
-                    'def generate(seed):\n    return "q", str(seed)\n\n'
-                    'CONCEPT_GROUP = "algebra"\nCONCEPT_TYPE = "algebra.toy"\n'
-                ),
-                "program_id": "old",
-                "rq_score": 0.5,
-                "u_score": 0.3,
-                # Coordinates from the retired H x diversity grid.
-                "niche_h": 4,
-                "niche_div": 3,
-            }
-        ],
+    assert {archive.program_to_cell(p) for p in archive.champions()} == {
+        restored.program_to_cell(p) for p in restored.champions()
     }
-    assert archive.load_payload(legacy) == 0
-    assert archive.champions() == []
-    out = capsys.readouterr().out
-    assert "predates the GROUP x SKILL grid" in out
 
 
-def test_a_snapshot_that_loses_every_champion_is_not_a_resume(tmp_path):
-    """A pre-migration archive drops all champions, and resuming into an empty
-    grid killed a 4B run on its first batch with "VerlDynamicDataset is empty".
+@pytest.mark.parametrize(
+    "meta_patch",
+    [
+        {"schema": "old-schema"},
+        {"schema_version": 999},
+        {"axes": ["group", "skill"]},
+        {"domain_labels": ["geometry"]},
+        {"problem_type_labels": ["function"]},
+    ],
+)
+def test_schema_or_vocabulary_mismatch_fails_closed(meta_patch):
+    live = MAPElitesArchive()
+    incumbent = _program("algebra", "function", tag="existing live question")
+    assert live.try_insert(incumbent, u_value=1.0, rq_score=0.4)
 
-    ``load_state`` used to return True whenever archive.json existed, so the
-    adapter took the resume branch and never bootstrapped from seeds.
-    """
-    import json
-
-    from rq_evolve.evolution import RQEvolver
-
-    (tmp_path / "archive.json").write_text(
-        json.dumps(
-            {
-                "meta": {"axes": ["h", "diversity"]},
-                "champions": [
-                    {
-                        "source_code": "def generate(seed):\n    return 'q', '1'\n",
-                        "program_id": "old0",
-                        "niche_h": 0,
-                        "niche_div": 1,
-                        "rq_score": 0.5,
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    (tmp_path / "rq_used_seeds.json").write_text(
-        json.dumps({"used_seeds": {"old0": [0, 1, 2]}}), encoding="utf-8"
-    )
-
-    evolver = RQEvolver(archive=MAPElitesArchive(), backend=None)
-    assert evolver.load_state(tmp_path) is False
-    assert evolver.archive.champions() == []
-    # The dead run's consumed seeds must not retire seeds the bootstrap needs.
-    assert evolver.used_seeds == {}
+    payload = live.to_payload()
+    payload["meta"].update(meta_patch)
+    before = [p.program_id for p in live.champions()]
+    with pytest.raises(ArchiveSchemaError, match="incompatible archive"):
+        live.load_payload(payload)
+    assert [p.program_id for p in live.champions()] == before
 
 
-def test_flat_binning_fills_every_slot_before_any_competition():
-    """The grid arm reserves capacity per (GROUP, SKILL); the flat arm does not.
-
-    Two programs sharing a cell knock each other out under "grid" and coexist
-    under "flat" -- that difference is the whole ablation, and it is what makes
-    the pair (archive_binning=flat, reevaluate_champions=False) a test of
-    whether the MAP earns its place.
-    """
-    from rq_evolve.archive import MAPElitesArchive
-
-    for binning, expected in (("grid", 1), ("flat", 2)):
-        archive = MAPElitesArchive(binning=binning)
-        for value, tag in zip((3, 5), _distinct_tags(2)):
-            archive.try_insert(
-                program=_program("algebra", "counting", value=value, tag=tag),
-                u_value=1.0,
-                rq_score=float(value),
-            )
-        assert len(archive.champions()) == expected, binning
+def test_the_group_skill_archive_cannot_be_resumed():
+    legacy = {
+        "meta": {
+            "axes": ["group", "skill"],
+            "group_labels": ["algebra"],
+            "skill_labels": ["counting"],
+        },
+        "champions": [],
+    }
+    with pytest.raises(ArchiveSchemaError, match="incompatible archive"):
+        MAPElitesArchive().load_payload(legacy)
 
 
-def test_flat_binning_survives_a_snapshot_round_trip():
-    """A resume must not quietly turn the flat arm back into a grid arm.
+def test_current_metadata_cannot_smuggle_an_old_labelled_champion():
+    payload = MAPElitesArchive().to_payload()
+    payload["champions"] = [
+        {
+            "source_code": (
+                'def generate(seed):\n    return "q", str(seed)\n\n'
+                'GROUP = "algebra"\nSKILL = "counting"\n'
+            ),
+            "program_id": "legacy-program",
+        }
+    ]
+    with pytest.raises(ArchiveSchemaError, match="no valid DOMAIN/PROBLEM_TYPE"):
+        MAPElitesArchive().load_payload(payload)
 
-    ``load_payload`` used to place restored champions with ``program_to_cell``,
-    which ignores ``binning`` -- so every champion sharing a (GROUP, SKILL) pair
-    landed on one cell and all but the strongest were dropped. The run kept
-    going and reported the pre-collapse count, so the only symptom was an
-    ablation arm that had stopped ablating.
-    """
-    from rq_evolve.archive import MAPElitesArchive
 
-    # Distinct wording, not distinct numbers: the archive dedupes on the
-    # numeric-free skeleton, so "t1".."t5" would collapse into one program.
-    tags = _distinct_tags(5)
+def test_malformed_donor_certification_fails_before_live_archive_is_cleared():
+    live = MAPElitesArchive()
+    incumbent = _program("algebra", "function", tag="live incumbent")
+    incumbent.metadata["structural_donor_certification"] = {
+        "passed": True,
+        "source": "test",
+    }
+    assert live.try_insert(incumbent, u_value=1.0, rq_score=0.4)
 
+    payload = copy.deepcopy(live.to_payload())
+    assert payload["structural_donors"]
+    payload["structural_donors"][0]["metadata"][
+        "structural_donor_certification"
+    ] = "not-a-mapping"
+    before = [program.program_id for program in live.champions()]
+
+    with pytest.raises(ArchiveSchemaError, match="donor certification"):
+        live.load_payload(payload)
+    assert [program.program_id for program in live.champions()] == before
+
+
+def test_flat_binning_still_uses_exactly_35_slots():
     archive = MAPElitesArchive(binning="flat")
-    for value, tag in enumerate(tags, start=1):
-        archive.try_insert(
-            program=_program("algebra", "counting", value=value, tag=tag),
-            u_value=1.0,
-            rq_score=float(value),
-        )
-    assert len(archive.champions()) == 5
-
-    restored = MAPElitesArchive(binning="flat")
-    placed = restored.load_payload(archive.to_payload())
-    assert placed == 5
-    assert len(restored.champions()) == 5
-    # ...and the grid arm is unchanged by the same round trip.
-    grid = MAPElitesArchive(binning="grid")
-    for value, tag in enumerate(tags, start=1):
-        grid.try_insert(
-            program=_program("algebra", "counting", value=value, tag=tag),
-            u_value=1.0,
-            rq_score=float(value),
-        )
-    regrid = MAPElitesArchive(binning="grid")
-    regrid.load_payload(grid.to_payload())
-    assert len(regrid.champions()) == len(grid.champions()) == 1
-
-
-def test_flat_binning_still_refuses_an_unlabelled_program():
-    """Dropping the grid must not also relax the label contract -- the arm has
-    to isolate one change, not two."""
-    from rq_evolve.archive import MAPElitesArchive
-
-    archive = MAPElitesArchive(binning="flat")
-    inserted = archive.try_insert(
-        program=_program("not_a_group", "not_a_skill"),
-        u_value=1.0,
-        rq_score=1.0,
-    )
-    assert inserted is False
-    assert archive.champions() == []
-
-
-def test_flat_binning_challenges_the_weakest_occupant_once_full():
-    from rq_evolve.archive import MAPElitesArchive
-    from rq_evolve.concepts import GROUPS, SKILLS
-
-    archive = MAPElitesArchive(binning="flat")
-    total = len(GROUPS) * len(SKILLS)
-    # Distinct questions, not distinct numbers: the template-duplicate gate
-    # replaces every digit with 'N', so "t0"/"t1" normalise to one skeleton and
-    # only the first would be admitted.
-    names = _distinct_tags(total)
-    for i, name in enumerate(names):
-        archive.try_insert(
-            program=_program("algebra", "counting", value=i + 1, tag=name),
+    tags = _distinct_tags(35)
+    for i, tag in enumerate(tags):
+        assert archive.try_insert(
+            _program("algebra", "function", value=i + 1, tag=tag),
             u_value=1.0,
             rq_score=float(i + 1),
         )
-    assert len(archive.champions()) == total
-    weakest = min(c.rq_score for c in archive.champions())
+    assert len(archive.champions()) == 35
 
-    # Two digits on purpose: at seed 0 the answer equals `value`, and the
-    # answer-leak lint only inspects answers longer than two characters.
     assert archive.try_insert(
-        program=_program("algebra", "counting", value=99, tag="strong"),
+        _program("algebra", "function", value=99, tag="strong replacement"),
         u_value=1.0,
         rq_score=10_000.0,
     )
-    assert len(archive.champions()) == total
-    assert min(c.rq_score for c in archive.champions()) > weakest
+    assert len(archive.champions()) == 35
+
+
+def test_flat_snapshot_cannot_resume_as_grid_or_the_reverse():
+    payload = MAPElitesArchive(binning="flat").to_payload()
+    with pytest.raises(ArchiveSchemaError, match="binning"):
+        MAPElitesArchive(binning="grid").load_payload(payload)
 
 
 def test_archive_binning_only_accepts_the_two_modes():
-    import pytest
-
-    from rq_evolve.archive import MAPElitesArchive
-    from rq_evolve.config import EvolutionConfig
-
     with pytest.raises(ValueError, match="binning"):
         MAPElitesArchive(binning="bogus")
-    with pytest.raises(ValueError, match="archive_binning"):
-        EvolutionConfig(archive_binning="bogus")

@@ -12,6 +12,8 @@ __getitem__ and the run is over -- there is no recovery path from inside the
 trainer, and 65 iterations of archive went with it.
 """
 
+import hashlib
+
 import pytest
 
 from rq_evolve.archive import MAPElitesArchive
@@ -20,25 +22,41 @@ from rq_evolve.dataset import build_replay_training_examples
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.program import ProblemInstance, ProblemProgram
 from rq_evolve.replay import PreviousRQScoreboard, RolloutReplayBuffer
+from rq_evolve.problem_type import (
+    PROBLEM_TYPE_RULESET,
+    problem_type_ruleset_sha256,
+)
 
 BAND = (0.0, 1.0)
 
 
 def _program(tag: str, s_hat: float) -> ProblemProgram:
-    p = ProblemProgram(
-        source_code=(
+    source = (
             "import random\n\n\n"
             "def generate(seed):\n"
             "    rng = random.Random(seed)\n"
             f"    n = rng.randint(2, 40) + {len(tag)}\n"
-            '    answer = n * (n + 1) // 2\n'
+            "    answer = n * (n + 1) // 2\n"
             "    check = sum(range(1, n + 1))\n"
             '    assert answer == check, f"answer={answer} check={check}"\n'
             '    return f"Let n = {n}. Sum the first n positive integers.", str(answer)\n\n\n'
-            'GROUP = "algebra"\n'
-            'SKILL = "counting"\n'
-        ),
-        metadata={"group": "algebra", "skill": "counting"},
+            'DOMAIN = "algebra"\n'
+    )
+    p = ProblemProgram(
+        source_code=source,
+        metadata={
+            "domain": "algebra",
+            "problem_type": "function",
+            "descriptor_contract": {
+                "domain_authority": "source_exact_one_literal",
+                "problem_type_authority": "deterministic_statement_and_verifier",
+                "problem_type_ruleset": PROBLEM_TYPE_RULESET,
+                "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
+                "domain": "algebra",
+                "problem_type": "function",
+                "source_sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+            },
+        },
     )
     p.s_hat = s_hat
     p.rq_score = s_hat * (1 - s_hat)
@@ -83,7 +101,9 @@ def test_degenerate_champions_are_re_measured_by_default():
 
 
 def test_the_knob_still_allows_skipping_when_asked():
-    assert EvolutionConfig(reevaluate_degenerate_every=0).reevaluate_degenerate_every == 0
+    assert (
+        EvolutionConfig(reevaluate_degenerate_every=0).reevaluate_degenerate_every == 0
+    )
 
 
 # --- defect 2: the empty dataloader --------------------------------------
@@ -169,6 +189,6 @@ def test_the_fallback_stays_out_of_the_way_when_the_band_has_someone():
     ev.refresh_dataset()
 
     assert len(ev.dataset) > 0
-    assert not any(e["event"] == "frontier_empty_fallback" for e in ev.events), (
-        "the band admitted someone; the escape must not fire"
-    )
+    assert not any(
+        e["event"] == "frontier_empty_fallback" for e in ev.events
+    ), "the band admitted someone; the escape must not fire"

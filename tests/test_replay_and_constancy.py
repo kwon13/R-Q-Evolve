@@ -1,5 +1,6 @@
 """Measurement-as-training, previous-R_Q selection, and the constancy gate."""
 
+import hashlib
 from dataclasses import asdict
 
 import pytest
@@ -12,12 +13,39 @@ from rq_evolve.dataset import build_replay_training_examples
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.program import ProblemInstance, ProblemProgram
 from rq_evolve.replay import PreviousRQScoreboard, RolloutReplayBuffer
+from rq_evolve.problem_type import (
+    PROBLEM_TYPE_RULESET,
+    problem_type_ruleset_sha256,
+)
 
 GEN = (
     "def generate(seed):\n"
     '    return f"what is {seed} plus one?", str(seed + 1)\n\n\n'
-    'GROUP = "algebra"\nSKILL = "counting"\n'
+    'DOMAIN = "algebra"\n'
 )
+
+
+def _certify(
+    program: ProblemProgram, domain: str = "algebra", problem_type: str = "function"
+) -> ProblemProgram:
+    program.metadata.update(
+        {
+            "domain": domain,
+            "problem_type": problem_type,
+            "descriptor_contract": {
+                "domain_authority": "source_exact_one_literal",
+                "problem_type_authority": "deterministic_statement_and_verifier",
+                "problem_type_ruleset": PROBLEM_TYPE_RULESET,
+                "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
+                "domain": domain,
+                "problem_type": problem_type,
+                "source_sha256": hashlib.sha256(
+                    program.source_code.encode("utf-8")
+                ).hexdigest(),
+            },
+        }
+    )
+    return program
 
 
 def _program(pid="p"):
@@ -25,7 +53,9 @@ def _program(pid="p"):
 
 
 def _inst(seed, pid="p"):
-    return ProblemInstance(problem=f"q{seed}", answer=str(seed), program_id=pid, seed=seed)
+    return ProblemInstance(
+        problem=f"q{seed}", answer=str(seed), program_id=pid, seed=seed
+    )
 
 
 def _rollouts(*correct):
@@ -42,8 +72,14 @@ def test_rejected_rollouts_never_enter_the_buffer():
     """A rollout that was never drawn from the policy must not be trained on."""
     buf = RolloutReplayBuffer()
     buf.begin_iteration(0)
-    rejected = RolloutRecord(response="", predicted_answer=None, correct=False,
-                             entropy=0.0, status="rejected", reject_reason="timeout")
+    rejected = RolloutRecord(
+        response="",
+        predicted_answer=None,
+        correct=False,
+        entropy=0.0,
+        status="rejected",
+        reject_reason="timeout",
+    )
     buf.store("p", _inst(0), [*_rollouts(True), rejected])
     assert buf.get("p")[0].size == 1
 
@@ -51,8 +87,14 @@ def test_rejected_rollouts_never_enter_the_buffer():
 def test_a_group_with_no_accepted_rollouts_is_not_stored():
     buf = RolloutReplayBuffer()
     buf.begin_iteration(0)
-    rejected = RolloutRecord(response="", predicted_answer=None, correct=False,
-                             entropy=0.0, status="rejected", reject_reason="timeout")
+    rejected = RolloutRecord(
+        response="",
+        predicted_answer=None,
+        correct=False,
+        entropy=0.0,
+        status="rejected",
+        reject_reason="timeout",
+    )
     buf.store("p", _inst(0), [rejected, rejected])
     assert not buf.has("p")
 
@@ -71,8 +113,8 @@ def test_degenerate_groups_are_counted_not_silently_carried():
     """All-correct / all-wrong groups produce zero advantage under LOO."""
     buf = RolloutReplayBuffer()
     buf.begin_iteration(0)
-    buf.store("a", _inst(0, "a"), _rollouts(True, True))     # degenerate
-    buf.store("b", _inst(0, "b"), _rollouts(True, False))    # useful
+    buf.store("a", _inst(0, "a"), _rollouts(True, True))  # degenerate
+    buf.store("b", _inst(0, "b"), _rollouts(True, False))  # useful
     stats = buf.stats()
     assert stats["replay_groups"] == 2
     assert stats["replay_degenerate_groups"] == 1
@@ -115,14 +157,19 @@ def _champion(pid, s_hat, rq):
 
 def test_the_batch_is_the_stored_rollouts_and_nothing_else():
     """No sampling pass: every instance trained on is one that was measured."""
-    buf = RolloutReplayBuffer(); buf.begin_iteration(1)
-    board = PreviousRQScoreboard(); board.record("p", 0, 0.5)
+    buf = RolloutReplayBuffer()
+    buf.begin_iteration(1)
+    board = PreviousRQScoreboard()
+    board.record("p", 0, 0.5)
     champ = _champion("p", 0.5, 0.5)
     for z in (11, 12, 13):
         buf.store("p", _inst(z), _rollouts(True, False))
 
     rows = build_replay_training_examples(
-        [champ], replay=buf, previous_rq=board, iteration=1,
+        [champ],
+        replay=buf,
+        previous_rq=board,
+        iteration=1,
         frontier_s_hat_range=(0.0, 1.0),
     )
     assert [r["seed"] for r in rows] == [11, 12, 13]
@@ -130,11 +177,14 @@ def test_the_batch_is_the_stored_rollouts_and_nothing_else():
 
 
 def test_an_elite_with_no_lagged_score_does_not_train_yet():
-    buf = RolloutReplayBuffer(); buf.begin_iteration(0)
+    buf = RolloutReplayBuffer()
+    buf.begin_iteration(0)
     buf.store("fresh", _inst(0, "fresh"), _rollouts(True, False))
     rows = build_replay_training_examples(
         [_champion("fresh", 0.5, 0.5)],
-        replay=buf, previous_rq=PreviousRQScoreboard(), iteration=0,
+        replay=buf,
+        previous_rq=PreviousRQScoreboard(),
+        iteration=0,
         frontier_s_hat_range=(0.0, 1.0),
     )
     assert rows == []
@@ -142,19 +192,24 @@ def test_an_elite_with_no_lagged_score_does_not_train_yet():
 
 def test_a_currently_degenerate_elite_is_dropped_even_with_a_good_past_score():
     """Selected on the past, but the batch would be all-zero advantage now."""
-    buf = RolloutReplayBuffer(); buf.begin_iteration(1)
+    buf = RolloutReplayBuffer()
+    buf.begin_iteration(1)
     buf.store("p", _inst(0), _rollouts(True, True))
-    board = PreviousRQScoreboard(); board.record("p", 0, 9.0)
+    board = PreviousRQScoreboard()
+    board.record("p", 0, 9.0)
     rows = build_replay_training_examples(
-        [_champion("p", 1.0, 0.0)],   # s_hat = 1.0 -> outside the frontier band
-        replay=buf, previous_rq=board, iteration=1,
+        [_champion("p", 1.0, 0.0)],  # s_hat = 1.0 -> outside the frontier band
+        replay=buf,
+        previous_rq=board,
+        iteration=1,
         frontier_s_hat_range=(0.0, 1.0),
     )
     assert rows == []
 
 
 def test_the_batch_is_ordered_by_the_previous_raw_rq():
-    buf = RolloutReplayBuffer(); buf.begin_iteration(1)
+    buf = RolloutReplayBuffer()
+    buf.begin_iteration(1)
     board = PreviousRQScoreboard()
     champs = []
     for pid, past in (("low", 0.1), ("high", 0.9), ("mid", 0.5)):
@@ -162,7 +217,10 @@ def test_the_batch_is_ordered_by_the_previous_raw_rq():
         board.record(pid, 0, past)
         champs.append(_champion(pid, 0.5, 0.5))
     rows = build_replay_training_examples(
-        champs, replay=buf, previous_rq=board, iteration=1,
+        champs,
+        replay=buf,
+        previous_rq=board,
+        iteration=1,
         frontier_s_hat_range=(0.0, 1.0),
     )
     assert [r["program_id"] for r in rows] == ["high", "mid", "low"]
@@ -170,7 +228,8 @@ def test_the_batch_is_ordered_by_the_previous_raw_rq():
 
 def test_the_batch_budget_binds_before_dataloader_shuffle():
     """An overfull frontier must be top-k by past R_Q, not random after shuffle."""
-    buf = RolloutReplayBuffer(); buf.begin_iteration(1)
+    buf = RolloutReplayBuffer()
+    buf.begin_iteration(1)
     board = PreviousRQScoreboard()
     champs = []
     for pid, past in (("low", 0.1), ("high", 0.9), ("mid", 0.5)):
@@ -178,8 +237,12 @@ def test_the_batch_budget_binds_before_dataloader_shuffle():
         board.record(pid, 0, past)
         champs.append(_champion(pid, 0.5, 0.5))
     rows = build_replay_training_examples(
-        champs, replay=buf, previous_rq=board, iteration=1,
-        frontier_s_hat_range=(0.0, 1.0), training_budget=2,
+        champs,
+        replay=buf,
+        previous_rq=board,
+        iteration=1,
+        frontier_s_hat_range=(0.0, 1.0),
+        training_budget=2,
     )
     assert [r["program_id"] for r in rows] == ["high", "mid"]
 
@@ -196,17 +259,20 @@ CONSTANT_DECORATED = (
     '    return f"Set {label}: what is 2 + 2?", str(total)\n'
 )
 INVARIANT_FAMILY = (
-    "def generate(seed):\n"
-    '    return f"Find the value of {seed} - {seed}.", "0"\n'
+    "def generate(seed):\n" '    return f"Find the value of {seed} - {seed}.", "0"\n'
 )
 
 
 def _family(source, n=5):
     program = ProblemProgram(
-        source_code=source + '\n\nGROUP = "algebra"\nSKILL = "counting"\n'
+        source_code=(source + '\n\nDOMAIN = "algebra"\n')
     )
     instances = [program.execute(seed=z) for z in range(n)]
-    return program.source_code, [i.problem for i in instances], [i.answer for i in instances]
+    return (
+        program.source_code,
+        [i.problem for i in instances],
+        [i.answer for i in instances],
+    )
 
 
 def test_a_seed_ignoring_generator_is_rejected():
@@ -220,7 +286,7 @@ def test_an_invariant_family_with_a_constant_answer_is_accepted():
     """The answer not moving is legitimate. The NUMBERS not moving is not.
 
     Rejecting on the answer alone would throw out every invariant and
-    feasibility family, which is a whole SKILL of the archive.
+    feasibility family, an important class of problems in the archive.
     """
     verdict = check_constancy(*_family(INVARIANT_FAMILY))
     assert verdict.passed is True
@@ -259,8 +325,11 @@ def test_z_sensitivity_reads_the_seed_through_the_rng():
 def test_the_archive_gate_rejects_a_seed_ignoring_generator():
     archive = MAPElitesArchive(**asdict(ArchiveConfig()))
     program = ProblemProgram(
-        source_code=CONSTANT_DECORATED + '\n\nGROUP = "algebra"\nSKILL = "counting"\n'
+        source_code=(
+            CONSTANT_DECORATED + '\n\nDOMAIN = "algebra"\n'
+        )
     )
+    _certify(program)
     assert archive.try_insert(program=program, u_value=1.0, rq_score=0.5) is False
     assert program.metadata["archive_status"] == "seed_variation_rejected"
     assert program.metadata["validity_check"]["constancy_passed"] is False
@@ -275,25 +344,38 @@ class _CountingBackend:
     def __init__(self):
         self.rollouts_generated = 0
 
-    def sync_weights(self): pass
-    def begin_session(self): pass
-    def end_session(self): pass
-    def mutate(self, tasks): return [None] * len(tasks)
+    def sync_weights(self):
+        pass
+
+    def begin_session(self):
+        pass
+
+    def end_session(self):
+        pass
+
+    def mutate(self, tasks):
+        return [None] * len(tasks)
 
     def generate_rollouts(self, instances, n_rollouts):
         self.rollouts_generated += len(instances) * n_rollouts
         grouped = [
             [
-                RolloutRecord(response="x", predicted_answer="1",
-                              correct=(k % 2 == 0), entropy=1.0)
+                RolloutRecord(
+                    response="x",
+                    predicted_answer="1",
+                    correct=(k % 2 == 0),
+                    entropy=1.0,
+                )
                 for k in range(n_rollouts)
             ]
             for _ in instances
         ]
-        return PendingRollouts(instances=list(instances), n_rollouts=n_rollouts,
-                               grouped=grouped)
+        return PendingRollouts(
+            instances=list(instances), n_rollouts=n_rollouts, grouped=grouped
+        )
 
-    def finalize_rollouts(self, pending): return pending.grouped
+    def finalize_rollouts(self, pending):
+        return pending.grouped
 
 
 def _loop_evolver(backend, group_size=2, batch=6):
@@ -307,8 +389,10 @@ def _loop_evolver(backend, group_size=2, batch=6):
         archive=MAPElitesArchive(**asdict(ArchiveConfig())),
         backend=backend,
         evolution_config=EvolutionConfig(
-            group_size=group_size, train_batch_target=batch,
-            inner_iterations=0, inner_iteration_batch_size=1,
+            group_size=group_size,
+            train_batch_target=batch,
+            inner_iterations=0,
+            inner_iteration_batch_size=1,
             frontier_s_hat_range=(0.0, 1.0),
         ),
         training_config=TrainingDataConfig(replay_training_batch=True),
@@ -326,9 +410,10 @@ def test_extra_instances_use_the_same_previous_raw_rq_as_batch_selection():
 
     counts = evolver._allocate_instances([low_past, high_past])
 
-    assert counts == [1, 2], (
-        "current rq_score and previous priority disagree; allocation must follow t-1 R_Q"
-    )
+    assert counts == [
+        1,
+        2,
+    ], "current rq_score and previous priority disagree; allocation must follow t-1 R_Q"
 
 
 def test_training_pool_is_frozen_before_mutation_changes_the_archive():
@@ -366,15 +451,16 @@ _TAG_QUESTIONS = {
 }
 
 
-def _seeded(evolver, tag, group):
+def _seeded(evolver, tag, domain):
     question = _TAG_QUESTIONS[tag]
     program = ProblemProgram(
         source_code=(
             "def generate(seed):\n"
             f'    return f"{question}", str(seed + 1)\n\n\n'
-            f'GROUP = "{group}"\nSKILL = "counting"\n'
+            f'DOMAIN = "{domain}"\n'
         )
     )
+    _certify(program, domain=domain)
     result = evolver.evaluate_programs([program])[0]
     evolver.archive.try_insert(
         program=program, u_value=result.u_score, rq_score=result.rq_score
@@ -468,7 +554,7 @@ def test_a_cold_resume_falls_back_to_warmup_rather_than_an_empty_batch():
     backend = _CountingBackend()
     evolver = _loop_evolver(backend)
     program = _seeded(evolver, "A", "algebra")
-    evolver.previous_rq.history.clear()     # what a pre-scoreboard snapshot looks like
+    evolver.previous_rq.history.clear()  # what a pre-scoreboard snapshot looks like
 
     evolver.run_outer_iteration(0)
 

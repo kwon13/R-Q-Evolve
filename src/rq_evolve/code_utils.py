@@ -6,6 +6,7 @@ import re
 import io
 import tokenize
 
+from .concepts import DOMAINS
 from .program import ALLOWED_IMPORT_ROOTS, ProblemInstance
 
 FORBIDDEN_SOURCE_PATTERNS = (
@@ -215,7 +216,7 @@ def strip_module_docstring(source_code: str) -> str:
 
 
 def strip_label_declarations(source_code: str) -> str:
-    """Delete the top-level GROUP / SKILL assignments from a parent generator.
+    """Delete top-level descriptor assignments from a parent generator.
 
     The parent shown in a mutation prompt must not carry its own cell. With the
     real labels visible, 97% of 118 distinct children declared the cell their
@@ -246,7 +247,8 @@ def strip_label_declarations(source_code: str) -> str:
             continue
         targets = node.targets if isinstance(node, ast.Assign) else [node.target]
         if any(
-            isinstance(target, ast.Name) and target.id in ("GROUP", "SKILL")
+            isinstance(target, ast.Name)
+            and target.id in ("DOMAIN", "PROBLEM_TYPE", "GROUP", "SKILL")
             for target in targets
         ):
             drop.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
@@ -300,9 +302,73 @@ def lint_generator_source(source_code: str) -> list[str]:
     return reasons
 
 
+def validated_domain_declaration(source_code: str) -> tuple[str | None, list[str]]:
+    """Read one exact top-level literal ``DOMAIN`` declaration.
+
+    The current mutation model labels its own already-designed family in the
+    same stage-2 response; there is no auxiliary classifier.  To keep that
+    declaration from becoming an executable or ambiguous label channel, every
+    occurrence is constrained here: one top-level store, a literal closed-vocab
+    value, and no later reads, deletes, branch-local writes, or reassignments.
+    """
+
+    try:
+        tree = safe_ast_parse(source_code)
+    except (SyntaxError, ValueError) as exc:
+        return None, [f"syntax error: {exc}"]
+
+    stores = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name)
+        and node.id == "DOMAIN"
+        and isinstance(node.ctx, ast.Store)
+    ]
+    reads_or_deletes = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name)
+        and node.id == "DOMAIN"
+        and not isinstance(node.ctx, ast.Store)
+    ]
+    declarations: list[ast.Assign | ast.AnnAssign] = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                if node.targets[0].id == "DOMAIN":
+                    declarations.append(node)
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name) and node.target.id == "DOMAIN":
+                declarations.append(node)
+
+    errors: list[str] = []
+    if len(stores) != 1 or len(declarations) != 1:
+        errors.append(
+            "generated program must contain exactly one top-level literal "
+            "DOMAIN declaration"
+        )
+        return None, errors
+    if reads_or_deletes:
+        errors.append("DOMAIN is metadata only and may not be read or deleted")
+
+    value_node = declarations[0].value
+    value = (
+        value_node.value
+        if isinstance(value_node, ast.Constant) and isinstance(value_node.value, str)
+        else None
+    )
+    if value not in DOMAINS:
+        errors.append(
+            "DOMAIN must be one of " + ", ".join(DOMAINS) + f"; got {value!r}"
+        )
+        return None, errors
+    return value, errors
+
+
 def lint_mutation_generator_source(
     source_code: str,
     *,
+    reject_descriptor_markers: bool = True,
     require_assert: bool = False,
     reject_trivial_assert: bool = True,
     reject_unbounded_sampling: bool = True,
@@ -333,6 +399,52 @@ def lint_mutation_generator_source(
         return ["missing top-level generate function"]
 
     reasons: list[str] = []
+    if reject_descriptor_markers:
+        domain, domain_errors = validated_domain_declaration(source_code)
+        reasons.extend(domain_errors)
+        forbidden_descriptor_names = {"PROBLEM_TYPE", "GROUP", "SKILL"}
+
+        def assigned_names(target: ast.AST) -> set[str]:
+            if isinstance(target, ast.Name):
+                return {target.id}
+            if isinstance(target, (ast.Tuple, ast.List)):
+                return {
+                    name
+                    for element in target.elts
+                    for name in assigned_names(element)
+                }
+            return set()
+
+        ast_markers: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                targets = node.targets
+            elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
+                targets = [node.target]
+            else:
+                continue
+            ast_markers.update(
+                name
+                for target in targets
+                for name in assigned_names(target)
+                if name in forbidden_descriptor_names
+            )
+        text_markers = set(
+            re.findall(
+                r"\b(PROBLEM_TYPE|GROUP|SKILL)\s*[:=]|\b(DOMAIN)\s*:",
+                source_code,
+            )
+        )
+        flattened_text_markers = {
+            token for match in text_markers for token in match if token
+        }
+        markers = sorted(ast_markers | flattened_text_markers)
+        if markers:
+            reasons.append(
+                "generated mutation may not contain PROBLEM_TYPE/GROUP/SKILL "
+                "declarations or descriptor field markers: " + ", ".join(markers)
+            )
+
     max_attempts = next(
         (
             node.value.value
@@ -814,7 +926,9 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
         reasons.append("empty answer")
     if any(token in answer.lower() for token in ("nan", "inf", "undefined")):
         reasons.append("non-finite answer")
-    if "," in answer or ";" in answer:
+    if instance.verifier.get("mode", "expression") == "expression" and (
+        "," in answer or ";" in answer
+    ):
         reasons.append("multi-part answer")
 
     lowered = problem.lower()
@@ -826,11 +940,12 @@ def lint_problem_instance(instance: ProblemInstance) -> list[str]:
         reasons.append("memory address leaked into problem text")
 
     # 2) literal answer appears in the problem text
-    if _answer_leaks_into_problem(answer, problem):
+    boolean_answer = instance.verifier.get("mode") == "boolean"
+    if not boolean_answer and _answer_leaks_into_problem(answer, problem):
         reasons.append("answer leaked into problem text")
 
     # 3) answer disguised as a variable assignment
-    if _answer_leaks_as_assignment(answer, problem):
+    if not boolean_answer and _answer_leaks_as_assignment(answer, problem):
         reasons.append("answer leaked via variable assignment")
 
     # 4) soft concatenation cue: marker + multiple imperatives
@@ -1014,14 +1129,25 @@ def answer_leaks_in_every_instance(instances) -> str | None:
     demanding all five flags 12 (25%, mean s_hat 0.90) and those are exactly the
     trivial ones.
     """
-    seen = [i for i in instances if i is not None]
+    # Yes/no prompts necessarily print the two legal answer words (for example
+    # "Answer Yes or No"). That is the output format, not a leaked truth value.
+    # Per-instance lint already makes the same distinction; keep the stronger
+    # across-seed check aligned with it.
+    seen = [
+        i
+        for i in instances
+        if i is not None and i.verifier.get("mode") != "boolean"
+    ]
     if len(seen) < 2:
         return None
     for inst in seen:
         answer = str(inst.answer).strip()
         if not answer:
             return None
-        pattern = r"(?<![\d.])" + re.escape(answer) + r"(?![\d.])"
+        # A sentence-ending period is a boundary; a period followed by a digit
+        # is part of a larger decimal. The older ``(?![\d.])`` missed the most
+        # natural leak spelling, ``The answer is 17.``.
+        pattern = r"(?<![\d.])" + re.escape(answer) + r"(?!\d|\.\d)"
         if re.search(pattern, inst.problem) is None:
             return None
     return (
@@ -1148,6 +1274,8 @@ def _render_problem_text_expression(node: ast.AST) -> str | None:
                 "check",
                 "group",
                 "skill",
+                "domain",
+                "problem_type",
                 "concept_group",
                 "concept_type",
             }
@@ -1186,12 +1314,16 @@ _INSPIRATION_ROLE_MARKER_RE = re.compile(
 )
 _INSPIRATION_FIELD_MARKER_RE = re.compile(
     r"^\s*(?:system|developer|assistant|user|target\s+group|target\s+skill|"
-    r"group|skill|answer|structural\s+mutation|child\s+family|why\s+finite)"
+    r"target\s+domain|target\s+problem[_ ]type|group|skill|domain|"
+    r"problem[_ ]type|problem[_ ]text|reference[_ ]answer|"
+    r"declarative[_ ]verifier|valid|domain[_ ]confidence|domain[_ ]evidence|"
+    r"type[_ ]confidence|type[_ ]evidence|failure[_ ]reason|answer|"
+    r"structural\s+mutation|child\s+family|why\s+finite)"
     r"\s*[:=]",
     re.IGNORECASE | re.MULTILINE,
 )
 _INSPIRATION_INLINE_LABEL_RE = re.compile(
-    r"\b(?:declared\s+|target\s+)?(?:GROUP|SKILL)\s*[:=]",
+    r"\b(?:declared\s+|target\s+)?(?:GROUP|SKILL|DOMAIN|PROBLEM_TYPE)\s*[:=]",
     re.IGNORECASE,
 )
 _INSPIRATION_OVERRIDE_RE = re.compile(

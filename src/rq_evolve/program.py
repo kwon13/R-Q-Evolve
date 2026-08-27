@@ -11,6 +11,8 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
+from .verifier import default_verifier, normalize_verifier
+
 # Absolute path to the hermetic sandbox worker. Resolved once at import so the
 # client can (re)spawn it regardless of the trainer's cwd.
 _SANDBOX_WORKER_PATH = Path(__file__).with_name("_sandbox_worker.py")
@@ -143,11 +145,21 @@ class ProblemInstance:
     program_id: str
     seed: int
     verified: bool = False
+    # Declarative grading contract.  A fresh dict is required because instances
+    # may be cached/replayed independently.
+    verifier: dict[str, Any] = field(default_factory=default_verifier)
+    domain: str | None = None
+    problem_type: str | None = None
 
 
 @dataclass
 class ProblemProgram:
-    """A Python source file defining ``generate(seed) -> (problem, answer)``."""
+    """A source file defining ``generate(seed)`` and its MAP descriptors.
+
+    ``generate`` may return legacy ``(problem, answer)`` (which means expression
+    equality) or ``(problem, answer, verifier)`` where ``verifier`` is one of
+    the declarative schemas validated by :mod:`rq_evolve.verifier`.
+    """
 
     source_code: str
     program_id: str = ""
@@ -159,9 +171,14 @@ class ProblemProgram:
     s_hat: float = 0.0
     u_score: float = 0.0
     rq_score: float = 0.0
-    # Grid coordinate on the GROUP x SKILL archive. Both are derived from the
-    # program's own labels, so they are a cache of program_to_cell, never an
-    # independent fact.
+    # Canonical Domain x Computational-Problem-Type coordinate. DOMAIN is an
+    # exact-one source declaration; PROBLEM_TYPE is cached only after the
+    # deterministic statement/verifier contract passes on every verify seed.
+    niche_domain: int = -1
+    niche_problem_type: int = -1
+    # Deprecated pre-migration coordinates.  Retained temporarily so unrelated
+    # analysis helpers can read old in-memory fixtures; new archive payloads and
+    # all new code use the canonical fields above.
     niche_group: int = -1
     niche_skill: int = -1
     # Why the most recent execute() returned None. Diagnostic only, never
@@ -205,11 +222,28 @@ class ProblemProgram:
         return None
 
     # --- MAP-Elites axis labels -------------------------------------------
-    # A program declares GROUP (domain) and SKILL (reasoning move) at module
-    # top level. ``declared_*`` reads the source text; ``get_*`` prefers the
-    # value verification already resolved into metadata, so a program keeps its
-    # labels after being restored from an archive snapshot whose source may
-    # predate the current vocabulary.
+    # Mutation never receives either label as a target. Stage 2 self-declares
+    # DOMAIN after the mathematical family is fixed; PROBLEM_TYPE is inferred
+    # by verification code and cached in metadata.
+
+    def declared_domain(self) -> str | None:
+        return self._top_level_string_constant("DOMAIN")
+
+    def declared_problem_type(self) -> str | None:
+        return self._top_level_string_constant("PROBLEM_TYPE")
+
+    def get_domain(self) -> str | None:
+        return self.declared_domain()
+
+    def get_problem_type(self) -> str | None:
+        # A source declaration is never authoritative. Live verification clears
+        # stale metadata, derives the type from every rendered request, and
+        # writes this value together with a hashed descriptor contract.
+        return self.metadata.get("problem_type")
+
+    # --- Pre-migration accessors ------------------------------------------
+    # Kept until peripheral analysis modules have migrated.  They do not feed
+    # the new archive coordinate.
 
     def declared_group(self) -> str | None:
         # CONCEPT_GROUP is the pre-migration spelling of the same axis, so a
@@ -308,6 +342,9 @@ class ProblemProgram:
             answer=resp["answer"],
             program_id=self.program_id,
             seed=seed,
+            verifier=normalize_verifier(resp.get("verifier"), answer=resp["answer"]),
+            domain=self.get_domain(),
+            problem_type=self.get_problem_type(),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -319,8 +356,8 @@ class ProblemProgram:
             "s_hat": self.s_hat,
             "u_score": self.u_score,
             "rq_score": self.rq_score,
-            "niche_group": self.niche_group,
-            "niche_skill": self.niche_skill,
+            "niche_domain": self.niche_domain,
+            "niche_problem_type": self.niche_problem_type,
             "last_reeval_step": self.last_reeval_step,
             "metadata": self.metadata,
         }

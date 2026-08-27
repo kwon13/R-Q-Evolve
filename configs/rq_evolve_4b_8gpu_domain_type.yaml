@@ -1,0 +1,36 @@
+# Fresh production run: Omni-MATH top-level DOMAIN x computational PROBLEM_TYPE.
+# This file intentionally extends the proven 4B/8-GPU compute geometry while
+# replacing the behavioural descriptors and mutation contract.
+extends: rq_evolve_4b_8gpu.yaml
+
+evolution:
+  seed_programs_dir: seed_programs_domain_type
+  two_stage_mutation: true
+  # Stage 1 receives no descriptor or destination. Stage 2 compiles the already
+  # fixed child family and declares exactly one in-vocabulary DOMAIN; it is not
+  # told which value to choose. PROBLEM_TYPE is derived locally from the
+  # rendered statement and declarative verifier, consistently over all verify
+  # seeds. No separate evaluator model or external API is involved.
+  target_cell_injection: false
+  relabel_skill: false
+  # Optional donor context remains label-free and is disabled for the first
+  # clean run, isolating the new archive from the earlier inspiration study.
+  structural_inspiration: false
+  ast_contract: enforce
+  fix_retry: false
+
+verl_config:
+  # The Python config loader resolves `extends` recursively.  The shell
+  # launcher deliberately performs two cheap checks with grep before Python
+  # starts, so repeat these inherited values here as well; otherwise it sees
+  # an empty device/model value and refuses an otherwise valid launch.
+  actor_rollout_ref:
+    model:
+      path: /data1/yhoon113/qwen3-4b-base
+  trainer:
+    n_gpus_per_node: 8
+    project_name: rq_evolve
+    experiment_name: qwen3_4b_domain_type_35cell_8gpu
+    default_local_dir: ./rq_output/rq_evolve_4b_domain_type_35cell_8gpu
+    # Never discover or reuse an earlier checkpoint/archive implicitly.
+    resume_mode: disable

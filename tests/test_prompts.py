@@ -1,18 +1,11 @@
-"""The two-stage mutation prompts and the judge contract.
+"""Untargeted two-stage mutation and local descriptor prompt contracts."""
 
-Single-stage mutation (one prompt that rewrote the whole program) is gone,
-and with it ``build_mutation_task``/``build_fix_task`` and their templates.
-Mutation is now two calls: stage 1 (``build_family_task``) mutates the problem
-FAMILY in prose and commits to GROUP/SKILL, stage 2 (``build_generator_task``)
-writes the generator for that fixed family with the parent inlined as a worked
-example of the statement-to-program mapping. These tests pin what each stage
-may see -- the vocabularies, the parent's problem, the parent's label-stripped
-source -- and what neither stage may see: the parent's own cell.
-"""
+import re
 
 import pytest
 
-from rq_evolve.concepts import GROUPS, SKILLS
+from rq_evolve import prompts
+from rq_evolve.concepts import DOMAINS, PROBLEM_TYPES
 from rq_evolve.program import ProblemProgram
 from rq_evolve.prompts import (
     MUTATION_OP,
@@ -20,323 +13,177 @@ from rq_evolve.prompts import (
     _template_context,
     build_family_task,
     build_generator_task,
-    build_judge_messages,
-    judge_accepts,
-    judge_system_prompt,
-    parse_judge_verdict,
+    parse_family_plan,
 )
 
 
-def _program(group: str = "algebra", skill: str = "transformation") -> ProblemProgram:
+def _program(*, legacy_type_declaration: bool = False) -> ProblemProgram:
+    legacy = 'PROBLEM_TYPE = "function"\n' if legacy_type_declaration else ""
     return ProblemProgram(
-        source_code=f'''
-def generate(seed):
-    return "What is 3 + {{seed}}?", str(3 + seed)
-
-
-GROUP = "{group}"
-SKILL = "{skill}"
-'''
+        source_code=(
+            'DOMAIN = "algebra"\n'
+            + legacy
+            + "\n"
+            + "def generate(seed):\n"
+            + '    return f"What is 3 plus {seed}?", str(3 + seed)\n'
+        ),
+        metadata={"problem_type": "function"},
     )
 
 
-def _plan() -> dict:
+def _plan() -> dict[str, str]:
     return {
-        "CHILD FAMILY": "Let n = {n}. How many? State only the integer.",
-        "STRUCTURAL MUTATION": "a different target",
-        "GROUP": "geometry",
-        "SKILL": "casework",
+        "STRUCTURAL MUTATION": "Replace evaluation by a finite configuration.",
+        "CHILD FAMILY": "How many subsets of {item_count} objects have even size?",
+        "WHY FINITE": "There are finitely many subsets of the stated set.",
     }
 
 
-def _family_user(parent) -> str:
-    return build_family_task(parent).messages[-1]["content"]
+def _text(task) -> str:
+    return "\n".join(message["content"] for message in task.messages)
 
 
-def _gen_user(parent) -> str:
-    return build_generator_task(parent, _plan()).messages[-1]["content"]
+def _contains_token(text: str, token: str) -> bool:
+    return bool(
+        re.search(rf"(?<![a-z_]){re.escape(token)}(?![a-z_])", text, re.I)
+    )
 
 
-# --- stage 1: the problem, in prose ----------------------------------------
+def test_stage_one_has_no_closed_descriptor_vocabulary_or_target():
+    text = _text(build_family_task(_program()))
+    for label in (*DOMAINS, *PROBLEM_TYPES):
+        assert not _contains_token(text, label), label
+    assert "target" not in text.lower()
+    assert "target_cell" not in text
+    assert "no destination" in text.lower()
 
 
-def test_the_child_may_read_every_label_it_may_choose():
-    """A label the model can pick but not read a definition for is
-    unfalsifiable, so stage 1 carries both full vocabularies."""
-    user = _family_user(_program("algebra", "transformation"))
-    for group in GROUPS:
-        assert f"{group}:" in user, group
-    for skill in SKILLS:
-        assert f"{skill}:" in user, skill
+def test_stage_two_self_declares_exactly_one_domain_without_a_target():
+    task = build_generator_task(_program(), _plan())
+    system, user = (message["content"] for message in task.messages)
+    normalized_system = " ".join(system.split())
+
+    assert "exactly one top-level literal assignment" in system
+    assert 'DOMAIN = "<value>"' in system
+    assert "not a requested destination" in normalized_system
+    assert "Do not declare PROBLEM_TYPE" in system
+    assert "runtime derives the problem type deterministically" in system
+    for domain in DOMAINS:
+        assert _contains_token(system, domain), domain
+
+    # The options are symmetric: neither the parent coordinate nor a desired
+    # child coordinate is substituted into the stage-2 user turn.
+    assert 'DOMAIN = "algebra"' not in user
+    assert "target_cell" not in _text(task)
 
 
-def test_the_definitions_have_one_source_on_disk():
-    parent = _program()
-    context = _template_context(parent)
-    for group in GROUPS:
-        assert f"{group}:" in context["allowed_groups"]
-    for skill in SKILLS:
-        assert f"{skill}:" in context["allowed_skills"]
+def test_parent_coordinate_declarations_are_removed_from_stage_two():
+    user = build_generator_task(
+        _program(legacy_type_declaration=True), _plan()
+    ).messages[-1]["content"]
+    assert "def generate(seed):" in user
+    assert 'DOMAIN = "algebra"' not in user
+    assert 'PROBLEM_TYPE = "function"' not in user
 
 
-def test_stage_one_shows_the_problem_and_no_code():
-    """The object being mutated is a PROBLEM; the program only emits it.
-
-    Showing source framed the task as editing code, and a base model shown
-    code rewrites code -- child/parent source similarity sat at 0.99 under
-    whole-program rewriting. Stage 1 therefore sees the family and one
-    rendered instance, and no program at all.
-    """
-    parent = _program()
-    user = _family_user(parent)
-    statement = parent.execute(seed=0).problem
-    assert statement.strip() in user
-    assert "def generate" not in user
+def test_stage_one_sees_the_problem_but_not_source_code():
+    task = build_family_task(_program())
+    assert "What is 3 plus 0?" in task.messages[-1]["content"]
+    assert "def generate" not in task.messages[-1]["content"]
 
 
-def test_the_parents_cell_never_reaches_either_stage():
-    """Showing the parent's labels anchored the child to them: children
-    declared the parent's own cell 96% of the time. Stage 1 carries no label
-    declarations; stage 2 shows the source with its tail stripped, and its
-    system prompt says the labels are added afterwards."""
-    parent = _program("geometry", "extremal_principle")
-    family_user = _family_user(parent)
-    assert 'GROUP = "' not in family_user and 'SKILL = "' not in family_user
-
-    task = build_generator_task(parent, _plan())
-    gen_user, gen_system = task.messages[1]["content"], task.messages[0]["content"]
-    assert 'GROUP = "' not in gen_user and 'SKILL = "' not in gen_user
-    assert "Do not write GROUP or SKILL assignment lines" in gen_system
-
-
-def test_the_parent_source_is_inlined_in_stage_two():
-    assert "def generate(seed):" in _gen_user(_program())
-
-
-def test_the_fixed_child_family_reaches_stage_two_verbatim():
-    """Stage 2 does not re-decide the problem; it receives stage 1's family."""
-    assert _plan()["CHILD FAMILY"] in _gen_user(_program())
+def test_stage_two_receives_the_fixed_child_family_verbatim():
+    assert _plan()["CHILD FAMILY"] in build_generator_task(
+        _program(), _plan()
+    ).messages[-1]["content"]
 
 
 def test_a_parent_that_cannot_run_still_produces_a_prompt():
-    """A resume can load a snapshot whose source no longer executes here. That
-    is not something to discover while building a prompt."""
-    broken = ProblemProgram(
-        source_code='GROUP = "algebra"\nSKILL = "invariant"\n'  # no generate()
-    )
-    assert "did not run here" in _family_user(broken)
+    broken = ProblemProgram(source_code='DOMAIN = "algebra"\n')
+    assert "did not run here" in build_family_task(broken).messages[-1]["content"]
 
 
-def test_both_stages_carry_the_single_operator():
+def test_target_cell_is_retired_and_fails_loudly():
+    with pytest.raises(ValueError, match="target_cell is retired"):
+        build_family_task(_program(), target_cell=(0, 0))
+
+
+def test_both_stages_use_the_one_untargeted_operator():
     family = build_family_task(_program())
     generator = build_generator_task(_program(), _plan())
     assert family.op == generator.op == MUTATION_OP == "mutate"
-    for task, stage in ((family, "family"), (generator, "generator")):
-        assert [m["role"] for m in task.messages] == ["system", "user"]
-        assert task.stage == stage
+    assert family.stage == "family" and generator.stage == "generator"
+    assert [m["role"] for m in family.messages] == ["system", "user"]
+    assert [m["role"] for m in generator.messages] == ["system", "user"]
 
 
-def test_the_system_prompts_are_properly_rendered():
-    """Stage 1 is verbatim; Stage 2 renders skill definitions."""
-    from rq_evolve.prompts import (
-        FAMILY_SYSTEM_PROMPT_FILE,
-        GENERATOR_SYSTEM_PROMPT_FILE,
-        PROMPT_TEMPLATE_DIR,
-    )
-
-    family_task = build_family_task(_program())
-    on_disk_family = (PROMPT_TEMPLATE_DIR / FAMILY_SYSTEM_PROMPT_FILE).read_text()
-    assert family_task.messages[0]["content"] == on_disk_family
-
-    gen_task = build_generator_task(_program(), _plan())
-    gen_system = gen_task.messages[0]["content"]
-    assert "$" not in gen_system
-    # Stage 2 builds FOR the skill; it is no longer asked to name it back.
-    assert "INFERRED_SKILL" not in gen_system
-    assert "TARGET SKILL" in gen_system
-    for skill in SKILLS:
-        assert f"{skill}:" in gen_system
-
-
-def test_stage_one_asks_for_its_labelled_lines():
-    """The labels are committed in stage 1, while the solution is still in
-    view, and the harness staples them onto the program afterwards
-    (set_label_declarations).
-
-    WHY FINITE is asked for but NOT required by the parser: 31% of archived
-    champions were judged ill-posed, nearly all of them a "find the maximum X"
-    whose bounding clause went missing in the mutation, and naming that clause
-    is the cheapest way to make the model notice. It stays optional because
-    stage-1 parse failures are already the largest single loss.
-    """
+def test_family_plan_contains_mathematics_only():
     system = build_family_task(_program()).messages[0]["content"]
-    for line in ("STRUCTURAL MUTATION:", "CHILD FAMILY:", "WHY FINITE:",
-                 "GROUP:", "SKILL:"):
-        assert line in system, line
+    for line in ("STRUCTURAL MUTATION:", "CHILD FAMILY:", "WHY FINITE:"):
+        assert line in system
+    for line in ("DOMAIN:", "PROBLEM_TYPE:", "GROUP:", "SKILL:"):
+        assert line not in system
 
 
-def test_the_finiteness_field_is_parsed_but_never_required():
-    from rq_evolve.prompts import parse_family_plan
-
+def test_finiteness_is_parsed_but_optional():
     without = parse_family_plan(
-        "STRUCTURAL MUTATION: a different target\n"
-        "CHILD FAMILY: Let n = {n}. How many? \n"
-        "GROUP: geometry\nSKILL: casework"
+        "STRUCTURAL MUTATION: change the object\n"
+        "CHILD FAMILY: How many subsets of {n} objects have even size?"
     )
     assert without is not None and "WHY FINITE" not in without
-
-    withit = parse_family_plan(
-        "STRUCTURAL MUTATION: a different target\n"
-        "CHILD FAMILY: Let n = {n}. How many? \n"
-        "WHY FINITE: the set of n items is finite\n"
-        "GROUP: geometry\nSKILL: casework"
+    with_finite = parse_family_plan(
+        "STRUCTURAL MUTATION: change the object\n"
+        "CHILD FAMILY: How many subsets of {n} objects have even size?\n"
+        "WHY FINITE: the power set is finite"
     )
-    # And the header must be a field boundary, or the prose is swallowed into
-    # CHILD FAMILY and silently becomes part of the child's problem statement.
-    assert withit["WHY FINITE"].startswith("the set of n items")
-    assert "WHY FINITE" not in withit["CHILD FAMILY"]
+    assert with_finite["WHY FINITE"] == "the power set is finite"
+    assert "WHY FINITE" not in with_finite["CHILD FAMILY"]
 
 
-def test_stage_two_states_the_shape_the_linter_enforces():
-    """Two thirds of rejected children died on the assert contract or on the
-    module shape. The stage-2 prompt states both as code, not only as prose."""
+def test_stage_two_states_generator_and_live_verifier_contracts():
     system = build_generator_task(_program(), _plan()).messages[0]["content"]
-    assert "def generate(seed):" in system
+    assert "define generate(seed)" in system
     assert "assert answer == check" in system
-    assert "```python" in system
+    assert "(problem, str(answer), verifier)" in system
+    for mode in ("expression", "boolean", "set"):
+        assert f'"mode": "{mode}"' in system
+    assert '"mode": "one_of"' not in system
+    assert "predicate" in system and "callable" in system
 
 
-# --- template rendering ----------------------------------------------------
+def test_legacy_template_context_strips_all_coordinate_declarations():
+    context = _template_context(_program(legacy_type_declaration=True))
+    assert set(context) == {"parent_source", "parent_problem"}
+    assert 'DOMAIN = "algebra"' not in context["parent_source"]
+    assert 'PROBLEM_TYPE = "function"' not in context["parent_source"]
 
 
-def test_no_placeholder_survives_into_a_rendered_prompt():
-    for group, skill in (("algebra", "counting"), ("geometry", "induction")):
-        parent = _program(group, skill)
-        for task in (build_family_task(parent), build_generator_task(parent, _plan())):
-            for message in task.messages:
-                assert "$" not in message["content"], message["content"][:200]
+def test_no_placeholder_survives_rendered_mutation_prompts():
+    for task in (
+        build_family_task(_program()),
+        build_generator_task(_program(), _plan()),
+    ):
+        for message in task.messages:
+            assert "$" not in message["content"]
 
 
-def test_an_unsupplied_placeholder_is_an_error_not_a_silent_passthrough():
-    """safe_substitute would ship a literal $parent_skill that reads as prose."""
-    with pytest.raises(KeyError, match="parent_skill"):
-        _render_template("use $parent_skill here", {"parent_group": "algebra"})
+def test_an_unsupplied_placeholder_is_an_error():
+    with pytest.raises(KeyError, match="parent_source"):
+        _render_template("use $parent_source", {})
 
 
-def test_a_dollar_sign_from_substituted_content_is_not_flagged():
-    rendered = _render_template("$parent_source", {"parent_source": "cost = $5"})
-    assert rendered == "cost = $5"
+def test_substituted_dollar_sign_is_not_mistaken_for_a_placeholder():
+    assert _render_template("$text", {"text": "cost = $5"}) == "cost = $5"
 
 
-# --- the judge -------------------------------------------------------------
-
-
-def test_the_judge_sees_the_problem_and_answer_and_nothing_else():
-    messages = build_judge_messages("How many divisors does 5040 have?", "60")
-    user = messages[1]["content"]
-    assert "How many divisors does 5040 have?" in user
-    assert "60" in user
-    assert "$" not in user
-    assert messages[0]["content"] == judge_system_prompt()
-
-
-def test_the_judge_rubric_names_both_vocabularies_and_the_output_contract():
-    rubric = judge_system_prompt()
-    for label in (*GROUPS, *SKILLS):
-        assert label in rubric, label
-    for field in ("GROUP:", "GROUP_EVIDENCE:", "SKILL:", "SKILL_WITNESS:",
-                  "CLOSEST_ALTERNATIVE:", "WHY_NOT_ALTERNATIVE:", "FAILURE_REASON:"):
-        assert field in rubric, field
-
-
-def test_a_well_formed_verdict_parses_into_its_seven_fields():
-    verdict = parse_judge_verdict(
-        "GROUP: number_theory\n"
-        "GROUP_EVIDENCE: congruences decide membership\n"
-        "SKILL: casework\n"
-        "SKILL_WITNESS: three residue regimes argued differently\n"
-        "CLOSEST_ALTERNATIVE: counting\n"
-        "WHY_NOT_ALTERNATIVE: no structural counting principle appears\n"
-        "FAILURE_REASON: none"
+def test_remote_descriptor_task_and_verdict_apis_are_absent():
+    retired = (
+        "JUDGE_FIELDS",
+        "JudgeVerdict",
+        "build_judge_messages",
+        "build_judge_task",
+        "judge_system_prompt",
+        "parse_judge_verdict",
+        "judge_accepts",
     )
-    assert verdict.group == "number_theory" and verdict.skill == "casework"
-    assert "congruences" in verdict.group_evidence
-    assert "residue" in verdict.skill_witness
-    assert verdict.closest_alternative == "counting"
-
-
-@pytest.mark.parametrize(
-    "reply",
-    [
-        "**GROUP:** number_theory\n**SKILL:** casework",
-        "- GROUP : number_theory\n- SKILL : casework",
-        "GROUP: `number_theory`\nSKILL: `casework`",
-        "GROUP: Number_Theory\nSKILL: CASEWORK",
-    ],
-)
-def test_label_decoration_does_not_decide_the_verdict(reply):
-    """A base model decorates the field name far more often than it misjudges."""
-    verdict = parse_judge_verdict(reply)
-    assert judge_accepts(verdict, "number_theory", "casework")[0] is True
-
-
-@pytest.mark.parametrize(
-    "reply",
-    ["GROUP: numbertheory\nSKILL: casework", "GROUP: number_theory\nSKILL: case work",
-     "GROUP: none\nSKILL: casework", "", "no idea"],
-)
-def test_leniency_on_labels_does_not_loosen_the_values(reply):
-    verdict = parse_judge_verdict(reply)
-    assert judge_accepts(verdict, "number_theory", "casework")[0] is False
-
-
-def test_both_axes_must_agree():
-    good = parse_judge_verdict("GROUP: algebra\nSKILL: invariant")
-    assert judge_accepts(good, "algebra", "invariant")[0] is True
-    assert judge_accepts(good, "algebra", "counting")[0] is False
-    assert judge_accepts(good, "geometry", "invariant")[0] is False
-
-
-def test_part_one_labels_are_read_back_off_the_reply():
-    """The program the model returns has no labels; these are where they live."""
-    from rq_evolve.prompts import parse_declared_labels
-
-    reply = (
-        "PART 1\n\nMUTATION:\nPreserve: the grid\n\n"
-        "CHILD PROBLEM:\nHow many? State only the integer.\n\n"
-        "GROUP: geometry\nSKILL: extremal_principle\n\n"
-        "---\n\nPART 2\n\n```python\ndef generate(seed):\n    pass\n```\n"
-    )
-    assert parse_declared_labels(reply) == ("geometry", "extremal_principle")
-
-
-def test_labels_outside_the_vocabulary_are_not_invented():
-    """verify_program reports them through validate_label_decl; guessing here
-    would hide a child that never chose a legal label."""
-    from rq_evolve.prompts import parse_declared_labels
-
-    assert parse_declared_labels("GROUP: arithmetic\nSKILL: substitution") == (None, None)
-    assert parse_declared_labels("no labels at all") == (None, None)
-
-
-def test_parse_inferred_labels_extracts_skill():
-    """Retired from the live path; kept for the offline probes in scripts/.
-
-    Stage 2 used to emit INFERRED_SKILL after its code block so the caller could
-    reject a mismatch against stage 1. That gate is gone -- the skill is now an
-    input to stage 2 and the cell comes from the relabeller -- but three probe
-    scripts still replay old JSONL through this parser.
-    """
-    from rq_evolve.prompts import parse_inferred_labels
-
-    reply = "```python\ndef generate(seed):\n    pass\n```\nINFERRED_SKILL: casework\n"
-    assert parse_inferred_labels(reply) == (None, "casework")
-
-    # With decoration and case
-    assert parse_inferred_labels("INFERRED_SKILL: `induction`") == (None, "induction")
-    assert parse_inferred_labels("INFERRED_SKILL: \"invariant\"") == (None, "invariant")
-    assert parse_inferred_labels("INFERRED_SKILL: extremal_principle") == (None, "extremal_principle")
-
-    # Invalid / missing
-    assert parse_inferred_labels("INFERRED_SKILL: unknown_technique") == (None, None)
-    assert parse_inferred_labels("```python\ncode\n```") == (None, None)
+    assert [name for name in retired if hasattr(prompts, name)] == []

@@ -14,6 +14,23 @@ from math_verify import parse, verify
 from math_verify import utils as _mv_utils
 from math_verify.errors import TimeoutException
 
+# verl loads custom reward files by filesystem path, outside normal package
+# import semantics.  Absolute import works in installed/editable runs; the
+# sibling fallback keeps the path-loader contract working as well.
+try:  # pragma: no branch - exactly one branch is used per loader style
+    from rq_evolve.verifier import normalize_verifier
+except ImportError:  # loaded directly from ``src/rq_evolve/reward.py``
+    import importlib.util as _importlib_util
+
+    _verifier_spec = _importlib_util.spec_from_file_location(
+        "rq_evolve_verifier_standalone", Path(__file__).with_name("verifier.py")
+    )
+    if _verifier_spec is None or _verifier_spec.loader is None:
+        raise
+    _verifier_module = _importlib_util.module_from_spec(_verifier_spec)
+    _verifier_spec.loader.exec_module(_verifier_module)
+    normalize_verifier = _verifier_module.normalize_verifier
+
 
 def _ensure_math_verify_thread_safe() -> None:
     """Make math_verify's timeout actually enforce a limit off the main thread.
@@ -122,13 +139,16 @@ class _GraderClient:
             self._proc = None
         self._warm = False
 
-    def grade(self, pred: str, gold: str) -> tuple[bool, str | None]:
+    def grade(self, pred: str, gold: str, verifier=None) -> tuple[bool, str | None]:
         """``(match, failure_kind)``; ``failure_kind`` is None on a real verdict."""
         try:
             if self._proc is None or self._proc.poll() is not None:
                 self._spawn()
             budget = _GRADE_TIMEOUT if self._warm else max(_GRADE_TIMEOUT, _GRADE_COLD_TIMEOUT)
-            self._proc.stdin.write(json.dumps({"pred": pred, "gold": gold}) + "\n")
+            self._proc.stdin.write(
+                json.dumps({"pred": pred, "gold": gold, "verifier": verifier})
+                + "\n"
+            )
             self._proc.stdin.flush()
         except Exception:
             self._kill()
@@ -168,10 +188,10 @@ class _GraderPool:
         self.counters = {"timeout": 0, "worker_died": 0,
                          "write_error": 0, "protocol_error": 0, "graded": 0}
 
-    def grade(self, pred: str, gold: str) -> tuple[bool, str | None]:
+    def grade(self, pred: str, gold: str, verifier=None) -> tuple[bool, str | None]:
         client = self._q.get()
         try:
-            match, kind = client.grade(pred, gold)
+            match, kind = client.grade(pred, gold, verifier)
         finally:
             self._q.put(client)
         with self._lock:
@@ -234,14 +254,20 @@ def normalize_answer(text: str) -> str:
     return text.rstrip(".").replace(",", "").replace(" ", "")
 
 
-def answers_match(predicted: str, ground_truth: str) -> bool:
-    """Answer equality via ``math_verify`` (R-Zero parity), no fallback.
+def answers_match(predicted: str, ground_truth: str, verifier=None) -> bool:
+    """Grade one extracted answer under a declarative verifier contract.
 
-    ``math_verify`` is a hard dependency: the import is intentionally outside the
-    try/except so a missing install fails loud instead of silently degrading to a
-    weaker grader. Parse/verify failures on a given pair count as a non-match.
+    With ``verifier=None`` this is byte-for-byte the legacy expression path:
+    :mod:`math_verify` is a hard dependency and parse/verify failures count as a
+    non-match.  Boolean, finite ``one_of``, and complete finite-set contracts are
+    dispatched in the same killable worker.  Invalid verifier data fails closed;
+    generated code is never executed by the grader.
     """
     pred_s, gold_s = str(predicted), str(ground_truth)
+    try:
+        spec = normalize_verifier(verifier, answer=gold_s)
+    except (TypeError, ValueError):
+        return False
     # Cheap pre-filter, NOT a safety guard. An over-long prediction is a junk
     # blob (run-on expression, pasted reasoning) whose only effect is to feed
     # sympy expensive work, and a normalized string check settles it for free.
@@ -251,7 +277,9 @@ def answers_match(predicted: str, ground_truth: str) -> bool:
     # which math_verify parses as factorial(factorial(51)) -- the factorial of a
     # 67-digit number. No length threshold catches that. The kill budget below
     # is what makes cost bounded; this line only saves time.
-    if len(pred_s) > 200 or len(gold_s) > 200:
+    if spec["mode"] == "expression" and (
+        len(pred_s) > 200 or len(gold_s) > 200
+    ):
         return normalize_answer(pred_s) == normalize_answer(gold_s)
 
     # Graded in a subprocess the parent can SIGKILL. The in-process path this
@@ -260,7 +288,7 @@ def answers_match(predicted: str, ground_truth: str) -> bool:
     # life of the process -- two of them, in one actor and the driver, took a
     # run to 0% GPU. A timeout here grades as non-match, exactly as a parse or
     # verify failure always has.
-    match, kind = _GRADERS.grade(pred_s, gold_s)
+    match, kind = _GRADERS.grade(pred_s, gold_s, spec)
     if kind == "timeout":
         _log.warning(
             "grader killed after %.0fs: pred=%r gold=%r (graded as non-match)",
@@ -303,7 +331,9 @@ def compute_score(
             raise ValueError("batch compute_score requires responses and ground truths")
         infos = extra_infos if extra_infos is not None else [None] * len(responses)
         return [
-            _skipped_score() if _is_skip(info) else _score_one(response, truth)
+            _skipped_score()
+            if _is_skip(info)
+            else _score_one(response, truth, info)
             for response, truth, info in zip(responses, truths, infos)
         ]
 
@@ -314,16 +344,21 @@ def compute_score(
 
     if solution_str is None or ground_truth is None:
         raise ValueError("compute_score requires solution_str and ground_truth")
-    return _score_one(solution_str, ground_truth)
+    return _score_one(solution_str, ground_truth, extra_info)
 
 
 def _looks_like_batch(value) -> bool:
     return isinstance(value, (list, tuple))
 
 
-def _score_one(response: str, ground_truth: str) -> dict:
+def _score_one(response: str, ground_truth: str, extra_info=None) -> dict:
     predicted = extract_boxed(response)
-    correct = predicted is not None and answers_match(predicted, ground_truth)
+    verifier = (
+        extra_info.get("verifier") if isinstance(extra_info, dict) else None
+    )
+    correct = predicted is not None and answers_match(
+        predicted, ground_truth, verifier
+    )
     return {
         "score": 1.0 if correct else 0.0,
         "overall": 1.0 if correct else 0.0,

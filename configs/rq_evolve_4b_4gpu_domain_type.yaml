@@ -1,0 +1,31 @@
+# Fresh 4-GPU production run: Omni-MATH top-level DOMAIN x computational
+# PROBLEM_TYPE.  The inherited file supplies the measured four-rank compute
+# geometry; this file replaces the behavioural descriptors and mutation
+# contract and gives the run its own, never-resumed identity.
+extends: rq_evolve_4b_4gpu.yaml
+
+evolution:
+  seed_programs_dir: seed_programs_domain_type
+  two_stage_mutation: true
+  # Stage 1 is untargeted.  Stage 2 compiles the fixed child family and
+  # declares exactly one in-vocabulary DOMAIN without receiving a requested
+  # destination.  PROBLEM_TYPE is derived locally from statement + verifier.
+  target_cell_injection: false
+  relabel_skill: false
+  structural_inspiration: false
+  ast_contract: enforce
+  fix_retry: false
+
+verl_config:
+  # Keep values used by the shell preflight explicit even though OmegaConf
+  # resolves them through `extends` for the trainer.
+  actor_rollout_ref:
+    model:
+      path: /data1/yhoon113/qwen3-4b-base
+  trainer:
+    n_gpus_per_node: 4
+    project_name: rq_evolve
+    experiment_name: qwen3_4b_domain_type_35cell_4gpu
+    default_local_dir: ./rq_output/rq_evolve_4b_domain_type_35cell_4gpu
+    # Never discover or reuse a GROUP x SKILL checkpoint/archive.
+    resume_mode: disable

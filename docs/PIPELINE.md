@@ -150,6 +150,9 @@ python scripts/preflight_check.py \
   --config configs/rq_evolve_4b_8gpu_domain_type.yaml
 
 bash scripts/run_train_domain_type_8gpu.sh
+
+# Four selected GPUs; --detach uses nohup and also starts checkpoint auto-merge.
+bash scripts/run_train_domain_type_4gpu.sh --gpus 0,1,2,3 --detach
 ```
 
 launcher의 exact seed-count와 output-directory 검사를 우회해 기존 결과 directory에

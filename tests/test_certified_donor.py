@@ -120,6 +120,39 @@ def test_legacy_v2_config_is_rejected_instead_of_becoming_new_production():
     assert raw_fresh.verl_config.trainer.resume_mode == "disable"
 
 
+@pytest.mark.parametrize(
+    ("path", "gpu_count", "output_suffix"),
+    [
+        (
+            "configs/rq_evolve_4b_4gpu_domain_type.yaml",
+            4,
+            "rq_evolve_4b_domain_type_35cell_4gpu",
+        ),
+        (
+            "configs/rq_evolve_4b_8gpu_domain_type.yaml",
+            8,
+            "rq_evolve_4b_domain_type_35cell_8gpu",
+        ),
+    ],
+)
+def test_domain_type_production_configs_share_descriptor_contract(
+    path, gpu_count, output_suffix
+):
+    cfg = load_config(path)
+    raw = load_raw_config(path)
+
+    assert cfg.evolution.seed_programs_dir == "seed_programs_domain_type"
+    assert cfg.evolution.two_stage_mutation is True
+    assert cfg.evolution.target_cell_injection is False
+    assert cfg.evolution.relabel_skill is False
+    assert cfg.evolution.structural_inspiration is False
+    assert raw.verl_config.trainer.n_gpus_per_node == gpu_count
+    assert raw.verl_config.trainer.save_freq == 32
+    assert raw.verl_config.trainer.max_actor_ckpt_to_keep is None
+    assert raw.verl_config.trainer.resume_mode == "disable"
+    assert str(raw.verl_config.trainer.default_local_dir).endswith(output_suffix)
+
+
 def test_uncertified_children_can_enter_map_but_not_donor_pool():
     archive = MAPElitesArchive()
     program = _program(

@@ -316,7 +316,8 @@ def test_invalid_requires_and_preserves_a_specific_single_line_reason():
     "reply",
     [
         "<think>never closed\n" + _reply(EXPRESSION_CORE),
-        _reply(EXPRESSION_CORE) + "\n```python\npass\n```",
+        "<ACCEPTED_REPLY>\n" + _reply(EXPRESSION_CORE),
+        "Here is the implementation:\n" + _reply(EXPRESSION_CORE),
         "MODE: expression\nCORE:\n" + EXPRESSION_CORE,
         "MODE: one_of\nCORE:\n```python\npass\n```",
     ],
@@ -325,6 +326,19 @@ def test_malformed_or_multiple_fence_protocol_fails_closed(reply):
     source, reason = compile_stage2_reply(reply, "Compute [[n]].")
     assert source is None
     assert reason
+
+
+def test_trailing_decode_suffix_after_complete_protocol_is_ignored():
+    reply = (
+        _reply(EXPRESSION_CORE)
+        + "\n</assistant>\nrepeated prompt\n```python\npass\n```"
+    )
+    source, reason = compile_stage2_reply(
+        reply, "Let n = [[n]]. Compute the sum from 1 through n."
+    )
+    assert source is not None, reason
+    assert "repeated prompt" not in source
+    assert "pass" not in source
 
 
 def test_parser_bomb_and_syntax_error_are_normal_rejections():

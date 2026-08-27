@@ -81,12 +81,11 @@ evolution:
   two_stage_mutation: true
   # Stage 1 is invention and needs temperature; at 0 one parent yields one
   # child and a 32-slot batch collapses.
-  code_temperature: 0.4
-  code_top_p: 0.95
-  # Stage 2 transcribes a fixed specification onto a fixed shape. There is
-  # nothing to explore, and sampling only adds ways to mis-write it.
-  generator_temperature: 0.0
-  generator_top_p: 1.0
+  code_temperature: 0.45
+  code_top_p: 0.85
+  # Stage 2 uses the same moderate sampling settings as Stage 1.
+  generator_temperature: 0.45
+  generator_top_p: 0.85
   # Output caps for the two mutation calls. Unset, both inherit
   # data.max_response_length (5000) -- the 4B 8-GPU run's stage-1/stage-2
   # replies had p50 171/301 tokens, so a runaway cost ~20x the median reply.
@@ -228,7 +227,7 @@ verl_config:
       tensor_model_parallel_size: 1
       checkpoint_engine:
         update_weights_bucket_megabytes: 4096
-      gpu_memory_utilization: 0.38
+      gpu_memory_utilization: 0.42
       max_model_len: 12000
       max_num_batched_tokens: 12000
       dtype: bfloat16

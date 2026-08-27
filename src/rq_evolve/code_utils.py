@@ -388,7 +388,7 @@ def validated_domain_declaration(source_code: str) -> tuple[str | None, list[str
 
 _STAGE2_PROTOCOL_RE = re.compile(
     r"\A(?:DOMAIN: ([a-z_]+)\n)?MODE: (expression|boolean|set)\n"
-    r"CORE:\n```python\n(.*?)\n```\Z",
+    r"CORE:\n```python\n(.*?)\n```",
     re.DOTALL,
 )
 _STAGE2_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
@@ -1280,10 +1280,13 @@ def compile_stage2_reply(
             return None, "stage2 INVALID requires a nonempty single-line reason"
         return None, "stage2 reply declared INVALID: " + invalid_reason
 
-    protocol = _STAGE2_PROTOCOL_RE.fullmatch(normalized)
+    # The reply must start with the executable protocol, so explanatory prose or
+    # a copied wrapper still fails closed. Once the first complete Python fence
+    # closes, trailing decode degeneration is inert and is deliberately ignored.
+    protocol = _STAGE2_PROTOCOL_RE.match(normalized)
     if protocol is None:
         return None, (
-            "stage2 reply must be exact MODE/CORE with one python fence, "
+            "stage2 reply must start with exact MODE/CORE and one python fence, "
             "or one line `INVALID: <specific reason>`"
         )
     domain, mode, core = protocol.groups()

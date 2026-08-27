@@ -12,11 +12,13 @@ from .backends import EvolutionBackend, RolloutRecord
 from .code_utils import (
     answer_is_bare_draw,
     answer_leaks_in_every_instance,
+    compile_stage2_reply,
     extract_generator_code,
     lint_generator_source,
     lint_mutation_generator_source,
     lint_problem_instance,
     structural_inspiration_safety_reason,
+    TRUSTED_ASSEMBLER_VERSION,
     validated_domain_declaration,
 )
 from .concepts import validate_label_decl
@@ -345,6 +347,43 @@ class RQEvolver:
                 # its cross-check working as designed -- from broken code.
                 why = program.last_execution_error or "unknown"
                 return None, f"execute failed at seed={seed}: {why}"
+            if is_generated_mutation:
+                # Static RNG rules are necessary but not sufficient: aliases
+                # such as ``from random import randint`` and process-global
+                # state have both produced different instances for the same
+                # seed while satisfying the historical shape lint.  Re-run the
+                # exact source/seed before trusting any descriptor or answer.
+                repeated = program.execute(seed=seed)
+                if repeated is None:
+                    why = program.last_execution_error or "unknown"
+                    return None, (
+                        f"repeat execute failed at seed={seed}: {why}"
+                    )
+                first_wire = (
+                    inst.problem,
+                    inst.answer,
+                    json.dumps(
+                        inst.verifier,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                )
+                repeated_wire = (
+                    repeated.problem,
+                    repeated.answer,
+                    json.dumps(
+                        repeated.verifier,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                )
+                if first_wire != repeated_wire:
+                    return None, (
+                        "generator is nondeterministic for the same seed "
+                        f"{seed}: first={first_wire!r} repeat={repeated_wire!r}"
+                    )
             instance_errors = lint_problem_instance(inst)
             if instance_errors:
                 return None, "; ".join(instance_errors[:3])
@@ -847,12 +886,24 @@ class RQEvolver:
                         }
                     )
                 else:
+                    compile_status = "mutation_failed" if not output else "no_code"
+                    lowered_reason = str(reason or "").lower()
+                    if output and "invalid:" in lowered_reason:
+                        compile_status = "stage2_invalid"
+                    elif output and task.stage == "generator":
+                        compile_status = "stage2_compile_failed"
                     entries.append(
                         {
                             "report": CandidateReport(
-                                status=("mutation_failed" if not output else "no_code"),
+                                status=compile_status,
                                 op=task.op,
                                 reason=reason,
+                                # A malformed/abstaining core has no assembled
+                                # child source, so retain the bounded raw reply
+                                # in the same audit field. Without this, a
+                                # compiler rejection leaves only a terse reason
+                                # and the exact model failure is unrecoverable.
+                                source_code=_logged_source(output),
                                 **_report_context(task),
                             )
                         }
@@ -1204,13 +1255,12 @@ class RQEvolver:
             # assigned donor, and a nonempty malformed reply is ``no_code`` --
             # not an indistinguishable "empty model output".
             tasks[i] = gen_task_by_i[i]
-            reply = gen_reply_by_i.get(i)
-            outputs[i] = reply
-            source = extract_generator_code(reply or "")
-            if source is None:
-                continue
-
-            outputs[i] = source
+            # Keep the raw reply intact.  Parsing and trusted assembly happen
+            # exactly once in ``_make_child_from_output`` where both backend
+            # paths converge.  The old path extracted here and then extracted
+            # the extracted source a second time downstream, which made it
+            # impossible to attach a single fail-closed Stage-2 contract.
+            outputs[i] = gen_reply_by_i.get(i)
 
         return tasks, outputs, mutation_strategies
 
@@ -1228,11 +1278,38 @@ class RQEvolver:
         """
         if not output:
             return None, None, "empty model output", None
-        source = extract_generator_code(output)
-        if source is None:
-            return None, None, "no parseable generate() in output", None
+        family_plan = dict((task.provenance or {}).get("family_plan") or {})
+        if task.stage == "generator":
+            family = str(family_plan.get("CHILD FAMILY", "")).strip()
+            if not family:
+                return (
+                    None,
+                    None,
+                    "Stage-2 task has no fixed CHILD FAMILY to assemble",
+                    None,
+                )
+            source, compile_error = compile_stage2_reply(output, family)
+            if source is None:
+                return None, None, compile_error or "Stage-2 compile failed", None
+        else:
+            # Compatibility for direct/internal callers that construct a
+            # non-Stage-2 MutationTask.  The live two-stage pipeline never
+            # reaches this branch.
+            source = extract_generator_code(output)
+            if source is None:
+                return None, None, "no parseable generate() in output", None
 
         metadata = _child_metadata(task)
+        if task.stage == "generator":
+            metadata["generator_contract"] = {
+                "version": TRUSTED_ASSEMBLER_VERSION,
+                "family_sha256": hashlib.sha256(
+                    family.encode("utf-8")
+                ).hexdigest(),
+                "stage2_reply_sha256": hashlib.sha256(
+                    output.encode("utf-8")
+                ).hexdigest(),
+            }
         child = ProblemProgram(
             source_code=source,
             parent_id=task.parent.program_id,

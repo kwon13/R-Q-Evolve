@@ -1,4 +1,5 @@
 import ast
+import copy
 from .safe_parse import ParserBomb, safe_ast_parse
 import textwrap
 import re
@@ -7,7 +8,11 @@ import io
 import tokenize
 
 from .concepts import DOMAINS
+from .ast_contract import check_generator_contract
 from .program import ALLOWED_IMPORT_ROOTS, ProblemInstance
+
+
+TRUSTED_ASSEMBLER_VERSION = "trusted-instance-v1"
 
 FORBIDDEN_SOURCE_PATTERNS = (
     "open(",
@@ -276,10 +281,22 @@ def lint_generator_source(source_code: str) -> list[str]:
     except (SyntaxError, ValueError) as exc:
         return [f"syntax error: {exc}"]
 
+    generate_functions = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "generate"
+    ]
+    if len(generate_functions) != 1:
+        reasons.append(
+            "source must contain exactly one top-level generate function "
+            f"(found {len(generate_functions)})"
+        )
+
     if not any(
         isinstance(node, ast.FunctionDef) and node.name == "generate"
         for node in tree.body
     ):
+        # Keep the historical phrase for callers that group this diagnostic.
         reasons.append("missing top-level generate function")
 
     for node in tree.body:
@@ -365,6 +382,860 @@ def validated_domain_declaration(source_code: str) -> tuple[str | None, list[str
     return value, errors
 
 
+# ---------------------------------------------------------------------------
+# Stage-2 trusted instance compiler
+# ---------------------------------------------------------------------------
+
+_STAGE2_PROTOCOL_RE = re.compile(
+    r"\ADOMAIN: ([a-z_]+)\n"
+    r"MODE: (expression|boolean|set)\n"
+    r"CORE:\n```python\n(.*?)\n```\Z",
+    re.DOTALL,
+)
+_STAGE2_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+_FAMILY_PLACEHOLDER_RE = re.compile(r"\[\[([A-Za-z_][A-Za-z0-9_]*)\]\]")
+_STAGE2_DESCRIPTOR_NAMES = frozenset(
+    {
+        "DOMAIN",
+        "MODE",
+        "CORE",
+        "PROBLEM_TYPE",
+        "GROUP",
+        "SKILL",
+        "problem",
+        "verifier",
+        "FAMILY_TEMPLATE",
+        "TRUSTED_ASSEMBLER_VERSION",
+    }
+)
+_STAGE2_FORBIDDEN_CALLS = frozenset(
+    {
+        "open",
+        "input",
+        "eval",
+        "exec",
+        "compile",
+        "getattr",
+        "setattr",
+        "delattr",
+        "globals",
+        "locals",
+        "vars",
+        "__import__",
+        "breakpoint",
+        "help",
+    }
+)
+_STAGE2_GLOBAL_RANDOM_NAMES = frozenset(
+    {
+        "random",
+        "Random",
+        "randint",
+        "randrange",
+        "choice",
+        "choices",
+        "sample",
+        "shuffle",
+        "uniform",
+        "triangular",
+        "getrandbits",
+        "randbytes",
+        "seed",
+        "setstate",
+        "getstate",
+    }
+)
+_STAGE2_MAX_CORE_CHARS = 40_000
+_STAGE2_MAX_AST_NODES = 8_000
+
+
+def _stage2_identifier_error(name: str) -> str | None:
+    if name in _STAGE2_DESCRIPTOR_NAMES:
+        return f"stage2 CORE may not use descriptor/trusted name {name!r}"
+    if name == "generate":
+        return "stage2 CORE may not define or bind generate"
+    if name.startswith("__rq_"):
+        return f"stage2 CORE may not use reserved name {name!r}"
+    if name in _STAGE2_GLOBAL_RANDOM_NAMES:
+        return f"stage2 CORE may not use global random name {name!r}"
+    return None
+
+
+def _stage2_bound_import_names(node: ast.Import | ast.ImportFrom) -> list[str]:
+    names: list[str] = []
+    for alias in node.names:
+        if alias.name == "*":
+            names.append("*")
+        elif alias.asname:
+            names.append(alias.asname)
+        elif isinstance(node, ast.Import):
+            names.append(alias.name.split(".", 1)[0])
+        else:
+            names.append(alias.name)
+    return names
+
+
+def _stage2_own_nodes(function: ast.FunctionDef) -> list[ast.AST]:
+    """Nodes executed by ``function``, excluding nested function scopes."""
+
+    found: list[ast.AST] = []
+
+    def visit(node: ast.AST) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(
+                child,
+                (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda),
+            ):
+                continue
+            found.append(child)
+            visit(child)
+
+    visit(function)
+    return found
+
+
+def _stage2_root_name(node: ast.AST) -> str | None:
+    current = node
+    while isinstance(current, (ast.Attribute, ast.Subscript)):
+        current = current.value
+    return current.id if isinstance(current, ast.Name) else None
+
+
+def _stage2_family_parts(
+    family_template: str,
+) -> tuple[list[tuple[str, str]], tuple[str, ...], str | None]:
+    """Parse literal/parameter parts without using ``str.format`` semantics."""
+
+    if not isinstance(family_template, str):
+        return [], (), "family_template must be a string"
+    if not family_template or len(family_template) > 4_000:
+        return [], (), "family_template must contain 1..4000 characters"
+
+    parts: list[tuple[str, str]] = []
+    keys: list[str] = []
+    cursor = 0
+    for match in _FAMILY_PLACEHOLDER_RE.finditer(family_template):
+        parts.append(("literal", family_template[cursor : match.start()]))
+        key = match.group(1)
+        parts.append(("parameter", key))
+        if key not in keys:
+            keys.append(key)
+        cursor = match.end()
+    parts.append(("literal", family_template[cursor:]))
+
+    residue = _FAMILY_PLACEHOLDER_RE.sub("", family_template)
+    if "[[" in residue or "]]" in residue:
+        return [], (), "family_template contains a malformed [[identifier]] placeholder"
+    if not keys:
+        return (
+            [],
+            (),
+            "family_template requires at least one [[identifier]] placeholder",
+        )
+    return parts, tuple(sorted(keys)), None
+
+
+def _stage2_function_shape_errors(function: ast.FunctionDef) -> list[str]:
+    errors: list[str] = []
+    args = function.args
+    if function.decorator_list:
+        errors.append(f"function {function.name!r} may not have decorators")
+    if function.returns is not None:
+        errors.append(f"function {function.name!r} may not have a return annotation")
+    all_args = [*args.posonlyargs, *args.args, *args.kwonlyargs]
+    if any(arg.annotation is not None for arg in all_args):
+        errors.append(f"function {function.name!r} may not have annotations")
+    if args.vararg is not None or args.kwarg is not None:
+        errors.append(f"function {function.name!r} may not use *args or **kwargs")
+    if args.defaults or any(default is not None for default in args.kw_defaults):
+        errors.append(f"function {function.name!r} may not have default arguments")
+    return errors
+
+
+def _validate_stage2_core(
+    core: str,
+    placeholder_keys: tuple[str, ...],
+) -> tuple[ast.Module | None, ast.FunctionDef | None, dict[str, str], str | None]:
+    """Validate the untrusted CORE and return its placeholder/local mapping."""
+
+    if not core or len(core) > _STAGE2_MAX_CORE_CHARS:
+        return (
+            None,
+            None,
+            {},
+            (f"stage2 CORE must contain 1..{_STAGE2_MAX_CORE_CHARS} characters"),
+        )
+    if "\x00" in core:
+        return None, None, {}, "stage2 CORE contains a NUL byte"
+    try:
+        tree = safe_ast_parse(core)
+    except (SyntaxError, ValueError) as exc:
+        return None, None, {}, f"stage2 CORE syntax error: {exc}"
+    if sum(1 for _ in ast.walk(tree)) > _STAGE2_MAX_AST_NODES:
+        return None, None, {}, "stage2 CORE AST is too large"
+
+    errors: list[str] = []
+    allowed_imports = set(ALLOWED_IMPORT_ROOTS) - {"random"}
+    for node in tree.body:
+        if not isinstance(node, (ast.Import, ast.ImportFrom, ast.FunctionDef)):
+            errors.append(
+                "stage2 CORE top level permits only imports and function definitions; "
+                f"found {type(node).__name__}"
+            )
+
+    # Imports are executable wherever they occur.  Validate the whole tree so
+    # moving a forbidden/random import into a helper cannot evade the top-level
+    # shape check.
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".", 1)[0]
+                if root not in allowed_imports:
+                    errors.append(f"stage2 CORE import is not allowed: {alias.name}")
+        elif isinstance(node, ast.ImportFrom):
+            root = (node.module or "").split(".", 1)[0]
+            if node.level or root not in allowed_imports:
+                errors.append(
+                    f"stage2 CORE import is not allowed: {node.module or '<relative>'}"
+                )
+            if any(alias.name == "*" for alias in node.names):
+                errors.append("stage2 CORE may not use wildcard imports")
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            for bound_name in _stage2_bound_import_names(node):
+                identifier_error = _stage2_identifier_error(bound_name)
+                if identifier_error:
+                    errors.append(identifier_error)
+                if bound_name in {"rng", "build_instance"}:
+                    errors.append(
+                        f"stage2 CORE import may not bind reserved name {bound_name!r}"
+                    )
+
+    top_level_builders = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "build_instance"
+    ]
+    all_builders = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "build_instance"
+    ]
+    if len(top_level_builders) != 1 or len(all_builders) != 1:
+        errors.append(
+            "stage2 CORE must define exactly one top-level build_instance(rng) "
+            f"(found {len(all_builders)} total, "
+            f"{len(top_level_builders)} top-level)"
+        )
+    builder = (
+        top_level_builders[0]
+        if len(top_level_builders) == 1 and len(all_builders) == 1
+        else None
+    )
+
+    forbidden_nodes = (
+        ast.AsyncFunctionDef,
+        ast.ClassDef,
+        ast.Lambda,
+        ast.Global,
+        ast.Nonlocal,
+        ast.Await,
+        ast.AsyncFor,
+        ast.AsyncWith,
+        ast.Yield,
+        ast.YieldFrom,
+    )
+    for node in ast.walk(tree):
+        if isinstance(node, forbidden_nodes):
+            errors.append(f"stage2 CORE forbids {type(node).__name__}")
+        if isinstance(node, ast.FunctionDef):
+            errors.extend(_stage2_function_shape_errors(node))
+            identifier_error = _stage2_identifier_error(node.name)
+            if identifier_error and node.name != "build_instance":
+                errors.append(identifier_error)
+            for arg in [
+                *node.args.posonlyargs,
+                *node.args.args,
+                *node.args.kwonlyargs,
+            ]:
+                identifier_error = _stage2_identifier_error(arg.arg)
+                if identifier_error and not (node is builder and arg.arg == "rng"):
+                    errors.append(identifier_error)
+        elif isinstance(node, ast.Name):
+            identifier_error = _stage2_identifier_error(node.id)
+            if identifier_error:
+                # The one trusted RNG parameter may be loaded but never stored.
+                if not (node.id == "rng" and isinstance(node.ctx, ast.Load)):
+                    errors.append(identifier_error)
+            if node.id == "rng" and isinstance(node.ctx, (ast.Store, ast.Del)):
+                errors.append("stage2 CORE may not reassign or delete rng")
+        elif isinstance(node, ast.Attribute):
+            if node.attr.startswith("__"):
+                errors.append("stage2 CORE may not access dunder attributes")
+            if node.attr in {"seed", "setstate"}:
+                errors.append(f"stage2 CORE may not call or access rng.{node.attr}")
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id in _STAGE2_FORBIDDEN_CALLS:
+                errors.append(f"stage2 CORE forbids call to {node.func.id}")
+
+    if builder is not None:
+        args = builder.args
+        exact_builder_signature = (
+            not args.posonlyargs
+            and len(args.args) == 1
+            and args.args[0].arg == "rng"
+            and not args.kwonlyargs
+            and args.vararg is None
+            and args.kwarg is None
+            and not args.defaults
+            and not args.kw_defaults
+            and args.args[0].annotation is None
+            and builder.returns is None
+            and not builder.decorator_list
+        )
+        if not exact_builder_signature:
+            errors.append(
+                "build_instance must be undecorated and have exact signature "
+                "build_instance(rng), with no defaults or annotations"
+            )
+
+    if errors or builder is None:
+        return None, None, {}, "; ".join(list(dict.fromkeys(errors))[:8])
+
+    own_nodes = _stage2_own_nodes(builder)
+    returns = [node for node in own_nodes if isinstance(node, ast.Return)]
+    final_return = builder.body[-1] if builder.body else None
+    if (
+        len(returns) != 1
+        or not isinstance(final_return, ast.Return)
+        or returns[0] is not final_return
+        or not isinstance(final_return.value, ast.Tuple)
+        or len(final_return.value.elts) != 3
+        or [getattr(value, "id", None) for value in final_return.value.elts]
+        != ["parameters", "answer", "check"]
+        or not all(
+            isinstance(value, ast.Name) and isinstance(value.ctx, ast.Load)
+            for value in final_return.value.elts
+        )
+    ):
+        return (
+            None,
+            None,
+            {},
+            (
+                "build_instance must have one final return exactly "
+                "`return parameters, answer, check`"
+            ),
+        )
+
+    parameter_assignments = [
+        node
+        for node in own_nodes
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == "parameters"
+    ]
+    parameter_stores = [
+        node
+        for node in own_nodes
+        if isinstance(node, ast.Name)
+        and node.id == "parameters"
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+    ]
+    if len(parameter_assignments) != 1 or len(parameter_stores) != 1:
+        return (
+            None,
+            None,
+            {},
+            ("build_instance must assign `parameters` exactly once as a literal dict"),
+        )
+    parameter_assignment = parameter_assignments[0]
+    if parameter_assignment not in builder.body or not isinstance(
+        parameter_assignment.value, ast.Dict
+    ):
+        return (
+            None,
+            None,
+            {},
+            ("`parameters` must be one top-level literal dict assignment"),
+        )
+    if len(builder.body) < 2 or builder.body[-2] is not parameter_assignment:
+        return (
+            None,
+            None,
+            {},
+            (
+                "the literal `parameters` assignment must immediately precede "
+                "the final return"
+            ),
+        )
+    parameter_dict = parameter_assignment.value
+    if any(key is None for key in parameter_dict.keys):
+        return None, None, {}, "parameters may not use dict unpacking"
+    if not all(
+        isinstance(key, ast.Constant) and isinstance(key.value, str)
+        for key in parameter_dict.keys
+    ):
+        return None, None, {}, "parameters keys must be literal strings"
+    keys = [key.value for key in parameter_dict.keys]
+    if len(keys) != len(set(keys)):
+        return None, None, {}, "parameters may not contain duplicate keys"
+    if set(keys) != set(placeholder_keys):
+        return (
+            None,
+            None,
+            {},
+            (
+                "parameters keys must exactly match family placeholders: expected "
+                f"{list(placeholder_keys)!r}, got {sorted(keys)!r}"
+            ),
+        )
+    if not all(isinstance(value, ast.Name) for value in parameter_dict.values):
+        return None, None, {}, "every parameters value must be a local Name"
+
+    assignment_index = builder.body.index(parameter_assignment)
+    preceding_nodes = [
+        child
+        for statement in builder.body[:assignment_index]
+        for child in ast.walk(statement)
+        if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    ]
+    locals_before = {
+        node.id
+        for node in preceding_nodes
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+    }
+    parameter_locals = {
+        key: value.id
+        for key, value in zip(keys, parameter_dict.values)
+        if isinstance(value, ast.Name)
+    }
+    invalid_values = sorted(
+        {
+            local
+            for local in parameter_locals.values()
+            if local not in locals_before
+            or local in {"rng", "parameters", "answer", "check"}
+        }
+    )
+    if invalid_values:
+        return (
+            None,
+            None,
+            {},
+            (
+                "parameters values must be previously assigned local Names: "
+                + ", ".join(invalid_values)
+            ),
+        )
+
+    # `parameters` is an output snapshot, not a mutable work object. Allow its
+    # one literal store and its one final load only; this also blocks aliasing it
+    # and mutating through the alias before the trusted assembler sees it.
+    parent_map = {
+        child: parent
+        for parent in ast.walk(builder)
+        for child in ast.iter_child_nodes(parent)
+    }
+    for node in own_nodes:
+        if not (
+            isinstance(node, ast.Name)
+            and node.id == "parameters"
+            and isinstance(node.ctx, ast.Load)
+        ):
+            continue
+        parent = parent_map.get(node)
+        if parent is not final_return.value:
+            return None, None, {}, ("parameters may only be loaded by the final return")
+    for node in own_nodes:
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if any(
+                _stage2_root_name(target) == "parameters"
+                and not (
+                    target is parameter_assignment.targets[0]
+                    if isinstance(parameter_assignment, ast.Assign)
+                    else False
+                )
+                for target in targets
+            ):
+                return None, None, {}, "parameters may not be mutated"
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and _stage2_root_name(node.func.value) == "parameters"
+        ):
+            return None, None, {}, "parameters may not be mutated or inspected"
+
+    assigned_names = {
+        node.id
+        for node in own_nodes
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+    }
+    if not {"answer", "check"} <= assigned_names:
+        return None, None, {}, "build_instance must assign answer and check"
+    return tree, builder, parameter_locals, None
+
+
+def _synthesized_stage2_generate(
+    tree: ast.Module,
+    builder: ast.FunctionDef,
+    family_parts: list[tuple[str, str]],
+    parameter_locals: dict[str, str],
+) -> str:
+    """Inline candidate math so legacy AST checks inspect it, not the wrapper."""
+
+    generated = copy.deepcopy(builder)
+    generated.name = "generate"
+    generated.args = ast.arguments(
+        posonlyargs=[],
+        args=[ast.arg(arg="seed")],
+        vararg=None,
+        kwonlyargs=[],
+        kw_defaults=[],
+        kwarg=None,
+        defaults=[],
+    )
+    generated.decorator_list = []
+    generated.returns = None
+    generated.body = [
+        ast.Assign(
+            targets=[ast.Name(id="rng", ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Name(id="random", ctx=ast.Load()),
+                    attr="Random",
+                    ctx=ast.Load(),
+                ),
+                args=[ast.Name(id="seed", ctx=ast.Load())],
+                keywords=[],
+            ),
+        ),
+        *copy.deepcopy(builder.body[:-1]),
+        ast.Assert(
+            test=ast.Compare(
+                left=ast.Name(id="answer", ctx=ast.Load()),
+                ops=[ast.Eq()],
+                comparators=[ast.Name(id="check", ctx=ast.Load())],
+            ),
+            msg=ast.Constant(value="answer/check mismatch"),
+        ),
+        ast.Assign(
+            targets=[ast.Name(id="problem", ctx=ast.Store())],
+            value=ast.JoinedStr(
+                values=[
+                    (
+                        ast.Constant(value=value)
+                        if kind == "literal"
+                        else ast.FormattedValue(
+                            value=ast.Name(id=parameter_locals[value], ctx=ast.Load()),
+                            conversion=-1,
+                        )
+                    )
+                    for kind, value in family_parts
+                ]
+            ),
+        ),
+        ast.Return(
+            value=ast.Tuple(
+                elts=[
+                    ast.Name(id="problem", ctx=ast.Load()),
+                    ast.Call(
+                        func=ast.Name(id="str", ctx=ast.Load()),
+                        args=[ast.Name(id="answer", ctx=ast.Load())],
+                        keywords=[],
+                    ),
+                    ast.Dict(
+                        keys=[ast.Constant(value="mode")],
+                        values=[ast.Constant(value="expression")],
+                    ),
+                ],
+                ctx=ast.Load(),
+            )
+        ),
+    ]
+    imports = [
+        copy.deepcopy(node)
+        for node in tree.body
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+    ]
+    module = ast.Module(
+        body=[ast.Import(names=[ast.alias(name="random")]), *imports, generated],
+        type_ignores=[],
+    )
+    ast.fix_missing_locations(module)
+    return ast.unparse(module)
+
+
+def _trusted_stage2_source(
+    *,
+    core: str,
+    domain: str,
+    mode: str,
+    family_template: str,
+    family_parts: list[tuple[str, str]],
+    placeholder_keys: tuple[str, ...],
+) -> str:
+    """Attach the fixed data-only assembler to a validated candidate CORE."""
+
+    return f"""import math
+import random
+
+__rq_type = type
+__rq_len = len
+__rq_str = str
+__rq_repr = repr
+__rq_id = id
+__rq_sorted = sorted
+__rq_tuple = tuple
+__rq_list = list
+__rq_set = set
+__rq_isfinite = math.isfinite
+
+
+def __rq_validate_plain(value, *, depth=0, seen=None, budget=None):
+    if seen is None:
+        seen = __rq_set()
+    if budget is None:
+        budget = [0]
+    budget[0] += 1
+    if budget[0] > 256:
+        raise ValueError("stage2 payload contains too many values")
+    if depth > 6:
+        raise ValueError("stage2 payload is nested too deeply")
+    value_type = __rq_type(value)
+    if value_type is str:
+        if __rq_len(value) > 2048:
+            raise ValueError("stage2 payload string is too long")
+        return
+    if value_type is int:
+        if value.bit_length() > 4096:
+            raise ValueError("stage2 payload integer is too large")
+        return
+    if value_type is float:
+        if not __rq_isfinite(value):
+            raise ValueError("stage2 payload float must be finite")
+        return
+    if value_type is bool:
+        return
+    if value_type not in (dict, list, tuple):
+        raise ValueError("stage2 payload must contain exact built-in data only")
+    marker = __rq_id(value)
+    if marker in seen:
+        raise ValueError("stage2 payload may not contain cycles")
+    if __rq_len(value) > 64:
+        raise ValueError("stage2 payload container is too large")
+    seen.add(marker)
+    try:
+        if value_type is dict:
+            for key, item in value.items():
+                if __rq_type(key) is not str or not key or __rq_len(key) > 128:
+                    raise ValueError("stage2 payload dict keys must be short strings")
+                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)
+        else:
+            for item in value:
+                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)
+    finally:
+        seen.remove(marker)
+
+
+def __rq_scalar_text(value):
+    value_type = __rq_type(value)
+    if value_type is str:
+        return value
+    if value_type is bool:
+        return "True" if value else "False"
+    if value_type in (int, float):
+        return __rq_str(value)
+    raise ValueError("a scalar answer/parameter was required")
+
+
+def __rq_render_parameter(value):
+    value_type = __rq_type(value)
+    if value_type in (str, int, float, bool):
+        return __rq_scalar_text(value)
+    if value_type is list:
+        return "[" + ", ".join(__rq_render_parameter(v) for v in value) + "]"
+    if value_type is tuple:
+        return "(" + ", ".join(__rq_render_parameter(v) for v in value) + ")"
+    if value_type is dict:
+        return "{{" + ", ".join(
+            __rq_repr(key) + ": " + __rq_render_parameter(value[key])
+            for key in __rq_sorted(value)
+        ) + "}}"
+    raise ValueError("unsupported parameter value")
+
+
+{core.rstrip()}
+
+
+DOMAIN = {domain!r}
+FAMILY_TEMPLATE = {family_template!r}
+TRUSTED_ASSEMBLER_VERSION = {TRUSTED_ASSEMBLER_VERSION!r}
+__rq_mode = {mode!r}
+__rq_template_parts = {tuple(family_parts)!r}
+__rq_parameter_keys = {placeholder_keys!r}
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    payload = build_instance(rng)
+    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:
+        raise ValueError("build_instance must return one exact 3-tuple")
+    parameters = payload[0]
+    answer = payload[1]
+    check = payload[2]
+    __rq_validate_plain(parameters)
+    __rq_validate_plain(answer)
+    __rq_validate_plain(check)
+    if __rq_type(parameters) is not dict:
+        raise ValueError("parameters must be an exact built-in dict")
+    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:
+        raise ValueError("runtime parameters keys do not match FAMILY_TEMPLATE")
+
+    problem_parts = []
+    for part_kind, part_value in __rq_template_parts:
+        if part_kind == "literal":
+            problem_parts.append(part_value)
+        else:
+            problem_parts.append(__rq_render_parameter(parameters[part_value]))
+    problem = "".join(problem_parts)
+    if not (10 <= __rq_len(problem) <= 4000):
+        raise ValueError("assembled problem length must be between 10 and 4000")
+
+    if __rq_mode == "expression":
+        if __rq_type(answer) is not __rq_type(check):
+            raise ValueError("answer and check must have the same exact built-in type")
+        assert answer == check, "answer/check mismatch"
+        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:
+            raise ValueError("expression answer must be an exact scalar")
+        answer_text = __rq_scalar_text(answer).strip()
+        check_text = __rq_scalar_text(check).strip()
+        verifier = {{"mode": "expression"}}
+    elif __rq_mode == "boolean":
+        if __rq_type(answer) is not __rq_type(check):
+            raise ValueError("answer and check must have the same exact built-in type")
+        assert answer == check, "answer/check mismatch"
+        if __rq_type(answer) is bool:
+            answer_text = "Yes" if answer else "No"
+            check_text = "Yes" if check else "No"
+        elif __rq_type(answer) is str and answer in ("Yes", "No"):
+            answer_text = answer
+            check_text = check
+        else:
+            raise ValueError("boolean answer must be bool, Yes, or No")
+        verifier = {{"mode": "boolean"}}
+    else:
+        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):
+            raise ValueError("set answer/check must be exact lists or tuples")
+        if __rq_len(answer) > 32 or __rq_len(check) > 32:
+            raise ValueError("set answer/check has too many elements")
+        elements = []
+        for element in answer:
+            if __rq_type(element) not in (str, int, float) or __rq_type(element) is bool:
+                raise ValueError("set elements must be exact non-boolean scalars")
+            elements.append(__rq_scalar_text(element).strip())
+        check_elements = []
+        for element in check:
+            if __rq_type(element) not in (str, int, float) or __rq_type(element) is bool:
+                raise ValueError("set elements must be exact non-boolean scalars")
+            check_elements.append(__rq_scalar_text(element).strip())
+        if any(
+            not element or __rq_len(element) > 512
+            for element in elements + check_elements
+        ):
+            raise ValueError("set elements must contain 1..512 characters")
+        if (
+            __rq_len(elements) != __rq_len(__rq_set(elements))
+            or __rq_len(check_elements) != __rq_len(__rq_set(check_elements))
+        ):
+            raise ValueError("set elements must be unique")
+        assert __rq_set(elements) == __rq_set(check_elements), "answer/check mismatch"
+        canonical_elements = __rq_sorted(elements)
+        canonical_check_elements = __rq_sorted(check_elements)
+        answer_text = r"\\{{" + ",".join(canonical_elements) + r"\\}}"
+        check_text = r"\\{{" + ",".join(canonical_check_elements) + r"\\}}"
+        verifier = {{"mode": "set", "elements": canonical_elements}}
+    if not answer_text or __rq_len(answer_text) > 2048:
+        raise ValueError("assembled answer must contain 1..2048 characters")
+    assert answer_text == check_text, "serialized answer/check mismatch"
+    return problem, answer_text, verifier
+"""
+
+
+def compile_stage2_reply(
+    reply: str,
+    family_template: str,
+) -> tuple[str | None, str | None]:
+    """Compile one strict stage-2 reply into a self-contained generator.
+
+    The model supplies only imports/helpers and ``build_instance(rng)``.  The
+    fixed assembler owns seeding, statement rendering, payload validation,
+    answer/check enforcement, and the declarative verifier.  It is deliberately
+    data-only: candidate callables and custom objects are rejected before any
+    string coercion or equality check can invoke their code.
+    """
+
+    if not isinstance(reply, str):
+        return None, "stage2 reply must be a string"
+    normalized = reply.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = _STAGE2_THINK_RE.sub("", normalized).strip()
+    if "<think>" in normalized or "</think>" in normalized:
+        return None, "stage2 reply contains an unclosed <think> block"
+    invalid = re.fullmatch(r"INVALID: ([^\n]+)", normalized)
+    if invalid is not None:
+        invalid_reason = invalid.group(1).strip()
+        if not invalid_reason:
+            return None, "stage2 INVALID requires a nonempty single-line reason"
+        return None, "stage2 reply declared INVALID: " + invalid_reason
+
+    protocol = _STAGE2_PROTOCOL_RE.fullmatch(normalized)
+    if protocol is None:
+        return None, (
+            "stage2 reply must be exact DOMAIN/MODE/CORE with one python fence, "
+            "or one line `INVALID: <specific reason>`"
+        )
+    domain, mode, core = protocol.groups()
+    if domain not in DOMAINS:
+        return None, "stage2 DOMAIN must be one of " + ", ".join(DOMAINS)
+
+    family_parts, placeholder_keys, family_error = _stage2_family_parts(family_template)
+    if family_error:
+        return None, family_error
+    tree, builder, parameter_locals, core_error = _validate_stage2_core(
+        core, placeholder_keys
+    )
+    if core_error or tree is None or builder is None:
+        return None, core_error or "stage2 CORE validation failed"
+
+    synthesized = _synthesized_stage2_generate(
+        tree, builder, family_parts, parameter_locals
+    )
+    bare_draw = answer_is_bare_draw(synthesized)
+    if bare_draw:
+        return None, "stage2 CORE failed bare-answer contract: " + bare_draw
+    findings = check_generator_contract(synthesized)
+    if findings:
+        return None, "stage2 CORE failed independent-check contract: " + "; ".join(
+            str(finding) for finding in findings[:3]
+        )
+
+    source = _trusted_stage2_source(
+        core=core,
+        domain=domain,
+        mode=mode,
+        family_template=family_template,
+        family_parts=family_parts,
+        placeholder_keys=placeholder_keys,
+    )
+    source_errors = lint_generator_source(source)
+    if source_errors:
+        return None, "compiled stage2 source failed lint: " + "; ".join(
+            source_errors[:3]
+        )
+    return source, None
+
+
 def lint_mutation_generator_source(
     source_code: str,
     *,
@@ -409,9 +1280,7 @@ def lint_mutation_generator_source(
                 return {target.id}
             if isinstance(target, (ast.Tuple, ast.List)):
                 return {
-                    name
-                    for element in target.elts
-                    for name in assigned_names(element)
+                    name for element in target.elts for name in assigned_names(element)
                 }
             return set()
 
@@ -1134,9 +2003,7 @@ def answer_leaks_in_every_instance(instances) -> str | None:
     # Per-instance lint already makes the same distinction; keep the stronger
     # across-seed check aligned with it.
     seen = [
-        i
-        for i in instances
-        if i is not None and i.verifier.get("mode") != "boolean"
+        i for i in instances if i is not None and i.verifier.get("mode") != "boolean"
     ]
     if len(seen) < 2:
         return None
@@ -1173,6 +2040,31 @@ def set_label_declarations(source_code: str, group: str, skill: str) -> str:
     return f'{body}\n\n\nGROUP = "{group}"\nSKILL = "{skill}"\n'
 
 
+def _top_level_family_template(tree: ast.Module) -> str | None:
+    """Trusted assembler family text, when present as one literal constant."""
+
+    values: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+            value = node.value
+        else:
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "FAMILY_TEMPLATE"
+            for target in targets
+        ):
+            continue
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            values.append(value.value)
+        else:
+            return None
+    return values[0] if len(values) == 1 else None
+
+
 def extract_problem_template(source_code: str) -> str | None:
     """The parent's ``problem = ...`` assignment, verbatim, as it is written.
 
@@ -1194,6 +2086,10 @@ def extract_problem_template(source_code: str) -> str | None:
         tree = safe_ast_parse(source_code)
     except (SyntaxError, ValueError):
         return None
+
+    family_template = _top_level_family_template(tree)
+    if family_template is not None:
+        return family_template
 
     lines = source_code.splitlines()
     best: str | None = None
@@ -1228,6 +2124,10 @@ def extract_problem_statement_template(source_code: str) -> str | None:
         tree = safe_ast_parse(source_code)
     except (SyntaxError, ValueError):
         return None
+
+    family_template = _top_level_family_template(tree)
+    if family_template is not None:
+        return family_template
 
     value: ast.expr | None = None
     value_lineno = -1

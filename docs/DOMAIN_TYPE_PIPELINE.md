@@ -174,15 +174,21 @@ all-wrong instance를 제외합니다. 점수가 있는 후보가 오면 strict 
 
 ## 6. Fresh run contract
 
-새 production 설정과 launcher는 다음입니다.
+새 production 설정과 launcher는 다음입니다. 두 설정은 descriptor/admission
+contract가 같고 GPU compute geometry와 독립 output identity만 다릅니다.
 
 ```bash
-bash scripts/run_train_domain_type_8gpu.sh
+# 8 GPUs, detached under nohup with checkpoint auto-merge
+bash scripts/run_train_domain_type_8gpu.sh \
+  --gpus 0,1,2,3,4,5,6,7 --detach
+
+# 4 GPUs, detached under nohup with checkpoint auto-merge
+bash scripts/run_train_domain_type_4gpu.sh --gpus 0,1,2,3 --detach
 ```
 
-- config: `configs/rq_evolve_4b_8gpu_domain_type.yaml`
+- configs: `configs/rq_evolve_4b_{4,8}gpu_domain_type.yaml`
 - seeds: `seed_programs_domain_type/*.py` 정확히 7개
-- output: `rq_output/rq_evolve_4b_domain_type_35cell_8gpu`
+- outputs: `rq_output/rq_evolve_4b_domain_type_35cell_{4,8}gpu`
 - coordinate validation: local code only; 별도 model/API/credential 없음
 
 launcher는 output directory가 이미 비어 있지 않으면 시작하지 않으며, config는

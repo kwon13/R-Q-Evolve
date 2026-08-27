@@ -19,6 +19,12 @@ evolution:
   ast_contract: enforce
   fix_retry: false
 
+# Match the current 4-GPU replay contract. Without this override the older
+# 8-GPU base leaves the frontier unbounded and an overfull (>32) frontier is
+# effectively subsampled by dataloader order instead of previous raw R_Q.
+training_data:
+  training_budget: 32
+
 verl_config:
   # The Python config loader resolves `extends` recursively.  The shell
   # launcher deliberately performs two cheap checks with grep before Python

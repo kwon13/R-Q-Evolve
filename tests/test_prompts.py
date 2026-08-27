@@ -34,7 +34,7 @@ def _program(*, legacy_type_declaration: bool = False) -> ProblemProgram:
 def _plan() -> dict[str, str]:
     return {
         "STRUCTURAL MUTATION": "Replace evaluation by a finite configuration.",
-        "CHILD FAMILY": "How many subsets of {item_count} objects have even size?",
+        "CHILD FAMILY": "How many subsets of [[item_count]] objects have even size?",
         "WHY FINITE": "There are finitely many subsets of the stated set.",
     }
 
@@ -58,32 +58,53 @@ def test_stage_one_has_no_closed_descriptor_vocabulary_or_target():
     assert "no destination" in text.lower()
 
 
-def test_stage_two_self_declares_exactly_one_domain_without_a_target():
+def test_stage_one_requires_collision_free_child_placeholders_in_all_examples():
+    system = build_family_task(_program()).messages[0]["content"]
+    assert "[[descriptive_name]]" in system
+    assert "Do not use Python-format {name}" in system
+    for name in (
+        "modulus",
+        "residue",
+        "board_size",
+        "vertex_count",
+        "neighbor_count",
+    ):
+        assert f"[[{name}]]" in system
+    for old in ("{modulus}", "{residue}", "{board_size}", "{vertex_count}"):
+        assert old not in system
+
+
+def test_stage_two_uses_header_contract_without_a_target():
     task = build_generator_task(_program(), _plan())
     system, user = (message["content"] for message in task.messages)
     normalized_system = " ".join(system.split())
 
-    assert "exactly one top-level literal assignment" in system
-    assert 'DOMAIN = "<value>"' in system
-    assert "not a requested destination" in normalized_system
-    assert "Do not declare PROBLEM_TYPE" in system
-    assert "runtime derives the problem type deterministically" in system
+    assert "DOMAIN: token" in system
+    assert "MODE: expression|boolean|set" in system
+    assert "CORE:" in system
+    assert "INVALID: <specific reason>" in system
+    assert "never a requested destination" in normalized_system
+    assert "Do not output PROBLEM_TYPE" in system
+    assert "runtime derives PROBLEM_TYPE deterministically" in system
     for domain in DOMAINS:
         assert _contains_token(system, domain), domain
 
-    # The options are symmetric: neither the parent coordinate nor a desired
-    # child coordinate is substituted into the stage-2 user turn.
+    # Neither the parent coordinate nor a desired child coordinate is
+    # substituted into the stage-2 user turn.
     assert 'DOMAIN = "algebra"' not in user
     assert "target_cell" not in _text(task)
 
 
-def test_parent_coordinate_declarations_are_removed_from_stage_two():
+def test_stage_two_receives_no_parent_statement_source_or_example():
     user = build_generator_task(
         _program(legacy_type_declaration=True), _plan()
     ).messages[-1]["content"]
-    assert "def generate(seed):" in user
+    assert "What is 3 plus" not in user
+    assert "def generate(seed):" not in user
     assert 'DOMAIN = "algebra"' not in user
     assert 'PROBLEM_TYPE = "function"' not in user
+    assert "REFERENCE" not in user
+    assert "PARENT" not in user
 
 
 def test_stage_one_sees_the_problem_but_not_source_code():
@@ -92,10 +113,46 @@ def test_stage_one_sees_the_problem_but_not_source_code():
     assert "def generate" not in task.messages[-1]["content"]
 
 
-def test_stage_two_receives_the_fixed_child_family_verbatim():
-    assert _plan()["CHILD FAMILY"] in build_generator_task(
-        _program(), _plan()
-    ).messages[-1]["content"]
+def test_stage_two_receives_only_fixed_family_finiteness_and_placeholders():
+    user = build_generator_task(_program(), _plan()).messages[-1]["content"]
+    assert _plan()["CHILD FAMILY"] in user
+    assert _plan()["WHY FINITE"] in user
+    assert "- item_count" in user
+    assert "FIXED CHILD FAMILY:" in user
+    assert "WHY FINITE:" in user
+    assert "PLACEHOLDER NAMES" in user
+
+
+def test_stage_two_does_not_execute_or_inspect_the_parent():
+    broken = ProblemProgram(
+        source_code=(
+            'DOMAIN = "geometry"\n'
+            "PARENT_SECRET_SENTINEL = 'must not be rendered'\n"
+            "raise RuntimeError('must not execute')\n"
+        )
+    )
+    task = build_generator_task(broken, _plan())
+    assert "PARENT_SECRET_SENTINEL" not in _text(task)
+    assert "must not execute" not in _text(task)
+
+
+def test_stage_two_lists_unique_placeholders_in_first_seen_order():
+    plan = {
+        **_plan(),
+        "CHILD FAMILY": (
+            "Compute [[first_value]] + [[second_value]] + [[first_value]]."
+        ),
+    }
+    user = build_generator_task(_program(), plan).messages[-1]["content"]
+    assert user.count("- first_value") == 1
+    assert user.count("- second_value") == 1
+    assert user.index("- first_value") < user.index("- second_value")
+
+
+def test_stage_two_rejects_a_family_without_valid_placeholders_before_call():
+    plan = {**_plan(), "CHILD FAMILY": "Compute the fixed value 17."}
+    with pytest.raises(ValueError, match="valid .* placeholder syntax"):
+        build_generator_task(_program(), plan)
 
 
 def test_a_parent_that_cannot_run_still_produces_a_prompt():
@@ -125,30 +182,116 @@ def test_family_plan_contains_mathematics_only():
         assert line not in system
 
 
-def test_finiteness_is_parsed_but_optional():
+def test_finiteness_is_requested_and_parsed_separately():
     without = parse_family_plan(
         "STRUCTURAL MUTATION: change the object\n"
-        "CHILD FAMILY: How many subsets of {n} objects have even size?"
+        "CHILD FAMILY: How many subsets of [[n]] objects have even size?"
     )
-    assert without is not None and "WHY FINITE" not in without
+    assert without is None
     with_finite = parse_family_plan(
         "STRUCTURAL MUTATION: change the object\n"
-        "CHILD FAMILY: How many subsets of {n} objects have even size?\n"
+        "CHILD FAMILY: How many subsets of [[n]] objects have even size?\n"
         "WHY FINITE: the power set is finite"
     )
     assert with_finite["WHY FINITE"] == "the power set is finite"
     assert "WHY FINITE" not in with_finite["CHILD FAMILY"]
 
 
-def test_stage_two_states_generator_and_live_verifier_contracts():
+def test_missing_finiteness_is_rejected_before_stage_two_call():
+    plan = {key: value for key, value in _plan().items() if key != "WHY FINITE"}
+    with pytest.raises(ValueError, match="WHY FINITE"):
+        build_generator_task(_program(), plan)
+
+
+@pytest.mark.parametrize(
+    "family",
+    (
+        "Compute the fixed value 17.",
+        "Compute [[bad-name]].",
+        "Compute [[missing_end].",
+        "Compute {legacy_name}.",
+    ),
+)
+def test_family_plan_rejects_invalid_or_legacy_placeholders(family):
+    assert parse_family_plan(
+        "STRUCTURAL MUTATION: change the object\n"
+        f"CHILD FAMILY: {family}\n"
+        "WHY FINITE: the requested computation is explicitly bounded"
+    ) is None
+
+
+def test_family_plan_allows_one_letter_braced_set_notation():
+    family = "Find all x in {x} with 0 <= x < [[upper_bound]]."
+    plan = parse_family_plan(
+        "STRUCTURAL MUTATION: change the requested object\n"
+        f"CHILD FAMILY: {family}\n"
+        "WHY FINITE: the interval is explicitly bounded"
+    )
+    assert plan is not None and plan["CHILD FAMILY"] == family
+
+
+@pytest.mark.parametrize(
+    "family",
+    (
+        "Compute [[n]] and [[bad-name]].",
+        "Compute [[n]] using {legacy_name}.",
+    ),
+)
+def test_generator_task_shares_strict_family_placeholder_validation(family):
+    with pytest.raises(ValueError, match="valid .* placeholder syntax"):
+        build_generator_task(_program(), {**_plan(), "CHILD FAMILY": family})
+
+
+def test_stage_prompts_include_luna_audit_preflight_checks():
+    family_system = build_family_task(_program()).messages[0]["content"]
+    generator_system = build_generator_task(_program(), _plan()).messages[0][
+        "content"
+    ]
+    assert "at least one complete" in family_system
+    assert "A reply missing any of these three fields is invalid" in family_system
+    assert "Before replying, verify all five conditions" in generator_system
+    assert "return INVALID rather than guessing" in generator_system
+    assert "maximum/minimum value is" in generator_system
+
+
+def test_stage_two_states_core_and_materialized_verifier_contracts():
     system = build_generator_task(_program(), _plan()).messages[0]["content"]
-    assert "define generate(seed)" in system
-    assert "assert answer == check" in system
-    assert "(problem, str(answer), verifier)" in system
+    normalized = " ".join(system.split())
+    assert "exactly one function named `def build_instance(rng):`" in normalized
+    assert "Do not define `generate`" in system
+    assert "Do not import `random`" in system
+    assert "Do not render the natural-language problem" in system
+    assert '`return parameters, answer, check`' in system
+    assert "materially independent route" in system
+    assert "fully materialized, non-callable" in system
+    assert "Bound every sample, loop, search, and collection" in system
+    assert system.count("```python") == 1
+    assert system.count("```") == 2
     for mode in ("expression", "boolean", "set"):
-        assert f'"mode": "{mode}"' in system
-    assert '"mode": "one_of"' not in system
-    assert "predicate" in system and "callable" in system
+        assert _contains_token(system, mode)
+    assert not _contains_token(system, "one_of")
+    assert "predicates" in system and "callable" in system
+
+
+def test_stage_two_explains_deterministic_mode_to_type_mapping():
+    system = build_generator_task(_program(), _plan()).messages[0]["content"]
+    expected = {
+        "boolean": "decision",
+        "set": "search",
+        "How-many": "counting",
+        "maximum/minimum": "optimization",
+        "other expression": "function",
+    }
+    for contract, problem_type in expected.items():
+        assert contract in system
+        assert _contains_token(system, problem_type)
+
+
+def test_generator_task_keeps_provenance_audit_only():
+    provenance = {"structural_inspiration": {"donor": "secret-donor"}}
+    task = build_generator_task(_program(), _plan(), provenance=provenance)
+    assert task.provenance == provenance
+    assert "secret-donor" not in _text(task)
 
 
 def test_legacy_template_context_strips_all_coordinate_declarations():

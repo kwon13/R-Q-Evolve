@@ -78,7 +78,7 @@ def _plan() -> dict[str, str]:
         "STRUCTURAL MUTATION": (
             "transfer the donor's bounded-state relation into a new recurrence"
         ),
-        "CHILD FAMILY": "Let n = {n}. Determine a finite recurrence value.",
+        "CHILD FAMILY": "Let n = [[n]]. Determine a finite recurrence value.",
         "WHY FINITE": "n is fixed and the recurrence terminates after n steps",
     }
 
@@ -503,14 +503,20 @@ def test_donor_relative_copy_rejection_does_not_poison_same_source_for_another_d
     ]
     plan = (
         "STRUCTURAL MUTATION: transfer one relation\n"
-        "CHILD FAMILY: Let n = {n}. Determine n + 1.\n"
+        "CHILD FAMILY: Let n = [[n]]. Determine n + 1.\n"
         "WHY FINITE: n is fixed\n"
     )
     child_code = (
-        "```python\nimport random\n\n"
-        "def generate(seed):\n"
-        "    problem = f'Determine {seed} plus one.'\n"
-        "    return problem, str(seed + 1)\n```"
+        "DOMAIN: algebra\n"
+        "MODE: expression\n"
+        "CORE:\n```python\n"
+        "def build_instance(rng):\n"
+        "    n = rng.randint(1, 9)\n"
+        "    answer = n + 1\n"
+        "    check = n\n"
+        "    check += 1\n"
+        "    parameters = {'n': n}\n"
+        "    return parameters, answer, check\n```"
     )
 
     class ReachedRollout(RuntimeError):
@@ -580,14 +586,20 @@ def test_in_flight_duplicate_keeps_copy_verdict_for_its_own_assigned_donor():
     ]
     plan = (
         "STRUCTURAL MUTATION: transfer one relation\n"
-        "CHILD FAMILY: Let n = {n}. Determine n + 1.\n"
+        "CHILD FAMILY: Let n = [[n]]. Determine n + 1.\n"
         "WHY FINITE: n is fixed\n"
     )
     child_code = (
-        "```python\nimport random\n\n"
-        "def generate(seed):\n"
-        "    problem = f'Determine {seed} plus one.'\n"
-        "    return problem, str(seed + 1)\n```"
+        "DOMAIN: algebra\n"
+        "MODE: expression\n"
+        "CORE:\n```python\n"
+        "def build_instance(rng):\n"
+        "    n = rng.randint(1, 9)\n"
+        "    answer = n + 1\n"
+        "    check = n\n"
+        "    check += 1\n"
+        "    parameters = {'n': n}\n"
+        "    return parameters, answer, check\n```"
     )
 
     class Backend:
@@ -693,7 +705,7 @@ def test_blocking_and_out_of_order_pipelined_paths_preserve_donor_pairing():
     plans = [
         (
             f"STRUCTURAL MUTATION: transfer marker {i}\n"
-            f"CHILD FAMILY: Let n = {{n}}. Determine {i} + n.\n"
+            f"CHILD FAMILY: Let n = [[n]]. Determine {i} + n.\n"
             "WHY FINITE: n is fixed\n"
         )
         for i in range(2)

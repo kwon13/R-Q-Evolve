@@ -146,6 +146,7 @@ def test_domain_type_production_configs_share_descriptor_contract(
     assert cfg.evolution.target_cell_injection is False
     assert cfg.evolution.relabel_skill is False
     assert cfg.evolution.structural_inspiration is False
+    assert cfg.training_data.training_budget == 32
     assert raw.verl_config.trainer.n_gpus_per_node == gpu_count
     assert raw.verl_config.trainer.save_freq == 32
     assert raw.verl_config.trainer.max_actor_ckpt_to_keep is None

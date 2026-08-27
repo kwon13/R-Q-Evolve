@@ -178,8 +178,9 @@ all-wrong instance를 제외합니다. 점수가 있는 후보가 오면 strict 
 contract가 같고 GPU compute geometry와 독립 output identity만 다릅니다.
 
 ```bash
-# 8 GPUs
-bash scripts/run_train_domain_type_8gpu.sh
+# 8 GPUs, detached under nohup with checkpoint auto-merge
+bash scripts/run_train_domain_type_8gpu.sh \
+  --gpus 0,1,2,3,4,5,6,7 --detach
 
 # 4 GPUs, detached under nohup with checkpoint auto-merge
 bash scripts/run_train_domain_type_4gpu.sh --gpus 0,1,2,3 --detach

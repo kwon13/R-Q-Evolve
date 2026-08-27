@@ -69,16 +69,17 @@ python scripts/train_with_verl.py --smoke --config configs/rq_evolve_smoke_lora.
 새 4B Domain x Problem Type 런은 GPU 수에 맞는 전용 launcher로 시작합니다.
 
 ```bash
-# 8 GPUs (launcher가 자체적으로 detach)
-bash scripts/run_train_domain_type_8gpu.sh
+# 8 GPUs (내부 nohup + checkpoint auto-merge)
+bash scripts/run_train_domain_type_8gpu.sh \
+  --gpus 0,1,2,3,4,5,6,7 --detach
 
 # 선택한 4 GPUs (donor runner와 같은 인터페이스)
 bash scripts/run_train_domain_type_4gpu.sh --gpus 0,1,2,3 --detach
 ```
 
 두 launcher 모두 `seed_programs_domain_type/`의 7개 bootstrap seed와 빈 output
-directory를 확인합니다. 4-GPU launcher는 checkpoint auto-merge도 함께 시작하여
-이전 step을 `hf_merged/`로 보존하고 최신 FSDP actor는 그대로 유지합니다.
+directory를 확인하고 checkpoint auto-merge를 함께 시작합니다. 이전 step은
+`hf_merged/`로 보존하고 최신 FSDP actor는 그대로 유지합니다.
 Domain Type config는 target을 주지 않는 two-stage
 mutation, stage-2의 단일 DOMAIN 선언, statement+verifier 규칙으로 결정하는
 PROBLEM_TYPE, 전체 35-cell grid, checkpoint resume 비활성화를 고정합니다. 좌표

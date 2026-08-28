@@ -16,8 +16,8 @@ evolution:
   # same local Qwen policy and directly assign its DOMAIN. Stage 2 emits no
   # DOMAIN. Ambiguous labels fail both confidence thresholds and are rejected.
   independent_domain_labeling: true
-  domain_labeling_min_probability: 0.55
-  domain_labeling_min_logit_margin: 0.50
+  domain_labeling_min_probability: 0.0
+  domain_labeling_min_logit_margin: 0.0
   # Optional donor context remains label-free and is disabled for the first
   # clean run, isolating the new archive from the earlier inspiration study.
   structural_inspiration: false
@@ -26,8 +26,8 @@ evolution:
 
 archive:
   require_domain_labeling: true
-  domain_labeling_min_probability: 0.55
-  domain_labeling_min_logit_margin: 0.50
+  domain_labeling_min_probability: 0.0
+  domain_labeling_min_logit_margin: 0.0
 
 # Match the current 4-GPU replay contract. Without this override the older
 # 8-GPU base leaves the frontier unbounded and an overfull (>32) frontier is

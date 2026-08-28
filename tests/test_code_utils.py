@@ -71,3 +71,88 @@ def test_a_parser_bomb_is_absorbed_at_every_downstream_gate():
     assert check_generator_contract(bomb) == []
     assert any("syntax error" in r for r in lint_generator_source(bomb))
     assert strip_label_declarations(bomb) == bomb  # unchanged, not raised
+
+
+def test_redundant_import_random_is_stripped_and_executes_successfully():
+    from rq_evolve.code_utils import compile_stage2_reply
+
+    reply = """MODE: expression
+CORE:
+```python
+import math
+import random
+
+def build_instance(rng):
+    n = rng.randint(3, 10)
+    answer = n * 2
+    check = n + n
+    parameters = {"n": n}
+    return parameters, answer, check
+```
+"""
+    family = "Let n = [[n]]. Find twice n."
+    source, err = compile_stage2_reply(reply, family)
+    assert "import random\nimport random" not in source
+    # The harness starts with import math, import random; the stripped CORE follows.
+    # Therefore, import random appears only once in the entire assembled source.
+    assert source.count("import random") == 1
+
+    # Execute generated code
+    namespace = {}
+    exec(source, namespace)
+    problem, answer, verifier = namespace["generate"](42)
+    assert verifier == {"mode": "expression"}
+
+
+def test_global_random_usage_is_still_rejected():
+    from rq_evolve.code_utils import compile_stage2_reply
+
+    reply = """MODE: expression
+CORE:
+```python
+import random
+
+def build_instance(rng):
+    n = random.randint(3, 10)
+    answer = n * 2
+    check = n + n
+    parameters = {"n": n}
+    return parameters, answer, check
+```
+"""
+    family = "Let n = [[n]]. Find twice n."
+    source, err = compile_stage2_reply(reply, family)
+    assert source is None
+    assert err is not None
+    assert "global random name 'random'" in err
+
+
+def test_stage2_mode_set_handles_python_set_and_sympy_finiteset():
+    from rq_evolve.code_utils import compile_stage2_reply
+    import sympy
+
+    reply = """MODE: set
+CORE:
+```python
+import sympy
+
+def build_instance(rng):
+    m = rng.randint(2, 5)
+    # answer is a Python set, check is sympy.FiniteSet
+    answer = {x for x in range(m)}
+    check = sympy.FiniteSet(*range(m))
+    parameters = {"m": m}
+    return parameters, answer, check
+```
+"""
+    family = "Find all integers x such that 0 <= x < [[m]]."
+    source, err = compile_stage2_reply(reply, family)
+    assert err is None, err
+    assert source is not None
+
+    namespace = {}
+    exec(source, namespace)
+    problem, answer_text, verifier = namespace["generate"](123)
+    assert verifier["mode"] == "set"
+    assert answer_text.startswith(r"\{")
+

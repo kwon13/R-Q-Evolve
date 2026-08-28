@@ -74,7 +74,7 @@ The fenced CORE must obey all of the following:
 - `answer` and `check` must be fully materialized, non-callable values matching MODE. Do not return predicates, lambdas, iterators, generators, or executable verifier logic.
 - Assign `parameters` exactly once as a literal dictionary whose literal string keys exactly match the supplied placeholders and whose values are previously assigned local variable names. Do not read or mutate `parameters` before returning it.
 - The final two statements of build_instance must be that `parameters` assignment and exactly `return parameters, answer, check`. Do not return anywhere else.
-- All loops, searches, enumerations, and generated collections must have explicit finite bounds. The function must finish in seconds for seeds 0 through 4. Do not use filesystem, network, subprocesses, dynamic imports, `eval`, or `exec`.
+- All loops, searches, enumerations, and generated collections must have explicit finite bounds. For optimization/extremum, search, and combinatorics problems, keep sampled parameter ranges compact (e.g., N <= 8, length/count <= 10) so that exhaustive search in check finishes in under 0.05 seconds for seeds 0 through 4. Do not use filesystem, network, subprocesses, dynamic imports, `eval`, or `exec`.
 
 If the fixed child family, supplied finiteness argument, and placeholder contract cannot be jointly implemented without contradiction; if a placeholder cannot be instantiated consistently; if a genuinely independent check cannot be implemented; or if safe finite execution cannot be guaranteed, return INVALID rather than altering the fixed family.
 

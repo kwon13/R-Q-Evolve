@@ -31,7 +31,7 @@ export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}
 export LD_PRELOAD=/data1/yhoon113/miniforge3/envs/vllm/lib/libgomp.so.1
 PY="${PY:-$CONDA_PREFIX/bin/python}"
-BASE="${BASE:-/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_8gpu}"
+BASE="${BASE:-/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_domain_type_35cell_8gpu}"
 # Steps to evaluate. Default: every global_step_N under $BASE, in numeric order.
 # A hardcoded list silently skipped step 256 when a run trained past the length
 # the list was written for. Override with STEPS_LIST=32,64 (comma-separated).
@@ -46,7 +46,7 @@ fi
 if [[ ${#STEPS[@]} -eq 0 ]]; then
   echo "no global_step_* checkpoints under $BASE" >&2; exit 1
 fi
-IFS=',' read -ra GPUS <<< "${GPU_LIST:-0,1,2,3,4,5,6,7}"
+IFS=',' read -ra GPUS <<< "${GPU_LIST:-3,4,5,6,7}"
 # R-Zero/evaluation/generate.py uses max_tokens=4096; match it for parity.
 #
 # Raising it is a real option but breaks comparability: in the 8B run 100% of

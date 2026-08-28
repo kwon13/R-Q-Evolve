@@ -1,5 +1,6 @@
 import math
 import random
+import itertools
 
 DOMAIN = "number_theory"
 

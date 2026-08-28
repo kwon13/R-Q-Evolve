@@ -1107,7 +1107,15 @@ def __rq_validate_plain(value, *, depth=0, seen=None, budget=None):
         return
     if value_type is bool:
         return
-    if value_type not in (dict, list, tuple):
+    if hasattr(value, "is_FiniteSet") or (hasattr(value, "args") and __rq_type(value).__name__ == "FiniteSet"):
+        pass
+    elif hasattr(value, "is_integer") and getattr(value, "is_integer", False):
+        return
+    elif hasattr(value, "is_number") and getattr(value, "is_number", False):
+        return
+    elif value_type in (set, frozenset):
+        pass
+    elif value_type not in (dict, list, tuple):
         raise ValueError("stage2 payload must contain exact built-in data only")
     marker = __rq_id(value)
     if marker in seen:
@@ -1136,6 +1144,10 @@ def __rq_scalar_text(value):
         return "True" if value else "False"
     if value_type in (int, float):
         return __rq_str(value)
+    if hasattr(value, "is_integer") and getattr(value, "is_integer", False):
+        return __rq_str(int(value))
+    if hasattr(value, "is_number") and getattr(value, "is_number", False):
+        return __rq_str(value)
     raise ValueError("a scalar answer/parameter was required")
 
 
@@ -1147,6 +1159,8 @@ def __rq_render_parameter(value):
         return "[" + ", ".join(__rq_render_parameter(v) for v in value) + "]"
     if value_type is tuple:
         return "(" + ", ".join(__rq_render_parameter(v) for v in value) + ")"
+    if value_type in (set, frozenset):
+        return "{" + ", ".join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + "}"
     if value_type is dict:
         return "{{" + ", ".join(
             __rq_repr(key) + ": " + __rq_render_parameter(value[key])
@@ -1215,20 +1229,40 @@ def generate(seed):
             raise ValueError("boolean answer must be bool, Yes, or No")
         verifier = {{"mode": "boolean"}}
     else:
+        if hasattr(answer, "is_FiniteSet") or (hasattr(answer, "args") and __rq_type(answer).__name__ == "FiniteSet"):
+            try:
+                answer = __rq_list(answer)
+            except Exception:
+                pass
+        if hasattr(check, "is_FiniteSet") or (hasattr(check, "args") and __rq_type(check).__name__ == "FiniteSet"):
+            try:
+                check = __rq_list(check)
+            except Exception:
+                pass
+        if __rq_type(answer) in (set, frozenset):
+            answer = __rq_list(answer)
+        if __rq_type(check) in (set, frozenset):
+            check = __rq_list(check)
         if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):
-            raise ValueError("set answer/check must be exact lists or tuples")
+            raise ValueError("set answer/check must be exact lists, tuples, or sets")
         if __rq_len(answer) > 32 or __rq_len(check) > 32:
             raise ValueError("set answer/check has too many elements")
         elements = []
         for element in answer:
-            if __rq_type(element) not in (str, int, float) or __rq_type(element) is bool:
+            if __rq_type(element) is bool:
                 raise ValueError("set elements must be exact non-boolean scalars")
-            elements.append(__rq_scalar_text(element).strip())
+            try:
+                elements.append(__rq_scalar_text(element).strip())
+            except ValueError:
+                raise ValueError("set elements must be exact non-boolean scalars")
         check_elements = []
         for element in check:
-            if __rq_type(element) not in (str, int, float) or __rq_type(element) is bool:
+            if __rq_type(element) is bool:
                 raise ValueError("set elements must be exact non-boolean scalars")
-            check_elements.append(__rq_scalar_text(element).strip())
+            try:
+                check_elements.append(__rq_scalar_text(element).strip())
+            except ValueError:
+                raise ValueError("set elements must be exact non-boolean scalars")
         if any(
             not element or __rq_len(element) > 512
             for element in elements + check_elements
@@ -1250,6 +1284,50 @@ def generate(seed):
     assert answer_text == check_text, "serialized answer/check mismatch"
     return problem, answer_text, verifier
 """
+
+
+def _strip_redundant_random_import(core: str) -> str:
+    """Remove boilerplate `import random` / `from random import ...` from CORE.
+
+    Models frequently emit `import random` out of reflex while correctly using
+    the runtime-supplied `rng` parameter in `build_instance(rng)`. If the code
+    actually uses global `random.<method>`, subsequent AST checking or name
+    resolution will safely reject it.
+    """
+    try:
+        tree = safe_ast_parse(core)
+    except (SyntaxError, ValueError):
+        return core
+
+    class _RandomImportRemover(ast.NodeTransformer):
+        def visit_Import(self, node: ast.Import):
+            new_names = [
+                alias
+                for alias in node.names
+                if alias.name.split(".", 1)[0] != "random"
+            ]
+            if not new_names:
+                return None
+            node.names = new_names
+            return node
+
+        def visit_ImportFrom(self, node: ast.ImportFrom):
+            if (node.module or "").split(".", 1)[0] == "random":
+                return None
+            return node
+
+    new_tree = _RandomImportRemover().visit(tree)
+    ast.fix_missing_locations(new_tree)
+    try:
+        return ast.unparse(new_tree)
+    except Exception:
+        lines = []
+        for line in core.splitlines():
+            s = line.strip()
+            if re.match(r"^import\s+random(\s+as\s+\w+)?$", s) or re.match(r"^from\s+random\s+import\s+.*$", s):
+                continue
+            lines.append(line)
+        return "\n".join(lines)
 
 
 def compile_stage2_reply(
@@ -1296,6 +1374,8 @@ def compile_stage2_reply(
         return None, "stage2 DOMAIN is assigned downstream and must be omitted"
     if domain is not None and domain not in DOMAINS:
         return None, "stage2 DOMAIN must be one of " + ", ".join(DOMAINS)
+
+    core = _strip_redundant_random_import(core)
 
     family_parts, placeholder_keys, family_error = _stage2_family_parts(family_template)
     if family_error:

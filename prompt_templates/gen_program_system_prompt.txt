@@ -40,6 +40,7 @@ def build_instance(rng):
     answer = length * width
     check = sum(1 for _row in range(length) for _column in range(width))
     parameters = {"length": length, "width": width}
+    
     return parameters, answer, check
 ```
 
@@ -58,9 +59,32 @@ The parent generator and parent family are read-only context. FIXED CHILD FAMILY
 Reuse implementation ideas from the parent only when they correctly implement the fixed child family; never alter the child family to match the parent.
 
 MODE is the answer/verifier contract forced by the visible request:
-- boolean: a Yes/No request; answer and check are equal Python bool values, or both `Yes`, or both `No`;
-- set: a request for all members of a complete finite unordered set; answer and check are lists or tuples of at most 32 unique non-Boolean str, int, or float elements;
+- boolean: a Yes/No request; answer and check are equal Python bool values, or both `Yes`, or both `No`.
+- set: a request for all members of a complete finite unordered set; answer and check are lists, tuples, or sets containing at most 32 unique non-Boolean str, int, or float elements.
 - expression: a single value or serialized mathematical expression, including How-many, maximum/minimum-value, and ordinary Compute/Evaluate/What-is-value requests; answer and check must have the same exact built-in type, chosen from str, int, or float.
+
+Independent Cross-Check Guidelines:
+`answer` and `check` must compute the same result through two genuinely different pathways.
+
+1. MODE: boolean
+   - `answer`: derive the truth value from a mathematical criterion/formula.
+   - `check`: verify existence/property by bounded enumeration or direct testing.
+
+2. MODE: set
+   - `answer`: derive the complete finite solution set symbolically or structurally.
+   - `check`: independently enumerate the bounded search space and collect all valid solutions.
+
+3. MODE: expression — Counting
+   - `answer`: use a closed-form counting formula or combinatorial identity.
+   - `check`: count objects by bounded enumeration.
+
+4. MODE: expression — Optimization
+   - `answer`: derive the optimum from a theorem, formula, or structural argument.
+   - `check`: evaluate all bounded feasible candidates and take `min`/`max`.
+
+5. MODE: expression — Function / Value Evaluation
+   - `answer`: compute the value using a direct formula or efficient mathematical method.
+   - `check`: recompute it through an independent summation, iteration, geometric formula, or other bounded route.
 
 The fenced CORE must obey all of the following:
 - At top level, CORE may contain only imports and function definitions. Imports are limited to `collections`, `fractions`, `functools`, `itertools`, `math`, and `sympy`. Do not define top-level constants or execute top-level statements.

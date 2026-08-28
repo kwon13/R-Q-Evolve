@@ -130,8 +130,8 @@ def test_the_seven_shipped_seeds_cover_the_approved_distinct_cells():
             "optimization",
         ),
         "04_applied_mathematics_function.py": ("applied_mathematics", "function"),
-        "05_calculus_function.py": ("calculus", "function"),
-        "06_precalculus_optimization.py": ("precalculus", "optimization"),
+        "05_calculus_decision.py": ("calculus", "decision"),
+        "06_precalculus_search.py": ("precalculus", "search"),
     }
     evolver = _evolver()
     seed_dir = Path(__file__).resolve().parent.parent / "seed_programs_domain_type"

@@ -46,7 +46,7 @@ fi
 if [[ ${#STEPS[@]} -eq 0 ]]; then
   echo "no global_step_* checkpoints under $BASE" >&2; exit 1
 fi
-IFS=',' read -ra GPUS <<< "${GPU_LIST:-3,4,5,6,7}"
+IFS=',' read -ra GPUS <<< "${GPU_LIST:-0,1,2,3,4,5,6,7}"
 # R-Zero/evaluation/generate.py uses max_tokens=4096; match it for parity.
 #
 # Raising it is a real option but breaks comparability: in the 8B run 100% of

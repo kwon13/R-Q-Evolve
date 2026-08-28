@@ -156,3 +156,55 @@ def build_instance(rng):
     assert verifier["mode"] == "set"
     assert answer_text.startswith(r"\{")
 
+
+def test_stage2_handles_bullet_and_dot_prefixes():
+    from rq_evolve.code_utils import compile_stage2_reply
+
+    reply = """.MODE: expression
+.CORE:
+```python
+def build_instance(rng):
+    n = rng.randint(2, 10)
+    answer = n * 3
+    check = sum(3 for _ in range(n))
+    parameters = {"n": n}
+    return parameters, answer, check
+```
+"""
+    family = "Let n = [[n]]. Find triple n."
+    source, err = compile_stage2_reply(reply, family)
+    assert err is None, err
+    assert source is not None
+
+    namespace = {}
+    exec(source, namespace)
+    problem, answer, verifier = namespace["generate"](42)
+    assert verifier == {"mode": "expression"}
+
+
+def test_stage2_handles_markdown_and_leading_chatter():
+    from rq_evolve.code_utils import compile_stage2_reply
+
+    reply = """Here is the Python implementation for the problem:
+
+# MODE: expression
+# CORE:
+```python
+def build_instance(rng):
+    n = rng.randint(2, 10)
+    answer = n * 4
+    check = sum(4 for _ in range(n))
+    parameters = {"n": n}
+    return parameters, answer, check
+```
+"""
+    family = "Let n = [[n]]. Find 4 times n."
+    source, err = compile_stage2_reply(reply, family)
+    assert err is None, err
+    assert source is not None
+
+    namespace = {}
+    exec(source, namespace)
+    problem, answer, verifier = namespace["generate"](42)
+    assert verifier == {"mode": "expression"}
+

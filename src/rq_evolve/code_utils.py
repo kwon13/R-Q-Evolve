@@ -1330,6 +1330,103 @@ def _strip_redundant_random_import(core: str) -> str:
         return "\n".join(lines)
 
 
+def _extract_stage2_protocol(
+    text: str,
+) -> tuple[str | None, str | None, str | None, str | None]:
+    """Robustly extract (domain, mode, core, error_or_invalid_reason) from stage2 reply."""
+    # 1. Model explicitly declared INVALID
+    inv_match = re.search(r"^\s*[\.\*\#\-\>]*\s*INVALID:\s*([^\n]+)", text, re.M)
+    if inv_match and not ("def build_instance" in text):
+        reason = inv_match.group(1).strip()
+        if not reason:
+            return None, None, None, "stage2 INVALID requires a nonempty single-line reason"
+        return None, None, None, f"stage2 reply declared INVALID: {reason}"
+
+    # 2. Try standard strict match first
+    strict_match = _STAGE2_PROTOCOL_RE.match(text)
+    if strict_match:
+        domain, mode, core = strict_match.groups()
+        return domain, mode, core, None
+
+    # 3. Clean leading bullet/markdown markers on header lines
+    cleaned_lines = []
+    for line in text.splitlines():
+        cleaned_line = re.sub(
+            r"^\s*[\.\*\#\-\>]+\s*(DOMAIN|MODE|CORE)\s*:",
+            r"\1:",
+            line,
+            flags=re.I,
+        )
+        cleaned_lines.append(cleaned_line)
+    cleaned_text = "\n".join(cleaned_lines)
+
+    strict_match2 = _STAGE2_PROTOCOL_RE.search(cleaned_text)
+    if strict_match2:
+        domain, mode, core = strict_match2.groups()
+        return domain, mode, core, None
+
+    # 4. Search for DOMAIN and MODE flexibly
+    domain_match = re.search(
+        r"(?:^|\n)\s*DOMAIN\s*:\s*([a-z_]+)", cleaned_text, re.I
+    )
+    domain = domain_match.group(1).lower() if domain_match else None
+
+    mode_match = re.search(
+        r"(?:^|\n)\s*MODE\s*:\s*(expression|boolean|set)", cleaned_text, re.I
+    )
+    mode = mode_match.group(1).lower() if mode_match else None
+
+    # 5. Extract CORE python code
+    core = None
+    fence_matches = list(
+        re.finditer(r"```(?:python)?\s*\n(.*?)\n```", cleaned_text, re.DOTALL)
+    )
+    for fm in fence_matches:
+        cand = fm.group(1).strip()
+        if "def build_instance" in cand:
+            core = cand
+            break
+
+    if not core and "def build_instance" in cleaned_text:
+        lines = cleaned_text.splitlines()
+        start_idx = 0
+        for i, l in enumerate(lines):
+            s = l.strip()
+            if (
+                s.startswith("import ")
+                or s.startswith("from ")
+                or s.startswith("def build_instance")
+            ):
+                start_idx = i
+                break
+        cand_block = "\n".join(lines[start_idx:]).strip()
+        cand_block = re.sub(r"\n```.*$", "", cand_block, flags=re.DOTALL).strip()
+        if "def build_instance" in cand_block:
+            core = cand_block
+
+    if not core:
+        return None, None, None, (
+            "stage2 reply must start with exact MODE/CORE and one python fence, "
+            "or one line `INVALID: <specific reason>`"
+        )
+
+    # Clean core: remove any accidental DOMAIN/MODE/CORE lines inside the code block
+    core_lines = []
+    for l in core.splitlines():
+        s = l.strip()
+        if re.match(r"^(?:DOMAIN|MODE|CORE)\s*:", s, re.I):
+            continue
+        core_lines.append(l)
+    cleaned_core = "\n".join(core_lines).strip()
+
+    if not mode:
+        return None, None, None, (
+            "stage2 reply must declare MODE: expression, MODE: boolean, or MODE: set"
+        )
+
+    return domain, mode, cleaned_core, None
+
+
 def compile_stage2_reply(
     reply: str,
     family_template: str,
@@ -1351,23 +1448,11 @@ def compile_stage2_reply(
     normalized = _STAGE2_THINK_RE.sub("", normalized).strip()
     if "<think>" in normalized or "</think>" in normalized:
         return None, "stage2 reply contains an unclosed <think> block"
-    invalid = re.fullmatch(r"INVALID: ([^\n]+)", normalized)
-    if invalid is not None:
-        invalid_reason = invalid.group(1).strip()
-        if not invalid_reason:
-            return None, "stage2 INVALID requires a nonempty single-line reason"
-        return None, "stage2 reply declared INVALID: " + invalid_reason
 
-    # The reply must start with the executable protocol, so explanatory prose or
-    # a copied wrapper still fails closed. Once the first complete Python fence
-    # closes, trailing decode degeneration is inert and is deliberately ignored.
-    protocol = _STAGE2_PROTOCOL_RE.match(normalized)
-    if protocol is None:
-        return None, (
-            "stage2 reply must start with exact MODE/CORE and one python fence, "
-            "or one line `INVALID: <specific reason>`"
-        )
-    domain, mode, core = protocol.groups()
+    domain, mode, core, extract_error = _extract_stage2_protocol(normalized)
+    if extract_error is not None:
+        return None, extract_error
+
     if require_domain and domain is None:
         return None, "stage2 legacy path requires one DOMAIN header"
     if not require_domain and domain is not None:

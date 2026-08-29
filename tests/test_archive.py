@@ -43,10 +43,26 @@ DOMAIN = "{domain}"
     return _certify(program, domain, problem_type)
 
 
+def _counting_program(domain: str, value: int) -> ProblemProgram:
+    program = ProblemProgram(
+        source_code=f'''
+import random
+
+
+def generate(seed):
+    return f"How many integers lie between {{seed}} and {{seed + {value}}}?", str({value} + 1)
+
+
+DOMAIN = "{domain}"
+'''
+    )
+    return _certify(program, domain, "counting")
+
+
 def test_random_selection_strategy_does_not_call_ucb():
     archive = MAPElitesArchive(selection_strategy="random")
     first = _program("algebra", 1)
-    second = _program("geometry", 2)
+    second = _counting_program("geometry", 2)
     archive.try_insert(first, u_value=1.0, rq_score=0.1)
     archive.try_insert(second, u_value=2.0, rq_score=0.2)
 
@@ -60,6 +76,87 @@ def test_random_selection_strategy_does_not_call_ucb():
 def test_unknown_selection_strategy_is_rejected():
     with pytest.raises(ValueError):
         MAPElitesArchive(selection_strategy="roulette")
+
+
+def test_sliding_window_mce_requires_positive_window():
+    with pytest.raises(ValueError, match="mce_window_iterations"):
+        MAPElitesArchive(
+            selection_strategy="sliding_window_mce",
+            mce_window_iterations=0,
+        )
+
+
+def test_sliding_window_mce_uses_virtual_pulls_and_survival_rate():
+    archive = MAPElitesArchive(
+        selection_strategy="sliding_window_mce",
+        ucb_c=1 / (2**0.5),
+        mce_window_iterations=3,
+    )
+    first = _program("algebra", 1)
+    second = _counting_program("geometry", 2)
+    assert archive.try_insert(first, u_value=1.0, rq_score=0.1)
+    assert archive.try_insert(second, u_value=1.0, rq_score=0.1)
+
+    archive.begin_selection_iteration(0)
+    selected_first = archive.sample_parent()
+    selected_second = archive.sample_parent()
+    assert selected_first is not None
+    assert selected_second is not None
+    # The first unresolved pull acts as a virtual loss, so the other unvisited
+    # cell receives the second slot instead of one arm monopolising the batch.
+    assert selected_first.program_id != selected_second.program_id
+
+    archive.record_parent_outcome(selected_first.program_id, True, iteration=0)
+    archive.record_parent_outcome(selected_second.program_id, False, iteration=0)
+
+    selected_third = archive.sample_parent()
+    assert selected_third is not None
+    # Equal pull counts give equal exploration bonuses; MCE exploitation is the
+    # offspring survival rate, not either champion's fitness.
+    assert selected_third.program_id == selected_first.program_id
+    archive.record_parent_outcome(selected_third.program_id, False, iteration=0)
+
+
+def test_sliding_window_mce_forgets_expired_outcomes():
+    archive = MAPElitesArchive(
+        selection_strategy="sliding_window_mce",
+        mce_window_iterations=3,
+    )
+    first = _program("algebra", 1)
+    second = _counting_program("geometry", 2)
+    assert archive.try_insert(first, u_value=1.0, rq_score=0.1)
+    assert archive.try_insert(second, u_value=1.0, rq_score=0.1)
+
+    archive.begin_selection_iteration(0)
+    selected = archive.sample_parent()
+    assert selected is not None
+    archive.record_parent_outcome(selected.program_id, True, iteration=0)
+    assert sum(len(n.mce_history) for n in archive.grid.values()) == 1
+
+    archive.begin_selection_iteration(3)
+    assert sum(len(n.mce_history) for n in archive.grid.values()) == 0
+
+
+def test_sliding_window_mce_history_round_trips_in_snapshot():
+    archive = MAPElitesArchive(
+        selection_strategy="sliding_window_mce",
+        mce_window_iterations=7,
+    )
+    program = _program("algebra", 1)
+    assert archive.try_insert(program, u_value=1.0, rq_score=0.1)
+    archive.begin_selection_iteration(4)
+    parent = archive.sample_parent()
+    assert parent is not None
+    archive.record_parent_outcome(parent.program_id, True, iteration=4)
+
+    restored = MAPElitesArchive(
+        selection_strategy="sliding_window_mce",
+        mce_window_iterations=7,
+    )
+    assert restored.load_payload(archive.to_payload()) == 1
+    cell = restored.program_to_cell(program)
+    assert cell is not None
+    assert restored.grid[cell].mce_history == [{"iteration": 4, "reward": 1}]
 
 
 def test_seed_variation_allows_varied_problems_with_constant_answer():

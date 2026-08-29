@@ -1,4 +1,5 @@
 import ast
+import collections
 import hashlib
 from difflib import SequenceMatcher
 import json
@@ -42,6 +43,10 @@ class Niche:
     selection_count: int = 0
     update_count: int = 0
     history: list[dict] = field(default_factory=list)
+    # Cell-based MCE statistics survive champion replacement. Each row is one
+    # resolved reproductive pull: {"iteration": int, "reward": 0|1}. Only
+    # the configured sliding window is retained and checkpointed.
+    mce_history: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -83,6 +88,7 @@ class MAPElitesArchive:
         epsilon: float = 0.3,
         ucb_c: float = 1.0,
         selection_strategy: str = "random",
+        mce_window_iterations: int = 50,
         select_ignores_uncertainty: bool = False,
         select_ignores_variance: bool = False,
         binning: str = "grid",
@@ -90,8 +96,10 @@ class MAPElitesArchive:
         domain_labeling_min_probability: float = 0.55,
         domain_labeling_min_logit_margin: float = 0.50,
     ) -> None:
-        if selection_strategy not in {"ucb", "random"}:
+        if selection_strategy not in {"ucb", "random", "sliding_window_mce"}:
             raise ValueError(f"unknown selection_strategy: {selection_strategy}")
+        if int(mce_window_iterations) <= 0:
+            raise ValueError("mce_window_iterations must be positive")
         if binning not in {"grid", "flat"}:
             raise ValueError(f"binning must be 'grid' or 'flat', got {binning!r}")
         if select_ignores_uncertainty and select_ignores_variance:
@@ -105,6 +113,16 @@ class MAPElitesArchive:
         self.epsilon = float(epsilon)
         self.ucb_c = float(ucb_c)
         self.selection_strategy = selection_strategy
+        self.mce_window_iterations = int(mce_window_iterations)
+        # The evolver announces the current outer iteration before drawing a
+        # batch. Pending pulls are virtual losses in the UCB denominator, which
+        # prevents one temporarily best cell from monopolising all 32 slots
+        # before any result is available.
+        self._mce_iteration = -1
+        self._mce_pending_by_parent: dict[str, list[tuple[int, int]]] = {}
+        self._mce_pending_by_cell: collections.Counter[tuple[int, int]] = (
+            collections.Counter()
+        )
         # Ablations: rank mutation parents by s(1-s) (ignore_uncertainty) or by H
         # (ignore_variance) instead of s(1-s)*H. Neither changes what is stored
         # or binned -- champion_rq and the cell labels stay real.
@@ -1213,14 +1231,135 @@ class MAPElitesArchive:
 
         if self.selection_strategy == "random":
             key, niche = rng.choice(pool)
+        elif self.selection_strategy == "sliding_window_mce":
+            key, niche = self._sample_sliding_window_mce(pool, rng=rng)
         elif rng.random() < self.epsilon:
             key, niche = rng.choice(pool)
         else:
             key, niche = self._sample_ucb(pool)
+        if self.selection_strategy == "sliding_window_mce":
+            assert niche.champion is not None
+            self._register_mce_pull(niche.champion.program_id, key)
         niche.selection_count += 1
         self.total_selections += 1
         assert niche.champion is not None
         return niche.champion
+
+    def begin_selection_iteration(self, iteration: int) -> None:
+        """Start one SW-MCE accounting window at an outer-iteration boundary.
+
+        Every pull from the preceding batch must have received its binary
+        survival outcome before a new iteration starts. A non-empty pending set
+        means selection and reward credit have diverged, which must fail loudly
+        instead of silently biasing future UCB scores.
+        """
+
+        iteration = int(iteration)
+        if self._mce_pending_by_cell:
+            raise RuntimeError("unresolved SW-MCE parent selections at iteration boundary")
+        self._mce_iteration = iteration
+        self._prune_mce_history(iteration)
+
+    def finalize_parent_outcomes(self) -> None:
+        """Assert that every SW-MCE batch pull received exactly one reward."""
+
+        if self.selection_strategy == "sliding_window_mce" and (
+            self._mce_pending_by_cell
+        ):
+            raise RuntimeError("unresolved SW-MCE parent selections after batch")
+
+    def record_parent_outcome(
+        self,
+        parent_id: str | None,
+        survived: bool,
+        *,
+        iteration: int | None = None,
+    ) -> None:
+        """Resolve one SW-MCE pull with the original binary survival reward.
+
+        ``survived`` is true exactly when the offspring was admitted to the
+        archive, whether by filling an empty cell or replacing its incumbent.
+        All compile, verification, rollout, novelty and cell-contest failures
+        receive zero, matching Monte Carlo Elites' offspring-survival signal.
+        """
+
+        if self.selection_strategy != "sliding_window_mce":
+            return
+        pending = self._mce_pending_by_parent.get(str(parent_id))
+        if not pending:
+            raise RuntimeError(
+                f"no pending SW-MCE selection for parent_id={parent_id!r}"
+            )
+        cell = pending.pop(0)
+        if not pending:
+            self._mce_pending_by_parent.pop(str(parent_id), None)
+        self._mce_pending_by_cell[cell] -= 1
+        if self._mce_pending_by_cell[cell] <= 0:
+            del self._mce_pending_by_cell[cell]
+
+        event_iteration = self._mce_iteration if iteration is None else int(iteration)
+        if event_iteration < 0:
+            event_iteration = 0
+        self.grid[cell].mce_history.append(
+            {"iteration": event_iteration, "reward": int(bool(survived))}
+        )
+        self._prune_mce_history(event_iteration)
+
+    def _register_mce_pull(self, parent_id: str, cell: tuple[int, int]) -> None:
+        self._mce_pending_by_parent.setdefault(parent_id, []).append(cell)
+        self._mce_pending_by_cell[cell] += 1
+
+    def _prune_mce_history(self, iteration: int) -> None:
+        cutoff = int(iteration) - self.mce_window_iterations + 1
+        for niche in self.grid.values():
+            if niche.mce_history:
+                niche.mce_history = [
+                    row
+                    for row in niche.mce_history
+                    if int(row["iteration"]) >= cutoff
+                ]
+
+    def _sample_sliding_window_mce(
+        self,
+        occupied: list[tuple[tuple[int, int], Niche]],
+        *,
+        rng: random.Random,
+    ) -> tuple[tuple[int, int], Niche]:
+        """Cell-based MCE UCB over recent binary survival outcomes.
+
+        Pending selections count as pulls with an as-yet unknown (therefore
+        zero) reward. This virtual-loss convention is only for allocating a
+        parallel batch; the real binary result replaces it once reported.
+        """
+
+        if self._mce_iteration >= 0:
+            self._prune_mce_history(self._mce_iteration)
+        counts: dict[tuple[int, int], int] = {}
+        rewards: dict[tuple[int, int], int] = {}
+        for key, niche in occupied:
+            counts[key] = len(niche.mce_history) + self._mce_pending_by_cell[key]
+            rewards[key] = sum(int(row["reward"]) for row in niche.mce_history)
+        total = sum(counts.values())
+
+        best_score = -math.inf
+        best: list[tuple[tuple[int, int], Niche]] = []
+        for item in occupied:
+            key, _niche = item
+            pulls = counts[key]
+            if pulls <= 0:
+                score = math.inf
+            else:
+                survival_rate = rewards[key] / pulls
+                exploration = self.ucb_c * math.sqrt(
+                    math.log(max(total, 1)) / pulls
+                )
+                score = survival_rate + exploration
+            if score > best_score:
+                best_score = score
+                best = [item]
+            elif score == best_score:
+                best.append(item)
+        return rng.choice(best)
 
     def _sample_ucb(self, occupied: list[tuple[tuple[int, int], Niche]]):
         # Exploitation term ranks by selection priority: real R_Q in production,
@@ -1256,7 +1395,7 @@ class MAPElitesArchive:
         problem_types_hit = {
             p.get_problem_type() for p in champions if p.get_problem_type()
         }
-        return {
+        stats: dict[str, float | int] = {
             "num_champions": len(champions),
             "total_niches": total,
             "coverage": len(champions) / total if total else 0.0,
@@ -1271,6 +1410,23 @@ class MAPElitesArchive:
             "total_selections": self.total_selections,
             "num_structural_donors": len(self.structural_donors),
         }
+        if self.selection_strategy == "sliding_window_mce":
+            window_events = [
+                event
+                for niche in self.grid.values()
+                for event in niche.mce_history
+            ]
+            survivals = sum(int(event["reward"]) for event in window_events)
+            stats.update(
+                {
+                    "mce_window_pulls": len(window_events),
+                    "mce_window_survivals": survivals,
+                    "mce_window_survival_rate": (
+                        survivals / len(window_events) if window_events else 0.0
+                    ),
+                }
+            )
+        return stats
 
     def to_payload(self) -> dict:
         """In-memory snapshot of the archive (same structure written to
@@ -1290,6 +1446,7 @@ class MAPElitesArchive:
                 "epsilon": self.epsilon,
                 "ucb_c": self.ucb_c,
                 "selection_strategy": self.selection_strategy,
+                "mce_window_iterations": self.mce_window_iterations,
                 "stats": self.stats(),
             },
             "champions": [p.to_dict() for p in self.champions()],
@@ -1303,9 +1460,15 @@ class MAPElitesArchive:
                     "selection_count": niche.selection_count,
                     "update_count": niche.update_count,
                     "history": list(niche.history),
+                    "mce_history": list(niche.mce_history),
                 }
                 for _, niche in sorted(self.grid.items())
-                if niche.selection_count or niche.update_count or niche.history
+                if (
+                    niche.selection_count
+                    or niche.update_count
+                    or niche.history
+                    or niche.mce_history
+                )
             ],
         }
 
@@ -1437,7 +1600,7 @@ class MAPElitesArchive:
             donor_ids.add(donor.program_id)
             decoded_donors.append(donor)
 
-        decoded_niches: list[tuple[tuple[int, int], int, int, list]] = []
+        decoded_niches: list[tuple[tuple[int, int], int, int, list, list]] = []
         seen_niche_cells: set[tuple[int, int]] = set()
         for i, row in enumerate(niche_rows):
             if not isinstance(row, dict):
@@ -1470,7 +1633,40 @@ class MAPElitesArchive:
                 raise ArchiveSchemaError(
                     f"invalid history in niche row {i}: expected a list"
                 )
-            decoded_niches.append((cell, selection_count, update_count, list(history)))
+            mce_history = row.get("mce_history") or []
+            if not isinstance(mce_history, list):
+                raise ArchiveSchemaError(
+                    f"invalid mce_history in niche row {i}: expected a list"
+                )
+            decoded_mce_history = []
+            for j, event in enumerate(mce_history):
+                if not isinstance(event, dict):
+                    raise ArchiveSchemaError(
+                        f"invalid mce_history event {j} in niche row {i}"
+                    )
+                try:
+                    event_iteration = int(event["iteration"])
+                    event_reward = int(event["reward"])
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise ArchiveSchemaError(
+                        f"invalid mce_history event {j} in niche row {i}"
+                    ) from exc
+                if event_iteration < 0 or event_reward not in {0, 1}:
+                    raise ArchiveSchemaError(
+                        f"invalid mce_history values in niche row {i}, event {j}"
+                    )
+                decoded_mce_history.append(
+                    {"iteration": event_iteration, "reward": event_reward}
+                )
+            decoded_niches.append(
+                (
+                    cell,
+                    selection_count,
+                    update_count,
+                    list(history),
+                    decoded_mce_history,
+                )
+            )
 
         saved_stats = meta.get("stats") or {}
         if not isinstance(saved_stats, dict):
@@ -1490,6 +1686,9 @@ class MAPElitesArchive:
             niche.selection_count = 0
             niche.update_count = 0
             niche.history = []
+            niche.mce_history = []
+        self._mce_pending_by_parent = {}
+        self._mce_pending_by_cell = collections.Counter()
         self.structural_donors = {}
         for donor in decoded_donors:
             certified = (
@@ -1525,11 +1724,12 @@ class MAPElitesArchive:
             niche.champion_rq = float(program.rq_score)
             niche.update_count += 1
             placed += 1
-        for cell, selection_count, update_count, history in decoded_niches:
+        for cell, selection_count, update_count, history, mce_history in decoded_niches:
             niche = self.grid[cell]
             niche.selection_count = selection_count
             niche.update_count = update_count
             niche.history = history
+            niche.mce_history = mce_history
         (
             self.total_insertions,
             self.total_replacements,

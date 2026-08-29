@@ -13,6 +13,12 @@ class ArchiveConfig:
     epsilon: float = 0.3
     ucb_c: float = 1.0
     selection_strategy: str = "ucb"
+    # Sliding-Window Monte Carlo Elites (SW-MCE) keeps the original MCE
+    # binary offspring-survival reward, but estimates each cell's success rate
+    # from only the most recent outer iterations.  The window is iteration-
+    # based (not offspring-based), so a value of 50 with 32 mutations per
+    # iteration retains roughly 1,600 selection outcomes.
+    mce_window_iterations: int = 50
     # When enabled, a generated child cannot enter or resume in the archive
     # until the local restricted-token labeler assigns DOMAIN from its fixed
     # family. Hand-authored bootstrap seeds carry an explicit file contract.

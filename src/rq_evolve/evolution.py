@@ -686,6 +686,7 @@ class RQEvolver:
 
     def run_outer_iteration(self, outer_iteration: int) -> dict:
         self.current_iteration = int(outer_iteration)
+        self.archive.begin_selection_iteration(self.current_iteration)
         self._domain_labeling_stats = collections.Counter()
         attempted = 0
         inserted = 0
@@ -1187,6 +1188,13 @@ class RQEvolver:
                     **_report_context(task),
                 )
             )
+        for report in reports:
+            self.archive.record_parent_outcome(
+                report.parent_id,
+                report.status == "inserted",
+                iteration=self.current_iteration,
+            )
+        self.archive.finalize_parent_outcomes()
         self._memoize_rejections(reports)
         return reports
 

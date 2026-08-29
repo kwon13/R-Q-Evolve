@@ -6,11 +6,22 @@ Answer YES exactly when the candidate domain is the unique primary domain whose 
 
 Boundary rules are binding:
 
+- Classify by the mathematical concepts and natural shortest-solution machinery that are indispensable, not by surface syntax, the presence of integer parameters, or the built-in type of the answer.
 - Integer-valued data or answers alone are not number theory. Divisibility,   primes, congruences, Diophantine structure, or another integer-specific idea must be indispensable.
 - “How many” alone is not discrete mathematics; the finite combinatorial organization itself must determine the answer.
 - Maximum/minimum is a problem-type distinction, not evidence for applied mathematics.
 - A real-world story alone is not applied mathematics; probability, statistics, modeling, or another application must do the central work.
 - Coordinate formulas used to study a figure remain geometry. Elementary trigonometric, logarithmic, exponential, conic, or function-graph behavior without calculus is precalculus.
 - Polynomial, equation, and identity structure is algebra. A formula that happens to return an integer is not automatically number theory.
+
+Hard boundary examples are binding. They were selected from previously confused families:
+
+- “Find the sum of the first n terms of a geometric sequence” is precalculus, not algebra or number theory. The elementary sequence and its closed form do the central work even when n and the answer are integers.
+- “Solve a polynomial equation” or “count its real/integer roots” is algebra unless a derivative, integral, limit, or another calculus concept is indispensable. Polynomial notation alone is not precalculus or calculus.
+- “Compute f'(a),” “evaluate a definite integral,” or optimize a function by indispensable critical-point analysis is calculus, even when every coefficient, endpoint, and final answer is an integer.
+- An exact probability, expectation, statistical correction, or application-driven model is applied mathematics when that formulation does the central work. Finite outcome enumeration used only as a check does not turn it into discrete mathematics.
+- Graphs, subsets, arrangements, and finite configurations are discrete mathematics when their combinatorial organization determines the answer. A superficial story does not make them applied mathematics.
+- “Determine the greatest common divisor” and “determine the least common multiple” are number theory. The words greatest and least are names inside gcd/lcm terminology, not evidence of optimization or applied mathematics.
+- Distance, angle, area, incidence, and spatial configuration are geometry when the figure itself carries the solution, even if coordinates or algebraic formulas are used.
 
 Emit exactly one uppercase word: YES or NO. No explanation, punctuation, markdown, hedge, or additional text.

@@ -147,6 +147,38 @@ def test_stage_two_attaches_a_model_invisible_copy_exclusion_reference():
     assert "area of a rectangle" in task.messages[0]["content"].lower()
 
 
+def test_stage_two_rotates_one_valid_shot_and_gates_only_the_shown_example():
+    shots = prompts._stage2_shots()
+    assert {shot.domain for shot in shots} >= {
+        "calculus",
+        "applied_mathematics",
+        "precalculus",
+    }
+    for shot in shots:
+        reference = prompts._stage2_copy_exclusion_examples(shot.index)[0]
+        assert all(reference.execute(seed) is not None for seed in range(5))
+
+    selected = set()
+    for seed in range(30):
+        task = build_generator_task(
+            _program(), _plan(), rotate_shots=True, rng=random.Random(seed)
+        )
+        audit = task.provenance["stage2_one_shot"]
+        selected.add(audit["example_index"])
+        system = task.messages[0]["content"]
+        assert system.count("Here is one example of the required implementation contract.") == 1
+        assert system.count("Example Final Implementation (MODE/CORE):") == 1
+        assert "<STAGE2_EXAMPLE>" not in system
+        assert len(task.copy_exclusion_examples) == 1
+        assert (
+            task.copy_exclusion_examples[0].metadata[
+                "prompt_copy_exclusion_index"
+            ]
+            == audit["example_index"]
+        )
+    assert selected == {shot.index for shot in shots}
+
+
 def test_legacy_stage_two_adds_domain_without_relying_on_explanatory_prose():
     task = build_generator_task(_program(), _plan(), emit_legacy_domain=True)
     system = task.messages[0]["content"]
@@ -236,6 +268,28 @@ def test_binary_domain_task_is_label_blind_except_for_its_candidate():
     assert "archive" not in user.lower()
     assert "geometry:" in user
     assert len(domain_labeling_ruleset_sha256()) == 64
+
+
+def test_binary_domain_prompt_contains_observed_hard_boundary_cases():
+    task = build_domain_labeling_task(
+        parent=_program(),
+        child_family=(
+            "Find the sum of the first [[term_count]] terms of a geometric "
+            "sequence."
+        ),
+        domain="precalculus",
+    )
+    system = task.messages[0]["content"]
+    for signal in (
+        "geometric sequence",
+        "Solve a polynomial equation",
+        "Compute f'(a)",
+        "exact probability, expectation, statistical correction",
+        "greatest common divisor",
+        "least common multiple",
+        "natural shortest-solution machinery",
+    ):
+        assert signal in system
 
 
 def test_stage_two_receives_parent_transformation_context_without_labels():
@@ -465,9 +519,9 @@ def test_stage_two_states_core_and_materialized_verifier_contracts():
     assert "`fractions.Fraction`" in system
     assert "`sympy.diff(...).subs(...)`" in system
     assert "Never replace the continuum by an integer grid" in system
-    # One fenced parent generator and one fenced accepted MODE/CORE reply.
-    assert system.count("```python") == 2
-    assert system.count("```") == 4
+    # Exactly one model-visible accepted MODE/CORE implementation is shown.
+    assert system.count("```python") == 1
+    assert system.count("```") == 2
     for mode in ("expression", "boolean", "set"):
         assert _contains_token(system, mode)
     assert not _contains_token(system, "one_of")
@@ -486,7 +540,10 @@ def test_stage_two_describes_output_modes_without_problem_type_or_map_internals(
 def test_generator_task_keeps_provenance_audit_only():
     provenance = {"structural_inspiration": {"donor": "secret-donor"}}
     task = build_generator_task(_program(), _plan(), provenance=provenance)
-    assert task.provenance == provenance
+    assert task.provenance["structural_inspiration"] == provenance[
+        "structural_inspiration"
+    ]
+    assert task.provenance["stage2_one_shot"]["example_index"] == 1
     assert "secret-donor" not in _text(task)
 
 

@@ -82,6 +82,26 @@ def test_specific_output_contract_has_precedence():
     )
 
 
+def test_named_gcd_lcm_terms_are_function_requests_not_optimization():
+    cases = (
+        "Determine the greatest common divisor of 84 and 126.",
+        "Find the greatest common factor of 84 and 126.",
+        "Compute the least common multiple of 12 and 18.",
+    )
+    for statement in cases:
+        annotation = annotate_problem_type(statement)
+        assert annotation.problem_type == "function", (statement, annotation)
+
+    # A genuine extremization of a gcd remains optimization.
+    assert (
+        annotate_problem_type(
+            "Find the greatest possible common divisor of two distinct integers "
+            "whose sum is 60."
+        ).problem_type
+        == "optimization"
+    )
+
+
 def test_nested_request_words_do_not_override_the_outer_contract():
     cases = {
         "Find the maximum number of solutions to the equation.": "optimization",

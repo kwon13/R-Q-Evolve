@@ -14,7 +14,8 @@ evolution:
   relabel_skill: false
   # Seven one-token, label-blind YES/NO calls read the fixed family with the
   # same local Qwen policy and directly assign its DOMAIN. Stage 2 emits no
-  # DOMAIN. Ambiguous labels fail both confidence thresholds and are rejected.
+  # DOMAIN. Keep top-1 assignment for coverage; confidence and margin remain
+  # diagnostic signals rather than hard rejection thresholds.
   independent_domain_labeling: true
   domain_labeling_min_probability: 0.0
   domain_labeling_min_logit_margin: 0.0

@@ -90,6 +90,9 @@ class CandidateReport:
     domain_labeling: dict | None = None
     # Detailed prompt-copy comparison for rejected Stage-2 one-shot copies.
     copy_audit: dict | None = None
+    # The one model-visible Stage-2 example selected for this proposal. Keeping
+    # it on every outcome makes per-shot compile/verify survival measurable.
+    stage2_one_shot: dict | None = None
 
 
 def _logged_source(source: str | None) -> str | None:
@@ -107,13 +110,22 @@ def _ast_findings(program: "ProblemProgram | None") -> list[str]:
 
 def _report_context(task: "MutationTask | None") -> dict:
     if task is None:
-        return {"parent_id": None, "inspiration": None}
+        return {
+            "parent_id": None,
+            "inspiration": None,
+            "stage2_one_shot": None,
+        }
     parent = getattr(task, "parent", None)
     provenance = dict(getattr(task, "provenance", {}) or {})
     inspiration = provenance.get("structural_inspiration")
     return {
         "parent_id": getattr(parent, "program_id", None),
         "inspiration": dict(inspiration) if inspiration is not None else None,
+        "stage2_one_shot": (
+            dict(provenance["stage2_one_shot"])
+            if provenance.get("stage2_one_shot") is not None
+            else None
+        ),
     }
 
 
@@ -157,6 +169,8 @@ def _child_metadata(task: "MutationTask") -> dict:
         metadata["structural_inspiration"] = dict(provenance["structural_inspiration"])
     if provenance.get("family_plan") is not None:
         metadata["family_plan"] = dict(provenance["family_plan"])
+    if provenance.get("stage2_one_shot") is not None:
+        metadata["stage2_one_shot"] = dict(provenance["stage2_one_shot"])
     return metadata
 
 

@@ -61,7 +61,9 @@ _DECISION_RE = re.compile(
 )
 _OPTIMIZATION_RE = re.compile(
     r"\b(?:find|determine|compute|calculate|evaluate|what\s+(?:is|are))\s+"
-    r"(?:the\s+)?(?:maximum|minimum|largest|smallest|greatest|least|optimal|"
+    r"(?:the\s+)?(?:maximum|minimum|largest|smallest|"
+    r"greatest(?!\s+common\s+(?:divisor|factor))|"
+    r"least(?!\s+common\s+multiple)|optimal|"
     r"best\s+possible)\b|"
     r"\b(?:maximize|minimize)\b|"
     r"\bafter\s+what\s+(?:least|fewest|minimum)\b",
@@ -85,6 +87,8 @@ _SEARCH_RE = re.compile(
     re.IGNORECASE,
 )
 _FUNCTION_RE = re.compile(
+    r"\b(?:find|determine|compute|calculate)\s+(?:the\s+)?(?:greatest\s+common\s+"
+    r"(?:divisor|factor)|least\s+common\s+multiple)\b|"
     r"\b(?:compute|calculate|evaluate)\b|\bwhat\s+(?:is|are)\b|"
     r"\b(?:find|determine)\s+(?:the\s+)?(?:value|values|sum|product|remainder|"
     r"residue|digit|digits|perimeter|area|volume|length|distance|ratio|"

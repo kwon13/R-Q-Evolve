@@ -248,54 +248,116 @@ FAMILY_SYSTEM_PROMPT_FILE = "diff_problem_system_prompt.txt"
 FAMILY_USER_PROMPT_FILE = "diff_problem_user_prompt.txt"
 GENERATOR_SYSTEM_PROMPT_FILE = "gen_program_system_prompt.txt"
 GENERATOR_USER_PROMPT_FILE = "gen_program_user_prompt.txt"
+GENERATOR_EXAMPLES_FILE = "gen_program_extra_examples.txt"
 STRUCTURAL_INSPIRATION_SYSTEM_NOTE_FILE = "structural_inspiration_system_note.txt"
 STRUCTURAL_INSPIRATION_USER_BLOCK_FILE = "structural_inspiration_user_block.txt"
 DOMAIN_LABELING_SYSTEM_PROMPT_FILE = "domain_labeling_system_prompt.txt"
 DOMAIN_LABELING_USER_PROMPT_FILE = "domain_labeling_user_prompt.txt"
 DOMAIN_DEFINITIONS_FILE = "domain_definitions.txt"
-DOMAIN_LABELING_RULESET = "omni-top-level-local-policy-binary-labeler-v2"
+DOMAIN_LABELING_RULESET = "omni-top-level-local-policy-binary-labeler-v3-hard-boundaries"
 DOMAIN_LABELING_METHOD = "local_policy_binary_label_v1"
 
 # --- few-shot rotation ------------------------------------------------------
 #
-# Stage 1 rotates semantically tagged examples. Stage 2 deliberately has no
-# model-visible XML tags: the 4B policy copied those tags and continued into the
-# surrounding prompt instead of returning the raw MODE/CORE protocol. Its
-# executable copy-exclusion reference is kept below as model-invisible data.
+# Stage 1 rotates semantically tagged examples. Stage 2 keeps exactly one
+# model-visible worked example per request, selected from a bank whose tags are
+# parser-only and never rendered. This preserves the deliberate one-shot
+# contract while avoiding a single discrete formula/enumeration example as the
+# only implementation pattern the 4B policy ever sees.
 _FAMILY_EXAMPLE_RE = re.compile(
     r"<FAMILY_EXAMPLE>\s*.*?</FAMILY_EXAMPLE>", re.DOTALL
 )
 FAMILY_SHOTS_SHOWN = 3
 
-_STAGE2_COPY_EXCLUSION_FAMILY = (
-    "Find the area of a rectangle with integer side lengths [[length]] and "
-    "[[width]]."
+_STAGE2_EXAMPLE_RE = re.compile(
+    r"<STAGE2_EXAMPLE>\s*(.*?)\s*</STAGE2_EXAMPLE>", re.DOTALL
 )
-_STAGE2_COPY_EXCLUSION_REPLY = """MODE: expression
-CORE:
-```python
-def build_instance(rng):
-    length = rng.randint(2, 20)
-    width = rng.randint(2, 20)
-    answer = length * width
-    check = sum(1 for _row in range(length) for _column in range(width))
-    parameters = {"length": length, "width": width}
-    return parameters, answer, check
-```"""
 
 
-@lru_cache(maxsize=2)
+@dataclass(frozen=True, slots=True)
+class _Stage2Shot:
+    index: int
+    domain: str
+    family: str
+    reply: str
+
+
+def _stage2_example_field(block: str, field_name: str) -> str:
+    match = re.search(
+        rf"<{field_name}>\s*(.*?)\s*</{field_name}>", block, re.DOTALL
+    )
+    if match is None or not match.group(1).strip():
+        raise ValueError(
+            f"{GENERATOR_EXAMPLES_FILE} example is missing <{field_name}>"
+        )
+    return match.group(1).strip()
+
+
+@lru_cache(maxsize=1)
+def _stage2_shots() -> tuple[_Stage2Shot, ...]:
+    """Load the model-visible one-shot bank and validate its metadata."""
+
+    text = _load_template(GENERATOR_EXAMPLES_FILE)
+    blocks = _STAGE2_EXAMPLE_RE.findall(text)
+    if not blocks or text.count("<STAGE2_EXAMPLE>") != len(blocks) or text.count(
+        "</STAGE2_EXAMPLE>"
+    ) != len(blocks):
+        raise ValueError(
+            f"{GENERATOR_EXAMPLES_FILE} must contain complete "
+            "<STAGE2_EXAMPLE> blocks"
+        )
+    shots: list[_Stage2Shot] = []
+    for index, block in enumerate(blocks, start=1):
+        domain = _stage2_example_field(block, "DOMAIN")
+        family = _stage2_example_field(block, "FAMILY")
+        reply = _stage2_example_field(block, "REPLY")
+        if domain not in DOMAINS:
+            raise ValueError(
+                f"{GENERATOR_EXAMPLES_FILE} example {index} has unknown "
+                f"domain {domain!r}"
+            )
+        if _family_placeholder_names(family) is None:
+            raise ValueError(
+                f"{GENERATOR_EXAMPLES_FILE} example {index} has an invalid family"
+            )
+        if not reply.startswith("MODE:"):
+            raise ValueError(
+                f"{GENERATOR_EXAMPLES_FILE} example {index} must start with MODE:"
+            )
+        shots.append(_Stage2Shot(index, domain, family, reply))
+    return tuple(shots)
+
+
+def _render_stage2_shot(shot: _Stage2Shot, *, emit_legacy_domain: bool) -> str:
+    reply = shot.reply
+    if emit_legacy_domain:
+        reply = f"DOMAIN: {shot.domain}\n{reply}"
+    return (
+        "Here is one example of the required implementation contract.\n\n"
+        "Example fixed child family:\n"
+        f"{shot.family}\n\n"
+        "Example Final Implementation (MODE/CORE):\n"
+        f"{reply}"
+    )
+
+
+@lru_cache(maxsize=16)
 def _stage2_copy_exclusion_examples(
+    example_index: int = 1,
     require_domain: bool = False,
 ) -> tuple[ProblemProgram, ...]:
-    """Compile the model-invisible Stage-2 one-shot copy reference."""
+    """Compile the exact model-visible Stage-2 shot as a copy reference."""
 
-    reply = _STAGE2_COPY_EXCLUSION_REPLY
+    try:
+        shot = _stage2_shots()[example_index - 1]
+    except IndexError as exc:
+        raise ValueError(f"unknown Stage-2 example index: {example_index}") from exc
+    reply = shot.reply
     if require_domain:
-        reply = "DOMAIN: geometry\n" + reply
+        reply = f"DOMAIN: {shot.domain}\n" + reply
     source, reason = compile_stage2_reply(
         reply,
-        _STAGE2_COPY_EXCLUSION_FAMILY,
+        shot.family,
         require_domain=require_domain,
     )
     if source is None:
@@ -303,9 +365,9 @@ def _stage2_copy_exclusion_examples(
     example = ProblemProgram(
         source_code=source,
         metadata={
-            "prompt_copy_exclusion_index": 1,
+            "prompt_copy_exclusion_index": shot.index,
             "family_sha256": hashlib.sha256(
-                _STAGE2_COPY_EXCLUSION_FAMILY.encode("utf-8")
+                shot.family.encode("utf-8")
             ).hexdigest(),
         },
     )
@@ -618,13 +680,18 @@ def build_generator_task(
     worked transformation reference, but the child family remains immutable.
     It emits no DOMAIN or PROBLEM_TYPE; those are assigned downstream.
     """
-    system_prompt = _load_template(GENERATOR_SYSTEM_PROMPT_FILE)
+    rng = rng or random
+    shots = _stage2_shots()
+    shot = rng.choice(shots) if rotate_shots else shots[0]
+    system_prompt = _render_template(
+        _load_template(GENERATOR_SYSTEM_PROMPT_FILE),
+        {
+            "stage2_example": _render_stage2_shot(
+                shot, emit_legacy_domain=emit_legacy_domain
+            )
+        },
+    )
     if emit_legacy_domain:
-        system_prompt = system_prompt.replace(
-            "MODE: expression\nCORE:",
-            "DOMAIN: geometry\nMODE: expression\nCORE:",
-            1,
-        )
         system_prompt += (
             "\n\nLEGACY SOURCE-DOMAIN COMPATIBILITY MODE:\n"
             "Prepend exactly `DOMAIN: token` before MODE, choosing one token "
@@ -633,7 +700,9 @@ def build_generator_task(
             + ". This compatibility header is required only because the local "
             "DOMAIN labeler is disabled for this run.\n"
         )
-    copy_exclusion_examples = _stage2_copy_exclusion_examples(emit_legacy_domain)
+    copy_exclusion_examples = _stage2_copy_exclusion_examples(
+        shot.index, emit_legacy_domain
+    )
     placeholder_names = _family_placeholder_names(plan["CHILD FAMILY"])
     if placeholder_names is None:
         raise ValueError(
@@ -682,6 +751,12 @@ def build_generator_task(
             "target_mode_desc": target_mode_desc,
         },
     )
+    task_provenance = dict(provenance or {})
+    task_provenance["stage2_one_shot"] = {
+        "example_index": shot.index,
+        "domain": shot.domain,
+        "family_sha256": hashlib.sha256(shot.family.encode("utf-8")).hexdigest(),
+    }
     return MutationTask(
         op=MUTATION_OP,
         prompt=f"{system_prompt}\n\n{user_prompt}",
@@ -696,7 +771,7 @@ def build_generator_task(
         max_output_tokens=max_output_tokens,
         # Donor provenance is reporting-only. The primary parent is now shown
         # explicitly, but structural-inspiration donor content remains absent.
-        provenance=dict(provenance or {}),
+        provenance=task_provenance,
         inspiration_donor=inspiration_donor,
         copy_exclusion_examples=copy_exclusion_examples,
     )

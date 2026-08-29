@@ -347,8 +347,10 @@ def test_child_and_report_keep_primary_ancestry_and_donor_audit_data():
     assert metadata["lineage_root_id"] == "root-primary"
     assert metadata["structural_inspiration"] == info
     assert metadata["family_plan"]["CHILD FAMILY"] == _plan()["CHILD FAMILY"]
+    assert metadata["stage2_one_shot"] == task.provenance["stage2_one_shot"]
     assert report["parent_id"] == parent.program_id
     assert report["inspiration"] == info
+    assert report["stage2_one_shot"] == task.provenance["stage2_one_shot"]
 
     # Program snapshots already persist arbitrary metadata; pin the new nested
     # provenance through the actual wire round-trip.

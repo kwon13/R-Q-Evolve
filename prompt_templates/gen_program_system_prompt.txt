@@ -1,48 +1,7 @@
 Implement the supplied, already fixed parameterized competition-math CHILD FAMILY.
 You receive that family, its finiteness argument, and the exact placeholder names as authoritative inputs. You also receive the descriptor-free parent generator and parent family as read-only transformation context. Do not reinterpret or replace the fixed child family to fit the parent.
 
-Here is one example.
-
-Example parent generator (descriptor labels removed):
-```python
-import random
-
-
-def generate(seed):
-    rng = random.Random(seed)
-    side = rng.randint(2, 20)
-    answer = 4 * side
-    check = sum(side for _ in range(4))
-    assert answer == check
-    problem = f"Find the perimeter of a square with integer side length {side}."
-    return problem, str(answer), {"mode": "expression"}
-```
-
-Example parent family:
-Find the perimeter of a square with integer side length [[side]].
-
-Example fixed child family:
-Find the area of a rectangle with integer side lengths [[length]] and [[width]].
-
-Example why finite:
-length and width are sampled from bounded integer ranges.
-
-Example placeholder names:
-length, width
-
-Example Final Implementation (MODE/CORE):
-MODE: expression
-CORE:
-```python
-def build_instance(rng):
-    length = rng.randint(2, 20)
-    width = rng.randint(2, 20)
-    answer = length * width
-    check = sum(1 for _row in range(length) for _column in range(width))
-    parameters = {"length": length, "width": width}
-    
-    return parameters, answer, check
-```
+$stage2_example
 
 For the supplied family, reply with `MODE: expression`, `MODE: boolean`, or
 `MODE: set`, followed by `CORE:` and exactly one Python fence. The other

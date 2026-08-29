@@ -1,227 +1,166 @@
-WORKED EXAMPLE 1
-
-EXAMPLE -- this family
-
-Let n = {n}. What is the sum of the first n positive odd integers?
-
-is produced by this generator:
+<STAGE2_EXAMPLE>
+<DOMAIN>
+geometry
+</DOMAIN>
+<FAMILY>
+Find the area of a rectangle with integer side lengths [[length]] and [[width]].
+</FAMILY>
+<REPLY>
+MODE: expression
+CORE:
 ```python
-import random
-
-def generate(seed):
-    rng = random.Random(seed)
-    n = rng.randint(4, 20)
-
-    answer = n * n
-    check = sum(range(1, 2 * n, 2))
-    assert answer == check, f"answer={answer} check={check}"
-
-    problem = f"Let n = {n}. What is the sum of the first n positive odd integers?"
-    return problem, str(answer)
+def build_instance(rng):
+    length = rng.randint(2, 20)
+    width = rng.randint(2, 20)
+    answer = length * width
+    check = sum(1 for _row in range(length) for _column in range(width))
+    parameters = {"length": length, "width": width}
+    return parameters, answer, check
 ```
+</REPLY>
+</STAGE2_EXAMPLE>
 
-NOW WRITE THE GENERATOR FOR THIS FAMILY
-
-The numbers 1 through {board_size} are written on a board. In each move, two numbers a and b are erased and the single number a + b - 1 is written in their place. After {board_size} - 1 moves one number remains. Determine that number.
-
-CORRECT OUTPUT:
+<STAGE2_EXAMPLE>
+<DOMAIN>
+calculus
+</DOMAIN>
+<FAMILY>
+Let f(x) = [[quadratic_coefficient]]x^2 + [[linear_coefficient]]x + [[constant_term]]. Compute f'([[evaluation_point]]).
+</FAMILY>
+<REPLY>
+MODE: expression
+CORE:
 ```python
-import random
+import sympy
 
-def generate(seed):
-    rng = random.Random(seed)
-    board_size = rng.randint(5, 12)
-
-    # Each move removes two numbers and writes one, so the count drops by 1 and
-    # the sum drops by 1: sum - count never changes.
-    answer = board_size * (board_size + 1) // 2 - board_size + 1
-
-    # Independent route: actually play the game in a random order.
-    pool = list(range(1, board_size + 1))
-    while len(pool) > 1:
-        a = pool.pop(rng.randrange(len(pool)))
-        b = pool.pop(rng.randrange(len(pool)))
-        pool.append(a + b - 1)
-    check = pool[0]
-    assert answer == check, f"answer={answer} check={check}"
-
-    problem = f"The numbers 1 through {board_size} are written on a board. In each move, two numbers a and b are erased and the single number a + b - 1 is written in their place. After {board_size} - 1 moves one number remains. Determine that number."
-    return problem, str(answer)
+def build_instance(rng):
+    quadratic_coefficient = rng.randint(1, 8)
+    linear_coefficient = rng.randint(-9, 9)
+    constant_term = rng.randint(-9, 9)
+    evaluation_point = rng.randint(-5, 5)
+    answer = 2 * quadratic_coefficient * evaluation_point + linear_coefficient
+    x = sympy.symbols("x")
+    polynomial = quadratic_coefficient * x**2 + linear_coefficient * x + constant_term
+    check = int(sympy.diff(polynomial, x).subs(x, evaluation_point))
+    parameters = {"quadratic_coefficient": quadratic_coefficient, "linear_coefficient": linear_coefficient, "constant_term": constant_term, "evaluation_point": evaluation_point}
+    return parameters, answer, check
 ```
+</REPLY>
+</STAGE2_EXAMPLE>
 
-
-
-WORKED EXAMPLE 2
-
-EXAMPLE -- this family
-
-Let a = {first_term} and d = {common_difference}. What is the {term_index}-th term of the arithmetic progression starting at a with common difference d?
-
-is produced by this generator:
+<STAGE2_EXAMPLE>
+<DOMAIN>
+calculus
+</DOMAIN>
+<FAMILY>
+Let f(x) = [[quadratic_coefficient]]x^2 + [[constant_term]]. Evaluate the definite integral of f from 0 to [[upper_bound]].
+</FAMILY>
+<REPLY>
+MODE: expression
+CORE:
 ```python
-import random
+import fractions
+import sympy
 
-def generate(seed):
-    rng = random.Random(seed)
-    first_term = rng.randint(1, 20)
-    common_difference = rng.randint(1, 9)
-    term_index = rng.randint(3, 15)
-
-    answer = first_term + (term_index - 1) * common_difference
-    check = first_term
-    for _ in range(term_index - 1):
-        check += common_difference
-    assert answer == check, f"answer={answer} check={check}"
-
-    problem = f"Let a = {first_term} and d = {common_difference}. What is the {term_index}-th term of the arithmetic progression starting at a with common difference d?"
-    return problem, str(answer)
+def build_instance(rng):
+    quadratic_coefficient = rng.randint(1, 8)
+    constant_term = rng.randint(-5, 9)
+    upper_bound = rng.randint(1, 6)
+    direct_value = fractions.Fraction(quadratic_coefficient * upper_bound**3, 3) + fractions.Fraction(constant_term * upper_bound, 1)
+    answer = str(direct_value)
+    x = sympy.symbols("x")
+    polynomial = quadratic_coefficient * x**2 + constant_term
+    symbolic_value = sympy.integrate(polynomial, (x, 0, upper_bound))
+    check_fraction = fractions.Fraction(int(sympy.numer(symbolic_value)), int(sympy.denom(symbolic_value)))
+    check = str(check_fraction)
+    parameters = {"quadratic_coefficient": quadratic_coefficient, "constant_term": constant_term, "upper_bound": upper_bound}
+    return parameters, answer, check
 ```
+</REPLY>
+</STAGE2_EXAMPLE>
 
-NOW WRITE THE GENERATOR FOR THIS FAMILY
-
-A sequence of positive integers satisfies a_1 = {start_value} and a_(k+1) = 3 * a_k + {shift} for every k >= 1. Find a_{index}.
-
-CORRECT OUTPUT:
+<STAGE2_EXAMPLE>
+<DOMAIN>
+calculus
+</DOMAIN>
+<FAMILY>
+Find the minimum value of f(x) = [[quadratic_coefficient]]x^2 + [[linear_coefficient]]x + [[constant_term]] on the closed interval from [[left_endpoint]] to [[right_endpoint]].
+</FAMILY>
+<REPLY>
+MODE: expression
+CORE:
 ```python
-import random
+import sympy
 
-def generate(seed):
-    rng = random.Random(seed)
-    start_value = rng.randint(1, 9)
-    shift = rng.randint(1, 9)
-    index = rng.randint(4, 9)
-
-    # Unrolling the recurrence once gives 3^(k-1) * start + shift * (3^(k-1) - 1) / 2.
-    power = 3 ** (index - 1)
-    answer = power * start_value + shift * (power - 1) // 2
-
-    # Independent route: iterate the recurrence itself, one step at a time.
-    check = start_value
-    for _ in range(index - 1):
-        check = 3 * check + shift
-    assert answer == check, f"answer={answer} check={check}"
-
-    problem = f"A sequence of positive integers satisfies a_1 = {start_value} and a_(k+1) = 3 * a_k + {shift} for every k >= 1. Find a_{index}."
-    return problem, str(answer)
+def build_instance(rng):
+    quadratic_coefficient = rng.randint(1, 5)
+    vertex = rng.randint(-3, 3)
+    linear_coefficient = -2 * quadratic_coefficient * vertex
+    constant_term = rng.randint(1, 12)
+    left_endpoint = vertex - rng.randint(1, 4)
+    right_endpoint = vertex + rng.randint(1, 4)
+    answer = constant_term - quadratic_coefficient * vertex**2
+    x = sympy.symbols("x")
+    polynomial = quadratic_coefficient * x**2 + linear_coefficient * x + constant_term
+    critical_points = sympy.solve(sympy.diff(polynomial, x), x)
+    candidate_points = [sympy.Integer(left_endpoint), sympy.Integer(right_endpoint)] + critical_points
+    check = int(min(polynomial.subs(x, point) for point in candidate_points if left_endpoint <= point <= right_endpoint))
+    parameters = {"quadratic_coefficient": quadratic_coefficient, "linear_coefficient": linear_coefficient, "constant_term": constant_term, "left_endpoint": left_endpoint, "right_endpoint": right_endpoint}
+    return parameters, answer, check
 ```
+</REPLY>
+</STAGE2_EXAMPLE>
 
-
-
-WORKED EXAMPLE 3
-
-EXAMPLE -- this family
-
-Let N = {upper}. How many integers x with 1 <= x <= N are divisible by neither 2 nor 3?
-
-is produced by this generator:
+<STAGE2_EXAMPLE>
+<DOMAIN>
+applied_mathematics
+</DOMAIN>
+<FAMILY>
+A fair coin is tossed [[toss_count]] times. What is the expected number of adjacent pairs of tosses that are both heads?
+</FAMILY>
+<REPLY>
+MODE: expression
+CORE:
 ```python
-import random
+import fractions
+import itertools
 
-def generate(seed):
-    rng = random.Random(seed)
-    upper = rng.randint(20, 200)
-
-    answer = upper - upper // 2 - upper // 3 + upper // 6
-    check = sum(1 for x in range(1, upper + 1) if x % 2 and x % 3)
-    assert answer == check, f"answer={answer} check={check}"
-
-    problem = f"Let N = {upper}. How many integers x with 1 <= x <= N are divisible by neither 2 nor 3?"
-    return problem, str(answer)
+def build_instance(rng):
+    toss_count = rng.randint(3, 8)
+    expected_value = fractions.Fraction(toss_count - 1, 4)
+    answer = str(expected_value)
+    total_adjacent_pairs = 0
+    for outcome in itertools.product((0, 1), repeat=toss_count):
+        total_adjacent_pairs += sum(1 for index in range(toss_count - 1) if outcome[index] == 1 and outcome[index + 1] == 1)
+    enumerated_value = fractions.Fraction(total_adjacent_pairs, 2**toss_count)
+    check = str(enumerated_value)
+    parameters = {"toss_count": toss_count}
+    return parameters, answer, check
 ```
+</REPLY>
+</STAGE2_EXAMPLE>
 
-NOW WRITE THE GENERATOR FOR THIS FAMILY
-
-Let N = {upper_bound}. A set S of integers from 1 to N has the property that no element of S divides another. What is the largest possible number of elements of S?
-
-CORRECT OUTPUT:
+<STAGE2_EXAMPLE>
+<DOMAIN>
+precalculus
+</DOMAIN>
+<FAMILY>
+Find the sum of the first [[term_count]] terms of the geometric sequence whose first term is 1 and whose common ratio is 2.
+</FAMILY>
+<REPLY>
+MODE: expression
+CORE:
 ```python
-import random
-
-def generate(seed):
-    rng = random.Random(seed)
-    upper_bound = rng.randint(8, 13)
-
-    # Any ceil(N/2)+1 of the numbers contain two with the same odd part, and
-    # then the smaller divides the larger -- so no larger set can exist.
-    answer = (upper_bound + 1) // 2
-
-    # Independent route: search every subset for the largest divisor-free one.
+def build_instance(rng):
+    term_count = rng.randint(3, 12)
+    answer = 2**term_count - 1
     check = 0
-    for mask in range(1 << upper_bound):
-        chosen = [k + 1 for k in range(upper_bound) if mask >> k & 1]
-        if len(chosen) <= check:
-            continue
-        if all(b % a for i, a in enumerate(chosen) for b in chosen[i + 1:]):
-            check = len(chosen)
-    assert answer == check, f"answer={answer} check={check}"
-
-    problem = f"Let N = {upper_bound}. A set S of integers from 1 to N has the property that no element of S divides another. What is the largest possible number of elements of S?"
-    return problem, str(answer)
+    current_term = 1
+    for _index in range(term_count):
+        check += current_term
+        current_term *= 2
+    parameters = {"term_count": term_count}
+    return parameters, answer, check
 ```
-
-
-
-WORKED EXAMPLE 4
-
-EXAMPLE -- this family
-
-Let a = {modulus} and b = {lower_bound} be positive integers. What is the smallest multiple of a that is strictly greater than b?
-
-is produced by this generator:
-```python
-import random
-
-def generate(seed):
-    rng = random.Random(seed)
-    modulus = rng.randint(2, 15)
-    lower_bound = rng.randint(1, 100)
-
-    answer = (lower_bound // modulus + 1) * modulus
-    x = lower_bound + 1
-    while x % modulus:
-        x += 1
-    check = x
-    assert answer == check, f"answer={answer} check={check}"
-
-    problem = f"Let a = {modulus} and b = {lower_bound} be positive integers. What is the smallest multiple of a that is strictly greater than b?"
-    return problem, str(answer)
-```
-
-NOW WRITE THE GENERATOR FOR THIS FAMILY
-
-Find the positive integer with exactly {digit_count} digits, every digit equal to 1 or 2, that is divisible by 2^{digit_count}.
-
-CORRECT OUTPUT:
-```python
-import random
-
-def generate(seed):
-    rng = random.Random(seed)
-    digit_count = rng.randint(4, 11)
-
-    # Build the number one digit at a time from the right: at step k exactly one
-    # of the two digits keeps the k-digit suffix divisible by 2^k.
-    answer = 0
-    for k in range(digit_count):
-        for digit in (1, 2):
-            candidate = digit * 10 ** k + answer
-            if candidate % 2 ** (k + 1) == 0:
-                answer = candidate
-                break
-
-    # Independent route: try every string of 1s and 2s of that length.
-    check = None
-    for mask in range(1 << digit_count):
-        value = 0
-        for k in range(digit_count):
-            value += (2 if mask >> k & 1 else 1) * 10 ** k
-        if value % 2 ** digit_count == 0:
-            check = value if check is None else min(check, value)
-    assert answer == check, f"answer={answer} check={check}"
-
-    problem = f"Find the positive integer with exactly {digit_count} digits, every digit equal to 1 or 2, that is divisible by 2^{digit_count}."
-    return problem, str(answer)
-```
-
-
-
+</REPLY>
+</STAGE2_EXAMPLE>

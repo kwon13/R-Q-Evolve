@@ -129,6 +129,7 @@ def build_instance(rng):
 
 def test_stage2_mode_set_handles_python_set_and_sympy_finiteset():
     from rq_evolve.code_utils import compile_stage2_reply
+    from rq_evolve.program import ProblemProgram
     import sympy
 
     reply = """MODE: set
@@ -155,6 +156,13 @@ def build_instance(rng):
     problem, answer_text, verifier = namespace["generate"](123)
     assert verifier["mode"] == "set"
     assert answer_text.startswith(r"\{")
+
+    # Production executes with getattr removed from safe builtins. The trusted
+    # assembler must not generate a forbidden bare getattr of its own.
+    program = ProblemProgram(source_code=source)
+    instance = program.execute(123)
+    assert instance is not None, program.last_execution_error
+    assert instance.verifier["mode"] == "set"
 
 
 def test_stage2_handles_bullet_and_dot_prefixes():
@@ -305,4 +313,3 @@ def build_instance(rng):
     exec(source, namespace)
     problem, answer, verifier = namespace["generate"](42)
     assert int(answer) > 0
-

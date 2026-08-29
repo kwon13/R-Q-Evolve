@@ -1270,9 +1270,9 @@ def __rq_validate_plain(value, *, depth=0, seen=None, budget=None):
         return
     if hasattr(value, "is_FiniteSet") or (hasattr(value, "args") and __rq_type(value).__name__ == "FiniteSet"):
         pass
-    elif hasattr(value, "is_integer") and getattr(value, "is_integer", False):
+    elif hasattr(value, "is_integer") and value.is_integer is True:
         return
-    elif hasattr(value, "is_number") and getattr(value, "is_number", False):
+    elif hasattr(value, "is_number") and value.is_number is True:
         return
     elif value_type in (set, frozenset):
         pass
@@ -1305,9 +1305,9 @@ def __rq_scalar_text(value):
         return "True" if value else "False"
     if value_type in (int, float):
         return __rq_str(value)
-    if hasattr(value, "is_integer") and getattr(value, "is_integer", False):
+    if hasattr(value, "is_integer") and value.is_integer is True:
         return __rq_str(int(value))
-    if hasattr(value, "is_number") and getattr(value, "is_number", False):
+    if hasattr(value, "is_number") and value.is_number is True:
         return __rq_str(value)
     raise ValueError("a scalar answer/parameter was required")
 

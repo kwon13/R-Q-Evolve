@@ -254,8 +254,59 @@ STRUCTURAL_INSPIRATION_USER_BLOCK_FILE = "structural_inspiration_user_block.txt"
 DOMAIN_LABELING_SYSTEM_PROMPT_FILE = "domain_labeling_system_prompt.txt"
 DOMAIN_LABELING_USER_PROMPT_FILE = "domain_labeling_user_prompt.txt"
 DOMAIN_DEFINITIONS_FILE = "domain_definitions.txt"
-DOMAIN_LABELING_RULESET = "omni-top-level-local-policy-binary-labeler-v3-hard-boundaries"
+DOMAIN_LABELING_RULESET = "omni-top-level-local-policy-binary-labeler-v4-contrastive-chat"
 DOMAIN_LABELING_METHOD = "local_policy_binary_label_v1"
+
+# Each one-vs-rest arm receives demonstrations for the SAME candidate domain
+# it is about to score. These are real chat turns, not rubric prose: the 4B
+# policy sees the exact user-prompt shape followed by the required one-token
+# answer. Every arm gets one positive and two hard negatives, including the
+# subset-counting -> precalculus error observed in the first v3 run.
+DOMAIN_LABELING_FEW_SHOTS: dict[str, tuple[tuple[str, str], ...]] = {
+    "algebra": (
+        ("Find all real roots of x^2 + [[b]]x + [[c]] = 0.", "YES"),
+        ("Find the sum of the first [[n]] terms of a geometric sequence.", "NO"),
+        ("How many subsets of size [[k]] can be chosen from [[n]] objects?", "NO"),
+    ),
+    "geometry": (
+        ("Find the area of a triangle with base [[base]] and height [[height]].", "YES"),
+        ("Find all real roots of x^2 + [[b]]x + [[c]] = 0.", "NO"),
+        ("Compute the expected number of heads in [[n]] fair coin tosses.", "NO"),
+    ),
+    "number_theory": (
+        ("Determine the greatest common divisor of [[a]] and [[b]].", "YES"),
+        ("Compute the sum of the first [[n]] positive odd integers.", "NO"),
+        ("How many subsets of size [[k]] can be chosen from [[n]] objects?", "NO"),
+    ),
+    "discrete_mathematics": (
+        (
+            "A set contains [[element_count]] distinct elements. Compute the number "
+            "of ways to choose a subset of size [[subset_size]].",
+            "YES",
+        ),
+        ("Find the sum of the first [[n]] terms of a geometric sequence.", "NO"),
+        ("Compute the expected number of heads in [[n]] fair coin tosses.", "NO"),
+    ),
+    "applied_mathematics": (
+        ("Compute the expected number of heads in [[n]] fair coin tosses.", "YES"),
+        ("How many subsets of size [[k]] can be chosen from [[n]] objects?", "NO"),
+        ("Find the area of a triangle with base [[base]] and height [[height]].", "NO"),
+    ),
+    "calculus": (
+        ("Let f(x) = [[a]]x^2 + [[b]]x + [[c]]. Compute f'([[point]]).", "YES"),
+        ("Find all real roots of x^2 + [[b]]x + [[c]] = 0.", "NO"),
+        ("Find the sum of the first [[n]] terms of a geometric sequence.", "NO"),
+    ),
+    "precalculus": (
+        ("Find the sum of the first [[n]] terms of a geometric sequence.", "YES"),
+        (
+            "A set contains [[element_count]] distinct elements. Compute the number "
+            "of ways to choose a subset of size [[subset_size]].",
+            "NO",
+        ),
+        ("Let f(x) = [[a]]x^2 + [[b]]x + [[c]]. Compute f'([[point]]).", "NO"),
+    ),
+}
 
 # --- few-shot rotation ------------------------------------------------------
 #
@@ -405,17 +456,34 @@ def _domain_definitions() -> dict[str, str]:
 
 
 def domain_labeling_ruleset_sha256() -> str:
-    """Hash the exact binary readback rubric and seven domain definitions."""
+    """Hash the rubric, definitions, and exact contrastive chat examples."""
 
-    payload = "\0".join(
-        (
-            DOMAIN_LABELING_RULESET,
-            _load_template(DOMAIN_LABELING_SYSTEM_PROMPT_FILE),
-            _load_template(DOMAIN_LABELING_USER_PROMPT_FILE),
-            _load_template(DOMAIN_DEFINITIONS_FILE),
-        )
-    )
+    parts = [
+        DOMAIN_LABELING_RULESET,
+        _load_template(DOMAIN_LABELING_SYSTEM_PROMPT_FILE),
+        _load_template(DOMAIN_LABELING_USER_PROMPT_FILE),
+        _load_template(DOMAIN_DEFINITIONS_FILE),
+    ]
+    for domain in DOMAINS:
+        for family, answer in DOMAIN_LABELING_FEW_SHOTS[domain]:
+            parts.extend((domain, family, answer))
+    payload = "\0".join(parts)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _render_domain_labeling_user(
+    *, child_family: str, domain: str, domain_definition: str
+) -> str:
+    return _render_template(
+        _load_template(DOMAIN_LABELING_USER_PROMPT_FILE),
+        {
+            "child_family": _neutralize_prompt_control_text(
+                str(child_family).strip()
+            ),
+            "domain": domain,
+            "domain_definition": domain_definition,
+        },
+    ).strip()
 
 
 def build_domain_labeling_task(
@@ -431,24 +499,32 @@ def build_domain_labeling_task(
     if domain not in definitions:
         raise ValueError(f"unknown domain labeling candidate: {domain!r}")
     system = _load_template(DOMAIN_LABELING_SYSTEM_PROMPT_FILE).strip()
-    user = _render_template(
-        _load_template(DOMAIN_LABELING_USER_PROMPT_FILE),
-        {
-            "child_family": _neutralize_prompt_control_text(
-                str(child_family).strip()
-            ),
-            "domain": domain,
-            "domain_definition": definitions[domain],
-        },
-    ).strip()
+    user = _render_domain_labeling_user(
+        child_family=child_family,
+        domain=domain,
+        domain_definition=definitions[domain],
+    )
+    messages = [{"role": "system", "content": system}]
+    for example_family, example_answer in DOMAIN_LABELING_FEW_SHOTS[domain]:
+        messages.extend(
+            (
+                {
+                    "role": "user",
+                    "content": _render_domain_labeling_user(
+                        child_family=example_family,
+                        domain=domain,
+                        domain_definition=definitions[domain],
+                    ),
+                },
+                {"role": "assistant", "content": example_answer},
+            )
+        )
+    messages.append({"role": "user", "content": user})
     return MutationTask(
         op="domain_labeling",
         prompt=user,
         parent=parent,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
+        messages=messages,
         stage="domain_labeling",
         max_output_tokens=1,
         temperature=0.0,

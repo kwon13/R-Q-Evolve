@@ -259,10 +259,26 @@ def test_binary_domain_task_is_label_blind_except_for_its_candidate():
         domain="geometry",
         allowed_token_ids=[14004, 8996],
     )
-    system, user = (message["content"] for message in task.messages)
+    system = task.messages[0]["content"]
+    user = task.messages[-1]["content"]
     assert task.max_output_tokens == 1
     assert task.temperature == 0.0
     assert task.allowed_token_ids == [14004, 8996]
+    assert [message["role"] for message in task.messages] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert all(
+        message["content"] in {"YES", "NO"}
+        for message in task.messages
+        if message["role"] == "assistant"
+    )
     assert "DOMAIN =" not in system + user
     assert "parent" not in user.lower()
     assert "archive" not in user.lower()
@@ -270,26 +286,35 @@ def test_binary_domain_task_is_label_blind_except_for_its_candidate():
     assert len(domain_labeling_ruleset_sha256()) == 64
 
 
-def test_binary_domain_prompt_contains_observed_hard_boundary_cases():
-    task = build_domain_labeling_task(
+def test_binary_domain_prompt_uses_observed_error_as_contrastive_chat_shot():
+    family = (
+        "A set contains [[element_count]] distinct elements. Compute the number "
+        "of ways to choose a subset of size [[subset_size]]."
+    )
+    discrete = build_domain_labeling_task(
         parent=_program(),
-        child_family=(
-            "Find the sum of the first [[term_count]] terms of a geometric "
-            "sequence."
-        ),
+        child_family=family,
+        domain="discrete_mathematics",
+    )
+    precalculus = build_domain_labeling_task(
+        parent=_program(),
+        child_family=family,
         domain="precalculus",
     )
-    system = task.messages[0]["content"]
-    for signal in (
-        "geometric sequence",
-        "Solve a polynomial equation",
-        "Compute f'(a)",
-        "exact probability, expectation, statistical correction",
-        "greatest common divisor",
-        "least common multiple",
-        "natural shortest-solution machinery",
-    ):
-        assert signal in system
+
+    def demonstrated_answer(task, signal):
+        messages = task.messages[1:-1]
+        for user_message, assistant_message in zip(
+            messages[0::2], messages[1::2]
+        ):
+            if signal in user_message["content"]:
+                return assistant_message["content"]
+        return None
+
+    signal = "A set contains [[element_count]] distinct elements"
+    assert demonstrated_answer(discrete, signal) == "YES"
+    assert demonstrated_answer(precalculus, signal) == "NO"
+    assert "natural shortest-solution machinery" in discrete.messages[0]["content"]
 
 
 def test_stage_two_receives_parent_transformation_context_without_labels():

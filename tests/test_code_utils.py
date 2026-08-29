@@ -208,3 +208,70 @@ def build_instance(rng):
     problem, answer, verifier = namespace["generate"](42)
     assert verifier == {"mode": "expression"}
 
+
+def test_stage2_normalizes_return_statement_variations():
+    from rq_evolve.code_utils import compile_stage2_reply
+
+    # 1. Dict literal directly in return
+    reply1 = """MODE: expression
+CORE:
+```python
+def build_instance(rng):
+    n = rng.randint(2, 10)
+    answer = n * 5
+    check = sum(5 for _ in range(n))
+    return {"n": n}, answer, check
+```
+"""
+    family = "Let n = [[n]]. Compute 5n."
+    source1, err1 = compile_stage2_reply(reply1, family)
+    assert err1 is None, err1
+    assert source1 is not None
+
+    # 2. str() wrapped in return
+    reply2 = """MODE: expression
+CORE:
+```python
+def build_instance(rng):
+    n = rng.randint(2, 10)
+    parameters = {"n": n}
+    answer = n * 5
+    check = sum(5 for _ in range(n))
+    return parameters, str(answer), str(check)
+```
+"""
+    source2, err2 = compile_stage2_reply(reply2, family)
+    assert err2 is None, err2
+    assert source2 is not None
+
+    # 3. Parameters assigned at top
+    reply3 = """MODE: expression
+CORE:
+```python
+def build_instance(rng):
+    n = rng.randint(2, 10)
+    parameters = {"n": n}
+    answer = n * 5
+    check = sum(5 for _ in range(n))
+    return parameters, answer, check
+```
+"""
+    source3, err3 = compile_stage2_reply(reply3, family)
+    assert err3 is None, err3
+    assert source3 is not None
+
+    # 4. Variables named res and chk
+    reply4 = """MODE: expression
+CORE:
+```python
+def build_instance(rng):
+    n = rng.randint(2, 10)
+    res = n * 5
+    chk = sum(5 for _ in range(n))
+    return {"n": n}, res, chk
+```
+"""
+    source4, err4 = compile_stage2_reply(reply4, family)
+    assert err4 is None, err4
+    assert source4 is not None
+

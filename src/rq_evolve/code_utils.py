@@ -634,6 +634,128 @@ def _stage2_function_shape_errors(function: ast.FunctionDef) -> list[str]:
     return errors
 
 
+def _normalize_stage2_core_ast(tree: ast.AST) -> ast.AST:
+    """Normalize common benign return-statement variations in build_instance AST."""
+    builder = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "build_instance"
+        ),
+        None,
+    )
+    if builder is None or not builder.body:
+        return tree
+
+    final_return = builder.body[-1] if isinstance(builder.body[-1], ast.Return) else None
+    if final_return is None or not isinstance(final_return.value, ast.Tuple):
+        return tree
+
+    elts = list(final_return.value.elts)
+    if len(elts) != 3:
+        return tree
+
+    assigns_before_params = []
+    param_assign = None
+
+    # 1. First element: parameters
+    first_elt = elts[0]
+    if isinstance(first_elt, ast.Dict):
+        builder.body = [
+            node
+            for node in builder.body
+            if not (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == "parameters"
+            )
+        ]
+        param_assign = ast.Assign(
+            targets=[ast.Name(id="parameters", ctx=ast.Store())],
+            value=first_elt,
+        )
+        elts[0] = ast.Name(id="parameters", ctx=ast.Load())
+    elif isinstance(first_elt, ast.Name) and first_elt.id == "parameters":
+        param_assign = next(
+            (
+                node
+                for node in builder.body
+                if isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == "parameters"
+                and isinstance(node.value, ast.Dict)
+            ),
+            None,
+        )
+        if param_assign is not None and param_assign in builder.body:
+            builder.body.remove(param_assign)
+
+    # 2. Second and Third elements: unwrap str / int / float / list / set
+    for i in (1, 2):
+        elt = elts[i]
+        if (
+            isinstance(elt, ast.Call)
+            and isinstance(elt.func, ast.Name)
+            and elt.func.id in ("str", "int", "float", "list", "set")
+        ):
+            if elt.args and len(elt.args) == 1:
+                elts[i] = elt.args[0]
+
+    # 3. Variable names
+    ans_elt = elts[1]
+    chk_elt = elts[2]
+
+    if isinstance(ans_elt, ast.Name) and ans_elt.id != "answer":
+        assigns_before_params.append(
+            ast.Assign(
+                targets=[ast.Name(id="answer", ctx=ast.Store())],
+                value=ans_elt,
+            )
+        )
+        elts[1] = ast.Name(id="answer", ctx=ast.Load())
+    elif not isinstance(ans_elt, ast.Name):
+        assigns_before_params.append(
+            ast.Assign(
+                targets=[ast.Name(id="answer", ctx=ast.Store())],
+                value=ans_elt,
+            )
+        )
+        elts[1] = ast.Name(id="answer", ctx=ast.Load())
+
+    if isinstance(chk_elt, ast.Name) and chk_elt.id != "check":
+        assigns_before_params.append(
+            ast.Assign(
+                targets=[ast.Name(id="check", ctx=ast.Store())],
+                value=chk_elt,
+            )
+        )
+        elts[2] = ast.Name(id="check", ctx=ast.Load())
+    elif not isinstance(chk_elt, ast.Name):
+        assigns_before_params.append(
+            ast.Assign(
+                targets=[ast.Name(id="check", ctx=ast.Store())],
+                value=chk_elt,
+            )
+        )
+        elts[2] = ast.Name(id="check", ctx=ast.Load())
+
+    final_return.value.elts = elts
+
+    if builder.body and builder.body[-1] is final_return:
+        builder.body.pop()
+
+    for stmt in assigns_before_params:
+        builder.body.append(stmt)
+    if param_assign is not None:
+        builder.body.append(param_assign)
+    builder.body.append(final_return)
+
+    ast.fix_missing_locations(tree)
+    return tree
+
+
 def _validate_stage2_core(
     core: str,
     placeholder_keys: tuple[str, ...],
@@ -653,6 +775,10 @@ def _validate_stage2_core(
         tree = safe_ast_parse(core)
     except (SyntaxError, ValueError) as exc:
         return None, None, {}, f"stage2 CORE syntax error: {exc}"
+    try:
+        tree = _normalize_stage2_core_ast(tree)
+    except Exception:
+        pass
     if sum(1 for _ in ast.walk(tree)) > _STAGE2_MAX_AST_NODES:
         return None, None, {}, "stage2 CORE AST is too large"
 

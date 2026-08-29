@@ -37,16 +37,16 @@
     "selection_strategy": "random",
     "mce_window_iterations": 50,
     "stats": {
-      "num_champions": 21,
+      "num_champions": 20,
       "total_niches": 35,
-      "coverage": 0.6,
+      "coverage": 0.5714285714285714,
       "domain_coverage": 1.0,
       "problem_type_coverage": 1.0,
-      "mean_rq": 0.007909595201964732,
-      "max_rq": 0.04547166056103177,
-      "total_insertions": 546,
+      "mean_rq": 0.01599182878517442,
+      "max_rq": 0.0896639621257782,
+      "total_insertions": 402,
       "total_replacements": 15,
-      "total_selections": 992,
+      "total_selections": 768,
       "num_structural_donors": 0
     }
   },
@@ -57,7 +57,7 @@
       "parent_id": "",
       "generation": 0,
       "s_hat": 1.0,
-      "u_score": 0.08105231449007988,
+      "u_score": 0.10371755287051201,
       "rq_score": 0.0,
       "niche_domain": 0,
       "niche_problem_type": 0,
@@ -311,7 +311,7 @@
       "parent_id": "90e9d2000fef",
       "generation": 2,
       "s_hat": 1.0,
-      "u_score": 0.05211458019912243,
+      "u_score": 0.055522282049059866,
       "rq_score": 0.0,
       "niche_domain": 0,
       "niche_problem_type": 4,
@@ -736,9 +736,9 @@
       "program_id": "fb11b6cf885e",
       "parent_id": "b4d4b2b908d1",
       "generation": 3,
-      "s_hat": 0.9,
-      "u_score": 0.1527570441365242,
-      "rq_score": 0.015275704413652415,
+      "s_hat": 0.3,
+      "u_score": 0.19852390438318251,
+      "rq_score": 0.04632224435607592,
       "niche_domain": 1,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
@@ -964,7 +964,7 @@
           "n_distinct_answers": 1,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.015275704413652415,
+          "rq_score_at_check": 0.04632224435607592,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -980,7 +980,7 @@
       "parent_id": "",
       "generation": 0,
       "s_hat": 1.0,
-      "u_score": 0.10119117498397827,
+      "u_score": 0.10649884417653084,
       "rq_score": 0.0,
       "niche_domain": 1,
       "niche_problem_type": 1,
@@ -1319,9 +1319,9 @@
       "program_id": "ee620fb22ff4",
       "parent_id": "8cd7da8aaf57",
       "generation": 1,
-      "s_hat": 0.9,
-      "u_score": 0.17404224425554277,
-      "rq_score": 0.017404224425554272,
+      "s_hat": 0.7,
+      "u_score": 0.26581569015979767,
+      "rq_score": 0.06202366103728613,
       "niche_domain": 1,
       "niche_problem_type": 2,
       "last_reeval_step": -1,
@@ -1527,233 +1527,11 @@
           "n_distinct_answers": 5,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.017404224425554272,
+          "rq_score_at_check": 0.06202366103728613,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
           "distinct_answers": 5,
-          "z_sensitive_fraction": 1.0
-        },
-        "archive_status": "champion"
-      }
-    },
-    {
-      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport sympy\n\ndef build_instance(rng):\n    perimeter = rng.randint(10, 20)\n    width = perimeter / 4\n    height = perimeter / 4\n    area = width * height\n    check = (perimeter / 4) ** 2\n    answer = area\n    parameters = {'width': width, 'height': height, 'perimeter': perimeter}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'An axis-aligned rectangle has vertices (0, 0), ([[width]], 0), ([[width]], [[height]]), and (0, [[height]]), where width and height are positive real numbers. The perimeter of the rectangle is fixed at [[perimeter]]. What is the maximum possible area of the rectangle?'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_normalize_counting_integers = False\n__rq_template_parts = (('literal', 'An axis-aligned rectangle has vertices (0, 0), ('), ('parameter', 'width'), ('literal', ', 0), ('), ('parameter', 'width'), ('literal', ', '), ('parameter', 'height'), ('literal', '), and (0, '), ('parameter', 'height'), ('literal', '), where width and height are positive real numbers. The perimeter of the rectangle is fixed at '), ('parameter', 'perimeter'), ('literal', '. What is the maximum possible area of the rectangle?'))\n__rq_parameter_keys = ('height', 'perimeter', 'width')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
-      "program_id": "9087535fbcea",
-      "parent_id": "ef03e159eece",
-      "generation": 1,
-      "s_hat": 1.0,
-      "u_score": 0.09311688542366028,
-      "rq_score": 0.0,
-      "niche_domain": 1,
-      "niche_problem_type": 3,
-      "last_reeval_step": -1,
-      "metadata": {
-        "op": "mutate",
-        "lineage_root_id": "ef03e159eece",
-        "family_plan": {
-          "STRUCTURAL MUTATION": "Replace extremal graph theory with finding the maximum area of a geometric figure under a linear constraint.",
-          "CHILD FAMILY": "An axis-aligned rectangle has vertices (0, 0), ([[width]], 0), ([[width]], [[height]]), and (0, [[height]]), where width and height are positive real numbers. The perimeter of the rectangle is fixed at [[perimeter]]. What is the maximum possible area of the rectangle?",
-          "WHY FINITE": "The perimeter constraint uniquely determines the relationship between width and height, and the area function is continuous and differentiable, ensuring a maximum area exists and can be computed exactly."
-        },
-        "stage2_one_shot": {
-          "example_index": 3,
-          "domain": "algebra",
-          "family_sha256": "3f20e5978544d9ac853c0b0e903c7e6c0fb35c8e2f4f9f89fc26c67d13b80e40"
-        },
-        "generator_contract": {
-          "version": "trusted-instance-v2",
-          "family_sha256": "c7f584b3df27655576c9f68f154c24321ce251ba7a42bee9392be14091a753cb",
-          "stage2_reply_sha256": "ae42abd4a6bb3ed1a37bbaffaee755526cf0004514a1a122b42b6af31fbd194e"
-        },
-        "ast_contract": {
-          "verdict": "clean",
-          "findings": []
-        },
-        "problem_type": "optimization",
-        "descriptor_contract": {
-          "domain_authority": "local_policy_binary_label_v1",
-          "problem_type_authority": "deterministic_statement_and_verifier",
-          "problem_type_ruleset": "computational-output-contract-v1",
-          "problem_type_ruleset_sha256": "e37ad8b13e79d2df4a69597f3b599cde2a40336176ee4a1c5a9e7736d55b21a9",
-          "verified_seeds": 5,
-          "domain": "geometry",
-          "problem_type": "optimization",
-          "type_evidence": [
-            "What is the maximum"
-          ],
-          "source_sha256": "52b72bffa39de181004676848583470550f082c97c6d06cac2012a1c01d7cd46",
-          "domain_labeling": {
-            "method": "local_policy_binary_label_v1",
-            "passed": true,
-            "predicted": "geometry",
-            "probabilities": {
-              "algebra": 0.13296426555887353,
-              "geometry": 0.8519528492100928,
-              "number_theory": 0.02033235321312632,
-              "discrete_mathematics": 0.03308593582205954,
-              "applied_mathematics": 0.09534948735396465,
-              "calculus": 0.34864512062782327,
-              "precalculus": 0.4687906058268707
-            },
-            "top_probability": 0.8519528492100928,
-            "logit_margin": 1.8750004580735977,
-            "min_probability": 0.0,
-            "min_logit_margin": 0.0,
-            "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-            "family_sha256": "c7f584b3df27655576c9f68f154c24321ce251ba7a42bee9392be14091a753cb",
-            "policy_iteration": 27,
-            "failure_kind": null
-          }
-        },
-        "family_contract": {
-          "canonical_template_count": 1,
-          "verifier_mode_count": 1,
-          "verified_seeds": 5,
-          "template_sha256": "7b685ce86e4658f82386a02ea81bcebfd15b4522517190aac15f29c37a740963",
-          "verifier_mode": "expression"
-        },
-        "mutation_strategy": "untargeted",
-        "_behavior_sig_5": "47710257e794355b896cff2c43147420cd79c854de3926ef5dd828902652ebda",
-        "_template_sig_5": "7450980d481f4a4de92e933bf169a7145e83d7b2d4800d4950e316bc8c50887d",
-        "_template_text_5": "an axis-aligned rectangle has vertices (n, n), (n, n), (n, n), and (n, n), where width and height are positive real numbers. the perimeter of the rectangle is fixed at n. what is the maximum possible area of the rectangle?",
-        "_ast_skeleton_v2_builder_aware": [
-          "FunctionDef",
-          "arguments",
-          "arg",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "Constant",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "BinOp",
-          "Name",
-          "Load",
-          "Div",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "BinOp",
-          "Name",
-          "Load",
-          "Div",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "BinOp",
-          "Name",
-          "Load",
-          "Mult",
-          "Name",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
-          "BinOp",
-          "BinOp",
-          "Name",
-          "Load",
-          "Div",
-          "Constant",
-          "Pow",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "Name",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
-          "Dict",
-          "Constant",
-          "Constant",
-          "Constant",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "Return",
-          "Tuple",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "Load"
-        ],
-        "prompt_example_copy_gate": {
-          "checked": true,
-          "rejected": false,
-          "reason": null,
-          "example_index": null,
-          "comparisons": [
-            {
-              "checked": true,
-              "rejected": false,
-              "reason": null,
-              "exact_source": false,
-              "exact_behavior": false,
-              "exact_template": false,
-              "token_jaccard": 0.029412,
-              "max_token_jaccard": null,
-              "near_duplicate_min_chars": 40,
-              "near_template_ratio": null,
-              "structural_ratio": 0.51341,
-              "example_index": 3,
-              "family_sha256": "3f20e5978544d9ac853c0b0e903c7e6c0fb35c8e2f4f9f89fc26c67d13b80e40"
-            }
-          ]
-        },
-        "domain_labeling": {
-          "method": "local_policy_binary_label_v1",
-          "passed": true,
-          "predicted": "geometry",
-          "probabilities": {
-            "algebra": 0.13296426555887353,
-            "geometry": 0.8519528492100928,
-            "number_theory": 0.02033235321312632,
-            "discrete_mathematics": 0.03308593582205954,
-            "applied_mathematics": 0.09534948735396465,
-            "calculus": 0.34864512062782327,
-            "precalculus": 0.4687906058268707
-          },
-          "top_probability": 0.8519528492100928,
-          "logit_margin": 1.8750004580735977,
-          "min_probability": 0.0,
-          "min_logit_margin": 0.0,
-          "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-          "family_sha256": "c7f584b3df27655576c9f68f154c24321ce251ba7a42bee9392be14091a753cb",
-          "policy_iteration": 27,
-          "failure_kind": null
-        },
-        "domain": "geometry",
-        "dispersion": 0.0,
-        "num_seeds": 1,
-        "validity_check": {
-          "passed": true,
-          "n_distinct_problems": 4,
-          "n_distinct_answers": 4,
-          "n_valid": 5,
-          "n_total": 5,
-          "rq_score_at_check": 0.0,
-          "constancy_passed": true,
-          "constancy_reason": "",
-          "canonical_templates": 1,
-          "distinct_answers": 4,
           "z_sensitive_fraction": 1.0
         },
         "archive_status": "champion"
@@ -1765,7 +1543,7 @@
       "parent_id": "5cb7950fa167",
       "generation": 1,
       "s_hat": 1.0,
-      "u_score": 0.11011627465486526,
+      "u_score": 0.0976068876683712,
       "rq_score": 0.0,
       "niche_domain": 1,
       "niche_problem_type": 4,
@@ -2031,8 +1809,8 @@
       "program_id": "90e9d2000fef",
       "parent_id": "b5066f4ab5e6",
       "generation": 1,
-      "s_hat": 0.0,
-      "u_score": 0.05896000564098358,
+      "s_hat": 1.0,
+      "u_score": 0.06242492236196995,
       "rq_score": 0.0,
       "niche_domain": 2,
       "niche_problem_type": 0,
@@ -2295,7 +2073,7 @@
       "parent_id": "5cb7950fa167",
       "generation": 1,
       "s_hat": 1.0,
-      "u_score": 0.04298965372145176,
+      "u_score": 0.06432964392006398,
       "rq_score": 0.0,
       "niche_domain": 2,
       "niche_problem_type": 1,
@@ -2559,8 +2337,8 @@
       "program_id": "34488b88f1c1",
       "parent_id": "90e9d2000fef",
       "generation": 2,
-      "s_hat": 1.0,
-      "u_score": 0.0948879063129425,
+      "s_hat": 0.0,
+      "u_score": 0.10011201128363609,
       "rq_score": 0.0,
       "niche_domain": 2,
       "niche_problem_type": 2,
@@ -2896,9 +2674,9 @@
       "program_id": "5f9c6657fa39",
       "parent_id": "6a506bdff677",
       "generation": 2,
-      "s_hat": 0.6,
-      "u_score": 0.09402517527341843,
-      "rq_score": 0.025073380072911582,
+      "s_hat": 0.8,
+      "u_score": 0.10959228202700615,
+      "rq_score": 0.019483072360356644,
       "niche_domain": 2,
       "niche_problem_type": 4,
       "last_reeval_step": -1,
@@ -3114,7 +2892,7 @@
           "n_distinct_answers": 4,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.025073380072911582,
+          "rq_score_at_check": 0.019483072360356644,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -3129,9 +2907,9 @@
       "program_id": "ae8a7fc4eb58",
       "parent_id": "b5066f4ab5e6",
       "generation": 1,
-      "s_hat": 0.8,
-      "u_score": 0.2557780906558037,
-      "rq_score": 0.04547166056103177,
+      "s_hat": 0.6,
+      "u_score": 0.3362398579716682,
+      "rq_score": 0.0896639621257782,
       "niche_domain": 3,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
@@ -3366,7 +3144,7 @@
           "n_distinct_answers": 2,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.04547166056103177,
+          "rq_score_at_check": 0.0896639621257782,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -3381,9 +3159,9 @@
       "program_id": "3cfbcd7c91ba",
       "parent_id": "240cba0e17e5",
       "generation": 3,
-      "s_hat": 0.9,
-      "u_score": 0.2984938398003578,
-      "rq_score": 0.029849383980035775,
+      "s_hat": 0.8,
+      "u_score": 0.3293559432029724,
+      "rq_score": 0.05855216768052842,
       "niche_domain": 3,
       "niche_problem_type": 2,
       "last_reeval_step": -1,
@@ -3601,7 +3379,7 @@
           "n_distinct_answers": 1,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.029849383980035775,
+          "rq_score_at_check": 0.05855216768052842,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -3616,9 +3394,9 @@
       "program_id": "ef03e159eece",
       "parent_id": "",
       "generation": 0,
-      "s_hat": 1.0,
-      "u_score": 0.22542946487665178,
-      "rq_score": 0.0,
+      "s_hat": 0.9,
+      "u_score": 0.2791870549321175,
+      "rq_score": 0.02791870549321174,
       "niche_domain": 3,
       "niche_problem_type": 3,
       "last_reeval_step": -1,
@@ -3664,7 +3442,7 @@
           "n_distinct_answers": 2,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0,
+          "rq_score_at_check": 0.02791870549321174,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -3897,7 +3675,7 @@
       "parent_id": "ee620fb22ff4",
       "generation": 2,
       "s_hat": 1.0,
-      "u_score": 0.092937995120883,
+      "u_score": 0.10921293124556541,
       "rq_score": 0.0,
       "niche_domain": 3,
       "niche_problem_type": 4,
@@ -4127,8 +3905,8 @@
       "parent_id": "",
       "generation": 0,
       "s_hat": 0.9,
-      "u_score": 0.14083177596330643,
-      "rq_score": 0.01408317759633064,
+      "u_score": 0.15872762650251387,
+      "rq_score": 0.015872762650251383,
       "niche_domain": 4,
       "niche_problem_type": 4,
       "last_reeval_step": -1,
@@ -4174,7 +3952,7 @@
           "n_distinct_answers": 5,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.01408317759633064,
+          "rq_score_at_check": 0.015872762650251383,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -4367,7 +4145,7 @@
       "parent_id": "0927f1665d2e",
       "generation": 3,
       "s_hat": 1.0,
-      "u_score": 0.22038585990667342,
+      "u_score": 0.2235841080546379,
       "rq_score": 0.0,
       "niche_domain": 5,
       "niche_problem_type": 0,
@@ -4625,7 +4403,7 @@
       "parent_id": "5cb7950fa167",
       "generation": 1,
       "s_hat": 1.0,
-      "u_score": 0.07881146557629108,
+      "u_score": 0.0819147877395153,
       "rq_score": 0.0,
       "niche_domain": 5,
       "niche_problem_type": 3,
@@ -4986,7 +4764,7 @@
       "parent_id": "6a506bdff677",
       "generation": 2,
       "s_hat": 0.0,
-      "u_score": 0.19015292525291444,
+      "u_score": 0.2266123875975609,
       "rq_score": 0.0,
       "niche_domain": 5,
       "niche_problem_type": 4,
@@ -5226,7 +5004,7 @@
       "parent_id": "",
       "generation": 0,
       "s_hat": 1.0,
-      "u_score": 0.06993691325187683,
+      "u_score": 0.06490263007581235,
       "rq_score": 0.0,
       "niche_domain": 6,
       "niche_problem_type": 1,
@@ -5532,9 +5310,9 @@
       "program_id": "b4d4b2b908d1",
       "parent_id": "ae8a7fc4eb58",
       "generation": 2,
-      "s_hat": 0.7,
-      "u_score": 0.08118843510746956,
-      "rq_score": 0.0189439681917429,
+      "s_hat": 1.0,
+      "u_score": 0.08858353272080421,
+      "rq_score": 0.0,
       "niche_domain": 6,
       "niche_problem_type": 4,
       "last_reeval_step": -1,
@@ -5770,7 +5548,7 @@
           "n_distinct_answers": 5,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0189439681917429,
+          "rq_score_at_check": 0.0,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -5786,8 +5564,8 @@
     {
       "domain_bin": 0,
       "problem_type_bin": 0,
-      "selection_count": 59,
-      "update_count": 32,
+      "selection_count": 48,
+      "update_count": 25,
       "history": [
         {
           "event": "inserted",
@@ -5913,41 +5691,6 @@
           "event": "inserted",
           "program_id": "1a27d05ee124",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1a27d05ee124",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1a27d05ee124",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1a27d05ee124",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1a27d05ee124",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1a27d05ee124",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1a27d05ee124",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1a27d05ee124",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -5955,44 +5698,9 @@
     {
       "domain_bin": 0,
       "problem_type_bin": 4,
-      "selection_count": 22,
-      "update_count": 17,
+      "selection_count": 17,
+      "update_count": 10,
       "history": [
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.0
-        },
         {
           "event": "inserted",
           "program_id": "50d22fb71e6e",
@@ -6049,8 +5757,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 0,
-      "selection_count": 19,
-      "update_count": 16,
+      "selection_count": 13,
+      "update_count": 9,
       "history": [
         {
           "event": "inserted",
@@ -6096,41 +5804,6 @@
           "event": "inserted",
           "program_id": "fb11b6cf885e",
           "rq_score": 0.04632224435607592
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.03605877849790785
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.05280311226844788
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.019098970293998714
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.043037962640325236
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.051541050672531126
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.027388283809026078
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.015275704413652415
         }
       ],
       "mce_history": []
@@ -6138,8 +5811,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 1,
-      "selection_count": 75,
-      "update_count": 32,
+      "selection_count": 60,
+      "update_count": 25,
       "history": [
         {
           "event": "inserted",
@@ -6265,41 +5938,6 @@
           "event": "inserted",
           "program_id": "b90f6cfa2e12",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.010783822312951085
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -6307,8 +5945,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 2,
-      "selection_count": 49,
-      "update_count": 30,
+      "selection_count": 42,
+      "update_count": 23,
       "history": [
         {
           "event": "inserted",
@@ -6424,75 +6062,6 @@
           "event": "inserted",
           "program_id": "ee620fb22ff4",
           "rq_score": 0.06202366103728613
-        },
-        {
-          "event": "inserted",
-          "program_id": "ee620fb22ff4",
-          "rq_score": 0.023520831316709512
-        },
-        {
-          "event": "inserted",
-          "program_id": "ee620fb22ff4",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ee620fb22ff4",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ee620fb22ff4",
-          "rq_score": 0.022215396910905832
-        },
-        {
-          "event": "inserted",
-          "program_id": "ee620fb22ff4",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ee620fb22ff4",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ee620fb22ff4",
-          "rq_score": 0.017404224425554272
-        }
-      ],
-      "mce_history": []
-    },
-    {
-      "domain_bin": 1,
-      "problem_type_bin": 3,
-      "selection_count": 8,
-      "update_count": 5,
-      "history": [
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -6500,8 +6069,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 4,
-      "selection_count": 60,
-      "update_count": 32,
+      "selection_count": 44,
+      "update_count": 25,
       "history": [
         {
           "event": "inserted",
@@ -6627,41 +6196,6 @@
           "event": "inserted",
           "program_id": "668f156047e9",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "668f156047e9",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "668f156047e9",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "668f156047e9",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "668f156047e9",
-          "rq_score": 0.04668042751650015
-        },
-        {
-          "event": "inserted",
-          "program_id": "668f156047e9",
-          "rq_score": 0.051936792929967245
-        },
-        {
-          "event": "inserted",
-          "program_id": "668f156047e9",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "668f156047e9",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -6669,44 +6203,9 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 0,
-      "selection_count": 29,
-      "update_count": 20,
+      "selection_count": 17,
+      "update_count": 13,
       "history": [
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
         {
           "event": "inserted",
           "program_id": "90e9d2000fef",
@@ -6778,8 +6277,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 1,
-      "selection_count": 43,
-      "update_count": 29,
+      "selection_count": 38,
+      "update_count": 22,
       "history": [
         {
           "event": "inserted",
@@ -6890,41 +6389,6 @@
           "event": "inserted",
           "program_id": "fa51a5b5275a",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.015850436091423035
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -6932,8 +6396,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 2,
-      "selection_count": 77,
-      "update_count": 34,
+      "selection_count": 63,
+      "update_count": 27,
       "history": [
         {
           "event": "inserted",
@@ -7069,41 +6533,6 @@
           "event": "inserted",
           "program_id": "34488b88f1c1",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "34488b88f1c1",
-          "rq_score": 0.02207916835943858
-        },
-        {
-          "event": "inserted",
-          "program_id": "34488b88f1c1",
-          "rq_score": 0.008233063966035844
-        },
-        {
-          "event": "inserted",
-          "program_id": "34488b88f1c1",
-          "rq_score": 0.007657568082213403
-        },
-        {
-          "event": "inserted",
-          "program_id": "34488b88f1c1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "34488b88f1c1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "34488b88f1c1",
-          "rq_score": 0.018890412118699813
-        },
-        {
-          "event": "inserted",
-          "program_id": "34488b88f1c1",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -7111,8 +6540,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 4,
-      "selection_count": 40,
-      "update_count": 24,
+      "selection_count": 27,
+      "update_count": 17,
       "history": [
         {
           "event": "inserted",
@@ -7198,41 +6627,6 @@
           "event": "inserted",
           "program_id": "5f9c6657fa39",
           "rq_score": 0.019483072360356644
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.025885542808675475
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.025082355737686156
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.010358706861734387
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.025073380072911582
         }
       ],
       "mce_history": []
@@ -7240,8 +6634,8 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 0,
-      "selection_count": 46,
-      "update_count": 26,
+      "selection_count": 36,
+      "update_count": 20,
       "history": [
         {
           "event": "inserted",
@@ -7342,36 +6736,6 @@
           "event": "inserted",
           "program_id": "ae8a7fc4eb58",
           "rq_score": 0.0896639621257782
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.024082258939743036
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.04631802770826551
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.06056747923294702
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.04547166056103177
         }
       ],
       "mce_history": []
@@ -7379,8 +6743,8 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 2,
-      "selection_count": 62,
-      "update_count": 36,
+      "selection_count": 52,
+      "update_count": 29,
       "history": [
         {
           "event": "inserted",
@@ -7526,41 +6890,6 @@
           "event": "inserted",
           "program_id": "3cfbcd7c91ba",
           "rq_score": 0.05855216768052842
-        },
-        {
-          "event": "inserted",
-          "program_id": "3cfbcd7c91ba",
-          "rq_score": 0.07092933674653372
-        },
-        {
-          "event": "inserted",
-          "program_id": "3cfbcd7c91ba",
-          "rq_score": 0.060933252929576805
-        },
-        {
-          "event": "inserted",
-          "program_id": "3cfbcd7c91ba",
-          "rq_score": 0.05950060394075181
-        },
-        {
-          "event": "inserted",
-          "program_id": "3cfbcd7c91ba",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "3cfbcd7c91ba",
-          "rq_score": 0.016286351233720776
-        },
-        {
-          "event": "inserted",
-          "program_id": "3cfbcd7c91ba",
-          "rq_score": 0.07187442471583684
-        },
-        {
-          "event": "inserted",
-          "program_id": "3cfbcd7c91ba",
-          "rq_score": 0.029849383980035775
         }
       ],
       "mce_history": []
@@ -7568,8 +6897,8 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 3,
-      "selection_count": 69,
-      "update_count": 32,
+      "selection_count": 59,
+      "update_count": 25,
       "history": [
         {
           "event": "inserted",
@@ -7695,41 +7024,6 @@
           "event": "inserted",
           "program_id": "ef03e159eece",
           "rq_score": 0.02791870549321174
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.046503925058576784
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -7737,44 +7031,9 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 4,
-      "selection_count": 13,
-      "update_count": 12,
+      "selection_count": 6,
+      "update_count": 5,
       "history": [
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
         {
           "event": "inserted",
           "program_id": "9adf9162932c",
@@ -7806,8 +7065,8 @@
     {
       "domain_bin": 4,
       "problem_type_bin": 4,
-      "selection_count": 76,
-      "update_count": 32,
+      "selection_count": 59,
+      "update_count": 25,
       "history": [
         {
           "event": "inserted",
@@ -7933,41 +7192,6 @@
           "event": "inserted",
           "program_id": "5cb7950fa167",
           "rq_score": 0.015872762650251383
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.015552365928888317
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.01408317759633064
         }
       ],
       "mce_history": []
@@ -7975,8 +7199,8 @@
     {
       "domain_bin": 5,
       "problem_type_bin": 0,
-      "selection_count": 59,
-      "update_count": 33,
+      "selection_count": 49,
+      "update_count": 26,
       "history": [
         {
           "event": "inserted",
@@ -8107,41 +7331,6 @@
           "event": "inserted",
           "program_id": "a999c755f767",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -8149,8 +7338,8 @@
     {
       "domain_bin": 5,
       "problem_type_bin": 3,
-      "selection_count": 21,
-      "update_count": 15,
+      "selection_count": 8,
+      "update_count": 8,
       "history": [
         {
           "event": "inserted",
@@ -8191,41 +7380,6 @@
           "event": "inserted",
           "program_id": "a843486086ac",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.00839922361075878
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -8233,8 +7387,8 @@
     {
       "domain_bin": 5,
       "problem_type_bin": 4,
-      "selection_count": 35,
-      "update_count": 23,
+      "selection_count": 27,
+      "update_count": 16,
       "history": [
         {
           "event": "inserted",
@@ -8315,41 +7469,6 @@
           "event": "inserted",
           "program_id": "0927f1665d2e",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.013767851193745928
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -8357,8 +7476,8 @@
     {
       "domain_bin": 6,
       "problem_type_bin": 1,
-      "selection_count": 63,
-      "update_count": 32,
+      "selection_count": 51,
+      "update_count": 25,
       "history": [
         {
           "event": "inserted",
@@ -8484,41 +7603,6 @@
           "event": "inserted",
           "program_id": "8cd7da8aaf57",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.006322068758308886
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -8526,8 +7610,8 @@
     {
       "domain_bin": 6,
       "problem_type_bin": 4,
-      "selection_count": 67,
-      "update_count": 34,
+      "selection_count": 52,
+      "update_count": 27,
       "history": [
         {
           "event": "inserted",
@@ -8663,41 +7747,6 @@
           "event": "inserted",
           "program_id": "b4d4b2b908d1",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0189439681917429
         }
       ],
       "mce_history": []

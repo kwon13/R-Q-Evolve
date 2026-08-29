@@ -96,6 +96,9 @@ print(str(get("evolution.independent_domain_labeling")).lower())
 print(str(get("archive.require_domain_labeling")).lower())
 print(str(get("evolution.structural_inspiration")).lower())
 print(str(get("verl_config.trainer.resume_mode")).lower())
+print(get("evolution.verify_seeds"))
+print(get("evolution.program_verify_workers"))
+print(get("evolution.mutation_refill_max_iterations"))
 PY
 )"; then
   echo "[domain-type-4gpu] config resolution failed; activate the training environment:" >&2
@@ -117,6 +120,9 @@ DOMAIN_LABELING="${VALUES[9]}"
 ARCHIVE_DOMAIN_LABELING="${VALUES[10]}"
 STRUCTURAL_INSPIRATION="${VALUES[11]}"
 RESUME_MODE="${VALUES[12]}"
+VERIFY_SEEDS="${VALUES[13]}"
+PROGRAM_VERIFY_WORKERS="${VALUES[14]}"
+REFILL_MAX="${VALUES[15]}"
 
 [[ "$EXPECTED_GPUS" == "4" ]] || { echo "[domain-type-4gpu] config must request four GPUs" >&2; exit 1; }
 [[ "$SAVE_FREQ" == "32" ]] || { echo "[domain-type-4gpu] save_freq must be 32" >&2; exit 1; }
@@ -128,6 +134,9 @@ RESUME_MODE="${VALUES[12]}"
 [[ "$ARCHIVE_DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-4gpu] archive must require DOMAIN labeling" >&2; exit 1; }
 [[ "$STRUCTURAL_INSPIRATION" == "false" ]] || { echo "[domain-type-4gpu] donor context must be disabled for the clean run" >&2; exit 1; }
 [[ "$RESUME_MODE" == "disable" ]] || { echo "[domain-type-4gpu] resume_mode must be disable" >&2; exit 1; }
+[[ "$VERIFY_SEEDS" == "5" ]] || { echo "[domain-type-4gpu] verify_seeds must be 5" >&2; exit 1; }
+[[ "$PROGRAM_VERIFY_WORKERS" == "8" ]] || { echo "[domain-type-4gpu] program_verify_workers must be 8" >&2; exit 1; }
+[[ "$REFILL_MAX" == "128" ]] || { echo "[domain-type-4gpu] mutation refill cap must be 128" >&2; exit 1; }
 
 IFS=',' read -r -a GPU_IDS <<< "$GPUS"
 [[ "${#GPU_IDS[@]}" == "$EXPECTED_GPUS" ]] || {
@@ -172,6 +181,8 @@ echo "[domain-type-4gpu] steps/save  : $TOTAL_STEPS / every $SAVE_FREQ"
 echo "[domain-type-4gpu] descriptors : 7 DOMAIN x 5 PROBLEM_TYPE"
 echo "[domain-type-4gpu] mutation    : untargeted; Stage 2 emits no DOMAIN"
 echo "[domain-type-4gpu] domain label: local-policy 7-way YES/NO readback"
+echo "[domain-type-4gpu] verification: ${VERIFY_SEEDS} seeds x ${PROGRAM_VERIFY_WORKERS} workers"
+echo "[domain-type-4gpu] refill cap  : ${REFILL_MAX} proposals"
 
 if $DRY_RUN; then
   echo "[domain-type-4gpu] dry-run complete; no process started"

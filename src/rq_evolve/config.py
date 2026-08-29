@@ -89,6 +89,12 @@ class EvolutionConfig:
     eval_seeds: int | None = None
     rollouts_per_seed: int | None = None
     verify_seeds: int = 5
+    # Candidate-level local verification workers. Each candidate preserves its
+    # ordered multi-seed and repeat-execution checks; only independent
+    # candidates run concurrently, each through a persistent sandbox process.
+    # This is separate from async_rollout.verify_workers, which grades solver
+    # responses after GPU rollout and does not execute generated programs.
+    program_verify_workers: int = 1
     # Re-run the current deterministic source/statement contracts once for
     # every champion already present when a process starts.  This is primarily
     # a resume/migration guard: newly generated children already pass the same
@@ -333,6 +339,10 @@ class EvolutionConfig:
             )
         if self.train_batch_target < 1:
             raise ValueError("evolution.train_batch_target must be >= 1")
+        if int(self.verify_seeds) < 1:
+            raise ValueError("evolution.verify_seeds must be >= 1")
+        if int(self.program_verify_workers) < 1:
+            raise ValueError("evolution.program_verify_workers must be >= 1")
         for name in ("family_max_output_tokens", "generator_max_output_tokens"):
             value = getattr(self, name)
             if value is not None and int(value) < 1:

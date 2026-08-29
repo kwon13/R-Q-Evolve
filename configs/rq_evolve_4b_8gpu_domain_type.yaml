@@ -6,18 +6,21 @@ extends: rq_evolve_4b_8gpu.yaml
 evolution:
   seed_programs_dir: seed_programs_domain_type
   two_stage_mutation: true
-  # Keeps 32 as the minimum, samples in the existing 32-wide batches, and
-  # stops no later than 96 proposals; there is no hardware-dependent wall-time
-  # condition. A process that was started before this edit remains unchanged.
+  # Keeps 32 as the minimum, samples in the existing 32-wide batches, and adds
+  # at most three refill batches (64/96/128 proposals). There is no
+  # hardware-dependent wall-time condition. A process that was started before
+  # this edit remains unchanged.
   adaptive_mutation_refill: true
-  mutation_refill_max_iterations: 96
+  mutation_refill_max_iterations: 128
   mutation_refill_target_frontier_insertions: 1
   mutation_refill_target_frontier_candidates: 8
   archive_preflight_before_rollout: false
-  # Broaden deterministic edge coverage and audit a restored snapshot once
-  # under the current verifier. This does not run DOMAIN labeling before the
-  # final post-verification stage.
-  verify_seeds: 16
+  # Five deterministic seeds retain the cross-seed family/variation contract
+  # without the 3.2x serial work of the earlier 16-seed setting. Candidate
+  # families verify concurrently, while every candidate's seed order and
+  # repeated-execution determinism check remain unchanged.
+  verify_seeds: 5
+  program_verify_workers: 8
   strict_champion_audit: true
   # Stage 1 receives no descriptor or destination. Stage 2 compiles the already
   # fixed child family and emits no DOMAIN. PROBLEM_TYPE is derived locally

@@ -1,8 +1,9 @@
+import atexit
 import ast
-from .safe_parse import safe_ast_parse
 import hashlib
 import json
 import os
+import queue
 import select
 import subprocess
 import sys
@@ -11,6 +12,7 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
+from .safe_parse import safe_ast_parse
 from .verifier import default_verifier, normalize_verifier
 
 # Absolute path to the hermetic sandbox worker. Resolved once at import so the
@@ -30,9 +32,9 @@ class _SandboxClient:
     it (a thread or signal cannot stop C-level work; killing the process does) and
     lazily respawns a fresh worker for the next call.
 
-    A single worker serialised by a lock is enough: ``ProblemProgram.execute`` is
-    driven from the trainer's between-step evolution path (and archive refresh),
-    not from many threads at once. The lock keeps it correct if that ever changes.
+    One client owns one worker and serialises access with a lock. The bounded
+    process-global pool below provides concurrency by assigning independent
+    candidate executions to different clients.
     """
 
     def __init__(self) -> None:
@@ -64,6 +66,12 @@ class _SandboxClient:
                 pass
             self._proc = None
         self._warm = False
+
+    def close(self) -> None:
+        """Terminate this client's persistent worker, if it was started."""
+
+        with self._lock:
+            self._kill()
 
     def run(self, source: str, seed: int, timeout: float, cold_timeout: float) -> dict:
         """Return ``{"ok": True, "problem", "answer"}`` or ``{"ok": False, ...}``.
@@ -123,9 +131,72 @@ class _SandboxClient:
                 }
 
 
-# Process-global client: one resident worker shared by all ProblemProgram.execute
-# calls in this interpreter.
-_SANDBOX = _SandboxClient()
+class _SandboxPool:
+    """Bounded pool of persistent generator sandboxes.
+
+    A single candidate is still checked seed-by-seed in order.  Parallelism is
+    across independent candidates: verification threads borrow one persistent
+    worker per ``execute`` call, allowing several candidates to make progress
+    without weakening any candidate's deterministic replay contract.
+    """
+
+    def __init__(self, size: int = 1) -> None:
+        self._configure_lock = threading.Lock()
+        self._size = 0
+        self._clients: list[_SandboxClient] = []
+        self._available: queue.LifoQueue[_SandboxClient] = queue.LifoQueue()
+        self.configure(size)
+
+    @property
+    def size(self) -> int:
+        return self._size
+
+    def configure(self, size: int) -> None:
+        resolved = int(size)
+        if resolved < 1:
+            raise ValueError("sandbox worker count must be >= 1")
+        with self._configure_lock:
+            if resolved == self._size:
+                return
+            if self._size and self._available.qsize() != len(self._clients):
+                raise RuntimeError(
+                    "cannot resize sandbox pool while verification is active"
+                )
+            for client in self._clients:
+                client.close()
+            self._clients = [_SandboxClient() for _ in range(resolved)]
+            self._available = queue.LifoQueue()
+            for client in self._clients:
+                self._available.put(client)
+            self._size = resolved
+
+    def run(self, source: str, seed: int, timeout: float, cold_timeout: float) -> dict:
+        client = self._available.get()
+        try:
+            return client.run(source, seed, timeout, cold_timeout)
+        finally:
+            self._available.put(client)
+
+    def close(self) -> None:
+        with self._configure_lock:
+            for client in self._clients:
+                client.close()
+            self._clients = []
+            self._available = queue.LifoQueue()
+            self._size = 0
+
+
+# Process-global bounded pool.  It defaults to one worker so every existing
+# caller preserves the historical serial behavior unless its EvolutionConfig
+# explicitly enables candidate-level parallel verification.
+_SANDBOX = _SandboxPool()
+atexit.register(_SANDBOX.close)
+
+
+def configure_sandbox_workers(size: int) -> None:
+    """Set the number of persistent local program-execution workers."""
+
+    _SANDBOX.configure(size)
 
 ALLOWED_IMPORT_ROOTS = {
     "collections",

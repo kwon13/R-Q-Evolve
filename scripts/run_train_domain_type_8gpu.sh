@@ -100,6 +100,9 @@ print(get("evolution.ast_contract"))
 print(str(OmegaConf.select(cfg, "evolution.use_evaluator", default=False)).lower())
 print(get("archive.selection_strategy"))
 print(str(get("verl_config.trainer.resume_mode")).lower())
+print(get("evolution.verify_seeds"))
+print(get("evolution.program_verify_workers"))
+print(get("evolution.mutation_refill_max_iterations"))
 PY
 )"; then
   echo "[domain-type-8gpu] config resolution failed; activate the training environment:" >&2
@@ -125,6 +128,9 @@ AST_CONTRACT="${VALUES[13]}"
 USE_EVALUATOR="${VALUES[14]}"
 SELECTION_STRATEGY="${VALUES[15]}"
 RESUME_MODE="${VALUES[16]}"
+VERIFY_SEEDS="${VALUES[17]}"
+PROGRAM_VERIFY_WORKERS="${VALUES[18]}"
+REFILL_MAX="${VALUES[19]}"
 
 [[ "$EXPECTED_GPUS" == "8" ]] || { echo "[domain-type-8gpu] config must request eight GPUs" >&2; exit 1; }
 [[ "$SAVE_FREQ" == "32" ]] || { echo "[domain-type-8gpu] save_freq must be 32" >&2; exit 1; }
@@ -140,6 +146,9 @@ RESUME_MODE="${VALUES[16]}"
 [[ "$USE_EVALUATOR" == "false" ]] || { echo "[domain-type-8gpu] external evaluator/API classifier must be disabled" >&2; exit 1; }
 [[ "$SELECTION_STRATEGY" == "random" ]] || { echo "[domain-type-8gpu] archive selection must be random" >&2; exit 1; }
 [[ "$RESUME_MODE" == "disable" ]] || { echo "[domain-type-8gpu] resume_mode must be disable" >&2; exit 1; }
+[[ "$VERIFY_SEEDS" == "5" ]] || { echo "[domain-type-8gpu] verify_seeds must be 5" >&2; exit 1; }
+[[ "$PROGRAM_VERIFY_WORKERS" == "8" ]] || { echo "[domain-type-8gpu] program_verify_workers must be 8" >&2; exit 1; }
+[[ "$REFILL_MAX" == "128" ]] || { echo "[domain-type-8gpu] mutation refill cap must be 128" >&2; exit 1; }
 
 IFS=',' read -r -a GPU_IDS <<< "$GPUS"
 [[ "${#GPU_IDS[@]}" == "$EXPECTED_GPUS" ]] || {
@@ -190,6 +199,8 @@ echo "[domain-type-8gpu] descriptors : 7 DOMAIN x 5 PROBLEM_TYPE"
 echo "[domain-type-8gpu] mutation    : untargeted; Stage 2 emits no DOMAIN"
 echo "[domain-type-8gpu] domain label: local-policy 7-way YES/NO readback"
 echo "[domain-type-8gpu] selection   : random"
+echo "[domain-type-8gpu] verification: ${VERIFY_SEEDS} seeds x ${PROGRAM_VERIFY_WORKERS} workers"
+echo "[domain-type-8gpu] refill cap  : ${REFILL_MAX} proposals"
 
 if $DRY_RUN; then
   echo "[domain-type-8gpu] dry-run complete; no process started"

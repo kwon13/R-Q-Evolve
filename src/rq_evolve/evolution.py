@@ -1,6 +1,7 @@
 import collections
 import ast
 import copy
+import concurrent.futures
 import difflib
 import hashlib
 import json
@@ -47,7 +48,7 @@ from .problem_type import (
     problem_type_ruleset_sha256,
 )
 from .reward import answers_match, grader_stats
-from .program import ProblemInstance, ProblemProgram
+from .program import ProblemInstance, ProblemProgram, configure_sandbox_workers
 from .replay import PreviousRQScoreboard, RolloutReplayBuffer
 from .seed_stream import SeedStream
 from .prompts import (
@@ -336,6 +337,7 @@ class RQEvolver:
     )
 
     def __post_init__(self) -> None:
+        configure_sandbox_workers(self.evolution_config.program_verify_workers)
         expected = bool(self.evolution_config.independent_domain_labeling)
         actual = bool(self.archive.require_domain_labeling)
         if expected != actual:
@@ -1096,6 +1098,8 @@ class RQEvolver:
             "train_batch_target": self.evolution_config.train_batch_target,
             **dict(self.strict_champion_audit_stats),
             "mutation_refill_enabled": int(cfg.adaptive_mutation_refill),
+            "program_verify_workers": int(cfg.program_verify_workers),
+            "verify_seeds": int(cfg.verify_seeds),
             "archive_preflight_enabled": int(
                 cfg.archive_preflight_before_rollout
             ),
@@ -1173,12 +1177,11 @@ class RQEvolver:
             # reported against it. They would have produced the same verdict
             # because the source and deterministic verification seeds match.
             in_flight: set[str] = set()
-            for task, output, mutation_strategy in zip(
-                tasks, outputs, mutation_strategies
+            built_children = self._make_children_from_outputs(tasks, outputs)
+            for task, output, mutation_strategy, built_child in zip(
+                tasks, outputs, mutation_strategies, built_children
             ):
-                child, inst, reason, source = self._make_child_from_output(
-                    task, output, in_flight=in_flight
-                )
+                child, inst, reason, source = built_child
                 if child is not None:
                     child.metadata["mutation_strategy"] = mutation_strategy
                 if child is not None and child.program_id in in_flight:
@@ -1974,29 +1977,27 @@ class RQEvolver:
 
         return tasks, outputs, mutation_strategies
 
-    def _make_child_from_output(
+    def _build_child_from_output(
         self,
         task: MutationTask,
         output: str | None,
-        in_flight: set[str] | None = None,
     ):
-        """Extract -> build -> verify a child from one model output.
+        """Extract and assemble one child without executing its verifier.
 
-        Returns ``(child, inst, reason, source)``. On success ``inst`` is the
-        verified instance; on failure ``inst`` is None and ``source`` is the
-        parsed program (None if the output had no parseable ``generate``).
+        Returns ``(child, reason, source)``. A non-None ``source`` means Stage 2
+        produced an assembled program and any later failure belongs to dynamic
+        verification rather than parsing/compilation.
         """
         if not output:
             rejection = str(
                 (task.provenance or {}).get("stage1_rejection_reason", "")
             ).strip()
-            return None, None, rejection or "empty model output", None
+            return None, rejection or "empty model output", None
         family_plan = dict((task.provenance or {}).get("family_plan") or {})
         if task.stage == "generator":
             family = str(family_plan.get("CHILD FAMILY", "")).strip()
             if not family:
                 return (
-                    None,
                     None,
                     "Stage-2 task has no fixed CHILD FAMILY to assemble",
                     None,
@@ -2009,14 +2010,14 @@ class RQEvolver:
                 ),
             )
             if source is None:
-                return None, None, compile_error or "Stage-2 compile failed", None
+                return None, compile_error or "Stage-2 compile failed", None
         else:
             # Compatibility for direct/internal callers that construct a
             # non-Stage-2 MutationTask.  The live two-stage pipeline never
             # reaches this branch.
             source = extract_generator_code(output)
             if source is None:
-                return None, None, "no parseable generate() in output", None
+                return None, "no parseable generate() in output", None
 
         metadata = _child_metadata(task)
         if task.stage == "generator":
@@ -2035,6 +2036,26 @@ class RQEvolver:
             generation=task.parent.generation + 1,
             metadata=metadata,
         )
+        return child, None, source
+
+    def _make_child_from_output(
+        self,
+        task: MutationTask,
+        output: str | None,
+        in_flight: set[str] | None = None,
+        *,
+        reserve_seed_stream: bool = True,
+    ):
+        """Extract -> build -> verify a child from one model output.
+
+        Returns ``(child, inst, reason, source)``. On success ``inst`` is the
+        verified instance; on failure ``inst`` is None and ``source`` is the
+        parsed program (None if the output had no parseable ``generate``).
+        """
+
+        child, build_reason, source = self._build_child_from_output(task, output)
+        if child is None:
+            return None, None, build_reason, source
         # Before execution, not after: a repeat costs 5 sandbox runs and the
         # verdict is already known. `source=None` in the return
         # also keeps it out of the self-fix retry, which would re-derive the
@@ -2046,8 +2067,110 @@ class RQEvolver:
         memo = self.rejected_children.get(child.program_id)
         if memo is not None:
             return child, None, memo, None
-        inst, reason = self.verify_program(child)
+        inst, reason = self.verify_program(
+            child, reserve_seed_stream=reserve_seed_stream
+        )
         return child, inst, reason, source
+
+    def _make_children_from_outputs(
+        self,
+        tasks: list[MutationTask],
+        outputs: list[str | None],
+    ) -> list[
+        tuple[
+            ProblemProgram | None,
+            ProblemInstance | None,
+            str | None,
+            str | None,
+        ]
+    ]:
+        """Build in order, then verify independent candidate sources in parallel.
+
+        Compilation and batch dedup remain deterministic in proposal order.
+        Only the expensive dynamic ``verify_program`` calls fan out. Successful
+        seed-stream reservations are replayed on the caller thread afterwards,
+        avoiding concurrent mutation of the persisted cursor.
+        """
+
+        if len(tasks) != len(outputs):
+            raise ValueError("tasks and outputs must have the same length")
+        results: list[
+            tuple[
+                ProblemProgram | None,
+                ProblemInstance | None,
+                str | None,
+                str | None,
+            ]
+            | None
+        ] = [None] * len(tasks)
+        # Source equality alone is not enough here. Copy safety is evaluated
+        # relative to each task's inspiration donor later in proposal order;
+        # the same source may fail against one donor but pass against another.
+        # Deduplicate only when both the source and donor context are equal.
+        unique_proposals: set[tuple[str, str | None]] = set()
+        pending: list[tuple[int, ProblemProgram, str]] = []
+
+        for index, (task, output) in enumerate(zip(tasks, outputs)):
+            child, build_reason, source = self._build_child_from_output(
+                task, output
+            )
+            if child is None:
+                results[index] = (None, None, build_reason, source)
+                continue
+            donor = task.inspiration_donor
+            donor_id = donor.program_id if donor is not None else None
+            proposal_key = (child.program_id, donor_id)
+            if proposal_key in unique_proposals:
+                results[index] = (
+                    child,
+                    None,
+                    "duplicate of an earlier candidate in this batch",
+                    None,
+                )
+                continue
+            unique_proposals.add(proposal_key)
+            memo = self.rejected_children.get(child.program_id)
+            if memo is not None:
+                results[index] = (child, None, memo, None)
+                continue
+            pending.append((index, child, source))
+
+        def _verify(item: tuple[int, ProblemProgram, str]):
+            index, child, source = item
+            inst, reason = self.verify_program(
+                child, reserve_seed_stream=False
+            )
+            return index, child, inst, reason, source
+
+        workers = min(
+            max(1, int(self.evolution_config.program_verify_workers)),
+            max(1, len(pending)),
+        )
+        if workers == 1:
+            verified = map(_verify, pending)
+            for index, child, inst, reason, source in verified:
+                results[index] = (child, inst, reason, source)
+        else:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=workers,
+                thread_name_prefix="rq-program-verify",
+            ) as executor:
+                # map preserves proposal order even when workers finish out of
+                # order, keeping logs and seed reservations reproducible.
+                for index, child, inst, reason, source in executor.map(
+                    _verify, pending
+                ):
+                    results[index] = (child, inst, reason, source)
+
+        for result in results:
+            if result is None:
+                raise RuntimeError("candidate verification produced no result")
+            child, inst, _reason, _source = result
+            if child is not None and inst is not None:
+                self.seed_stream.reserve_through(
+                    child.program_id, self.evolution_config.verify_seeds - 1
+                )
+        return [result for result in results if result is not None]
 
     def _resolve_retries(self, entries: list[dict]) -> None:
         """Collapse every ``_retry`` entry into its verify_failed report.

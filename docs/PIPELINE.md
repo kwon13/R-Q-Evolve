@@ -105,6 +105,11 @@ generated child는 destination을 받지 않은 채 다음 순서로 확인됩�
 9. preflight 생존자만 fresh-instance rollout과 R_Q 계산;
 10. 해당 cell champion과 strict score competition.
 
+3번은 후보 단위로 `evolution.program_verify_workers`개의 persistent sandbox에
+병렬 분배합니다. 각 후보 내부에서는 seed 순서와 같은 seed의 반복 실행 순서를
+그대로 유지하며, 검증 seed cursor 갱신은 결과 수집 후 proposal 순서로 직렬화합니다.
+`async_rollout.verify_workers`는 이후 solver 응답 채점용으로 이 pool과 별개입니다.
+
 같은 flat batch에서 먼저 처리된 child가 새 duplicate를 만들 수 있으므로 8번 gate는
 최종 insertion에서도 다시 실행합니다. `adaptive_mutation_refill`을 켜면
 `inner_iterations`는 최소 proposal 수가 되고, frontier insertion 또는 frontier

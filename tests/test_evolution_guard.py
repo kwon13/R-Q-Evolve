@@ -7,6 +7,7 @@ true niche (the stale-s_hat archive-pollution failure mode). evaluate_instances
 now yields None for those groups and callers keep prior scores.
 """
 
+import threading
 from types import SimpleNamespace
 from dataclasses import asdict
 
@@ -17,7 +18,8 @@ from rq_evolve.backends import PendingRollouts, RolloutRecord
 from rq_evolve.config import ArchiveConfig, EvolutionConfig
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.program import ProblemProgram
-from rq_evolve.prompts import MUTATION_OP
+from rq_evolve.prompts import MUTATION_OP, MutationTask
+from rq_evolve.seed_stream import SeedStream
 
 
 def test_adaptive_mutation_refill_is_bounded_and_stops_on_frontier_supply():
@@ -73,6 +75,79 @@ def test_adaptive_mutation_refill_rejects_an_unbounded_configuration():
             mutation_refill_target_frontier_insertions=0,
             mutation_refill_target_frontier_candidates=0,
         )
+
+
+def test_candidate_program_verification_runs_in_parallel_and_reserves_in_order():
+    """Independent candidates fan out; the persisted seed cursor stays serial."""
+
+    parent = _program("parent")
+    tasks = [
+        MutationTask(op=MUTATION_OP, prompt="", parent=parent),
+        MutationTask(op=MUTATION_OP, prompt="", parent=parent),
+    ]
+    outputs = [
+        "```python\ndef generate(seed):\n"
+        f"    return f'Compute {{seed}} + {offset}.', str(seed + {offset})\n```"
+        for offset in (1, 2)
+    ]
+    evolver = RQEvolver.__new__(RQEvolver)
+    evolver.evolution_config = EvolutionConfig(
+        verify_seeds=5, program_verify_workers=2
+    )
+    evolver.rejected_children = {}
+    evolver.seed_stream = SeedStream()
+    barrier = threading.Barrier(2)
+    calls = []
+    lock = threading.Lock()
+
+    def fake_verify(program, **kwargs):
+        with lock:
+            calls.append((program.program_id, threading.get_ident(), kwargs))
+        barrier.wait(timeout=2)
+        return object(), None
+
+    evolver.verify_program = fake_verify
+    results = evolver._make_children_from_outputs(tasks, outputs)
+
+    assert all(
+        instance is not None and reason is None
+        for _, instance, reason, _ in results
+    )
+    assert len({thread_id for _, thread_id, _ in calls}) == 2
+    assert all(call_kwargs["reserve_seed_stream"] is False for _, _, call_kwargs in calls)
+    assert [evolver.seed_stream.peek(child.program_id) for child, *_ in results] == [5, 5]
+
+
+def test_parallel_candidate_verification_deduplicates_before_execution():
+    parent = _program("parent")
+    tasks = [
+        MutationTask(op=MUTATION_OP, prompt="", parent=parent),
+        MutationTask(op=MUTATION_OP, prompt="", parent=parent),
+    ]
+    output = (
+        "```python\ndef generate(seed):\n"
+        "    return f'Compute {seed} + 1.', str(seed + 1)\n```"
+    )
+    evolver = RQEvolver.__new__(RQEvolver)
+    evolver.evolution_config = EvolutionConfig(
+        verify_seeds=5, program_verify_workers=2
+    )
+    evolver.rejected_children = {}
+    evolver.seed_stream = SeedStream()
+    calls = []
+    evolver.verify_program = lambda program, **_kwargs: (
+        calls.append(program.program_id) or object(),
+        None,
+    )
+
+    first, duplicate = evolver._make_children_from_outputs(
+        tasks, [output, output]
+    )
+
+    assert len(calls) == 1
+    assert first[1] is not None and first[2] is None
+    assert duplicate[1] is None and duplicate[3] is None
+    assert "duplicate" in duplicate[2]
 
 
 def test_strict_champion_audit_evicts_invalid_snapshot_programs_once():

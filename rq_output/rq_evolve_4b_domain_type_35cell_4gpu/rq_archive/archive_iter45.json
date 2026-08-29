@@ -42,11 +42,11 @@
       "coverage": 0.6571428571428571,
       "domain_coverage": 1.0,
       "problem_type_coverage": 1.0,
-      "mean_rq": 0.0061061615648944885,
-      "max_rq": 0.08509087396992578,
-      "total_insertions": 991,
-      "total_replacements": 23,
-      "total_selections": 1664,
+      "mean_rq": 0.0027227535114988034,
+      "max_rq": 0.02040999975469377,
+      "total_insertions": 828,
+      "total_replacements": 20,
+      "total_selections": 1440,
       "num_structural_donors": 0
     }
   },
@@ -56,9 +56,9 @@
       "program_id": "a65ccc117567",
       "parent_id": "6b67b1a72157",
       "generation": 2,
-      "s_hat": 1.0,
-      "u_score": 0.12675093933939935,
-      "rq_score": 0.0,
+      "s_hat": 0.8,
+      "u_score": 0.11194162964820861,
+      "rq_score": 0.019900734159681528,
       "niche_domain": 0,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
@@ -306,7 +306,7 @@
           "n_distinct_answers": 1,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0,
+          "rq_score_at_check": 0.019900734159681528,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -322,7 +322,7 @@
       "parent_id": "1a27d05ee124",
       "generation": 1,
       "s_hat": 1.0,
-      "u_score": 0.1549610674381256,
+      "u_score": 0.1191161371767521,
       "rq_score": 0.0,
       "niche_domain": 0,
       "niche_problem_type": 2,
@@ -642,7 +642,7 @@
       "parent_id": "d9634377ae70",
       "generation": 5,
       "s_hat": 1.0,
-      "u_score": 0.0634931769222021,
+      "u_score": 0.0811977930366993,
       "rq_score": 0.0,
       "niche_domain": 0,
       "niche_problem_type": 4,
@@ -865,23 +865,23 @@
       }
     },
     {
-      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport fractions\nimport sympy\n\ndef build_instance(rng):\n    h = rng.randint(-5, 5)\n    shift = rng.randint(1, 5)\n    left = rng.randint(-8, -1)\n    right = rng.randint(1, 8)\n    vertex_x = h\n    vertex_y = shift\n    answer = 'Yes' if left < vertex_x < right else 'No'\n    x = sympy.symbols('x', real=True)\n    f = (x - h) ** 2 + shift\n    derivative = sympy.diff(f, x)\n    critical_points = sympy.solve(derivative, x)\n    check = 'Yes' if any((point.is_real is True and left < point < right for point in critical_points)) else 'No'\n    parameters = {'h': h, 'shift': shift, 'left': left, 'right': right}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'A parabola is defined by the equation y = (x - [[h]])^2 + [[shift]]. Determine if the vertex of this parabola lies strictly between the points ([-8], [[left]]) and (5, [[right]]). Answer Yes or No.'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'boolean'\n__rq_template_parts = (('literal', 'A parabola is defined by the equation y = (x - '), ('parameter', 'h'), ('literal', ')^2 + '), ('parameter', 'shift'), ('literal', '. Determine if the vertex of this parabola lies strictly between the points ([-8], '), ('parameter', 'left'), ('literal', ') and (5, '), ('parameter', 'right'), ('literal', '). Answer Yes or No.'))\n__rq_parameter_keys = ('h', 'left', 'right', 'shift')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        if __rq_len(answer) > 32 or __rq_len(check) > 32:\n            raise ValueError(\"set answer/check has too many elements\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        if (\n            __rq_len(elements) != __rq_len(__rq_set(elements))\n            or __rq_len(check_elements) != __rq_len(__rq_set(check_elements))\n        ):\n            raise ValueError(\"set elements must be unique\")\n        assert __rq_set(elements) == __rq_set(check_elements), \"answer/check mismatch\"\n        canonical_elements = __rq_sorted(elements)\n        canonical_check_elements = __rq_sorted(check_elements)\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
-      "program_id": "634f05ddeef0",
-      "parent_id": "b5066f4ab5e6",
+      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport fractions\nimport sympy\n\ndef build_instance(rng):\n    side1 = rng.randint(3, 10)\n    side2 = rng.randint(side1 + 1, 2 * side1 + 2)\n    side3 = rng.randint(1, side1 + side2 - 1)\n    is_triangle = side1 + side2 > side3 and side1 + side3 > side2 and (side2 + side3 > side1)\n    is_isosceles = side1 == side2 or side1 == side3 or side2 == side3\n    answer = 'Yes' if is_triangle and is_isosceles else 'No'\n    check = 'Yes' if side1 + side2 > side3 and side1 + side3 > side2 and (side2 + side3 > side1) and (side1 == side2 or side1 == side3 or side2 == side3) else 'No'\n    parameters = {'side1': side1, 'side2': side2, 'side3': side3}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'Does there exist a nondegenerate isosceles triangle with side lengths [[side1]], [[side2]], and [[side3]]? Answer Yes or No.'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'boolean'\n__rq_template_parts = (('literal', 'Does there exist a nondegenerate isosceles triangle with side lengths '), ('parameter', 'side1'), ('literal', ', '), ('parameter', 'side2'), ('literal', ', and '), ('parameter', 'side3'), ('literal', '? Answer Yes or No.'))\n__rq_parameter_keys = ('side1', 'side2', 'side3')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        if __rq_len(answer) > 32 or __rq_len(check) > 32:\n            raise ValueError(\"set answer/check has too many elements\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        if (\n            __rq_len(elements) != __rq_len(__rq_set(elements))\n            or __rq_len(check_elements) != __rq_len(__rq_set(check_elements))\n        ):\n            raise ValueError(\"set elements must be unique\")\n        assert __rq_set(elements) == __rq_set(check_elements), \"answer/check mismatch\"\n        canonical_elements = __rq_sorted(elements)\n        canonical_check_elements = __rq_sorted(check_elements)\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
+      "program_id": "da6ce6862b4f",
+      "parent_id": "b90f6cfa2e12",
       "generation": 1,
       "s_hat": 1.0,
-      "u_score": 0.1054247684776783,
+      "u_score": 0.17041231468319892,
       "rq_score": 0.0,
       "niche_domain": 1,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
       "metadata": {
         "op": "mutate",
-        "lineage_root_id": "b5066f4ab5e6",
+        "lineage_root_id": "b90f6cfa2e12",
         "family_plan": {
-          "STRUCTURAL MUTATION": "Replace the critical point analysis of a quadratic function with a geometric interpretation of a parabola's vertex.",
-          "CHILD FAMILY": "A parabola is defined by the equation y = (x - [[h]])^2 + [[shift]]. Determine if the vertex of this parabola lies strictly between the points ([-8], [[left]]) and (5, [[right]]). Answer Yes or No.",
-          "WHY FINITE": "The vertex of the parabola is a single point with exact coordinates, and the condition of lying strictly between two points can be checked with a finite number of comparisons."
+          "STRUCTURAL MUTATION": "Replace the search for integer side lengths with a question about the existence of a specific geometric configuration.",
+          "CHILD FAMILY": "Does there exist a nondegenerate isosceles triangle with side lengths [[side1]], [[side2]], and [[side3]]? Answer Yes or No.",
+          "WHY FINITE": "There are finitely many possible configurations of side lengths, and each configuration either forms a valid isosceles triangle or does not. The question is thus a yes/no question with a finite, unambiguous answer."
         },
         "stage2_one_shot": {
           "example_index": 3,
@@ -890,8 +890,8 @@
         },
         "generator_contract": {
           "version": "trusted-instance-v2",
-          "family_sha256": "8eba548421e83cfe676228ce58615a8bab90f34463f979337a3ba77929ad6d0e",
-          "stage2_reply_sha256": "3793c8d7cb8bd9b01729feb0ee7a617e0681b3cce95f0e32928d266f3277a6f7"
+          "family_sha256": "04f8994541e30602c904822c882a7cfad8c1ceb3e79fb40c5d3d76c01de0146d",
+          "stage2_reply_sha256": "c748ae21345501486ae836558f7aa54f726065e5ff70de8e010d81f4161ce96f"
         },
         "ast_contract": {
           "verdict": "clean",
@@ -907,29 +907,33 @@
           "domain": "geometry",
           "problem_type": "decision",
           "type_evidence": [
-            "Answer Yes or No"
+            "Does there exist a nondegenerate isosceles triangle with side lengths 3, 4, and 1?",
+            "Does there exist a nondegenerate isosceles triangle with side lengths 5, 10, and 14?",
+            "Does there exist a nondegenerate isosceles triangle with side lengths 6, 11, and 4?",
+            "Does there exist a nondegenerate isosceles triangle with side lengths 6, 9, and 6?",
+            "Does there exist a nondegenerate isosceles triangle with side lengths 9, 16, and 2?"
           ],
-          "source_sha256": "fb3f70fcd92ddf632c650bf2e4c8cc2c0e9699725570bc761e9ea962c6c1db21",
+          "source_sha256": "8ceb58bc4d0f53c73a522818979b394fb27825077428335d1349938691911627",
           "domain_labeling": {
             "method": "local_policy_binary_label_v1",
             "passed": true,
             "predicted": "geometry",
             "probabilities": {
-              "algebra": 0.245084987742347,
-              "geometry": 0.5621765025686553,
-              "number_theory": 0.01590636662682343,
-              "discrete_mathematics": 0.022977352334881296,
-              "applied_mathematics": 0.060086674644611815,
-              "calculus": 0.07585819448559739,
-              "precalculus": 0.5312093941731293
+              "algebra": 0.09534948735396465,
+              "geometry": 0.8354835282744484,
+              "number_theory": 0.05340334112443346,
+              "discrete_mathematics": 0.07585819448559739,
+              "applied_mathematics": 0.05340334112443346,
+              "calculus": 0.012431651951550049,
+              "precalculus": 0.18242556912715124
             },
-            "top_probability": 0.5621765025686553,
-            "logit_margin": 0.12499992331425014,
+            "top_probability": 0.8354835282744484,
+            "logit_margin": 3.1249996318984827,
             "min_probability": 0.0,
             "min_logit_margin": 0.0,
             "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-            "family_sha256": "8eba548421e83cfe676228ce58615a8bab90f34463f979337a3ba77929ad6d0e",
-            "policy_iteration": 48,
+            "family_sha256": "04f8994541e30602c904822c882a7cfad8c1ceb3e79fb40c5d3d76c01de0146d",
+            "policy_iteration": 14,
             "failure_kind": null
           }
         },
@@ -937,13 +941,13 @@
           "canonical_template_count": 1,
           "verifier_mode_count": 1,
           "verified_seeds": 5,
-          "template_sha256": "9dc4ff469093a42b9ab2a00b3fd9236df0eb3014b51dc1328c03b3efc1ca0d56",
+          "template_sha256": "c1385a68413b3ec1033ab32123825ea31af68801d57efbebf28d5b785ea7b09e",
           "verifier_mode": "boolean"
         },
         "mutation_strategy": "untargeted",
-        "_behavior_sig_5": "839344a650e3f7c049beda43d8af9775bc089a803555c62e05e3f981343a2fe1",
-        "_template_sig_5": "ffc02b84fd393c12eb75a819586f7f2b304d2aba9ad653d7211a6f855d53d54e",
-        "_template_text_5": "a parabola is defined by the equation y = (x - n)^n + n. determine if the vertex of this parabola lies strictly between the points ([n], n) and (n, n). answer yes or no.",
+        "_behavior_sig_5": "217e2ef1f167d9f2babaa5d251e89591a01ecbbe1632a97996b55d45adaaee0b",
+        "_template_sig_5": "5866749cc985095562d8d9da900d642852e9ab9e3c86b2071d2946c27b3e73f4",
+        "_template_text_5": "does there exist a nondegenerate isosceles triangle with side lengths n, n, and n? answer yes or no.",
         "_ast_skeleton_v2_builder_aware": [
           "FunctionDef",
           "arguments",
@@ -956,8 +960,6 @@
           "Name",
           "Load",
           "Load",
-          "UnaryOp",
-          "USub",
           "Constant",
           "Constant",
           "Assign",
@@ -968,137 +970,161 @@
           "Name",
           "Load",
           "Load",
-          "Constant",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "UnaryOp",
-          "USub",
-          "Constant",
-          "UnaryOp",
-          "USub",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "Constant",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "Name",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
-          "Name",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
-          "IfExp",
-          "Compare",
-          "Name",
-          "Load",
-          "Lt",
-          "Lt",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "Constant",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "Constant",
-          "keyword",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
           "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Constant",
+          "BinOp",
+          "BinOp",
+          "Constant",
+          "Mult",
+          "Name",
+          "Load",
+          "Add",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Constant",
           "BinOp",
           "BinOp",
           "Name",
           "Load",
-          "Sub",
-          "Name",
-          "Load",
-          "Pow",
-          "Constant",
           "Add",
           "Name",
           "Load",
+          "Sub",
+          "Constant",
           "Assign",
           "Name",
           "Store",
-          "Call",
-          "Attribute",
+          "BoolOp",
+          "And",
+          "Compare",
+          "BinOp",
           "Name",
           "Load",
-          "Load",
+          "Add",
           "Name",
           "Load",
+          "Gt",
+          "Name",
+          "Load",
+          "Compare",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Name",
+          "Load",
+          "Gt",
+          "Name",
+          "Load",
+          "Compare",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Name",
+          "Load",
+          "Gt",
           "Name",
           "Load",
           "Assign",
           "Name",
           "Store",
-          "Call",
-          "Attribute",
+          "BoolOp",
+          "Or",
+          "Compare",
           "Name",
           "Load",
-          "Load",
+          "Eq",
           "Name",
           "Load",
+          "Compare",
+          "Name",
+          "Load",
+          "Eq",
+          "Name",
+          "Load",
+          "Compare",
+          "Name",
+          "Load",
+          "Eq",
           "Name",
           "Load",
           "Assign",
           "Name",
           "Store",
           "IfExp",
-          "Call",
+          "BoolOp",
+          "And",
           "Name",
           "Load",
-          "GeneratorExp",
+          "Name",
+          "Load",
+          "Constant",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "IfExp",
           "BoolOp",
           "And",
           "Compare",
-          "Attribute",
+          "BinOp",
           "Name",
           "Load",
+          "Add",
+          "Name",
           "Load",
-          "Is",
-          "Constant",
+          "Gt",
+          "Name",
+          "Load",
+          "Compare",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Name",
+          "Load",
+          "Gt",
+          "Name",
+          "Load",
+          "Compare",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Name",
+          "Load",
+          "Gt",
+          "Name",
+          "Load",
+          "BoolOp",
+          "Or",
           "Compare",
           "Name",
           "Load",
-          "Lt",
-          "Lt",
+          "Eq",
           "Name",
           "Load",
+          "Compare",
           "Name",
           "Load",
-          "comprehension",
+          "Eq",
           "Name",
-          "Store",
+          "Load",
+          "Compare",
+          "Name",
+          "Load",
+          "Eq",
           "Name",
           "Load",
           "Constant",
@@ -1110,9 +1136,6 @@
           "Constant",
           "Constant",
           "Constant",
-          "Constant",
-          "Name",
-          "Load",
           "Name",
           "Load",
           "Name",
@@ -1142,11 +1165,11 @@
               "exact_source": false,
               "exact_behavior": false,
               "exact_template": false,
-              "token_jaccard": 0.125,
+              "token_jaccard": 0.037037,
               "max_token_jaccard": null,
               "near_duplicate_min_chars": 40,
-              "near_template_ratio": null,
-              "structural_ratio": 0.581006,
+              "near_template_ratio": 0.275362,
+              "structural_ratio": 0.493369,
               "example_index": 3,
               "family_sha256": "ea91515b82c5db77528ad248aa0b871bce3480af31d8831de9d390b3f2a52569"
             }
@@ -1157,21 +1180,21 @@
           "passed": true,
           "predicted": "geometry",
           "probabilities": {
-            "algebra": 0.245084987742347,
-            "geometry": 0.5621765025686553,
-            "number_theory": 0.01590636662682343,
-            "discrete_mathematics": 0.022977352334881296,
-            "applied_mathematics": 0.060086674644611815,
-            "calculus": 0.07585819448559739,
-            "precalculus": 0.5312093941731293
+            "algebra": 0.09534948735396465,
+            "geometry": 0.8354835282744484,
+            "number_theory": 0.05340334112443346,
+            "discrete_mathematics": 0.07585819448559739,
+            "applied_mathematics": 0.05340334112443346,
+            "calculus": 0.012431651951550049,
+            "precalculus": 0.18242556912715124
           },
-          "top_probability": 0.5621765025686553,
-          "logit_margin": 0.12499992331425014,
+          "top_probability": 0.8354835282744484,
+          "logit_margin": 3.1249996318984827,
           "min_probability": 0.0,
           "min_logit_margin": 0.0,
           "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-          "family_sha256": "8eba548421e83cfe676228ce58615a8bab90f34463f979337a3ba77929ad6d0e",
-          "policy_iteration": 48,
+          "family_sha256": "04f8994541e30602c904822c882a7cfad8c1ceb3e79fb40c5d3d76c01de0146d",
+          "policy_iteration": 14,
           "failure_kind": null
         },
         "domain": "geometry",
@@ -1180,15 +1203,15 @@
         "validity_check": {
           "passed": true,
           "n_distinct_problems": 5,
-          "n_distinct_answers": 1,
+          "n_distinct_answers": 2,
           "n_valid": 5,
           "n_total": 5,
           "rq_score_at_check": 0.0,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
-          "distinct_answers": 1,
-          "z_sensitive_fraction": 0.923
+          "distinct_answers": 2,
+          "z_sensitive_fraction": 1.0
         },
         "archive_status": "champion"
       }
@@ -1199,7 +1222,7 @@
       "parent_id": "",
       "generation": 0,
       "s_hat": 1.0,
-      "u_score": 0.11505949050188065,
+      "u_score": 0.097845259308815,
       "rq_score": 0.0,
       "niche_domain": 1,
       "niche_problem_type": 1,
@@ -1539,7 +1562,7 @@
       "parent_id": "ff46eee9d00c",
       "generation": 4,
       "s_hat": 1.0,
-      "u_score": 0.13642248064279555,
+      "u_score": 0.14558907076716424,
       "rq_score": 0.0,
       "niche_domain": 1,
       "niche_problem_type": 2,
@@ -1796,7 +1819,7 @@
       "parent_id": "fbda1d1f27ff",
       "generation": 3,
       "s_hat": 1.0,
-      "u_score": 0.059590772911906245,
+      "u_score": 0.06968029625713826,
       "rq_score": 0.0,
       "niche_domain": 1,
       "niche_problem_type": 4,
@@ -2018,9 +2041,9 @@
       "program_id": "fc4aa6574c2e",
       "parent_id": "5d10a5d3692b",
       "generation": 3,
-      "s_hat": 0.7,
-      "u_score": 0.19661672413349152,
-      "rq_score": 0.045877235631148025,
+      "s_hat": 0.0,
+      "u_score": 0.17664133980870247,
+      "rq_score": 0.0,
       "niche_domain": 2,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
@@ -2297,7 +2320,7 @@
           "n_distinct_answers": 1,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.045877235631148025,
+          "rq_score_at_check": 0.0,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -2313,7 +2336,7 @@
       "parent_id": "f258d4460534",
       "generation": 2,
       "s_hat": 1.0,
-      "u_score": 0.14955200917190975,
+      "u_score": 0.09156620129942894,
       "rq_score": 0.0,
       "niche_domain": 2,
       "niche_problem_type": 1,
@@ -2613,33 +2636,33 @@
       }
     },
     {
-      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport sympy\n\ndef build_instance(rng):\n    lower_bound = rng.randint(1, 1000)\n    upper_bound = rng.randint(lower_bound, 1000)\n    primes = list(sympy.primerange(lower_bound, upper_bound + 1))\n    answer = len(primes)\n    check = sum((1 for i in range(lower_bound, upper_bound + 1) if sympy.isprime(i)))\n    parameters = {'lower_bound': lower_bound, 'upper_bound': upper_bound}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'How many prime numbers are there between {[[lower_bound]]} and {[[upper_bound]]}, inclusive? Answer with the exact count of such primes.'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_template_parts = (('literal', 'How many prime numbers are there between {'), ('parameter', 'lower_bound'), ('literal', '} and {'), ('parameter', 'upper_bound'), ('literal', '}, inclusive? Answer with the exact count of such primes.'))\n__rq_parameter_keys = ('lower_bound', 'upper_bound')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        if __rq_len(answer) > 32 or __rq_len(check) > 32:\n            raise ValueError(\"set answer/check has too many elements\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        if (\n            __rq_len(elements) != __rq_len(__rq_set(elements))\n            or __rq_len(check_elements) != __rq_len(__rq_set(check_elements))\n        ):\n            raise ValueError(\"set elements must be unique\")\n        assert __rq_set(elements) == __rq_set(check_elements), \"answer/check mismatch\"\n        canonical_elements = __rq_sorted(elements)\n        canonical_check_elements = __rq_sorted(check_elements)\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
-      "program_id": "7dce52071a4a",
-      "parent_id": "fc4aa6574c2e",
-      "generation": 4,
-      "s_hat": 0.7,
-      "u_score": 0.040601170249283315,
-      "rq_score": 0.009473606391499441,
+      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\ndef build_instance(rng):\n    max_number = rng.randint(3, 20)\n    count = 0\n    for i in range(1, max_number + 1):\n        remainder_i = i % 3\n        for j in range(i + 1, max_number + 1):\n            remainder_j = j % 3\n            for k in range(j + 1, max_number + 1):\n                remainder_k = k % 3\n                if (remainder_i + remainder_j + remainder_k) % 3 == 0:\n                    count += 1\n    answer = count\n    check = sum((1 for i in range(1, max_number + 1) for j in range(i + 1, max_number + 1) for k in range(j + 1, max_number + 1) if (i % 3 + j % 3 + k % 3) % 3 == 0))\n    parameters = {'max_number': max_number}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'The set {1, 2, ..., [[max_number]]} contains numbers with remainders of 0, 1, or 2 when divided by 3. Determine the number of ways to select three distinct numbers from this set such that the sum of their remainders is 0 (mod 3).'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_template_parts = (('literal', 'The set {1, 2, ..., '), ('parameter', 'max_number'), ('literal', '} contains numbers with remainders of 0, 1, or 2 when divided by 3. Determine the number of ways to select three distinct numbers from this set such that the sum of their remainders is 0 (mod 3).'))\n__rq_parameter_keys = ('max_number',)\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        if __rq_len(answer) > 32 or __rq_len(check) > 32:\n            raise ValueError(\"set answer/check has too many elements\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        if (\n            __rq_len(elements) != __rq_len(__rq_set(elements))\n            or __rq_len(check_elements) != __rq_len(__rq_set(check_elements))\n        ):\n            raise ValueError(\"set elements must be unique\")\n        assert __rq_set(elements) == __rq_set(check_elements), \"answer/check mismatch\"\n        canonical_elements = __rq_sorted(elements)\n        canonical_check_elements = __rq_sorted(check_elements)\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
+      "program_id": "6fa8d93ae265",
+      "parent_id": "eedd6a80146a",
+      "generation": 3,
+      "s_hat": 0.8,
+      "u_score": 0.11480624862015247,
+      "rq_score": 0.02040999975469377,
       "niche_domain": 2,
       "niche_problem_type": 2,
       "last_reeval_step": -1,
       "metadata": {
         "op": "mutate",
-        "lineage_root_id": "9a8fbf59a3e8",
+        "lineage_root_id": "b90f6cfa2e12",
         "family_plan": {
-          "STRUCTURAL MUTATION": "Replace subset existence with a count of specific prime elements within a given range.",
-          "CHILD FAMILY": "How many prime numbers are there between {[[lower_bound]]} and {[[upper_bound]]}, inclusive? Answer with the exact count of such primes.",
-          "WHY FINITE": "The specified range is finite, and the count of prime numbers within this range is a finite, exact integer."
+          "STRUCTURAL MUTATION": "Replace the combinatorial counting problem with a problem involving the distribution of remainders when numbers are divided by 3.",
+          "CHILD FAMILY": "The set {1, 2, ..., [[max_number]]} contains numbers with remainders of 0, 1, or 2 when divided by 3. Determine the number of ways to select three distinct numbers from this set such that the sum of their remainders is 0 (mod 3).",
+          "WHY FINITE": "The problem involves selecting numbers from a finite set and checking the sum of their remainders, which results in a finite number of possible combinations. The exact number of valid combinations can be computed and is finite."
         },
         "stage2_one_shot": {
-          "example_index": 4,
-          "domain": "calculus",
-          "family_sha256": "4684233da94ea8421338b18ede534f7feca31857edec4caf5ad189491d8a852e"
+          "example_index": 1,
+          "domain": "geometry",
+          "family_sha256": "941d35f8166d3ed38903a4f5ea49ee190205de3b2b8d039e596ddf31a8fd7659"
         },
         "generator_contract": {
           "version": "trusted-instance-v2",
-          "family_sha256": "55a577ef81a27373f6cc7c32876dafe321febc9827ebbd5af1aa65919b42ec38",
-          "stage2_reply_sha256": "18091b23ab4c3636341e48ab65de0a59217c14283e86780c1ae0d8e8dac33521"
+          "family_sha256": "e15d28e3504a14619c1db4437eaa310ffa4e025c45ed024c4f03129465382d95",
+          "stage2_reply_sha256": "2dbf7411a5bcc498ac03120f160d195aa030a8008b88619f19bee0d76afe507e"
         },
         "ast_contract": {
           "verdict": "clean",
@@ -2655,29 +2678,29 @@
           "domain": "number_theory",
           "problem_type": "counting",
           "type_evidence": [
-            "How many"
+            "Determine the number of"
           ],
-          "source_sha256": "0881ee805282d08852bc8cb518ac5daf4d0a18e14a84829bf9ca96465f34e36b",
+          "source_sha256": "20802735afc4f8f88f056d8c002d58632bcf9c74c6205ae3e29947c95a322463",
           "domain_labeling": {
             "method": "local_policy_binary_label_v1",
             "passed": true,
             "predicted": "number_theory",
             "probabilities": {
-              "algebra": 0.07585819448559739,
-              "geometry": 0.025957375747600153,
-              "number_theory": 0.7310585348819939,
-              "discrete_mathematics": 0.14804715078990716,
-              "applied_mathematics": 0.05340334112443346,
-              "calculus": 0.014063619624191448,
-              "precalculus": 0.060086674644611815
+              "algebra": 0.14804715078990716,
+              "geometry": 0.022977352334881296,
+              "number_theory": 0.6224593298742985,
+              "discrete_mathematics": 0.5926665998515953,
+              "applied_mathematics": 0.08509903828876653,
+              "calculus": 0.025957375747600153,
+              "precalculus": 0.13296426555887353
             },
-            "top_probability": 0.7310585348819939,
-            "logit_margin": 2.750000152041264,
+            "top_probability": 0.6224593298742985,
+            "logit_margin": 0.12499999477539259,
             "min_probability": 0.0,
             "min_logit_margin": 0.0,
             "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-            "family_sha256": "55a577ef81a27373f6cc7c32876dafe321febc9827ebbd5af1aa65919b42ec38",
-            "policy_iteration": 47,
+            "family_sha256": "e15d28e3504a14619c1db4437eaa310ffa4e025c45ed024c4f03129465382d95",
+            "policy_iteration": 38,
             "failure_kind": null
           }
         },
@@ -2685,13 +2708,13 @@
           "canonical_template_count": 1,
           "verifier_mode_count": 1,
           "verified_seeds": 5,
-          "template_sha256": "bb9e11c5eea484c1e7681477c8f2e093a033912d1e98ea20d558cf6628311e51",
+          "template_sha256": "cf18912210f503bb6e88c6e945b2019acffdfcbc4e07df0606789ef189a63e47",
           "verifier_mode": "expression"
         },
         "mutation_strategy": "untargeted",
-        "_behavior_sig_5": "9ce679f917f5ed44ddbca30f94b291e4ffc69f75c37c208897c10241d069424b",
-        "_template_sig_5": "09c431252a91fbbf4855614c1d638fa2e391351dfafe52d4b2ab6393aea1dfab",
-        "_template_text_5": "how many prime numbers are there between {n} and {n}, inclusive? answer with the exact count of such primes.",
+        "_behavior_sig_5": "01c42a4250255fb4b274c1d55a217dafe3b84408ae6298172cae1a326c03733b",
+        "_template_sig_5": "3c45aff487189b6e2052bb9cf2627f2164532ce271fa57642adabb918003de21",
+        "_template_text_5": "the set {n, n, ..., n} contains numbers with remainders of n, n, or n when divided by n. determine the number of ways to select three distinct numbers from this set such that the sum of their remainders is n (mod n).",
         "_ast_skeleton_v2_builder_aware": [
           "FunctionDef",
           "arguments",
@@ -2709,27 +2732,14 @@
           "Assign",
           "Name",
           "Store",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "Name",
-          "Load",
           "Constant",
-          "Assign",
+          "For",
           "Name",
           "Store",
           "Call",
           "Name",
           "Load",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "Name",
-          "Load",
+          "Constant",
           "BinOp",
           "Name",
           "Load",
@@ -2738,9 +2748,84 @@
           "Assign",
           "Name",
           "Store",
+          "BinOp",
+          "Name",
+          "Load",
+          "Mod",
+          "Constant",
+          "For",
+          "Name",
+          "Store",
           "Call",
           "Name",
           "Load",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Constant",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "BinOp",
+          "Name",
+          "Load",
+          "Mod",
+          "Constant",
+          "For",
+          "Name",
+          "Store",
+          "Call",
+          "Name",
+          "Load",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Constant",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "BinOp",
+          "Name",
+          "Load",
+          "Mod",
+          "Constant",
+          "If",
+          "Compare",
+          "BinOp",
+          "BinOp",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Name",
+          "Load",
+          "Add",
+          "Name",
+          "Load",
+          "Mod",
+          "Constant",
+          "Eq",
+          "Constant",
+          "AugAssign",
+          "Name",
+          "Store",
+          "Add",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
           "Name",
           "Load",
           "Assign",
@@ -2757,6 +2842,16 @@
           "Call",
           "Name",
           "Load",
+          "Constant",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Constant",
+          "comprehension",
+          "Name",
+          "Store",
+          "Call",
           "Name",
           "Load",
           "BinOp",
@@ -2764,21 +2859,57 @@
           "Load",
           "Add",
           "Constant",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Constant",
+          "comprehension",
+          "Name",
+          "Store",
           "Call",
-          "Attribute",
           "Name",
           "Load",
-          "Load",
+          "BinOp",
           "Name",
           "Load",
+          "Add",
+          "Constant",
+          "BinOp",
+          "Name",
+          "Load",
+          "Add",
+          "Constant",
+          "Compare",
+          "BinOp",
+          "BinOp",
+          "BinOp",
+          "BinOp",
+          "Name",
+          "Load",
+          "Mod",
+          "Constant",
+          "Add",
+          "BinOp",
+          "Name",
+          "Load",
+          "Mod",
+          "Constant",
+          "Add",
+          "BinOp",
+          "Name",
+          "Load",
+          "Mod",
+          "Constant",
+          "Mod",
+          "Constant",
+          "Eq",
+          "Constant",
           "Assign",
           "Name",
           "Store",
           "Dict",
           "Constant",
-          "Constant",
-          "Name",
-          "Load",
           "Name",
           "Load",
           "Return",
@@ -2804,13 +2935,13 @@
               "exact_source": false,
               "exact_behavior": false,
               "exact_template": false,
-              "token_jaccard": 0.103448,
+              "token_jaccard": 0.114286,
               "max_token_jaccard": null,
               "near_duplicate_min_chars": 40,
-              "near_template_ratio": 0.219512,
-              "structural_ratio": 0.484663,
-              "example_index": 4,
-              "family_sha256": "4684233da94ea8421338b18ede534f7feca31857edec4caf5ad189491d8a852e"
+              "near_template_ratio": null,
+              "structural_ratio": 0.492857,
+              "example_index": 1,
+              "family_sha256": "941d35f8166d3ed38903a4f5ea49ee190205de3b2b8d039e596ddf31a8fd7659"
             }
           ]
         },
@@ -2819,21 +2950,21 @@
           "passed": true,
           "predicted": "number_theory",
           "probabilities": {
-            "algebra": 0.07585819448559739,
-            "geometry": 0.025957375747600153,
-            "number_theory": 0.7310585348819939,
-            "discrete_mathematics": 0.14804715078990716,
-            "applied_mathematics": 0.05340334112443346,
-            "calculus": 0.014063619624191448,
-            "precalculus": 0.060086674644611815
+            "algebra": 0.14804715078990716,
+            "geometry": 0.022977352334881296,
+            "number_theory": 0.6224593298742985,
+            "discrete_mathematics": 0.5926665998515953,
+            "applied_mathematics": 0.08509903828876653,
+            "calculus": 0.025957375747600153,
+            "precalculus": 0.13296426555887353
           },
-          "top_probability": 0.7310585348819939,
-          "logit_margin": 2.750000152041264,
+          "top_probability": 0.6224593298742985,
+          "logit_margin": 0.12499999477539259,
           "min_probability": 0.0,
           "min_logit_margin": 0.0,
           "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-          "family_sha256": "55a577ef81a27373f6cc7c32876dafe321febc9827ebbd5af1aa65919b42ec38",
-          "policy_iteration": 47,
+          "family_sha256": "e15d28e3504a14619c1db4437eaa310ffa4e025c45ed024c4f03129465382d95",
+          "policy_iteration": 38,
           "failure_kind": null
         },
         "domain": "number_theory",
@@ -2841,16 +2972,16 @@
         "num_seeds": 1,
         "validity_check": {
           "passed": true,
-          "n_distinct_problems": 5,
-          "n_distinct_answers": 5,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 4,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.009473606391499441,
+          "rq_score_at_check": 0.02040999975469377,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
-          "distinct_answers": 5,
-          "z_sensitive_fraction": 1.0
+          "distinct_answers": 4,
+          "z_sensitive_fraction": 0.818
         },
         "archive_status": "champion"
       }
@@ -2860,9 +2991,9 @@
       "program_id": "f8e9ce3dde5b",
       "parent_id": "5d10a5d3692b",
       "generation": 3,
-      "s_hat": 1.0,
-      "u_score": 0.10222454853355885,
-      "rq_score": 0.0,
+      "s_hat": 0.9,
+      "u_score": 0.0639984119683504,
+      "rq_score": 0.0063998411968350395,
       "niche_domain": 2,
       "niche_problem_type": 4,
       "last_reeval_step": -1,
@@ -3069,7 +3200,7 @@
           "n_distinct_answers": 5,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0,
+          "rq_score_at_check": 0.0063998411968350395,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -3084,9 +3215,9 @@
       "program_id": "b7c812cb4d9a",
       "parent_id": "b5066f4ab5e6",
       "generation": 1,
-      "s_hat": 0.5,
-      "u_score": 0.3063271462917328,
-      "rq_score": 0.08509087396992578,
+      "s_hat": 1.0,
+      "u_score": 0.2815990447998047,
+      "rq_score": 0.0,
       "niche_domain": 3,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
@@ -3408,7 +3539,7 @@
           "n_distinct_answers": 2,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.08509087396992578,
+          "rq_score_at_check": 0.0,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -3424,7 +3555,7 @@
       "parent_id": "da6ce6862b4f",
       "generation": 2,
       "s_hat": 1.0,
-      "u_score": 0.14592700377106665,
+      "u_score": 0.207647442817688,
       "rq_score": 0.0,
       "niche_domain": 3,
       "niche_problem_type": 2,
@@ -3648,7 +3779,7 @@
       "parent_id": "",
       "generation": 0,
       "s_hat": 1.0,
-      "u_score": 0.22212048918008803,
+      "u_score": 0.26322667449712756,
       "rq_score": 0.0,
       "niche_domain": 3,
       "niche_problem_type": 3,
@@ -3928,7 +4059,7 @@
       "parent_id": "b7c812cb4d9a",
       "generation": 2,
       "s_hat": 1.0,
-      "u_score": 0.15169310569763184,
+      "u_score": 0.13655388131737708,
       "rq_score": 0.0,
       "niche_domain": 3,
       "niche_problem_type": 4,
@@ -4154,9 +4285,9 @@
       "program_id": "6b67b1a72157",
       "parent_id": "5cb7950fa167",
       "generation": 1,
-      "s_hat": 0.0,
-      "u_score": 0.15432900935411453,
-      "rq_score": 0.0,
+      "s_hat": 0.1,
+      "u_score": 0.1591275565326214,
+      "rq_score": 0.01591275565326214,
       "niche_domain": 4,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
@@ -4411,7 +4542,7 @@
           "n_distinct_answers": 1,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0,
+          "rq_score_at_check": 0.01591275565326214,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -4427,7 +4558,7 @@
       "parent_id": "",
       "generation": 0,
       "s_hat": 1.0,
-      "u_score": 0.13350797444581985,
+      "u_score": 0.12857642248272896,
       "rq_score": 0.0,
       "niche_domain": 4,
       "niche_problem_type": 4,
@@ -4662,41 +4793,28 @@
       }
     },
     {
-      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport sympy\n\ndef build_instance(rng):\n    first_term = rng.randint(1, 10)\n    common_ratio = rng.randint(1, 10)\n    sum_value = rng.randint(1, 100)\n    if abs(common_ratio) >= 1:\n        answer = False\n    else:\n        answer = first_term / (1 - common_ratio) == sum_value\n    check = first_term / (1 - common_ratio) == sum_value\n    parameters = {'first_term': first_term, 'common_ratio': common_ratio, 'sum_value': sum_value}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'Determine whether the infinite geometric series with first term [[first_term]], common ratio [[common_ratio]], and sum [[sum_value]] converges. Answer Yes or No.'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'boolean'\n__rq_template_parts = (('literal', 'Determine whether the infinite geometric series with first term '), ('parameter', 'first_term'), ('literal', ', common ratio '), ('parameter', 'common_ratio'), ('literal', ', and sum '), ('parameter', 'sum_value'), ('literal', ' converges. Answer Yes or No.'))\n__rq_parameter_keys = ('common_ratio', 'first_term', 'sum_value')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        if __rq_len(answer) > 32 or __rq_len(check) > 32:\n            raise ValueError(\"set answer/check has too many elements\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        if (\n            __rq_len(elements) != __rq_len(__rq_set(elements))\n            or __rq_len(check_elements) != __rq_len(__rq_set(check_elements))\n        ):\n            raise ValueError(\"set elements must be unique\")\n        assert __rq_set(elements) == __rq_set(check_elements), \"answer/check mismatch\"\n        canonical_elements = __rq_sorted(elements)\n        canonical_check_elements = __rq_sorted(check_elements)\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
-      "program_id": "8297b0d5332c",
-      "parent_id": "ce9291d82fd5",
-      "generation": 4,
+      "source_code": "import random\nimport sympy\n\nDOMAIN = \"calculus\"\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n\n    h = rng.randint(-5, 5)\n    shift = rng.randint(1, 5)\n\n    left = rng.randint(-8, -1)\n    right = rng.randint(1, 8)\n\n    # f'(x) = 2(x-h), so the unique critical point is x = h.\n    answer = \"Yes\" if left < h < right else \"No\"\n\n    # Independent route: differentiate and solve f'(x)=0.\n    x = sympy.symbols(\"x\", real=True)\n    f = (x - h) ** 2 + shift\n\n    derivative = sympy.diff(f, x)\n    critical_points = sympy.solve(derivative, x)\n\n    check = \"Yes\" if any(\n        point.is_real is True and left < point < right\n        for point in critical_points\n    ) else \"No\"\n\n    assert answer == check, f\"answer={answer} check={check}\"\n\n    problem = (\n        f\"Let f(x) = (x - ({h}))^2 + {shift}. \"\n        f\"Does f have a critical point strictly inside the interval \"\n        f\"({left}, {right})? Answer Yes or No.\"\n    )\n\n    return problem, answer, {\"mode\": \"boolean\"}",
+      "program_id": "b5066f4ab5e6",
+      "parent_id": "",
+      "generation": 0,
       "s_hat": 1.0,
-      "u_score": 0.16406602337956427,
+      "u_score": 0.09076709970831871,
       "rq_score": 0.0,
       "niche_domain": 5,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
       "metadata": {
-        "op": "mutate",
-        "lineage_root_id": "5cb7950fa167",
-        "family_plan": {
-          "STRUCTURAL MUTATION": "Replace the question of sequence membership with a query about the convergence of a geometric series.",
-          "CHILD FAMILY": "Determine whether the infinite geometric series with first term [[first_term]], common ratio [[common_ratio]], and sum [[sum_value]] converges. Answer Yes or No.",
-          "WHY FINITE": "The convergence of a geometric series depends solely on the absolute value of the common ratio being less than 1. Since the common ratio and the sum are provided, the answer is a simple Yes or No, ensuring a finite and unambiguous response."
+        "source_file": "05_calculus_decision.py",
+        "manual_seed_source": {
+          "method": "loaded_seed_file_v1",
+          "source_file": "05_calculus_decision.py",
+          "source_sha256": "70ad88624cf97f2ecd9bf932c1ad404dade6f9fa9ab90960746e8fa1b3ac3fc4"
         },
-        "stage2_one_shot": {
-          "example_index": 2,
-          "domain": "calculus",
-          "family_sha256": "b26bfea4a923a86b34f4681a2027be71b684e06860645ccd0dee340681c82b08"
-        },
-        "generator_contract": {
-          "version": "trusted-instance-v2",
-          "family_sha256": "8f6ad5546ec13884e69f77bdfa992760b0afaa409565241d0096a346a689a7b0",
-          "stage2_reply_sha256": "577c9fc11cb9a7129a6c5d3aa98496f1af50f9e95fb632eb9310d9cbb67e44e0"
-        },
-        "ast_contract": {
-          "verdict": "clean",
-          "findings": []
-        },
+        "lineage_root_id": "b5066f4ab5e6",
+        "domain": "calculus",
         "problem_type": "decision",
         "descriptor_contract": {
-          "domain_authority": "local_policy_binary_label_v1",
+          "domain_authority": "manual_seed_source_literal_v1",
           "problem_type_authority": "deterministic_statement_and_verifier",
           "problem_type_ruleset": "computational-output-contract-v1",
           "problem_type_ruleset_sha256": "e37ad8b13e79d2df4a69597f3b599cde2a40336176ee4a1c5a9e7736d55b21a9",
@@ -4704,191 +4822,25 @@
           "domain": "calculus",
           "problem_type": "decision",
           "type_evidence": [
-            "Determine whether"
+            ". Does f have a critical point strictly inside the interval (-6, 6)?",
+            ". Does f have a critical point strictly inside the interval (-7, 5)?",
+            ". Does f have a critical point strictly inside the interval (-7, 6)?",
+            ". Does f have a critical point strictly inside the interval (-7, 7)?",
+            ". Does f have a critical point strictly inside the interval (-8, 5)?"
           ],
-          "source_sha256": "56adfe74a64e31a191cde5c38bc533a32a32618ee4c61892ea458ad6634dfa2b",
+          "source_sha256": "70ad88624cf97f2ecd9bf932c1ad404dade6f9fa9ab90960746e8fa1b3ac3fc4",
           "domain_labeling": {
-            "method": "local_policy_binary_label_v1",
+            "method": "manual_seed_source_literal_v1",
             "passed": true,
+            "declared": "calculus",
             "predicted": "calculus",
-            "probabilities": {
-              "algebra": 0.2689414651180061,
-              "geometry": 0.02931222859905147,
-              "number_theory": 0.02931222859905147,
-              "discrete_mathematics": 0.11920295311666573,
-              "applied_mathematics": 0.14804715078990716,
-              "calculus": 0.754915012257653,
-              "precalculus": 0.4073334001484047
-            },
-            "top_probability": 0.754915012257653,
-            "logit_margin": 1.5000001368052924,
-            "min_probability": 0.0,
-            "min_logit_margin": 0.0,
-            "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-            "family_sha256": "8f6ad5546ec13884e69f77bdfa992760b0afaa409565241d0096a346a689a7b0",
-            "policy_iteration": 48,
-            "failure_kind": null
+            "seed_source": {
+              "method": "loaded_seed_file_v1",
+              "source_file": "05_calculus_decision.py",
+              "source_sha256": "70ad88624cf97f2ecd9bf932c1ad404dade6f9fa9ab90960746e8fa1b3ac3fc4"
+            }
           }
         },
-        "family_contract": {
-          "canonical_template_count": 1,
-          "verifier_mode_count": 1,
-          "verified_seeds": 5,
-          "template_sha256": "b5694c29d355f9c2b55a3f9c25d2c8668c27cb24efca82a4499039bc7a82ebbe",
-          "verifier_mode": "boolean"
-        },
-        "mutation_strategy": "untargeted",
-        "_behavior_sig_5": "099f5257df6d3d2aebc8db3e8cca6bfb4c29daf74f5617cb8f7bbddf8e46f8ba",
-        "_template_sig_5": "02ccc54d4d3602e8b21228c86b27e5cdab24301e9b80e73799b3a9bb9b0624bf",
-        "_template_text_5": "determine whether the infinite geometric series with first term n, common ratio n, and sum n converges. answer yes or no.",
-        "_ast_skeleton_v2_builder_aware": [
-          "FunctionDef",
-          "arguments",
-          "arg",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "Constant",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "Constant",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "Constant",
-          "Constant",
-          "If",
-          "Compare",
-          "Call",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "GtE",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "Compare",
-          "BinOp",
-          "Name",
-          "Load",
-          "Div",
-          "BinOp",
-          "Constant",
-          "Sub",
-          "Name",
-          "Load",
-          "Eq",
-          "Name",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
-          "Compare",
-          "BinOp",
-          "Name",
-          "Load",
-          "Div",
-          "BinOp",
-          "Constant",
-          "Sub",
-          "Name",
-          "Load",
-          "Eq",
-          "Name",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
-          "Dict",
-          "Constant",
-          "Constant",
-          "Constant",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "Return",
-          "Tuple",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "Load"
-        ],
-        "prompt_example_copy_gate": {
-          "checked": true,
-          "rejected": false,
-          "reason": null,
-          "example_index": null,
-          "comparisons": [
-            {
-              "checked": true,
-              "rejected": false,
-              "reason": null,
-              "exact_source": false,
-              "exact_behavior": false,
-              "exact_template": false,
-              "token_jaccard": 0.041667,
-              "max_token_jaccard": null,
-              "near_duplicate_min_chars": 40,
-              "near_template_ratio": null,
-              "structural_ratio": 0.653061,
-              "example_index": 2,
-              "family_sha256": "b26bfea4a923a86b34f4681a2027be71b684e06860645ccd0dee340681c82b08"
-            }
-          ]
-        },
-        "domain_labeling": {
-          "method": "local_policy_binary_label_v1",
-          "passed": true,
-          "predicted": "calculus",
-          "probabilities": {
-            "algebra": 0.2689414651180061,
-            "geometry": 0.02931222859905147,
-            "number_theory": 0.02931222859905147,
-            "discrete_mathematics": 0.11920295311666573,
-            "applied_mathematics": 0.14804715078990716,
-            "calculus": 0.754915012257653,
-            "precalculus": 0.4073334001484047
-          },
-          "top_probability": 0.754915012257653,
-          "logit_margin": 1.5000001368052924,
-          "min_probability": 0.0,
-          "min_logit_margin": 0.0,
-          "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-          "family_sha256": "8f6ad5546ec13884e69f77bdfa992760b0afaa409565241d0096a346a689a7b0",
-          "policy_iteration": 48,
-          "failure_kind": null
-        },
-        "domain": "calculus",
         "dispersion": 0.0,
         "num_seeds": 1,
         "validity_check": {
@@ -4902,8 +4854,227 @@
           "constancy_reason": "",
           "canonical_templates": 1,
           "distinct_answers": 1,
-          "z_sensitive_fraction": 1.0
+          "z_sensitive_fraction": 0.909
         },
+        "_behavior_sig_5": "69c6163c226db463fced28ce070e65902b7ccd0aeda9979a8fddf846aaf071dc",
+        "_template_sig_5": "7c774b0c7aebdecfdd836b71a5207681c056321996645311dce7bb71d8fde274",
+        "_template_text_5": "let f(x) = (x - (n))^n + n. does f have a critical point strictly inside the interval (n, n)? answer yes or no.",
+        "_ast_skeleton_v2_builder_aware": [
+          "Module",
+          "Import",
+          "alias",
+          "Import",
+          "alias",
+          "Assign",
+          "Name",
+          "Store",
+          "Constant",
+          "FunctionDef",
+          "arguments",
+          "arg",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "UnaryOp",
+          "USub",
+          "Constant",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Constant",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "UnaryOp",
+          "USub",
+          "Constant",
+          "UnaryOp",
+          "USub",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Constant",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "IfExp",
+          "Compare",
+          "Name",
+          "Load",
+          "Lt",
+          "Lt",
+          "Name",
+          "Load",
+          "Name",
+          "Load",
+          "Constant",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Constant",
+          "keyword",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "BinOp",
+          "BinOp",
+          "BinOp",
+          "Name",
+          "Load",
+          "Sub",
+          "Name",
+          "Load",
+          "Pow",
+          "Constant",
+          "Add",
+          "Name",
+          "Load",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "Name",
+          "Load",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "Name",
+          "Load",
+          "Assign",
+          "Name",
+          "Store",
+          "IfExp",
+          "Call",
+          "Name",
+          "Load",
+          "GeneratorExp",
+          "BoolOp",
+          "And",
+          "Compare",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Is",
+          "Constant",
+          "Compare",
+          "Name",
+          "Load",
+          "Lt",
+          "Lt",
+          "Name",
+          "Load",
+          "Name",
+          "Load",
+          "comprehension",
+          "Name",
+          "Store",
+          "Name",
+          "Load",
+          "Constant",
+          "Constant",
+          "Assert",
+          "Compare",
+          "Name",
+          "Load",
+          "Eq",
+          "Name",
+          "Load",
+          "JoinedStr",
+          "Constant",
+          "FormattedValue",
+          "Name",
+          "Load",
+          "Constant",
+          "FormattedValue",
+          "Name",
+          "Load",
+          "Assign",
+          "Name",
+          "Store",
+          "JoinedStr",
+          "Constant",
+          "FormattedValue",
+          "Name",
+          "Load",
+          "Constant",
+          "FormattedValue",
+          "Name",
+          "Load",
+          "Constant",
+          "FormattedValue",
+          "Name",
+          "Load",
+          "Constant",
+          "FormattedValue",
+          "Name",
+          "Load",
+          "Constant",
+          "Return",
+          "Tuple",
+          "Name",
+          "Load",
+          "Name",
+          "Load",
+          "Dict",
+          "Constant",
+          "Constant",
+          "Load"
+        ],
         "archive_status": "champion"
       }
     },
@@ -4913,7 +5084,7 @@
       "parent_id": "6819ba391758",
       "generation": 4,
       "s_hat": 1.0,
-      "u_score": 0.09133158400654792,
+      "u_score": 0.09771182537078857,
       "rq_score": 0.0,
       "niche_domain": 5,
       "niche_problem_type": 4,
@@ -5213,7 +5384,7 @@
       "parent_id": "813a5eb26eb0",
       "generation": 3,
       "s_hat": 1.0,
-      "u_score": 0.10157432109117508,
+      "u_score": 0.10964572951197624,
       "rq_score": 0.0,
       "niche_domain": 6,
       "niche_problem_type": 0,
@@ -5482,7 +5653,7 @@
       "parent_id": "",
       "generation": 0,
       "s_hat": 1.0,
-      "u_score": 0.061991910263895986,
+      "u_score": 0.06322067379951476,
       "rq_score": 0.0,
       "niche_domain": 6,
       "niche_problem_type": 1,
@@ -5789,7 +5960,7 @@
       "parent_id": "b5066f4ab5e6",
       "generation": 1,
       "s_hat": 1.0,
-      "u_score": 0.131412510573864,
+      "u_score": 0.14097305610775948,
       "rq_score": 0.0,
       "niche_domain": 6,
       "niche_problem_type": 2,
@@ -6040,7 +6211,7 @@
       "parent_id": "f258d4460534",
       "generation": 2,
       "s_hat": 1.0,
-      "u_score": 0.061847881972789766,
+      "u_score": 0.06283842995762826,
       "rq_score": 0.0,
       "niche_domain": 6,
       "niche_problem_type": 4,
@@ -6293,8 +6464,8 @@
     {
       "domain_bin": 0,
       "problem_type_bin": 0,
-      "selection_count": 92,
-      "update_count": 54,
+      "selection_count": 81,
+      "update_count": 47,
       "history": [
         {
           "event": "inserted",
@@ -6530,41 +6701,6 @@
           "event": "inserted",
           "program_id": "a65ccc117567",
           "rq_score": 0.019900734159681528
-        },
-        {
-          "event": "inserted",
-          "program_id": "a65ccc117567",
-          "rq_score": 0.027461500664552056
-        },
-        {
-          "event": "inserted",
-          "program_id": "a65ccc117567",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a65ccc117567",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a65ccc117567",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a65ccc117567",
-          "rq_score": 0.01317731730639934
-        },
-        {
-          "event": "inserted",
-          "program_id": "a65ccc117567",
-          "rq_score": 0.01223895005881786
-        },
-        {
-          "event": "inserted",
-          "program_id": "a65ccc117567",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -6572,8 +6708,8 @@
     {
       "domain_bin": 0,
       "problem_type_bin": 2,
-      "selection_count": 19,
-      "update_count": 12,
+      "selection_count": 7,
+      "update_count": 5,
       "history": [
         {
           "event": "inserted",
@@ -6599,41 +6735,6 @@
           "event": "inserted",
           "program_id": "f7b51eeda2ec",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "f7b51eeda2ec",
-          "rq_score": 0.029142089237769443
-        },
-        {
-          "event": "inserted",
-          "program_id": "f7b51eeda2ec",
-          "rq_score": 0.01198214240372181
-        },
-        {
-          "event": "inserted",
-          "program_id": "f7b51eeda2ec",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "f7b51eeda2ec",
-          "rq_score": 0.03229710439752255
-        },
-        {
-          "event": "inserted",
-          "program_id": "f7b51eeda2ec",
-          "rq_score": 0.012820133492350574
-        },
-        {
-          "event": "inserted",
-          "program_id": "f7b51eeda2ec",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "f7b51eeda2ec",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -6641,8 +6742,8 @@
     {
       "domain_bin": 0,
       "problem_type_bin": 4,
-      "selection_count": 80,
-      "update_count": 54,
+      "selection_count": 73,
+      "update_count": 47,
       "history": [
         {
           "event": "inserted",
@@ -6878,41 +6979,6 @@
           "event": "inserted",
           "program_id": "1d5a6c9a31a0",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1d5a6c9a31a0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1d5a6c9a31a0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1d5a6c9a31a0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1d5a6c9a31a0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1d5a6c9a31a0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1d5a6c9a31a0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "1d5a6c9a31a0",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -6920,8 +6986,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 0,
-      "selection_count": 58,
-      "update_count": 40,
+      "selection_count": 47,
+      "update_count": 32,
       "history": [
         {
           "event": "inserted",
@@ -7082,46 +7148,6 @@
           "event": "inserted",
           "program_id": "da6ce6862b4f",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "da6ce6862b4f",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "da6ce6862b4f",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "da6ce6862b4f",
-          "rq_score": 0.0
-        },
-        {
-          "event": "replaced",
-          "program_id": "634f05ddeef0",
-          "rq_score": 0.020131338304943514
-        },
-        {
-          "event": "inserted",
-          "program_id": "634f05ddeef0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "634f05ddeef0",
-          "rq_score": 0.027608324959874156
-        },
-        {
-          "event": "inserted",
-          "program_id": "634f05ddeef0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "634f05ddeef0",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -7129,8 +7155,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 1,
-      "selection_count": 115,
-      "update_count": 53,
+      "selection_count": 102,
+      "update_count": 46,
       "history": [
         {
           "event": "inserted",
@@ -7361,41 +7387,6 @@
           "event": "inserted",
           "program_id": "b90f6cfa2e12",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.010778233408927916
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.008904446139931677
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.011525228545069693
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -7403,8 +7394,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 2,
-      "selection_count": 77,
-      "update_count": 52,
+      "selection_count": 68,
+      "update_count": 45,
       "history": [
         {
           "event": "inserted",
@@ -7630,41 +7621,6 @@
           "event": "inserted",
           "program_id": "ff46eee9d00c",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ff46eee9d00c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ff46eee9d00c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ff46eee9d00c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ff46eee9d00c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ff46eee9d00c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ff46eee9d00c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ff46eee9d00c",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -7672,8 +7628,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 4,
-      "selection_count": 80,
-      "update_count": 50,
+      "selection_count": 72,
+      "update_count": 43,
       "history": [
         {
           "event": "inserted",
@@ -7889,41 +7845,6 @@
           "event": "inserted",
           "program_id": "6819ba391758",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6819ba391758",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6819ba391758",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6819ba391758",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6819ba391758",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6819ba391758",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6819ba391758",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6819ba391758",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -7931,8 +7852,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 0,
-      "selection_count": 52,
-      "update_count": 31,
+      "selection_count": 37,
+      "update_count": 24,
       "history": [
         {
           "event": "inserted",
@@ -8053,41 +7974,6 @@
           "event": "inserted",
           "program_id": "fc4aa6574c2e",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fc4aa6574c2e",
-          "rq_score": 0.03949298779169719
-        },
-        {
-          "event": "inserted",
-          "program_id": "fc4aa6574c2e",
-          "rq_score": 0.02066219046711922
-        },
-        {
-          "event": "inserted",
-          "program_id": "fc4aa6574c2e",
-          "rq_score": 0.03685669793023004
-        },
-        {
-          "event": "inserted",
-          "program_id": "fc4aa6574c2e",
-          "rq_score": 0.03400692860285442
-        },
-        {
-          "event": "inserted",
-          "program_id": "fc4aa6574c2e",
-          "rq_score": 0.03974936621884505
-        },
-        {
-          "event": "inserted",
-          "program_id": "fc4aa6574c2e",
-          "rq_score": 0.03688478827476502
-        },
-        {
-          "event": "inserted",
-          "program_id": "fc4aa6574c2e",
-          "rq_score": 0.045877235631148025
         }
       ],
       "mce_history": []
@@ -8095,8 +7981,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 1,
-      "selection_count": 64,
-      "update_count": 45,
+      "selection_count": 59,
+      "update_count": 38,
       "history": [
         {
           "event": "inserted",
@@ -8287,41 +8173,6 @@
           "event": "inserted",
           "program_id": "ba723af2c918",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ba723af2c918",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ba723af2c918",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ba723af2c918",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ba723af2c918",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ba723af2c918",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ba723af2c918",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ba723af2c918",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -8329,8 +8180,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 2,
-      "selection_count": 89,
-      "update_count": 57,
+      "selection_count": 85,
+      "update_count": 49,
       "history": [
         {
           "event": "inserted",
@@ -8576,46 +8427,6 @@
           "event": "inserted",
           "program_id": "6fa8d93ae265",
           "rq_score": 0.02040999975469377
-        },
-        {
-          "event": "inserted",
-          "program_id": "6fa8d93ae265",
-          "rq_score": 0.026664547100663186
-        },
-        {
-          "event": "inserted",
-          "program_id": "6fa8d93ae265",
-          "rq_score": 0.0
-        },
-        {
-          "event": "replaced",
-          "program_id": "7dce52071a4a",
-          "rq_score": 0.026922753784391622
-        },
-        {
-          "event": "inserted",
-          "program_id": "7dce52071a4a",
-          "rq_score": 0.023793734874990254
-        },
-        {
-          "event": "inserted",
-          "program_id": "7dce52071a4a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "7dce52071a4a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "7dce52071a4a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "7dce52071a4a",
-          "rq_score": 0.009473606391499441
         }
       ],
       "mce_history": []
@@ -8623,8 +8434,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 4,
-      "selection_count": 41,
-      "update_count": 27,
+      "selection_count": 26,
+      "update_count": 20,
       "history": [
         {
           "event": "inserted",
@@ -8725,41 +8536,6 @@
           "event": "inserted",
           "program_id": "f8e9ce3dde5b",
           "rq_score": 0.0063998411968350395
-        },
-        {
-          "event": "inserted",
-          "program_id": "f8e9ce3dde5b",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "f8e9ce3dde5b",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "f8e9ce3dde5b",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "f8e9ce3dde5b",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "f8e9ce3dde5b",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "f8e9ce3dde5b",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "f8e9ce3dde5b",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -8767,8 +8543,8 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 0,
-      "selection_count": 69,
-      "update_count": 41,
+      "selection_count": 63,
+      "update_count": 35,
       "history": [
         {
           "event": "inserted",
@@ -8944,36 +8720,6 @@
           "event": "inserted",
           "program_id": "b7c812cb4d9a",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b7c812cb4d9a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b7c812cb4d9a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b7c812cb4d9a",
-          "rq_score": 0.029777558594942088
-        },
-        {
-          "event": "inserted",
-          "program_id": "b7c812cb4d9a",
-          "rq_score": 0.050968506601121684
-        },
-        {
-          "event": "inserted",
-          "program_id": "b7c812cb4d9a",
-          "rq_score": 0.022369676679372782
-        },
-        {
-          "event": "inserted",
-          "program_id": "b7c812cb4d9a",
-          "rq_score": 0.08509087396992578
         }
       ],
       "mce_history": []
@@ -8981,8 +8727,8 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 2,
-      "selection_count": 85,
-      "update_count": 53,
+      "selection_count": 76,
+      "update_count": 46,
       "history": [
         {
           "event": "inserted",
@@ -9213,41 +8959,6 @@
           "event": "inserted",
           "program_id": "c87614cb2736",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "c87614cb2736",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "c87614cb2736",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "c87614cb2736",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "c87614cb2736",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "c87614cb2736",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "c87614cb2736",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "c87614cb2736",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -9255,8 +8966,8 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 3,
-      "selection_count": 95,
-      "update_count": 53,
+      "selection_count": 81,
+      "update_count": 46,
       "history": [
         {
           "event": "inserted",
@@ -9487,41 +9198,6 @@
           "event": "inserted",
           "program_id": "ef03e159eece",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.022482345849275585
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -9529,8 +9205,8 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 4,
-      "selection_count": 88,
-      "update_count": 49,
+      "selection_count": 81,
+      "update_count": 42,
       "history": [
         {
           "event": "inserted",
@@ -9741,41 +9417,6 @@
           "event": "inserted",
           "program_id": "5ddbfb135079",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5ddbfb135079",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5ddbfb135079",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5ddbfb135079",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5ddbfb135079",
-          "rq_score": 0.07252087538441021
-        },
-        {
-          "event": "inserted",
-          "program_id": "5ddbfb135079",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5ddbfb135079",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5ddbfb135079",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -9783,8 +9424,8 @@
     {
       "domain_bin": 4,
       "problem_type_bin": 0,
-      "selection_count": 34,
-      "update_count": 30,
+      "selection_count": 27,
+      "update_count": 23,
       "history": [
         {
           "event": "inserted",
@@ -9900,41 +9541,6 @@
           "event": "inserted",
           "program_id": "6b67b1a72157",
           "rq_score": 0.01591275565326214
-        },
-        {
-          "event": "inserted",
-          "program_id": "6b67b1a72157",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6b67b1a72157",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6b67b1a72157",
-          "rq_score": 0.01388692356646061
-        },
-        {
-          "event": "inserted",
-          "program_id": "6b67b1a72157",
-          "rq_score": 0.025660039186477666
-        },
-        {
-          "event": "inserted",
-          "program_id": "6b67b1a72157",
-          "rq_score": 0.014938200637698174
-        },
-        {
-          "event": "inserted",
-          "program_id": "6b67b1a72157",
-          "rq_score": 0.014622315838932993
-        },
-        {
-          "event": "inserted",
-          "program_id": "6b67b1a72157",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -9942,8 +9548,8 @@
     {
       "domain_bin": 4,
       "problem_type_bin": 4,
-      "selection_count": 113,
-      "update_count": 53,
+      "selection_count": 99,
+      "update_count": 46,
       "history": [
         {
           "event": "inserted",
@@ -10174,41 +9780,6 @@
           "event": "inserted",
           "program_id": "5cb7950fa167",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.014992838799953459
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.024826601743698117
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -10216,8 +9787,8 @@
     {
       "domain_bin": 5,
       "problem_type_bin": 0,
-      "selection_count": 107,
-      "update_count": 54,
+      "selection_count": 100,
+      "update_count": 46,
       "history": [
         {
           "event": "inserted",
@@ -10448,46 +10019,6 @@
           "event": "inserted",
           "program_id": "b5066f4ab5e6",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b5066f4ab5e6",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b5066f4ab5e6",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b5066f4ab5e6",
-          "rq_score": 0.0
-        },
-        {
-          "event": "replaced",
-          "program_id": "8297b0d5332c",
-          "rq_score": 0.01773107312619686
-        },
-        {
-          "event": "inserted",
-          "program_id": "8297b0d5332c",
-          "rq_score": 0.018492947298067594
-        },
-        {
-          "event": "inserted",
-          "program_id": "8297b0d5332c",
-          "rq_score": 0.016294188722968096
-        },
-        {
-          "event": "inserted",
-          "program_id": "8297b0d5332c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8297b0d5332c",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -10495,48 +10026,13 @@
     {
       "domain_bin": 5,
       "problem_type_bin": 4,
-      "selection_count": 68,
-      "update_count": 41,
+      "selection_count": 59,
+      "update_count": 34,
       "history": [
         {
           "event": "inserted",
           "program_id": "647f239d5909",
           "rq_score": 0.027616090849041933
-        },
-        {
-          "event": "inserted",
-          "program_id": "647f239d5909",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "647f239d5909",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "647f239d5909",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "647f239d5909",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "647f239d5909",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "647f239d5909",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "647f239d5909",
-          "rq_score": 0.0
         },
         {
           "event": "inserted",
@@ -10709,44 +10205,9 @@
     {
       "domain_bin": 6,
       "problem_type_bin": 0,
-      "selection_count": 28,
-      "update_count": 23,
+      "selection_count": 21,
+      "update_count": 16,
       "history": [
-        {
-          "event": "inserted",
-          "program_id": "ce9291d82fd5",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ce9291d82fd5",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ce9291d82fd5",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ce9291d82fd5",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ce9291d82fd5",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ce9291d82fd5",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ce9291d82fd5",
-          "rq_score": 0.0
-        },
         {
           "event": "inserted",
           "program_id": "ce9291d82fd5",
@@ -10833,8 +10294,8 @@
     {
       "domain_bin": 6,
       "problem_type_bin": 1,
-      "selection_count": 104,
-      "update_count": 53,
+      "selection_count": 90,
+      "update_count": 46,
       "history": [
         {
           "event": "inserted",
@@ -11065,41 +10526,6 @@
           "event": "inserted",
           "program_id": "8cd7da8aaf57",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -11107,44 +10533,9 @@
     {
       "domain_bin": 6,
       "problem_type_bin": 2,
-      "selection_count": 15,
-      "update_count": 11,
+      "selection_count": 3,
+      "update_count": 4,
       "history": [
-        {
-          "event": "inserted",
-          "program_id": "85662b0ecee0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "85662b0ecee0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "85662b0ecee0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "85662b0ecee0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "85662b0ecee0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "85662b0ecee0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "85662b0ecee0",
-          "rq_score": 0.0
-        },
         {
           "event": "inserted",
           "program_id": "85662b0ecee0",
@@ -11171,8 +10562,8 @@
     {
       "domain_bin": 6,
       "problem_type_bin": 4,
-      "selection_count": 91,
-      "update_count": 55,
+      "selection_count": 83,
+      "update_count": 48,
       "history": [
         {
           "event": "inserted",
@@ -11383,41 +10774,6 @@
           "event": "inserted",
           "program_id": "813a5eb26eb0",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "813a5eb26eb0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "813a5eb26eb0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "813a5eb26eb0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "813a5eb26eb0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "813a5eb26eb0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "813a5eb26eb0",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "813a5eb26eb0",
-          "rq_score": 0.006605298034846781
         },
         {
           "event": "inserted",

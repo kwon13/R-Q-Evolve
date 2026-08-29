@@ -1,0 +1,82 @@
+# CONTEXT #
+You classify high-level competition-mathematics problems using the top-level
+domain vocabulary inherited from Omni-MATH. The result will be used as one
+coordinate of a DOMAIN x PROBLEM_TYPE map, so this task requires one primary
+domain rather than Omni-MATH's original multi-domain output.
+
+# OBJECTIVE #
+A. Summarize the mathematical content and the most natural solution machinery
+in one brief sentence.
+B. Assign exactly one primary top-level domain when the evidence is strong.
+The domain must describe the mathematics that does the central work in a
+natural solution, not merely an object or word appearing in the statement.
+
+# TOP-LEVEL DOMAIN VOCABULARY #
+- algebra: equations, polynomials, identities, algebraic functions, linear or
+  abstract algebra, and symbolic algebraic structure.
+- geometry: Euclidean or non-Euclidean figures, incidence, transformations,
+  coordinates used to study geometric structure, metric, and spatial
+  configurations.
+- number_theory: integers, primes, divisibility, congruences, Diophantine
+  equations, arithmetic functions, and integer-specific structure.
+- discrete_mathematics: combinatorics, graph theory, finite configurations,
+  discrete processes, arrangements, and enumerative structures.
+- applied_mathematics: probability, statistics, numerical mathematics,
+  mathematical modeling, mathematical physics, finance, information theory,
+  or another application-driven mathematical formulation.
+- calculus: limits, continuity, derivatives, integrals, differential
+  equations, infinite series, or continuous analysis where calculus is central.
+- precalculus: elementary functions, trigonometry, logarithms, exponentials,
+  conic/function graphs, and elementary sequences or function behavior not
+  requiring calculus.
+
+# BOUNDARY RULES #
+- Prefer the domain containing the indispensable solution machinery. Ignore
+  incidental notation and story context.
+- An integer-valued answer does not by itself make a problem number_theory.
+  Divisibility, congruence, primes, or genuinely integer-specific structure
+  must do central work.
+- Asking "how many" does not by itself make a problem discrete_mathematics;
+  use it only when combinatorial or finite-discrete structure does central work.
+- Asking for a maximum or minimum is a PROBLEM_TYPE distinction, not evidence
+  for applied_mathematics.
+- Use applied_mathematics for probability/statistics or substantive modeling,
+  not merely because a problem has a real-world story.
+- Use geometry when geometric incidence, shape, metric, or transformation is
+  central. Use precalculus for primarily algebraic manipulation of elementary
+  function graphs, trigonometric functions, or conics.
+- Use algebra for polynomial/equation/identity structure. Use precalculus when
+  the core is elementary function behavior, trigonometry, logarithms,
+  exponentials, or elementary sequences without calculus.
+- A recurrence arising from a finite counting structure is normally
+  discrete_mathematics; an elementary sequence studied as a function of its
+  index is normally precalculus.
+- The reference answer may clarify what output the question requests, but do
+  not judge whether the answer is correct and do not let its surface form
+  override the problem's mathematics.
+
+# CONFIDENCE AND ABSTENTION #
+- Return confidence="high" only when one domain is clearly primary under the
+  rules above.
+- Return confidence="low" when two or more domains remain comparably central.
+- Return domain=null when the text is not a mathematical question, is too
+  damaged to classify, or does not fit the vocabulary.
+- Even at low confidence, return the best single domain; the downstream map
+  will accept only high-confidence classifications.
+
+# RESPONSE FORMAT #
+Return one JSON object only, with no Markdown fence and no additional keys:
+{
+  "summary": "one brief sentence",
+  "domain": "algebra | geometry | number_theory | discrete_mathematics | applied_mathematics | calculus | precalculus | null",
+  "domain_path": "Mathematics -> <top-level domain display name> | null",
+  "confidence": "high | low",
+  "evidence": "one concrete sentence identifying the central mathematical machinery"
+}
+
+<math problem>
+[Question]:
+{{Question Here}}
+[Reference answer]:
+{{Reference Answer Here}}
+</math problem>

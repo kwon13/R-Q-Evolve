@@ -7,6 +7,7 @@ from rq_evolve.code_utils import (
     compile_stage2_reply,
     extract_problem_statement_template,
     extract_problem_template,
+    lint_compiled_stage2_semantics,
     lint_generator_source,
 )
 from rq_evolve.program import ProblemProgram
@@ -518,6 +519,62 @@ def test_candidate_cannot_forge_the_independent_check(core):
     source, reason = compile_stage2_reply(_reply(core), "Compute [[n]].")
     assert source is None
     assert "independent-check contract" in reason
+
+
+def test_loop_and_comprehension_over_same_predicate_are_one_count_route():
+    core = """
+def build_instance(rng):
+    lower_bound = rng.randint(-20, -1)
+    upper_bound = rng.randint(1, 20)
+    coefficient = rng.randint(1, 5)
+    values = []
+    for x in range(lower_bound, upper_bound + 1):
+        if lower_bound <= coefficient * x <= upper_bound:
+            values.append(x)
+    answer = len(values)
+    check = len([x for x in range(lower_bound, upper_bound + 1) if lower_bound <= coefficient * x <= upper_bound])
+    parameters = {"lower_bound": lower_bound, "upper_bound": upper_bound, "coefficient": coefficient}
+    return parameters, answer, check
+"""
+    source, reason = compile_stage2_reply(
+        _reply(core),
+        "How many integers x satisfy [[lower_bound]] <= [[coefficient]]x <= [[upper_bound]]?",
+    )
+    assert source is None
+    assert "A3v" in reason
+    assert "comprehension" in reason
+
+
+def test_outputs_cannot_be_overwritten_after_an_internal_cross_check():
+    core = """
+def build_instance(rng):
+    n = rng.randint(3, 20)
+    answer = n + 1
+    check = 1 + n
+    assert answer == check
+    answer = answer == "Yes"
+    check = answer == "Yes"
+    parameters = {"n": n}
+    return parameters, answer, check
+"""
+    source, reason = compile_stage2_reply(
+        _reply(core, mode="boolean"),
+        "Is [[n]] greater than zero? Answer Yes or No.",
+    )
+    assert source is None
+    assert "overwritten" in reason or "derived from answer" in reason
+
+
+def test_stored_trusted_source_is_reaudited_by_current_core_rules():
+    source = _compile(EXPRESSION_CORE)
+    historical = source.replace(
+        "check = sum(range(1, n + 1))",
+        "check = answer",
+        1,
+    )
+    findings = lint_compiled_stage2_semantics(historical)
+    assert findings
+    assert "A4d" in findings[0]
 
 
 def test_loop_bound_placeholder_is_connected_to_loop_carried_answer():

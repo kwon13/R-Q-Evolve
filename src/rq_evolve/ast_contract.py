@@ -345,6 +345,146 @@ def _route_normal_form(
     return tuple(parts)
 
 
+def _latest_value(name: str, visible: list[ast.stmt]) -> ast.expr | None:
+    """Last simple assignment to ``name`` visible at a cross-check."""
+
+    for stmt in reversed(visible):
+        if (
+            isinstance(stmt, ast.Assign)
+            and len(stmt.targets) == 1
+            and isinstance(stmt.targets[0], ast.Name)
+            and stmt.targets[0].id == name
+        ):
+            return stmt.value
+        if (
+            isinstance(stmt, ast.AnnAssign)
+            and isinstance(stmt.target, ast.Name)
+            and stmt.target.id == name
+            and stmt.value is not None
+        ):
+            return stmt.value
+    return None
+
+
+def _resolved_value(
+    operand: ast.expr, visible: list[ast.stmt], *, limit: int = 8
+) -> ast.expr:
+    """Resolve ordinary value assignments, not only pure aliases."""
+
+    value = operand
+    seen: set[str] = set()
+    for _ in range(limit):
+        if not isinstance(value, ast.Name) or value.id in seen:
+            break
+        seen.add(value.id)
+        source = _latest_value(value.id, visible)
+        if source is None:
+            break
+        value = source
+    return value
+
+
+def _canonical_loop_parts(
+    target: ast.expr, iterator: ast.expr, conditions: list[ast.expr]
+) -> tuple[str, tuple[str, ...]]:
+    bound = sorted(_stored_names(target))
+    mapping = {name: f"_item{index}" for index, name in enumerate(bound)}
+    iterator_dump = ast.dump(_rename(iterator, mapping), include_attributes=False)
+    condition_dump = tuple(
+        ast.dump(_rename(condition, mapping), include_attributes=False)
+        for condition in conditions
+    )
+    return iterator_dump, condition_dump
+
+
+def _imperative_count_signature(
+    collection: str, visible: list[ast.stmt]
+) -> tuple | None:
+    """Canonicalize ``for/if append`` and ``for/if += 1`` counts."""
+
+    for stmt in reversed(visible):
+        if not isinstance(stmt, ast.For):
+            continue
+        conditions: list[ast.expr] = []
+        body = list(stmt.body)
+        while len(body) == 1 and isinstance(body[0], ast.If) and not body[0].orelse:
+            conditions.append(body[0].test)
+            body = list(body[0].body)
+        if len(body) != 1:
+            continue
+        update = body[0]
+        matched = False
+        if (
+            isinstance(update, ast.Expr)
+            and isinstance(update.value, ast.Call)
+            and isinstance(update.value.func, ast.Attribute)
+            and update.value.func.attr == "append"
+            and isinstance(update.value.func.value, ast.Name)
+            and update.value.func.value.id == collection
+            and len(update.value.args) == 1
+        ):
+            matched = True
+        elif (
+            isinstance(update, ast.AugAssign)
+            and isinstance(update.target, ast.Name)
+            and update.target.id == collection
+            and isinstance(update.op, ast.Add)
+            and isinstance(update.value, ast.Constant)
+            and update.value.value == 1
+        ):
+            matched = True
+        if matched:
+            iterator, predicates = _canonical_loop_parts(
+                stmt.target, stmt.iter, conditions
+            )
+            return ("bounded_count", iterator, predicates)
+    return None
+
+
+def _count_route_signature(
+    operand: ast.expr, visible: list[ast.stmt]
+) -> tuple | None:
+    """Recognize semantically identical bounded counting idioms.
+
+    Alpha-equivalent ASTs already catch loop-vs-loop copies.  This extra narrow
+    normalizer closes the common 4B dodge where one side is a ``for`` loop and
+    the other is the same range/predicate written as a comprehension.
+    """
+
+    value = _resolved_value(operand, visible)
+    while (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Name)
+        and value.func.id in {"str", "int"}
+        and len(value.args) == 1
+        and not value.keywords
+    ):
+        value = _resolved_value(value.args[0], visible)
+
+    if (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Name)
+        and value.func.id == "len"
+        and len(value.args) == 1
+        and not value.keywords
+    ):
+        counted = value.args[0]
+        if isinstance(counted, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+            if len(counted.generators) != 1 or counted.generators[0].is_async:
+                return None
+            generator = counted.generators[0]
+            iterator, predicates = _canonical_loop_parts(
+                generator.target, generator.iter, list(generator.ifs)
+            )
+            return ("bounded_count", iterator, predicates)
+        if isinstance(counted, ast.Name):
+            return _imperative_count_signature(counted.id, visible)
+
+    if isinstance(value, ast.Name):
+        return _imperative_count_signature(value.id, visible)
+    return None
+
+
 def _is_zero(node: ast.expr) -> bool:
     return isinstance(node, ast.Constant) and node.value in (0, 0.0)
 
@@ -675,6 +815,24 @@ def check_generator_contract(source_code: str) -> list[Finding]:
                         "A4d",
                         "the cross-check is derived from the answer it is "
                         "supposed to verify",
+                        node.lineno,
+                    )
+                )
+                continue
+
+            answer_count = _count_route_signature(answer_side, visible)
+            check_count = _count_route_signature(check_side, visible)
+            if (
+                answer_count is not None
+                and check_count is not None
+                and answer_count == check_count
+            ):
+                diagnoses.append(
+                    Finding(
+                        "A3v",
+                        "the two sides count the same bounded range with the "
+                        "same predicate; rewriting a loop as a comprehension "
+                        "does not make an independent check",
                         node.lineno,
                     )
                 )

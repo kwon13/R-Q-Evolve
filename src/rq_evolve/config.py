@@ -34,6 +34,23 @@ class EvolutionConfig:
     seed_programs_dir: str = "seed_programs"
     inner_iterations: int = 8
     inner_iteration_batch_size: int = 4
+    # Optional bounded refill of the mutation pool. ``inner_iterations`` stays
+    # the minimum number of proposals, preserving every existing experiment.
+    # When enabled, further batches are sampled until either enough genuinely
+    # frontier children have entered MAP or enough frontier candidates have
+    # at least been measured to show that cell competition/novelty -- rather
+    # than generation volume -- is the bottleneck. The hard proposal cap is the
+    # only exhaustion condition: wall-clock limits are deliberately absent
+    # because throughput varies substantially across GPU environments.
+    adaptive_mutation_refill: bool = False
+    mutation_refill_max_iterations: int = 96
+    mutation_refill_target_frontier_insertions: int = 1
+    mutation_refill_target_frontier_candidates: int = 6
+    # Run score-independent archive novelty/variation gates after labeling but
+    # before solver rollout. Disabled by default because enabling it mid-run is
+    # archive-equivalent but not trajectory-equivalent: rejected duplicates no
+    # longer consume evaluation seeds or rollout compute.
+    archive_preflight_before_rollout: bool = False
     # G: rollouts per instance, and the group the advantage baseline averages
     # over. R_Q is estimated from ONE fresh instance x G rollouts and OVERWRITTEN
     # every re-evaluation -- Dynamic MAP-Elites semantics, and the same choice
@@ -72,6 +89,12 @@ class EvolutionConfig:
     eval_seeds: int | None = None
     rollouts_per_seed: int | None = None
     verify_seeds: int = 5
+    # Re-run the current deterministic source/statement contracts once for
+    # every champion already present when a process starts.  This is primarily
+    # a resume/migration guard: newly generated children already pass the same
+    # verifier before admission, while an old snapshot may contain champions
+    # accepted by weaker historical rules.
+    strict_champion_audit: bool = False
     frontier_s_hat_range: tuple[float, float] = (0.1, 0.9)
     # Deprecated spelling, from before the notation matched the paper. Every
     # config on disk still uses it, and _dataclass_from_dict silently DROPS an
@@ -256,6 +279,41 @@ class EvolutionConfig:
     archive_binning: str = "grid"
 
     def __post_init__(self) -> None:
+        if self.inner_iterations < 0:
+            raise ValueError("evolution.inner_iterations must be >= 0")
+        if self.inner_iteration_batch_size < 1:
+            raise ValueError(
+                "evolution.inner_iteration_batch_size must be >= 1"
+            )
+        if (
+            self.adaptive_mutation_refill
+            and self.mutation_refill_max_iterations < self.inner_iterations
+        ):
+            raise ValueError(
+                "evolution.mutation_refill_max_iterations must be >= "
+                "evolution.inner_iterations"
+            )
+        if (
+            self.adaptive_mutation_refill
+            and self.mutation_refill_max_iterations < 1
+        ):
+            raise ValueError(
+                "evolution.mutation_refill_max_iterations must be >= 1 when "
+                "adaptive mutation refill is enabled"
+            )
+        for name in (
+            "mutation_refill_target_frontier_insertions",
+            "mutation_refill_target_frontier_candidates",
+        ):
+            if int(getattr(self, name)) < 0:
+                raise ValueError(f"evolution.{name} must be >= 0")
+        if self.adaptive_mutation_refill and not (
+            self.mutation_refill_target_frontier_insertions > 0
+            or self.mutation_refill_target_frontier_candidates > 0
+        ):
+            raise ValueError(
+                "adaptive mutation refill needs at least one positive stop target"
+            )
         if self.group_size is None:
             # Legacy spellings, in the order they were introduced. n x m spent
             # n*m rollouts per program; num_rollouts spent that many directly.

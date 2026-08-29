@@ -1,5 +1,7 @@
 import collections
 import ast
+import copy
+import difflib
 import hashlib
 import json
 import math
@@ -23,6 +25,7 @@ from .code_utils import (
     compile_stage2_reply,
     extract_generator_code,
     lint_generator_source,
+    lint_compiled_stage2_semantics,
     lint_mutation_generator_source,
     lint_problem_instance,
     structural_inspiration_safety_reason,
@@ -93,6 +96,21 @@ class CandidateReport:
     # The one model-visible Stage-2 example selected for this proposal. Keeping
     # it on every outcome makes per-shot compile/verify survival measurable.
     stage2_one_shot: dict | None = None
+    # Stage 1 has already fixed these before Stage 2 writes code. Keeping the
+    # label-free family and its deterministic output type on compile/verify
+    # failures tells us whether code validity is blocking a potentially useful
+    # MAP column without pretending to know DOMAIN before the policy labeler
+    # has actually run.
+    child_family: str | None = None
+    prospective_problem_type: str | None = None
+    # Stage-1 plans copied from a concrete model-visible family example are
+    # rejected before the Stage-2 code call.  Keep the comparison so an empty
+    # downstream output is not mistaken for a sampling/parse failure.
+    stage1_copy_audit: dict | None = None
+    # Exact post-label archive decision for candidates that reach admission.
+    # This is per-candidate rather than an aggregate metric: it records the
+    # target cell, incumbent and whether novelty or cell competition refused it.
+    archive_decision: dict | None = None
 
 
 def _logged_source(source: str | None) -> str | None:
@@ -114,6 +132,9 @@ def _report_context(task: "MutationTask | None") -> dict:
             "parent_id": None,
             "inspiration": None,
             "stage2_one_shot": None,
+            "child_family": None,
+            "prospective_problem_type": None,
+            "stage1_copy_audit": None,
         }
     parent = getattr(task, "parent", None)
     provenance = dict(getattr(task, "provenance", {}) or {})
@@ -126,6 +147,67 @@ def _report_context(task: "MutationTask | None") -> dict:
             if provenance.get("stage2_one_shot") is not None
             else None
         ),
+        "child_family": provenance.get("child_family"),
+        "prospective_problem_type": provenance.get("prospective_problem_type"),
+        "stage1_copy_audit": (
+            dict(provenance["stage1_copy_audit"])
+            if provenance.get("stage1_copy_audit") is not None
+            else None
+        ),
+    }
+
+
+_FAMILY_COPY_PLACEHOLDER_RE = re.compile(r"\[\[[a-z][a-z0-9_]*\]\]")
+_FAMILY_COPY_TOKEN_RE = re.compile(r"[a-z0-9]+|\[\[slot\]\]")
+
+
+def _family_copy_form(family: str) -> str:
+    """Placeholder-insensitive text used only by the Stage-1 copy gate."""
+
+    text = _FAMILY_COPY_PLACEHOLDER_RE.sub("[[slot]]", str(family or "").lower())
+    return " ".join(_FAMILY_COPY_TOKEN_RE.findall(text))
+
+
+def _stage1_prompt_copy_audit(task: "MutationTask", child_family: str) -> dict:
+    """Compare a Stage-1 plan with the exact examples visible on that call."""
+
+    candidate = _family_copy_form(child_family)
+    candidate_tokens = set(candidate.split())
+    comparisons = []
+    for example in tuple((task.provenance or {}).get("stage1_visible_examples") or ()):
+        example_family = str((example or {}).get("family", ""))
+        reference = _family_copy_form(example_family)
+        reference_tokens = set(reference.split())
+        ratio = difflib.SequenceMatcher(None, candidate, reference).ratio()
+        union = candidate_tokens | reference_tokens
+        jaccard = (
+            len(candidate_tokens & reference_tokens) / len(union) if union else 0.0
+        )
+        exact = bool(candidate and candidate == reference)
+        # The high near-copy thresholds deliberately avoid treating a shared
+        # output phrase ("Compute ...", "Find all ...") as imitation.  Their
+        # purpose is to catch a concrete worked family with placeholders merely
+        # renamed or lightly paraphrased, not to police mathematical topics.
+        rejected = exact or ratio >= 0.92 or jaccard >= 0.90
+        comparisons.append(
+            {
+                "visible_index": int((example or {}).get("visible_index", 0)),
+                "family_sha256": str((example or {}).get("family_sha256", "")),
+                "exact": exact,
+                "sequence_ratio": round(float(ratio), 6),
+                "token_jaccard": round(float(jaccard), 6),
+                "rejected": bool(rejected),
+            }
+        )
+    rejection = next((item for item in comparisons if item["rejected"]), None)
+    return {
+        "checked": bool(comparisons),
+        "rejected": rejection is not None,
+        "reason": "stage1_visible_example_copy" if rejection is not None else None,
+        "visible_index": (
+            rejection.get("visible_index") if rejection is not None else None
+        ),
+        "comparisons": comparisons,
     }
 
 
@@ -243,6 +325,15 @@ class RQEvolver:
     inspiration_draw_count: int = 0
     mutation_prompt_draw_count: int = 0
     search_draw_count: int = 0
+    # Process-local by design: a resumed process audits the restored snapshot
+    # once under the code/rules it actually loaded, while a live process does
+    # not repay the deterministic audit every outer iteration.
+    strict_champion_audit_completed: bool = field(
+        default=False, init=False, repr=False
+    )
+    strict_champion_audit_stats: dict[str, int] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         expected = bool(self.evolution_config.independent_domain_labeling)
@@ -348,6 +439,8 @@ class RQEvolver:
         self,
         program: ProblemProgram,
         n_seeds: int | None = None,
+        *,
+        reserve_seed_stream: bool = True,
     ) -> tuple[ProblemInstance | None, str | None]:
         """Multi-seed validity plus deterministic descriptor verification.
 
@@ -413,6 +506,9 @@ class RQEvolver:
         ):
             program.metadata.pop(key, None)
         if is_generated_mutation:
+            source_errors.extend(
+                lint_compiled_stage2_semantics(program.source_code)
+            )
             # Determinism only: a seeded `rng`, no direct `random.*` calls, and
             # sorted() around dict/set iteration, so a program yields the same
             # instance in the verifier and in every later rollout process.
@@ -695,8 +791,59 @@ class RQEvolver:
         # Move past verification seeds so the first scored instance is fresh.
         # Doing this after every gate also leaves a rejected candidate with no
         # certified metadata and no consumed scoring cursor.
-        self.seed_stream.reserve_through(program.program_id, n - 1)
+        if reserve_seed_stream:
+            self.seed_stream.reserve_through(program.program_id, n - 1)
         return first, None
+
+    def audit_champions_strict_once(self) -> dict[str, int]:
+        """Evict snapshot champions that fail today's deterministic verifier.
+
+        The probe is a deep copy so ``verify_program`` can clear and rebuild
+        descriptor metadata without mutating a valid incumbent.  DOMAIN is not
+        re-labeled here: this audit checks source, statement, answer/check and
+        PROBLEM_TYPE consistency only, preserving the deliberately final-only
+        DOMAIN labeling stage.
+        """
+
+        if self.strict_champion_audit_completed:
+            return dict(self.strict_champion_audit_stats)
+        self.strict_champion_audit_completed = True
+        champions = list(self.archive.champions())
+        checked = evicted = 0
+        for champion in champions:
+            checked += 1
+            probe = ProblemProgram(
+                source_code=champion.source_code,
+                program_id=champion.program_id,
+                parent_id=champion.parent_id,
+                generation=champion.generation,
+                metadata=copy.deepcopy(champion.metadata),
+            )
+            _instance, reason = self.verify_program(
+                probe,
+                n_seeds=self.evolution_config.verify_seeds,
+                reserve_seed_stream=False,
+            )
+            if reason is None:
+                continue
+            removed_cells = self.archive.remove_program(champion.program_id)
+            if not removed_cells:
+                continue
+            evicted += 1
+            self.events.append(
+                {
+                    "event": "strict_champion_audit_evicted",
+                    "iteration": self.current_iteration,
+                    "program_id": champion.program_id,
+                    "cells": [list(cell) for cell in removed_cells],
+                    "reason": reason,
+                }
+            )
+        self.strict_champion_audit_stats = {
+            "strict_champion_audit_checked": checked,
+            "strict_champion_audit_evicted": evicted,
+        }
+        return dict(self.strict_champion_audit_stats)
 
     def run_outer_iteration(self, outer_iteration: int) -> dict:
         self.current_iteration = int(outer_iteration)
@@ -709,6 +856,9 @@ class RQEvolver:
         # iteration would need an importance-ratio correction this design does
         # not have, so the buffer starts empty every time.
         self.replay.begin_iteration(outer_iteration)
+
+        if self.evolution_config.strict_champion_audit:
+            self.audit_champions_strict_once()
 
         # Push current actor weights into vLLM ONCE for the whole evolve phase.
         # Evolve runs no optimizer step, so weights are static throughout:
@@ -735,16 +885,61 @@ class RQEvolver:
         # that is about to update theta_t -> theta_{t+1}.
         training_pool = list(self.archive.champions())
 
-        batch_size = self.evolution_config.inner_iteration_batch_size
-        for start in range(0, self.evolution_config.inner_iterations, batch_size):
-            current_batch = min(
-                batch_size,
-                self.evolution_config.inner_iterations - start,
-            )
+        cfg = self.evolution_config
+        batch_size = cfg.inner_iteration_batch_size
+        minimum_slots = int(cfg.inner_iterations)
+        maximum_slots = (
+            int(cfg.mutation_refill_max_iterations)
+            if cfg.adaptive_mutation_refill
+            else minimum_slots
+        )
+        sampled_slots = 0
+        mutation_batches = 0
+        mutation_frontier_candidates = 0
+        mutation_frontier_insertions = 0
+        mutation_refill_stop_reason = (
+            "fixed_budget" if not cfg.adaptive_mutation_refill else "maximum_slots"
+        )
+        low, high = cfg.frontier_s_hat_range
+        while sampled_slots < maximum_slots:
+            current_batch = min(batch_size, maximum_slots - sampled_slots)
             batch_reports = self.inner_iteration_batch(current_batch)
+            mutation_batches += 1
+            sampled_slots += current_batch
             reports.extend(batch_reports)
             attempted += sum(1 for r in batch_reports if r.status != "no_parent")
             inserted += sum(1 for r in batch_reports if r.status == "inserted")
+            batch_frontier = [
+                r
+                for r in batch_reports
+                if is_frontier(float(r.s_hat), low, high)
+            ]
+            mutation_frontier_candidates += len(batch_frontier)
+            mutation_frontier_insertions += sum(
+                1 for r in batch_frontier if r.status == "inserted"
+            )
+
+            # ``inner_iterations`` is a strict minimum, so enabling refill
+            # cannot silently make an existing experiment cheaper. Targets are
+            # OR conditions: insertion says useful MAP supply was restored;
+            # measured frontier candidates say further brute force is unlikely
+            # to solve a competition/novelty bottleneck this iteration.
+            if not cfg.adaptive_mutation_refill or sampled_slots < minimum_slots:
+                continue
+            if (
+                cfg.mutation_refill_target_frontier_insertions > 0
+                and mutation_frontier_insertions
+                >= cfg.mutation_refill_target_frontier_insertions
+            ):
+                mutation_refill_stop_reason = "frontier_insertion_target"
+                break
+            if (
+                cfg.mutation_refill_target_frontier_candidates > 0
+                and mutation_frontier_candidates
+                >= cfg.mutation_refill_target_frontier_candidates
+            ):
+                mutation_refill_stop_reason = "frontier_candidate_target"
+                break
 
         self.refresh_dataset(training_champions=training_pool)
         stats = self.archive.stats()
@@ -873,6 +1068,18 @@ class RQEvolver:
         )
         insert_metrics = {f"insert_rejected_{k}": v for k, v in insert_rejects.items()}
         insert_metrics["insert_rejected"] = sum(insert_rejects.values())
+        preflight_rejects = collections.Counter(
+            e.get("reason")
+            for e in self.events
+            if e.get("event") == "archive_preflight_rejected"
+        )
+        preflight_metrics = {
+            f"archive_preflight_rejected_{k}": v
+            for k, v in preflight_rejects.items()
+        }
+        preflight_metrics["archive_preflight_rejected"] = sum(
+            preflight_rejects.values()
+        )
         domain_labeling_metrics = dict(
             getattr(self, "_domain_labeling_stats", {}) or {}
         )
@@ -887,10 +1094,21 @@ class RQEvolver:
             "frontier_out": len(self.last_frontier) - frontier_in,
             "group_size": self.evolution_config.group_size,
             "train_batch_target": self.evolution_config.train_batch_target,
+            **dict(self.strict_champion_audit_stats),
+            "mutation_refill_enabled": int(cfg.adaptive_mutation_refill),
+            "archive_preflight_enabled": int(
+                cfg.archive_preflight_before_rollout
+            ),
+            "mutation_sampled_slots": sampled_slots,
+            "mutation_batches": mutation_batches,
+            "mutation_frontier_candidates": mutation_frontier_candidates,
+            "mutation_frontier_insertions": mutation_frontier_insertions,
+            "mutation_refill_stop_reason": mutation_refill_stop_reason,
             **dispersion_metrics,
             **replay_metrics,
             **grader_metrics,
             **insert_metrics,
+            **preflight_metrics,
             **domain_labeling_metrics,
             **inspiration_metrics,
             **status_counts,
@@ -1078,6 +1296,13 @@ class RQEvolver:
                     )
                 else:
                     compile_status = "mutation_failed" if not output else "no_code"
+                    if (
+                        not output
+                        and ((task.provenance or {}).get("stage1_copy_audit") or {}).get(
+                            "rejected"
+                        )
+                    ):
+                        compile_status = "stage1_example_copy_rejected"
                     lowered_reason = str(reason or "").lower()
                     if output and "invalid:" in lowered_reason:
                         compile_status = "stage2_invalid"
@@ -1105,6 +1330,36 @@ class RQEvolver:
             # generate reuses the already-awake rollout worker.
             self._resolve_retries(entries)
             self._apply_domain_labeling(entries)
+
+            # DOMAIN and PROBLEM_TYPE are now authoritative, so every
+            # score-independent archive gate can run before solver rollout.
+            # Final admission repeats the check because an earlier child from
+            # this flat batch may enter the archive in the meantime.
+            if self.evolution_config.archive_preflight_before_rollout:
+                for entry in entries:
+                    if "child" not in entry:
+                        continue
+                    task, child = entry["task"], entry["child"]
+                    passed, archive_decision = (
+                        self._archive_preflight_with_telemetry(child)
+                    )
+                    if passed:
+                        continue
+                    report = CandidateReport(
+                        status="archive_preflight_rejected",
+                        op=task.op,
+                        child_id=child.program_id,
+                        reason=str(archive_decision.get("reason") or "rejected"),
+                        source_code=_logged_source(child.source_code),
+                        ast_findings=_ast_findings(child),
+                        domain_labeling=dict(
+                            (child.metadata or {}).get("domain_labeling") or {}
+                        ),
+                        archive_decision=archive_decision,
+                        **_report_context(task),
+                    )
+                    entry.clear()
+                    entry["report"] = report
 
             to_eval = [e for e in entries if "child" in e]
             # A candidate is graded on fresh seeds beyond those used by the
@@ -1169,7 +1424,7 @@ class RQEvolver:
             # and it still contributes no training examples (the frontier band
             # in dataset.py drops p=0 and p=1), but it can hold an otherwise
             # empty cell and be drawn as a mutation parent from there.
-            inserted = self._try_insert_with_telemetry(
+            inserted, archive_decision = self._try_insert_with_telemetry(
                 program=child,
                 u_value=result.u_score,
                 rq_score=result.rq_score,
@@ -1199,6 +1454,10 @@ class RQEvolver:
                     u_score=result.u_score,
                     source_code=_logged_source(child.source_code),
                     ast_findings=_ast_findings(child),
+                    domain_labeling=dict(
+                        (child.metadata or {}).get("domain_labeling") or {}
+                    ),
+                    archive_decision=archive_decision,
                     **_report_context(task),
                 )
             )
@@ -1606,6 +1865,21 @@ class RQEvolver:
             plan = parse_family_plan(family_reply)
             if plan is None:
                 return None, None
+            family_task = family_tasks[index]
+            family_task.provenance["child_family"] = plan["CHILD FAMILY"]
+            family_task.provenance["prospective_problem_type"] = (
+                annotate_problem_type(plan["CHILD FAMILY"]).problem_type
+            )
+            stage1_copy = _stage1_prompt_copy_audit(
+                family_task, plan["CHILD FAMILY"]
+            )
+            family_task.provenance["stage1_copy_audit"] = stage1_copy
+            if stage1_copy["rejected"]:
+                family_task.provenance["stage1_rejection_reason"] = (
+                    "Stage-1 CHILD FAMILY copies a visible worked example: "
+                    f"example={stage1_copy.get('visible_index')}"
+                )
+                return None, None
             provenance = dict(family_tasks[index].provenance)
             provenance["family_plan"] = {
                 key: plan[key]
@@ -1713,7 +1987,10 @@ class RQEvolver:
         parsed program (None if the output had no parseable ``generate``).
         """
         if not output:
-            return None, None, "empty model output", None
+            rejection = str(
+                (task.provenance or {}).get("stage1_rejection_reason", "")
+            ).strip()
+            return None, None, rejection or "empty model output", None
         family_plan = dict((task.provenance or {}).get("family_plan") or {})
         if task.stage == "generator":
             family = str(family_plan.get("CHILD FAMILY", "")).strip()
@@ -2104,7 +2381,7 @@ class RQEvolver:
             # dropped. Removing it emptied the cell and left the grid with no
             # record that the region had ever been reached; keeping it means the
             # cell reports what is actually the best generator found for it.
-            inserted = self._try_insert_with_telemetry(
+            inserted, _archive_decision = self._try_insert_with_telemetry(
                 program=champion,
                 u_value=result.u_score,
                 rq_score=result.rq_score,
@@ -2121,6 +2398,50 @@ class RQEvolver:
                     }
                 )
 
+    def _archive_preflight_with_telemetry(
+        self, program: ProblemProgram
+    ) -> tuple[bool, dict]:
+        """Reject existing archive duplicates before solver rollouts are paid."""
+
+        placement_cell = self.archive.placement_cell(program)
+        incumbent = (
+            self.archive.grid[placement_cell].champion
+            if placement_cell is not None
+            else None
+        )
+        passed = self.archive.passes_admission_preflight(program)
+        reason = None if passed else (program.metadata or {}).get(
+            "archive_status", "archive_preflight_rejected"
+        )
+        decision = {
+            "phase": "preflight",
+            "accepted": bool(passed),
+            "reason": reason,
+            "placement_cell": (
+                list(placement_cell) if placement_cell is not None else None
+            ),
+            "placement_labels": (
+                list(self.archive.cell_labels(placement_cell))
+                if placement_cell is not None
+                else None
+            ),
+            "incumbent_program_id": (
+                incumbent.program_id if incumbent is not None else None
+            ),
+            "incumbent_rq": (
+                float(incumbent.rq_score) if incumbent is not None else None
+            ),
+        }
+        if not passed:
+            self.events.append(
+                {
+                    "event": "archive_preflight_rejected",
+                    "program_id": program.program_id,
+                    **decision,
+                }
+            )
+        return passed, decision
+
     def _try_insert_with_telemetry(
         self,
         *,
@@ -2128,7 +2449,7 @@ class RQEvolver:
         u_value: float,
         rq_score: float,
         source: str = "mutation",
-    ) -> bool:
+    ) -> tuple[bool, dict]:
         placement_cell = self.archive.placement_cell(program)
         incumbent = (
             self.archive.grid[placement_cell].champion
@@ -2140,6 +2461,29 @@ class RQEvolver:
             u_value=u_value,
             rq_score=rq_score,
         )
+        rejection_reason = None if inserted else (program.metadata or {}).get(
+            "archive_status", "lost_cell_contest"
+        )
+        decision = {
+            "phase": "final_admission",
+            "accepted": bool(inserted),
+            "reason": rejection_reason,
+            "placement_cell": (
+                list(placement_cell) if placement_cell is not None else None
+            ),
+            "placement_labels": (
+                list(self.archive.cell_labels(placement_cell))
+                if placement_cell is not None
+                else None
+            ),
+            "incumbent_program_id": (
+                incumbent.program_id if incumbent is not None else None
+            ),
+            "incumbent_rq": (
+                float(incumbent.rq_score) if incumbent is not None else None
+            ),
+            "incoming_rq": float(rq_score),
+        }
         if not inserted:
             # WHY it was refused. try_insert distinguishes six rejections --
             # unlabelled, seed_variation, duplicate_behavior, duplicate_template,
@@ -2156,9 +2500,7 @@ class RQEvolver:
                 {
                     "event": "insert_rejected",
                     "source": source,
-                    "reason": (program.metadata or {}).get(
-                        "archive_status", "lost_cell_contest"
-                    ),
+                    "reason": rejection_reason,
                     "program_id": program.program_id,
                     "rq_score": float(rq_score),
                     "placement_cell": (
@@ -2185,7 +2527,7 @@ class RQEvolver:
                     "evicted_rq": float(incumbent.rq_score),
                 }
             )
-        return inserted
+        return inserted, decision
 
     def refresh_dataset(
         self,

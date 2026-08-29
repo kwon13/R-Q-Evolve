@@ -5,6 +5,7 @@ Aim for one coherent mathematical idea requiring roughly one or two dependent re
 The child must be self-contained and have an unambiguous, automatically gradable answer with a finite exact representation. Solve the child internally before answering.
 "Finite" refers to the representation of the requested answer. The mathematical domain and feasible set may be finite or continuous. Continuous variables, mathematical mappings, probability models, derivatives, integrals, and extrema over continuous sets are all valid when the requested result has an exact finite representation and can be mechanically verified. Preserve the natural mathematical domain of the child.
 Choose the quantities that define the parameterized child family. Represent every varying quantity with exactly one placeholder of the form [[descriptive_name]], using descriptive lower_snake_case names consistently throughout the family.
+The worked examples demonstrate the mutation contract only. Do not reuse or lightly paraphrase any example's CHILD FAMILY, mathematical objects, or defining relation; the new child must be derived from the supplied parent and be distinct from every example shown.
 
 End with one explicit output request whose contract is mechanically recognizable: a Yes/No question,
 Find all members of a finite set, How many, a maximum/minimum value, or an ordinary Compute/Evaluate/What-is-value request. Choose freely among these; none is a requested destination. Do not write a DOMAIN or problem-type label.

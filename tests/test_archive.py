@@ -285,6 +285,31 @@ def test_a_restatement_of_another_cell_is_not_new_coverage():
     assert len(archive.champions()) == 1
 
 
+def test_duplicate_preflight_rejects_without_mutating_archive():
+    """Score-independent novelty gates can run before solver rollouts."""
+
+    archive = MAPElitesArchive(selection_strategy="random")
+    first = _family(
+        "number_theory",
+        "counting",
+        "Let n = {n}. How many positive divisors does n have? State only the integer.",
+    )
+    restated = _family(
+        "number_theory",
+        "function",
+        "Let n = {n} be positive. How many positive divisors does n have? State only the integer.",
+    )
+    assert archive.try_insert(first, u_value=0.4, rq_score=0.2)
+    before = archive.to_payload()
+
+    assert archive.passes_admission_preflight(restated) is False
+    assert restated.metadata["archive_status"] in {
+        "near_duplicate_template_rejected",
+        "structural_duplicate_rejected",
+    }
+    assert archive.to_payload() == before
+
+
 def test_a_genuinely_different_question_still_gets_its_cell():
     """The gate is text similarity, which is a weak proxy for mathematical
     sameness -- so it sits high enough that neighbouring questions survive."""

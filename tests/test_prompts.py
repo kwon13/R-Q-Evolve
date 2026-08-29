@@ -10,7 +10,7 @@ from rq_evolve.archive import MAPElitesArchive
 from rq_evolve.code_utils import compile_stage2_reply
 from rq_evolve.concepts import DOMAINS, PROBLEM_TYPES
 from rq_evolve.config import EvolutionConfig
-from rq_evolve.evolution import RQEvolver
+from rq_evolve.evolution import RQEvolver, _stage1_prompt_copy_audit
 from rq_evolve.problem_type import annotate_problem_type
 from rq_evolve.program import ProblemProgram
 from rq_evolve.prompts import (
@@ -107,6 +107,32 @@ def test_stage_one_balanced_bank_rotates_three_of_seven_examples():
         "geometric sequence",
     ):
         assert child_signal in full_system
+
+
+def test_stage_one_records_only_the_examples_visible_on_that_call():
+    task = build_family_task(
+        _program(), rotate_shots=True, rng=random.Random(7)
+    )
+    visible = task.provenance["stage1_visible_examples"]
+    assert len(visible) == prompts.FAMILY_SHOTS_SHOWN
+    assert all(item["family"] in task.messages[0]["content"] for item in visible)
+    assert all(len(item["family_sha256"]) == 64 for item in visible)
+
+
+def test_stage_one_copy_gate_rejects_visible_family_with_renamed_placeholders():
+    task = build_family_task(_program())
+    shown = task.provenance["stage1_visible_examples"][0]["family"]
+    renamed = re.sub(r"\[\[[a-z][a-z0-9_]*\]\]", "[[renamed_slot]]", shown)
+    audit = _stage1_prompt_copy_audit(task, renamed)
+    assert audit["rejected"] is True
+    assert audit["reason"] == "stage1_visible_example_copy"
+
+    novel = _stage1_prompt_copy_audit(
+        task,
+        "A matrix has trace [[trace_value]] and determinant [[determinant]]. "
+        "Compute its characteristic polynomial.",
+    )
+    assert novel["rejected"] is False
 
 
 def test_stage_two_uses_header_contract_without_a_target():

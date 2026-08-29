@@ -555,6 +555,40 @@ def _split_family_system(text: str):
     return head, blocks, tail
 
 
+def _visible_family_examples(system_prompt: str) -> tuple[dict[str, str | int], ...]:
+    """Audit metadata for the concrete Stage-1 examples shown to the model.
+
+    Stage 1 rotates the bank, so the copy gate must compare against the exact
+    subset visible on this proposal rather than every example that happens to
+    exist on disk.  The metadata is never rendered back into either model
+    call; it travels only in :class:`MutationTask.provenance`.
+    """
+
+    examples: list[dict[str, str | int]] = []
+    for visible_index, match in enumerate(
+        _FAMILY_EXAMPLE_RE.finditer(system_prompt), start=1
+    ):
+        block = match.group(0)
+        family_match = re.search(
+            r"^[ \t]*CHILD FAMILY[ \t]*:[ \t]*(.+)$",
+            block,
+            re.MULTILINE,
+        )
+        if family_match is None:
+            raise ValueError("Stage-1 example is missing one CHILD FAMILY line")
+        family = family_match.group(1).strip()
+        if _family_placeholder_names(family) is None:
+            raise ValueError("Stage-1 example has an invalid CHILD FAMILY")
+        examples.append(
+            {
+                "visible_index": visible_index,
+                "family": family,
+                "family_sha256": hashlib.sha256(family.encode("utf-8")).hexdigest(),
+            }
+        )
+    return tuple(examples)
+
+
 # All three fields are part of the live Stage-1 contract.  In particular,
 # accepting a family without WHY FINITE only to ask Stage 2 to return INVALID
 # wastes a model call and records the failure at the wrong boundary.
@@ -667,6 +701,9 @@ def build_family_task(
             blocks = list(blocks)
             rng.shuffle(blocks)
         system_prompt = head + "".join(blocks) + tail
+    task_provenance["stage1_visible_examples"] = list(
+        _visible_family_examples(system_prompt)
+    )
     if inspiration_template:
         # The behavioural rules belong in the system turn; the donor's one
         # permitted artefact (its parameterized statement skeleton) belongs in
@@ -828,6 +865,12 @@ def build_generator_task(
         },
     )
     task_provenance = dict(provenance or {})
+    # Audit-only: neither value is rendered from provenance. Recording the
+    # already-fixed Stage-1 family lets compile/verification failures be grouped
+    # by the MAP's deterministic PROBLEM_TYPE axis even though DOMAIN labeling
+    # correctly remains downstream of successful program verification.
+    task_provenance["child_family"] = plan["CHILD FAMILY"]
+    task_provenance["prospective_problem_type"] = annotation.problem_type
     task_provenance["stage2_one_shot"] = {
         "example_index": shot.index,
         "domain": shot.domain,

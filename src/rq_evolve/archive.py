@@ -408,6 +408,61 @@ class MAPElitesArchive:
         # so an R_Q=0 champion yields to the first scoring program that
         # arrives and never displaces one.
         #
+        if not self.passes_admission_preflight(program):
+            return False
+
+        certification = (program.metadata or {}).get(
+            "structural_donor_certification"
+        ) or {}
+        if certification.get("passed"):
+            self.structural_donors[program.program_id] = program
+
+        niche = self.grid[cell]
+        # Champion competition ranks by selection priority: real R_Q in
+        # production, s(1-s) under the select_ignores_uncertainty ablation
+        # (program.rq_score / s_hat are already set above). The stored
+        # champion_rq stays the real R_Q, so the MAP still logs true scores --
+        # only the winner choice is H-blind under the ablation.
+        new_priority = self._select_priority(program)
+        if niche.champion is None or new_priority > self._select_priority(
+            niche.champion
+        ):
+            event = "inserted" if niche.champion is None else "replaced"
+            if niche.champion is not None:
+                self.total_replacements += 1
+            niche.champion = program
+            niche.champion_rq = float(rq_score)
+            program.metadata["archive_status"] = "champion"
+            niche.update_count += 1
+            niche.history.append(
+                {
+                    "event": event,
+                    "program_id": program.program_id,
+                    "rq_score": float(rq_score),
+                }
+            )
+            self.total_insertions += 1
+            # Archive-global uniqueness: one generator occupies one cell only.
+            self._purge_program_from_other_cells(program.program_id, keep_cell=cell)
+            return True
+        program.metadata["archive_status"] = "lost_cell_contest"
+        return False
+
+    def passes_admission_preflight(self, program: ProblemProgram) -> bool:
+        """Run score-independent archive gates without mutating the grid.
+
+        Candidate generation used to pay for all solver rollouts before these
+        deterministic checks ran inside :meth:`try_insert`. Running the same
+        checks after DOMAIN labeling but before rollout scoring rejects an
+        existing archive duplicate cheaply. ``try_insert`` intentionally runs
+        them again: another child from the same flat batch may have entered the
+        archive between preflight and final admission.
+        """
+
+        if self._insert_cell(program) is None:
+            program.metadata["archive_status"] = "unlabelled_rejected"
+            return False
+
         # 1. Strict seed-variation: block near-constant / thin-rewording
         #    generators before they pollute the archive and mutation chain.
         if not self._passes_seed_variation(program):
@@ -446,42 +501,7 @@ class MAPElitesArchive:
             program.metadata["duplicate_of"] = other.program_id
             program.metadata["structural_ratio"] = round(ratio, 3)
             return False
-
-        certification = (program.metadata or {}).get(
-            "structural_donor_certification"
-        ) or {}
-        if certification.get("passed"):
-            self.structural_donors[program.program_id] = program
-
-        niche = self.grid[cell]
-        # Champion competition ranks by selection priority: real R_Q in
-        # production, s(1-s) under the select_ignores_uncertainty ablation
-        # (program.rq_score / s_hat are already set above). The stored
-        # champion_rq stays the real R_Q, so the MAP still logs true scores --
-        # only the winner choice is H-blind under the ablation.
-        new_priority = self._select_priority(program)
-        if niche.champion is None or new_priority > self._select_priority(
-            niche.champion
-        ):
-            event = "inserted" if niche.champion is None else "replaced"
-            if niche.champion is not None:
-                self.total_replacements += 1
-            niche.champion = program
-            niche.champion_rq = float(rq_score)
-            program.metadata["archive_status"] = "champion"
-            niche.update_count += 1
-            niche.history.append(
-                {
-                    "event": event,
-                    "program_id": program.program_id,
-                    "rq_score": float(rq_score),
-                }
-            )
-            self.total_insertions += 1
-            # Archive-global uniqueness: one generator occupies one cell only.
-            self._purge_program_from_other_cells(program.program_id, keep_cell=cell)
-            return True
-        return False
+        return True
 
     def placement_cell(self, program: ProblemProgram) -> tuple[int, int] | None:
         """Return the post-hoc cell a verified program would enter.

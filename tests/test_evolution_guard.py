@@ -10,12 +10,135 @@ now yields None for those groups and callers keep prior scores.
 from types import SimpleNamespace
 from dataclasses import asdict
 
+import pytest
+
 from rq_evolve.archive import MAPElitesArchive
 from rq_evolve.backends import PendingRollouts, RolloutRecord
 from rq_evolve.config import ArchiveConfig, EvolutionConfig
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.program import ProblemProgram
 from rq_evolve.prompts import MUTATION_OP
+
+
+def test_adaptive_mutation_refill_is_bounded_and_stops_on_frontier_supply():
+    """Refill adds whole batches but can never run past the proposal cap."""
+
+    from rq_evolve.evolution import CandidateReport
+
+    class Backend:
+        @staticmethod
+        def sync_weights():
+            pass
+
+    config = EvolutionConfig(
+        inner_iterations=2,
+        inner_iteration_batch_size=2,
+        adaptive_mutation_refill=True,
+        mutation_refill_max_iterations=6,
+        mutation_refill_target_frontier_insertions=1,
+        mutation_refill_target_frontier_candidates=3,
+        reevaluate_champions=False,
+    )
+    evolver = RQEvolver(
+        archive=MAPElitesArchive(**asdict(ArchiveConfig())),
+        backend=Backend(),
+        evolution_config=config,
+    )
+    batches = [
+        [
+            CandidateReport(status="rejected_non_elite", op="mutate", s_hat=0.5),
+            CandidateReport(status="verify_failed", op="mutate"),
+        ],
+        [
+            CandidateReport(status="rejected_non_elite", op="mutate", s_hat=0.5),
+            CandidateReport(status="inserted", op="mutate", s_hat=0.5),
+        ],
+    ]
+    evolver.inner_iteration_batch = lambda _size: batches.pop(0)
+    evolver.refresh_dataset = lambda **_kwargs: None
+
+    metrics = evolver.run_outer_iteration(1)
+
+    assert metrics["mutation_sampled_slots"] == 4
+    assert metrics["mutation_batches"] == 2
+    assert metrics["mutation_frontier_candidates"] == 3
+    assert metrics["mutation_frontier_insertions"] == 1
+    assert metrics["mutation_refill_stop_reason"] == "frontier_insertion_target"
+
+
+def test_adaptive_mutation_refill_rejects_an_unbounded_configuration():
+    with pytest.raises(ValueError, match="positive stop target"):
+        EvolutionConfig(
+            adaptive_mutation_refill=True,
+            mutation_refill_target_frontier_insertions=0,
+            mutation_refill_target_frontier_candidates=0,
+        )
+
+
+def test_strict_champion_audit_evicts_invalid_snapshot_programs_once():
+    archive = MAPElitesArchive(**asdict(ArchiveConfig()))
+    good = ProblemProgram("def generate(seed):\n    return 'Compute 1.', '1'\n", program_id="good")
+    bad = ProblemProgram("def generate(seed):\n    return 'Compute 2.', '2'\n", program_id="bad")
+    archive.grid[(0, 0)].champion = good
+    archive.grid[(0, 1)].champion = bad
+    evolver = RQEvolver(
+        archive=archive,
+        backend=SimpleNamespace(),
+        evolution_config=EvolutionConfig(strict_champion_audit=True),
+    )
+    calls = []
+
+    def fake_verify(program, **kwargs):
+        calls.append((program.program_id, kwargs.get("reserve_seed_stream")))
+        return (None, "bad historical contract") if program.program_id == "bad" else (object(), None)
+
+    evolver.verify_program = fake_verify
+    first = evolver.audit_champions_strict_once()
+    second = evolver.audit_champions_strict_once()
+
+    assert first == second == {
+        "strict_champion_audit_checked": 2,
+        "strict_champion_audit_evicted": 1,
+    }
+    assert [program.program_id for program in archive.champions()] == ["good"]
+    assert calls == [("good", False), ("bad", False)]
+    assert evolver.events[-1]["event"] == "strict_champion_audit_evicted"
+
+
+def test_stage_one_visible_example_copy_never_reaches_stage_two():
+    parent = _program("parent")
+
+    class Backend:
+        calls = 0
+
+        def mutate(self, tasks):
+            self.calls += 1
+            assert all(task.stage == "family" for task in tasks)
+            shown = tasks[0].provenance["stage1_visible_examples"][0]["family"]
+            return [
+                "STRUCTURAL MUTATION: copy the worked family\n"
+                f"CHILD FAMILY: {shown}\n"
+                "WHY FINITE: the shown family has a finite exact answer"
+            ]
+
+    backend = Backend()
+    evolver = RQEvolver(
+        archive=MAPElitesArchive(),
+        backend=backend,
+        evolution_config=EvolutionConfig(
+            two_stage_mutation=True, rotate_few_shots=False
+        ),
+    )
+    tasks, outputs, _ = evolver._mutate_in_two_stages([parent])
+    child, instance, reason, source = evolver._make_child_from_output(
+        tasks[0], outputs[0]
+    )
+
+    assert backend.calls == 1
+    assert outputs == [None]
+    assert child is instance is source is None
+    assert "copies a visible worked example" in reason
+    assert tasks[0].provenance["stage1_copy_audit"]["rejected"] is True
 
 
 class ScriptedBackend:

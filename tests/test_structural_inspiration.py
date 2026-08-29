@@ -566,6 +566,14 @@ def test_donor_relative_copy_rejection_does_not_poison_same_source_for_another_d
     )
     evolver.verify_program = lambda child, **_kwargs: (instance, None)
     evolver.draw_instances = lambda child: [instance]
+    # This test stubs verification and therefore does not write the descriptor
+    # contract that the real verifier writes before archive preflight. Its
+    # subject is donor-relative copy handling, so let the surviving proposal
+    # reach the rollout boundary explicitly.
+    evolver._archive_preflight_with_telemetry = lambda child: (
+        True,
+        {"phase": "preflight", "accepted": True},
+    )
 
     with pytest.raises(ReachedRollout, match="1"):
         evolver.inner_iteration_batch(2)

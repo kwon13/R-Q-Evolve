@@ -100,9 +100,16 @@ generated child는 destination을 받지 않은 채 다음 순서로 확인됩�
    high-confidence이고 하나로 일치하는지 확인;
 6. prompt-example 및 optional structural-donor copy rejection;
 7. 7개 restricted YES/NO score의 argmax·confidence로 DOMAIN 하나 할당;
-8. fresh-instance rollout과 R_Q 계산;
-9. seed variation 및 behavior/template/near-template/structural duplicate gates;
+8. `archive_preflight_before_rollout`을 켠 경우 seed variation 및 기존
+   archive에 대한 behavior/template/near-template/structural duplicate preflight;
+9. preflight 생존자만 fresh-instance rollout과 R_Q 계산;
 10. 해당 cell champion과 strict score competition.
+
+같은 flat batch에서 먼저 처리된 child가 새 duplicate를 만들 수 있으므로 8번 gate는
+최종 insertion에서도 다시 실행합니다. `adaptive_mutation_refill`을 켜면
+`inner_iterations`는 최소 proposal 수가 되고, frontier insertion 또는 frontier
+candidate 목표를 채울 때까지 기존 batch 단위로 더 생성합니다. 반복은
+`mutation_refill_max_iterations`에서 반드시 끝나며 wall-time 조건은 사용하지 않습니다.
 
 DOMAIN labeler는 stage 1/2에 원하는 cell을 전달하지 않으므로 mutation destination을
 지시하는 scheduler가 아닙니다. candidate가 parent와 같은 cell로 돌아와도

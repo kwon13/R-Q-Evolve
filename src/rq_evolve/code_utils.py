@@ -1118,6 +1118,99 @@ def _validate_stage2_core(
     }
     if not {"answer", "check"} <= assigned_names:
         return None, None, {}, "build_instance must assign answer and check"
+
+    # The synthesized wrapper asserts the *final* answer/check values, but an
+    # internal assertion can otherwise create a convincing dead proof and then
+    # overwrite both outputs.  One archived applied-math champion asserted two
+    # equal integers and subsequently returned ``False, False`` by comparing
+    # those integers with the string ``'Yes'``.  Inspect the reaching output
+    # definitions, not merely the existence of an earlier assertion.
+    route_assignments: dict[str, list[ast.AST]] = {"answer": [], "check": []}
+    for node in own_nodes:
+        if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        for target in targets:
+            for name in {
+                child.id
+                for child in ast.walk(target)
+                if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store)
+            }:
+                if name in route_assignments:
+                    route_assignments[name].append(node)
+
+    final_route_assignment = {
+        name: max(nodes, key=lambda node: (node.lineno, node.col_offset))
+        for name, nodes in route_assignments.items()
+        if nodes
+    }
+    final_answer = final_route_assignment.get("answer")
+    final_check = final_route_assignment.get("check")
+    def _loads(node: ast.AST) -> set[str]:
+        return {
+            child.id
+            for child in ast.walk(node)
+            if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
+        }
+
+    if final_answer is not None and "check" in _loads(final_answer):
+        return (
+            None,
+            None,
+            {},
+            "stage2 CORE failed independent-check contract: A4d: final answer "
+            "may not be derived from check",
+        )
+    if final_check is not None and "answer" in _loads(final_check):
+        return (
+            None,
+            None,
+            {},
+            "stage2 CORE failed independent-check contract: A4d: final check "
+            "may not be derived from answer",
+        )
+
+    for node in own_nodes:
+        if not isinstance(node, ast.Assert):
+            continue
+        if not (_loads(node.test) & {"answer", "check"}):
+            continue
+        later = [
+            name
+            for name, assignment in final_route_assignment.items()
+            if (assignment.lineno, assignment.col_offset)
+            > (node.lineno, node.col_offset)
+        ]
+        if later:
+            return (
+                None,
+                None,
+                {},
+                "stage2 CORE failed independent-check contract: A4d: "
+                "answer/check may not be overwritten after their cross-check: "
+                + ", ".join(sorted(later)),
+            )
+
+    for name, assignment in final_route_assignment.items():
+        value = getattr(assignment, "value", None)
+        if value is None:
+            continue
+        for comparison in (
+            node for node in ast.walk(value) if isinstance(node, ast.Compare)
+        ):
+            operands = [comparison.left, *comparison.comparators]
+            if any(
+                isinstance(operand, ast.Constant)
+                and operand.value in {"Yes", "No"}
+                for operand in operands
+            ):
+                return (
+                    None,
+                    None,
+                    {},
+                    f"final {name} may not be formed by comparing a computed "
+                    "value with the string 'Yes' or 'No'",
+                )
     return tree, builder, parameter_locals, None
 
 
@@ -1669,6 +1762,67 @@ def compile_stage2_reply(
             source_errors[:3]
         )
     return source, None
+
+
+def lint_compiled_stage2_semantics(source_code: str) -> list[str]:
+    """Re-audit the model-owned CORE embedded in a trusted Stage-2 source.
+
+    Snapshot champions store the assembled generator, not the original
+    ``MODE/CORE`` reply.  Re-running only ``check_generator_contract`` on that
+    wrapper sees ``answer, check = build_instance(...)`` as an opaque call and
+    cannot inspect the two routes inside.  Reconstruct the candidate-only CORE
+    and the same synthetic inline generator used at initial compilation so a
+    resumed archive is judged by today's stricter rules.
+    """
+
+    if "TRUSTED_ASSEMBLER_VERSION" not in str(source_code or ""):
+        return []
+    try:
+        tree = safe_ast_parse(source_code)
+    except (SyntaxError, ValueError):
+        return []
+    family = extract_problem_statement_template(source_code)
+    if not family:
+        return ["compiled Stage-2 source has no fixed FAMILY_TEMPLATE"]
+    family_parts, placeholder_keys, family_error = _stage2_family_parts(family)
+    if family_error:
+        return [family_error]
+
+    candidate_body: list[ast.stmt] = []
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            # The trusted shell owns ``random``; the candidate CORE is forbidden
+            # from importing it and does not need it for this static rebuild.
+            if isinstance(node, ast.Import) and any(
+                alias.name.split(".", 1)[0] == "random" for alias in node.names
+            ):
+                continue
+            candidate_body.append(copy.deepcopy(node))
+        elif isinstance(node, ast.FunctionDef) and (
+            node.name == "build_instance" or not node.name.startswith("__rq_")
+        ) and node.name != "generate":
+            candidate_body.append(copy.deepcopy(node))
+    candidate_module = ast.Module(body=candidate_body, type_ignores=[])
+    ast.fix_missing_locations(candidate_module)
+    core = ast.unparse(candidate_module)
+    checked_tree, builder, parameter_locals, core_error = _validate_stage2_core(
+        core, placeholder_keys
+    )
+    if core_error or checked_tree is None or builder is None:
+        return [core_error or "embedded Stage-2 CORE validation failed"]
+    synthesized = _synthesized_stage2_generate(
+        checked_tree, builder, family_parts, parameter_locals
+    )
+    bare_draw = answer_is_bare_draw(synthesized)
+    if bare_draw:
+        return ["stage2 CORE failed bare-answer contract: " + bare_draw]
+    findings = check_generator_contract(synthesized)
+    if findings:
+        return [
+            "stage2 CORE failed independent-check contract: "
+            + "; ".join(str(finding) for finding in findings[:3])
+        ]
+    return []
 
 
 def lint_mutation_generator_source(

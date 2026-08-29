@@ -82,6 +82,14 @@ def test_specific_output_contract_has_precedence():
     )
 
 
+def test_conflicting_counting_and_boolean_contract_abstains():
+    annotation = annotate_problem_type(
+        "How many integer solutions does ax+b=0 have? Answer Yes or No."
+    )
+    assert annotation.problem_type is None
+    assert annotation.review_reason == "conflicting_counting_and_decision_cues"
+
+
 def test_named_gcd_lcm_terms_are_function_requests_not_optimization():
     cases = (
         "Determine the greatest common divisor of 84 and 126.",

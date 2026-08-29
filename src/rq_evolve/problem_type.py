@@ -134,6 +134,21 @@ def annotate_problem_type(statement: str) -> ProblemTypeAnnotation:
         )
 
     decision = _DECISION_RE.search(request)
+    counting = _COUNTING_RE.search(request)
+    # A scalar cardinality request cannot be repaired by appending a Boolean
+    # trailer.  The 4B policy produced "How many ...? Answer Yes or No", which
+    # was previously classified as decision by precedence and admitted with a
+    # Boolean verifier even though the statement asks for a number.  Abstain so
+    # Stage 2 rejects the immutable family instead of silently choosing one of
+    # the contradictory contracts.
+    if decision and counting:
+        return ProblemTypeAnnotation(
+            None,
+            "none",
+            f"{counting.group(0)} / {decision.group(0)}",
+            request,
+            "conflicting_counting_and_decision_cues",
+        )
     if decision:
         return ProblemTypeAnnotation(
             "decision", "high", decision.group(0), request
@@ -145,7 +160,6 @@ def annotate_problem_type(statement: str) -> ProblemTypeAnnotation:
             "optimization", "high", optimization.group(0), request
         )
 
-    counting = _COUNTING_RE.search(request)
     if counting:
         return ProblemTypeAnnotation(
             "counting", "high", counting.group(0), request

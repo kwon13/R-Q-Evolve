@@ -7,6 +7,20 @@ extends: rq_evolve_4b_4gpu.yaml
 evolution:
   seed_programs_dir: seed_programs_domain_type
   two_stage_mutation: true
+  # Available after the step-64 evaluation; keep the live baseline fixed for
+  # now. The refill controller is proposal-capped (32 minimum, 96 maximum) and
+  # intentionally has no wall-time stop.
+  adaptive_mutation_refill: true
+  mutation_refill_max_iterations: 96
+  mutation_refill_target_frontier_insertions: 1
+  mutation_refill_target_frontier_candidates: 8
+  archive_preflight_before_rollout: false
+  # Local execution is cheap relative to solver rollouts. Sixteen deterministic
+  # seeds include substantially more RNG edge cases than the historical five,
+  # and the first process iteration re-audits any restored champions under the
+  # current semantic/dataflow rules without invoking DOMAIN labeling early.
+  verify_seeds: 16
+  strict_champion_audit: true
   # Stage 1 is untargeted. Stage 2 compiles the fixed child family without a
   # DOMAIN. Seven local-policy YES/NO arms assign one domain afterwards;
   # PROBLEM_TYPE is derived locally from statement + verifier.

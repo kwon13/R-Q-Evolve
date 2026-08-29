@@ -2,9 +2,11 @@ import hashlib
 
 import pytest
 
+import rq_evolve.archive as archive_module
 from rq_evolve.archive import MAPElitesArchive
 from rq_evolve.problem_type import PROBLEM_TYPE_RULESET, problem_type_ruleset_sha256
 from rq_evolve.program import ProblemProgram
+from rq_evolve.similarity import SimilarityTimeout
 
 
 def _certify(
@@ -308,6 +310,58 @@ def test_duplicate_preflight_rejects_without_mutating_archive():
         "structural_duplicate_rejected",
     }
     assert archive.to_payload() == before
+
+
+def test_similarity_timeout_rejects_new_candidate_without_mutating_archive(
+    monkeypatch,
+):
+    """Pathological similarity input must not pin the trainer driver."""
+
+    archive = MAPElitesArchive(selection_strategy="random")
+    first = _family(
+        "number_theory",
+        "counting",
+        "Let n = {n}. How many positive divisors does n have? State only the integer.",
+    )
+    restated = _family(
+        "number_theory",
+        "function",
+        "Let n = {n} be positive. How many positive divisors does n have? State only the integer.",
+    )
+    assert archive.try_insert(first, u_value=0.4, rq_score=0.2)
+    before = archive.to_payload()
+
+    def timeout(*_args, **_kwargs):
+        raise SimilarityTimeout("matched comparison exceeded 1.000s")
+
+    monkeypatch.setattr(archive_module, "matched_size", timeout)
+    assert archive.passes_admission_preflight(restated) is False
+    assert restated.metadata["archive_status"] == "similarity_timeout_rejected"
+    assert "exceeded 1.000s" in restated.metadata["similarity_timeout"]
+    assert archive.to_payload() == before
+
+
+def test_reevaluated_champion_can_be_restored_after_similarity_timeout():
+    archive = MAPElitesArchive(selection_strategy="random")
+    champion = _program("algebra", 7)
+    assert archive.try_insert(champion, u_value=0.4, rq_score=0.2)
+    original_cell = archive.program_to_cell(champion)
+    assert original_cell is not None
+
+    removed = archive.remove_program(champion.program_id)
+    champion.s_hat = 0.6
+    champion.rq_score = 0.24
+    restored = archive.restore_program_after_similarity_timeout(
+        champion, removed, rq_score=champion.rq_score
+    )
+
+    assert restored == [original_cell]
+    assert archive.grid[original_cell].champion is champion
+    assert archive.grid[original_cell].champion_rq == pytest.approx(0.24)
+    assert (
+        champion.metadata["archive_status"]
+        == "champion_preserved_after_similarity_timeout"
+    )
 
 
 def test_a_genuinely_different_question_still_gets_its_cell():

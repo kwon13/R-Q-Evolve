@@ -2,12 +2,12 @@ import collections
 import ast
 import copy
 import concurrent.futures
-import difflib
 import hashlib
 import json
 import math
 import random
 import re
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -62,6 +62,7 @@ from .prompts import (
     parse_family_plan,
 )
 from .scoring import RQResult, compute_rq_program, is_frontier, score_seed
+from .similarity import SimilarityTimeout, sequence_ratio
 from .solver_trace import clean_and_grade_solver_rollout
 
 
@@ -179,7 +180,14 @@ def _stage1_prompt_copy_audit(task: "MutationTask", child_family: str) -> dict:
         example_family = str((example or {}).get("family", ""))
         reference = _family_copy_form(example_family)
         reference_tokens = set(reference.split())
-        ratio = difflib.SequenceMatcher(None, candidate, reference).ratio()
+        similarity_timed_out = False
+        try:
+            # Preserve SequenceMatcher's historical default (autojunk=True),
+            # but keep model-controlled text off the trainer driver.
+            ratio = sequence_ratio(candidate, reference, autojunk=True)
+        except SimilarityTimeout:
+            ratio = None
+            similarity_timed_out = True
         union = candidate_tokens | reference_tokens
         jaccard = (
             len(candidate_tokens & reference_tokens) / len(union) if union else 0.0
@@ -189,14 +197,22 @@ def _stage1_prompt_copy_audit(task: "MutationTask", child_family: str) -> dict:
         # output phrase ("Compute ...", "Find all ...") as imitation.  Their
         # purpose is to catch a concrete worked family with placeholders merely
         # renamed or lightly paraphrased, not to police mathematical topics.
-        rejected = exact or ratio >= 0.92 or jaccard >= 0.90
+        rejected = (
+            similarity_timed_out
+            or exact
+            or (ratio is not None and ratio >= 0.92)
+            or jaccard >= 0.90
+        )
         comparisons.append(
             {
                 "visible_index": int((example or {}).get("visible_index", 0)),
                 "family_sha256": str((example or {}).get("family_sha256", "")),
                 "exact": exact,
-                "sequence_ratio": round(float(ratio), 6),
+                "sequence_ratio": (
+                    round(float(ratio), 6) if ratio is not None else None
+                ),
                 "token_jaccard": round(float(jaccard), 6),
+                "similarity_timed_out": similarity_timed_out,
                 "rejected": bool(rejected),
             }
         )
@@ -204,7 +220,13 @@ def _stage1_prompt_copy_audit(task: "MutationTask", child_family: str) -> dict:
     return {
         "checked": bool(comparisons),
         "rejected": rejection is not None,
-        "reason": "stage1_visible_example_copy" if rejection is not None else None,
+        "reason": (
+            "stage1_similarity_timeout"
+            if rejection is not None and rejection.get("similarity_timed_out")
+            else "stage1_visible_example_copy"
+            if rejection is not None
+            else None
+        ),
         "visible_index": (
             rejection.get("visible_index") if rejection is not None else None
         ),
@@ -905,8 +927,16 @@ class RQEvolver:
         low, high = cfg.frontier_s_hat_range
         while sampled_slots < maximum_slots:
             current_batch = min(batch_size, maximum_slots - sampled_slots)
-            batch_reports = self.inner_iteration_batch(current_batch)
             mutation_batches += 1
+            batch_started = time.monotonic()
+            print(
+                "[RQ-Evolve] mutation batch begin: "
+                f"outer_iteration={self.current_iteration} "
+                f"batch={mutation_batches} slots={current_batch} "
+                f"sampled_before={sampled_slots} maximum_slots={maximum_slots}",
+                flush=True,
+            )
+            batch_reports = self.inner_iteration_batch(current_batch)
             sampled_slots += current_batch
             reports.extend(batch_reports)
             attempted += sum(1 for r in batch_reports if r.status != "no_parent")
@@ -919,6 +949,15 @@ class RQEvolver:
             mutation_frontier_candidates += len(batch_frontier)
             mutation_frontier_insertions += sum(
                 1 for r in batch_frontier if r.status == "inserted"
+            )
+            batch_statuses = collections.Counter(r.status for r in batch_reports)
+            print(
+                "[RQ-Evolve] mutation batch end: "
+                f"outer_iteration={self.current_iteration} "
+                f"batch={mutation_batches} duration_s="
+                f"{time.monotonic() - batch_started:.3f} "
+                f"reports={len(batch_reports)} statuses={dict(batch_statuses)}",
+                flush=True,
             )
 
             # ``inner_iterations`` is a strict minimum, so enabling refill
@@ -2499,7 +2538,7 @@ class RQEvolver:
             self.previous_rq.record(
                 champion.program_id, self.current_iteration, result.rq_score
             )
-            self.archive.remove_program(champion.program_id)
+            removed_cells = self.archive.remove_program(champion.program_id)
             # A champion whose rescore comes back at R_Q = 0 is reinserted, not
             # dropped. Removing it emptied the cell and left the grid with no
             # record that the region had ever been reached; keeping it means the
@@ -2511,6 +2550,28 @@ class RQEvolver:
                 source="champion_reevaluation",
             )
             if not inserted:
+                rejection_reason = (champion.metadata or {}).get("archive_status")
+                if rejection_reason == "similarity_timeout_rejected":
+                    restored_cells = (
+                        self.archive.restore_program_after_similarity_timeout(
+                            champion,
+                            removed_cells,
+                            rq_score=result.rq_score,
+                        )
+                    )
+                    self.events.append(
+                        {
+                            "event": "champion_preserved_after_similarity_timeout",
+                            "program_id": champion.program_id,
+                            "cells": [list(cell) for cell in restored_cells],
+                            "s_hat": result.s_hat,
+                            "rq_score": result.rq_score,
+                            "timeout": (champion.metadata or {}).get(
+                                "similarity_timeout"
+                            ),
+                        }
+                    )
+                    continue
                 self.events.append(
                     {
                         "event": "champion_removed_after_reevaluation",
@@ -2579,13 +2640,39 @@ class RQEvolver:
             if placement_cell is not None
             else None
         )
-        inserted = self.archive.try_insert(
-            program=program,
-            u_value=u_value,
-            rq_score=rq_score,
+        admission_started = time.monotonic()
+        print(
+            "[RQ-Evolve] archive admission begin: "
+            f"outer_iteration={self.current_iteration} source={source} "
+            f"program_id={program.program_id} placement_cell={placement_cell}",
+            flush=True,
         )
+        try:
+            inserted = self.archive.try_insert(
+                program=program,
+                u_value=u_value,
+                rq_score=rq_score,
+            )
+        except BaseException as exc:
+            print(
+                "[RQ-Evolve] archive admission error: "
+                f"outer_iteration={self.current_iteration} source={source} "
+                f"program_id={program.program_id} duration_s="
+                f"{time.monotonic() - admission_started:.3f} "
+                f"error={type(exc).__name__}: {exc}",
+                flush=True,
+            )
+            raise
         rejection_reason = None if inserted else (program.metadata or {}).get(
             "archive_status", "lost_cell_contest"
+        )
+        print(
+            "[RQ-Evolve] archive admission end: "
+            f"outer_iteration={self.current_iteration} source={source} "
+            f"program_id={program.program_id} duration_s="
+            f"{time.monotonic() - admission_started:.3f} "
+            f"accepted={bool(inserted)} reason={rejection_reason}",
+            flush=True,
         )
         decision = {
             "phase": "final_admission",

@@ -1,7 +1,6 @@
 import ast
 import collections
 import hashlib
-from difflib import SequenceMatcher
 import json
 import math
 import random
@@ -22,6 +21,7 @@ from .program import ProblemProgram
 from .problem_type import PROBLEM_TYPE_RULESET, problem_type_ruleset_sha256
 from .prompts import DOMAIN_LABELING_METHOD, domain_labeling_ruleset_sha256
 from .scoring import selection_priority
+from .similarity import SimilarityTimeout, matched_size, sequence_ratio
 from .structural_fingerprint import exact_top_level_build_instance
 
 ARCHIVE_SCHEMA = "rq-evolve-domain-problem-type-v2"
@@ -483,7 +483,12 @@ class MAPElitesArchive:
         # 4. Near-duplicate: the same statement a few words apart. Exact hashes
         #    miss it, and a noisy descriptor can put the restatement in another
         #    cell where it would count as false coverage.
-        near = self._find_near_duplicate_template(program)
+        try:
+            near = self._find_near_duplicate_template(program)
+        except SimilarityTimeout as exc:
+            program.metadata["archive_status"] = "similarity_timeout_rejected"
+            program.metadata["similarity_timeout"] = str(exc)
+            return False
         if near is not None:
             other, ratio = near
             program.metadata["archive_status"] = "near_duplicate_template_rejected"
@@ -494,7 +499,12 @@ class MAPElitesArchive:
         #    Runs last of the four because it is the only one that parses, and
         #    first among things that matter -- it is the gate the run needed and
         #    did not have.
-        sdup = self._find_structural_duplicate(program)
+        try:
+            sdup = self._find_structural_duplicate(program)
+        except SimilarityTimeout as exc:
+            program.metadata["archive_status"] = "similarity_timeout_rejected"
+            program.metadata["similarity_timeout"] = str(exc)
+            return False
         if sdup is not None:
             other, ratio = sdup
             program.metadata["archive_status"] = "structural_duplicate_rejected"
@@ -521,6 +531,44 @@ class MAPElitesArchive:
                 niche.champion_rq = -1.0
                 removed.append(key)
         return removed
+
+    def restore_program_after_similarity_timeout(
+        self,
+        program: ProblemProgram,
+        cells: list[tuple[int, int]],
+        *,
+        rq_score: float,
+    ) -> list[tuple[int, int]]:
+        """Put a re-evaluated incumbent back after a fail-closed timeout.
+
+        Re-evaluation temporarily removes an incumbent before re-inserting it,
+        otherwise it would compete against the same mutable object.  A timeout
+        in a cross-cell novelty comparison is an infrastructure failure, not
+        evidence that the already-admitted incumbent became invalid.  Preserve
+        its old occupancy while retaining its freshly measured score.
+        """
+
+        restored: list[tuple[int, int]] = []
+        for cell in cells:
+            niche = self.grid.get(cell)
+            if niche is None or niche.champion is not None:
+                continue
+            niche.champion = program
+            niche.champion_rq = float(rq_score)
+            program.niche_domain, program.niche_problem_type = cell
+            niche.history.append(
+                {
+                    "event": "reevaluation_preserved_after_similarity_timeout",
+                    "program_id": program.program_id,
+                    "rq_score": float(rq_score),
+                }
+            )
+            restored.append(cell)
+        if restored:
+            program.metadata["archive_status"] = (
+                "champion_preserved_after_similarity_timeout"
+            )
+        return restored
 
     # ------------------------------------------------------------------
     # Safety gates (ported from evo-sample map_elites / mutation)
@@ -749,7 +797,7 @@ class MAPElitesArchive:
             theirs = self.program_skeleton(existing)
             if not theirs or len(theirs) < self.structural_min_nodes:
                 continue
-            ratio = SequenceMatcher(None, mine, theirs, autojunk=False).ratio()
+            ratio = sequence_ratio(mine, theirs, autojunk=False)
             if ratio >= self.structural_duplicate_ratio and (
                 best is None or ratio > best[1]
             ):
@@ -814,12 +862,7 @@ class MAPElitesArchive:
             # reworded to "Prove that it is impossible to construct a ...", the
             # descriptor relabelled, landing in a second cell -- scores 0.746 with
             # autojunk and 1.000 without. The gate had never once fired.
-            matched = sum(
-                block.size
-                for block in SequenceMatcher(
-                    None, mine, theirs, autojunk=False
-                ).get_matching_blocks()
-            )
+            matched = matched_size(mine, theirs, autojunk=False)
             ratio = matched / max(1, shorter)
             if ratio >= self.near_duplicate_template_ratio and (
                 best is None or ratio > best[1]
@@ -1125,6 +1168,7 @@ class MAPElitesArchive:
             else max(0, int(near_duplicate_min_chars))
         )
         near_template_ratio: float | None = None
+        similarity_timed_out = False
         if (
             child_text
             and donor_text
@@ -1133,13 +1177,14 @@ class MAPElitesArchive:
         ):
             shorter, longer = sorted((len(child_text), len(donor_text)))
             if shorter / max(1, longer) >= self.near_duplicate_length_ratio:
-                matched = sum(
-                    block.size
-                    for block in SequenceMatcher(
-                        None, child_text, donor_text, autojunk=False
-                    ).get_matching_blocks()
-                )
-                near_template_ratio = matched / max(1, shorter)
+                try:
+                    matched = matched_size(
+                        child_text, donor_text, autojunk=False
+                    )
+                    near_template_ratio = matched / max(1, shorter)
+                except SimilarityTimeout:
+                    near_template_ratio = None
+                    similarity_timed_out = True
 
         structural_ratio: float | None = None
         child_skeleton = self.program_skeleton(child)
@@ -1150,12 +1195,18 @@ class MAPElitesArchive:
             and len(child_skeleton) >= self.structural_min_nodes
             and len(donor_skeleton) >= self.structural_min_nodes
         ):
-            structural_ratio = SequenceMatcher(
-                None, child_skeleton, donor_skeleton, autojunk=False
-            ).ratio()
+            try:
+                structural_ratio = sequence_ratio(
+                    child_skeleton, donor_skeleton, autojunk=False
+                )
+            except SimilarityTimeout:
+                structural_ratio = None
+                similarity_timed_out = True
 
         reason = None
-        if exact_source:
+        if similarity_timed_out:
+            reason = "similarity_timeout"
+        elif exact_source:
             reason = "exact_source"
         elif exact_behavior:
             reason = "duplicate_behavior"
@@ -1200,6 +1251,7 @@ class MAPElitesArchive:
             "structural_ratio": (
                 round(structural_ratio, 6) if structural_ratio is not None else None
             ),
+            "similarity_timed_out": bool(similarity_timed_out),
         }
 
     def _select_priority(self, program: ProblemProgram | None) -> float:

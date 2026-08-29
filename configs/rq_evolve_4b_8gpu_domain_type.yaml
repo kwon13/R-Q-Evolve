@@ -25,6 +25,10 @@ evolution:
   fix_retry: false
 
 archive:
+  # Keep the production arm on occupied-cell uniform random selection. SW-MCE
+  # remains implemented for a later controlled experiment, but is not active
+  # in this training configuration.
+  selection_strategy: random
   require_domain_labeling: true
   domain_labeling_min_probability: 0.0
   domain_labeling_min_logit_margin: 0.0

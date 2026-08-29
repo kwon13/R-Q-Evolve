@@ -2,7 +2,8 @@ You are given a parameterized competition-math problem family. Invent one struct
 A structural mutation changes the mathematical task, the objects, the requested output, or the load-bearing reasoning. Merely changing numbers, coefficients, ranges, names, wording, degree, or candidate count is not structural.
 You are free to move in any mathematical direction. No destination or specific kind of change is requested. Prefer a mathematically natural child problem over an artificial mutation designed only to appear structurally different.
 
-The child must be self-contained and have a finite, unambiguous, automatically gradable answer. Solve it internally before answering.
+The child must be self-contained and have an unambiguous, automatically gradable answer with a finite exact representation. Solve it internally before answering.
+"Finite" describes the answer representation, not the mathematical domain or feasible set. Continuous variables, mathematical mappings, probability models, derivatives, integrals, and extrema over continuous sets are welcome when the requested result is exactly representable and mechanically checkable. Do not discretize a naturally continuous problem merely to make it finite.
 Choose which quantities define the parameterized child family, and represent every such varying quantity as a unique placeholder of the form [[descriptive_name]], using descriptive lower_snake_case names.
 Do not use Python-format {name} placeholders in the child family.
 
@@ -10,7 +11,7 @@ End with one explicit output request whose contract is mechanically recognizable
 Find all members of a finite set, How many, a maximum/minimum value, or an ordinary Compute/Evaluate/What-is-value request. Choose freely among these; none is a requested destination. Do not write a DOMAIN or problem-type label.
 
 <FAMILY_EXAMPLE>
-EXAMPLE — CHANGE THE OBJECT AND REQUEST
+EXAMPLE — CHANGE TO MODULAR RECOVERY
 
 PARENT FAMILY:
 A regular polygon has {side_count} sides. How many diagonals does it have?
@@ -22,19 +23,19 @@ WHY FINITE: The explicit interval 0 <= x < modulus makes the requested solution 
 </FAMILY_EXAMPLE>
 
 <FAMILY_EXAMPLE>
-EXAMPLE — CHANGE THE MATHEMATICAL PROCESS
+EXAMPLE — CHANGE TO POLYNOMIAL INTERPOLATION
 
 PARENT FAMILY:
 Let N = {integer}. How many positive divisors does N have?
 
 OUTPUT:
-STRUCTURAL MUTATION: Replace divisor enumeration by determining the terminal state of a fully specified repeated process.
-CHILD FAMILY: The integers 1 through [[board_size]] are written on a board. Repeatedly erase two numbers a and b and write a + b + ab, until one number remains. Compute the final number.
-WHY FINITE: Each move reduces the number of entries by one and the operation has an order-independent terminal value.
+STRUCTURAL MUTATION: Replace divisor enumeration by recovering a new polynomial value from interpolation data.
+CHILD FAMILY: A polynomial P of degree at most 2 satisfies P(0) = [[value_at_zero]], P(1) = [[value_at_one]], and P(2) = [[value_at_two]]. Compute P(3).
+WHY FINITE: Three values determine the degree-at-most-two polynomial uniquely, so P(3) is one exact integer or rational number.
 </FAMILY_EXAMPLE>
 
 <FAMILY_EXAMPLE>
-EXAMPLE — CHANGE FROM A VALUE TO YES/NO
+EXAMPLE — CHANGE TO FINITE GRAPH EXISTENCE
 
 PARENT FAMILY:
 Evaluate the sum of the first {term_count} positive integers.
@@ -45,11 +46,59 @@ CHILD FAMILY: Does there exist a simple graph on [[vertex_count]] labeled vertic
 WHY FINITE: There are finitely many simple graphs on a fixed labeled vertex set, so the stated regularity condition has one Boolean truth value.
 </FAMILY_EXAMPLE>
 
+<FAMILY_EXAMPLE>
+EXAMPLE — CHANGE TO COORDINATE AREA
+
+PARENT FAMILY:
+Let N = {integer}. Find the remainder when N^2 is divided by 7.
+
+OUTPUT:
+STRUCTURAL MUTATION: Replace modular arithmetic by an exact metric computation on a coordinate triangle.
+CHILD FAMILY: The vertices of a triangle are A = (0, 0), B = ([[x_one]], [[y_one]]), and C = ([[x_two]], [[y_two]]). Compute twice the area of triangle ABC.
+WHY FINITE: The determinant of the two coordinate vectors gives one exact nonnegative integer for twice the area.
+</FAMILY_EXAMPLE>
+
+<FAMILY_EXAMPLE>
+EXAMPLE — CHANGE TO EXACT EXPECTATION
+
+PARENT FAMILY:
+Evaluate the polynomial P(x) = x^2 + {coefficient} at x = {input_value}.
+
+OUTPUT:
+STRUCTURAL MUTATION: Replace deterministic polynomial evaluation by an exact probability calculation for repeated independent trials.
+CHILD FAMILY: A coin lands heads with probability [[heads_numerator]]/[[heads_denominator]] and is tossed [[trial_count]] times independently. Compute the expected number of adjacent pairs of tosses that are both heads.
+WHY FINITE: Linearity of expectation determines one exact rational value from the finite sequence of trials.
+</FAMILY_EXAMPLE>
+
+<FAMILY_EXAMPLE>
+EXAMPLE — CHANGE TO DERIVATIVE EVALUATION
+
+PARENT FAMILY:
+A sequence begins with {first_term} and has common difference {difference}. Find its {term_index}-th term.
+
+OUTPUT:
+STRUCTURAL MUTATION: Replace discrete sequence evaluation by evaluating the derivative of a parameterized polynomial.
+CHILD FAMILY: Let f(x) = [[cubic_coefficient]]x^3 + [[quadratic_coefficient]]x^2 + [[linear_coefficient]]x + [[constant_term]]. Compute f'([[evaluation_point]]).
+WHY FINITE: A polynomial has an exact symbolic derivative whose value at the stated point is one exact integer.
+</FAMILY_EXAMPLE>
+
+<FAMILY_EXAMPLE>
+EXAMPLE — CHANGE TO A GEOMETRIC-SEQUENCE SUM
+
+PARENT FAMILY:
+How many subsets of size {subset_size} can be chosen from a set of size {set_size}?
+
+OUTPUT:
+STRUCTURAL MUTATION: Replace subset enumeration by evaluating the finite sum of a geometric sequence.
+CHILD FAMILY: A geometric sequence has first term [[first_term]], common ratio [[common_ratio]], and [[term_count]] terms. Compute the sum of all its terms.
+WHY FINITE: The stated finite number of terms has one exact sum determined by the first term and common ratio.
+</FAMILY_EXAMPLE>
+
 Now create a child family for the given parent.
 
 Reply with exactly these three lines and nothing else:
 STRUCTURAL MUTATION: <one sentence identifying the substantive mathematical change>
 CHILD FAMILY: <one parameterized, self-contained natural-language problem>
-WHY FINITE: <the clause or argument guaranteeing one finite, unambiguous answer>
+WHY FINITE: <the clause or argument guaranteeing one unambiguous, exactly computable answer with a finite representation>
 
-Before replying, verify that CHILD FAMILY contains at least one complete [[lower_snake_case]] placeholder, contains no {name} placeholder, and that WHY FINITE explains why every rendered instance has one finite, unambiguous, exactly computable answer.
+Before replying, verify that CHILD FAMILY contains at least one complete [[lower_snake_case]] placeholder, contains no {name} placeholder, and that WHY FINITE explains why every rendered instance has one unambiguous, exactly computable answer with a finite representation. A continuous domain or feasible set is allowed.

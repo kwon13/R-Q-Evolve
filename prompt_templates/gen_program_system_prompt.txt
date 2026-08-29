@@ -65,6 +65,7 @@ MODE is the answer/verifier contract forced by the visible request:
 
 Independent Cross-Check Guidelines:
 `answer` and `check` must compute the same result through two genuinely different pathways.
+Using SymPy on one side is allowed when the other side implements a different mathematical derivation directly. Calling the same SymPy operation with the same inputs on both sides is not an independent check. Prefer exact integers, `fractions.Fraction`, and `sympy.Rational` over floating-point approximations; serialize an exact rational or symbolic result to the same canonical built-in string type on both sides when MODE requires it.
 
 1. MODE: boolean
    - `answer`: derive the truth value from a mathematical criterion/formula.
@@ -80,7 +81,8 @@ Independent Cross-Check Guidelines:
 
 4. MODE: expression — Optimization
    - `answer`: derive the optimum from a mathematical theorem, exact formula (e.g., vertex formula, AM-GM inequality, critical-point analysis), or structural argument.
-   - `check`: independently verify the optimum by exhaustively evaluating all feasible candidates when the domain is finite/discrete, or by using an independent symbolic method when the domain is genuinely continuous.
+   - For a discrete feasible set, `check`: independently verify the optimum by exhaustively evaluating all feasible candidates and take `min`/`max`.
+   - For a continuous interval, `check`: independently derive the finite certified candidate set consisting of critical points, nondifferentiable points when applicable, and endpoints, then evaluate the objective on that set. Never replace the continuum by an integer grid or numerical sampling unless the fixed family explicitly restricts the optimizer to integer/grid points.
    - Target Consistency: both sides must compute exactly the quantity requested by the problem; if the question asks for the maximum/minimum VALUE, return `f(x*)`, not merely the optimizer `x*`, and if it asks for the optimizer, return `x*`.
    - Never use the same `min(...)`, `max(...)`, symbolic solve, or equivalent computation on both sides; one side must use a mathematical derivation/formula and the other a genuinely independent verification route.
 
@@ -88,16 +90,15 @@ Independent Cross-Check Guidelines:
    - `answer`: compute the value using a direct formula or efficient mathematical method.
    - `check`: recompute it through an independent summation, iteration, geometric formula, or other bounded route.
 
-6. Continuous / Calculus Problems (Calculus, Precalculus):
+6. Exact continuous-mathematics patterns:
    - Do not compute `answer` and `check` by invoking the same symbolic operation in the same way. In particular, never use the same `sympy.diff`, `sympy.integrate`, `sympy.solve`, or equivalent call as both derivations.
-   - Derivatives / Integrals:
-     - `answer`: derive the exact result analytically from the sampled coefficients and bounds.
-     - `check`: independently verify it with `sympy.diff`, `sympy.integrate`, exact symbolic simplification, or another bounded exact computation.
-     - If MODE requires an integer-valued answer, sample parameters so the exact analytical result is guaranteed to be an integer; never use truncating division to force integrality.
-   - Extrema / Critical Points:
-     - `answer`: derive the critical point or optimum using an analytical formula, symmetry, monotonicity, or another exact argument.
-     - `check`: independently verify the result using symbolic differentiation/solving or bounded enumeration when the feasible domain is explicitly discrete.
-     - Do not use an integer grid search as a verifier for a genuinely continuous extremum unless the fixed family restricts the optimizer to integer/grid points.
+   - Polynomial derivative at a point: one side differentiates coefficients directly, for example `sum(k * coefficient * point ** (k - 1) ...)`; the other may use `sympy.diff(...).subs(...)`.
+   - Definite integral of a polynomial: one side integrates coefficients term by term with `fractions.Fraction`; the other may use `sympy.integrate` and serialize the exact rational result canonically.
+   - Convex polynomial optimization on a closed interval: one side uses a vertex, completing-square, monotonicity, or convexity formula; the other obtains all exact critical points and endpoints independently and compares their exact objective values.
+   - Applied probability or expectation: one side uses linearity of expectation, a distribution formula, or an exact recurrence; the other uses bounded outcome enumeration or a finite-state dynamic program.
+   - Elementary sequences and functions: one side uses a closed form or identity; the other evaluates the recurrence, finite sum, or function composition directly.
+   - If MODE requires an integer-valued answer, sample parameters so the exact analytical result is guaranteed to be an integer; never use truncating division to force integrality.
+   - Extrema and critical points: derive the critical point or optimum using an exact formula, symmetry, or monotonicity; verify independently using symbolic differentiation or comparing exact objective values across critical points and endpoints. Do not use an integer grid search for a continuous extremum unless the problem family explicitly restricts the domain to integer points.
 
 The fenced CORE must obey all of the following:
 - At top level, CORE may contain only imports and function definitions. Imports are limited to `collections`, `fractions`, `functools`, `itertools`, `math`, and `sympy`. Do not define top-level constants or execute top-level statements.
@@ -111,7 +112,7 @@ The fenced CORE must obey all of the following:
 - `answer` and `check` must be fully materialized, non-callable values matching MODE. Do not return predicates, lambdas, iterators, generators, or executable verifier logic.
 - Assign `parameters` exactly once as a literal dictionary whose literal string keys exactly match the supplied placeholders and whose values are previously assigned local variable names. Do not read or mutate `parameters` before returning it.
 - The final two statements of build_instance must be that `parameters` assignment and exactly `return parameters, answer, check`. Do not return anywhere else.
-- All loops, searches, enumerations, and generated collections must have explicit finite bounds. For optimization/extremum, search, and combinatorics problems, keep sampled parameter ranges compact (e.g., N <= 8, length/count <= 10) so that exhaustive search in check finishes in under 0.05 seconds for seeds 0 through 4. Do not use filesystem, network, subprocesses, dynamic imports, `eval`, or `exec`.
+- All loops, searches, enumerations, and generated collections must have explicit finite bounds. This restricts program execution, not the mathematical domain: an exact symbolic calculation over a continuous interval is allowed. For discrete optimization/extremum, search, and combinatorics problems, keep sampled parameter ranges compact (e.g., N <= 8, length/count <= 10) so that exhaustive search in check finishes in under 0.05 seconds for seeds 0 through 4. For continuous problems, use exact formulas and a finite certified set of analytic candidates rather than a discretized grid. Do not use filesystem, network, subprocesses, dynamic imports, `eval`, or `exec`.
 
 If the fixed child family, supplied finiteness argument, and placeholder contract cannot be jointly implemented without contradiction; if a placeholder cannot be instantiated consistently; if a genuinely independent check cannot be implemented; or if safe finite execution cannot be guaranteed, return INVALID rather than altering the fixed family.
 

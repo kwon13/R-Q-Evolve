@@ -70,7 +70,12 @@ htmlcov/
 *.log
 data/
 logs/
-rq_output
+# rq_output 전체는 무시하되, 현재 런의 rq_archive 폴더만 추적 허용
+rq_output/*
+!rq_output/rq_evolve_4b_domain_type_35cell_8gpu/
+rq_output/rq_evolve_4b_domain_type_35cell_8gpu/*
+!rq_output/rq_evolve_4b_domain_type_35cell_8gpu/rq_archive/
+
 wandb/
 analysis/
 .raytmp/

@@ -165,6 +165,82 @@ def build_instance(rng):
     assert instance.verifier["mode"] == "set"
 
 
+def test_stage2_mode_set_deduplicates_sequence_representations():
+    from rq_evolve.code_utils import compile_stage2_reply
+    from rq_evolve.program import ProblemProgram
+
+    reply = """MODE: set
+CORE:
+```python
+def build_instance(rng):
+    n = rng.randint(40, 50)
+    answer = [value % 2 for value in range(n + 1)]
+    check = tuple(range(min(n + 1, 2)))
+    parameters = {"n": n}
+    return parameters, answer, check
+```
+"""
+    family = "Find all remainders obtained when the integers from 0 through [[n]] are divided by 2."
+    source, err = compile_stage2_reply(reply, family)
+    assert err is None, err
+    assert source is not None
+
+    instance = ProblemProgram(source_code=source).execute(123)
+    assert instance is not None
+    assert instance.answer == r"\{0,1\}"
+    assert instance.verifier == {"mode": "set", "elements": ["0", "1"]}
+
+
+def test_counting_normalizes_safe_integral_float_to_int():
+    from rq_evolve.code_utils import compile_stage2_reply
+    from rq_evolve.program import ProblemProgram
+
+    reply = """MODE: expression
+CORE:
+```python
+def build_instance(rng):
+    n = rng.randint(3, 12)
+    answer = n * (n + 1) / 2
+    check = sum(range(1, n + 1))
+    parameters = {"n": n}
+    return parameters, answer, check
+```
+"""
+    family = "How many dots are in [[n]] rows containing 1, 2, ..., n dots?"
+    source, err = compile_stage2_reply(reply, family)
+    assert err is None, err
+    assert source is not None
+
+    instance = ProblemProgram(source_code=source).execute(123)
+    assert instance is not None
+    assert instance.answer.isdigit()
+
+
+def test_non_counting_expression_keeps_exact_type_requirement():
+    from rq_evolve.code_utils import compile_stage2_reply
+    from rq_evolve.program import ProblemProgram
+
+    reply = """MODE: expression
+CORE:
+```python
+def build_instance(rng):
+    n = rng.randint(3, 12)
+    answer = n * (n + 1) / 2
+    check = sum(range(1, n + 1))
+    parameters = {"n": n}
+    return parameters, answer, check
+```
+"""
+    family = "Compute the sum of the integers from 1 through [[n]]."
+    source, err = compile_stage2_reply(reply, family)
+    assert err is None, err
+    assert source is not None
+
+    program = ProblemProgram(source_code=source)
+    assert program.execute(123) is None
+    assert "same exact built-in type" in (program.last_execution_error or "")
+
+
 def test_stage2_handles_bullet_and_dot_prefixes():
     from rq_evolve.code_utils import compile_stage2_reply
 

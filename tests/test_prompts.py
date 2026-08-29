@@ -77,9 +77,11 @@ def test_stage_one_requires_collision_free_child_placeholders_in_all_examples():
         "value_at_zero",
         "vertex_count",
         "vertex_degree",
-        "x_one",
+        "width",
+        "height",
         "heads_numerator",
-        "cubic_coefficient",
+        "left_endpoint",
+        "right_endpoint",
         "common_ratio",
     ):
         assert f"[[{name}]]" in system
@@ -99,9 +101,9 @@ def test_stage_one_balanced_bank_rotates_three_of_seven_examples():
         "modular observation",
         "polynomial P of degree at most 2",
         "simple graph",
-        "twice the area",
+        "lattice points lie strictly inside",
         "expected number of adjacent pairs",
-        "Compute f'(",
+        "minimum value of f",
         "geometric sequence",
     ):
         assert child_signal in full_system
@@ -201,6 +203,29 @@ def test_stage_one_examples_use_problem_type_recognizable_requests():
     )
     assert function.problem_type == "function" and function.confidence == "high"
     assert decision.problem_type == "decision" and decision.confidence == "high"
+
+
+def test_stage_one_example_bank_covers_all_problem_types():
+    system = build_family_task(_program()).messages[0]["content"]
+    _, blocks, _ = _split_family_system(system)
+    inferred = set()
+    for block in blocks:
+        match = re.search(r"^CHILD FAMILY:\s*(.+)$", block, re.MULTILINE)
+        assert match is not None
+        annotation = annotate_problem_type(match.group(1))
+        assert annotation.confidence == "high", match.group(1)
+        inferred.add(annotation.problem_type)
+    assert inferred == set(PROBLEM_TYPES)
+
+
+def test_stage_two_example_bank_covers_all_problem_types_with_independent_checks():
+    shots = prompts._stage2_shots()
+    inferred = {annotate_problem_type(shot.family).problem_type for shot in shots}
+    assert inferred == set(PROBLEM_TYPES)
+    for shot in shots:
+        source, err = compile_stage2_reply(shot.reply, shot.family)
+        assert err is None, err
+        assert source is not None
 
 
 def test_stage_one_rotation_depends_on_semantic_tags_not_titles():

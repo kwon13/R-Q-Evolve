@@ -9,6 +9,7 @@ import tokenize
 
 from .concepts import DOMAINS
 from .ast_contract import check_generator_contract
+from .problem_type import annotate_problem_type
 from .program import ALLOWED_IMPORT_ROOTS, ProblemInstance
 
 
@@ -1224,6 +1225,7 @@ def _trusted_stage2_source(
     family_template: str,
     family_parts: list[tuple[str, str]],
     placeholder_keys: tuple[str, ...],
+    normalize_counting_integers: bool,
 ) -> str:
     """Attach the fixed data-only assembler to a validated candidate CORE."""
 
@@ -1337,6 +1339,7 @@ def __rq_render_parameter(value):
 FAMILY_TEMPLATE = {family_template!r}
 TRUSTED_ASSEMBLER_VERSION = {TRUSTED_ASSEMBLER_VERSION!r}
 __rq_mode = {mode!r}
+__rq_normalize_counting_integers = {normalize_counting_integers!r}
 __rq_template_parts = {tuple(family_parts)!r}
 __rq_parameter_keys = {placeholder_keys!r}
 
@@ -1368,6 +1371,11 @@ def generate(seed):
         raise ValueError("assembled problem length must be between 10 and 4000")
 
     if __rq_mode == "expression":
+        if __rq_normalize_counting_integers:
+            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:
+                answer = int(answer)
+            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:
+                check = int(check)
         if __rq_type(answer) is not __rq_type(check):
             raise ValueError("answer and check must have the same exact built-in type")
         assert answer == check, "answer/check mismatch"
@@ -1406,8 +1414,6 @@ def generate(seed):
             check = __rq_list(check)
         if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):
             raise ValueError("set answer/check must be exact lists, tuples, or sets")
-        if __rq_len(answer) > 32 or __rq_len(check) > 32:
-            raise ValueError("set answer/check has too many elements")
         elements = []
         for element in answer:
             if __rq_type(element) is bool:
@@ -1429,14 +1435,11 @@ def generate(seed):
             for element in elements + check_elements
         ):
             raise ValueError("set elements must contain 1..512 characters")
-        if (
-            __rq_len(elements) != __rq_len(__rq_set(elements))
-            or __rq_len(check_elements) != __rq_len(__rq_set(check_elements))
-        ):
-            raise ValueError("set elements must be unique")
-        assert __rq_set(elements) == __rq_set(check_elements), "answer/check mismatch"
-        canonical_elements = __rq_sorted(elements)
-        canonical_check_elements = __rq_sorted(check_elements)
+        canonical_elements = __rq_sorted(__rq_set(elements))
+        canonical_check_elements = __rq_sorted(__rq_set(check_elements))
+        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:
+            raise ValueError("set answer/check has too many unique elements")
+        assert canonical_elements == canonical_check_elements, "answer/check mismatch"
         answer_text = r"\\{{" + ",".join(canonical_elements) + r"\\}}"
         check_text = r"\\{{" + ",".join(canonical_check_elements) + r"\\}}"
         verifier = {{"mode": "set", "elements": canonical_elements}}
@@ -1656,6 +1659,9 @@ def compile_stage2_reply(
         family_template=family_template,
         family_parts=family_parts,
         placeholder_keys=placeholder_keys,
+        normalize_counting_integers=(
+            annotate_problem_type(family_template).problem_type == "counting"
+        ),
     )
     source_errors = lint_generator_source(source)
     if source_errors:

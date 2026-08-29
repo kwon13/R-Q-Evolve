@@ -22,6 +22,80 @@ def build_instance(rng):
 
 <STAGE2_EXAMPLE>
 <DOMAIN>
+number_theory
+</DOMAIN>
+<FAMILY>
+Are [[first_integer]] and [[second_integer]] relatively prime? Answer Yes or No.
+</FAMILY>
+<REPLY>
+MODE: boolean
+CORE:
+```python
+import math
+
+def build_instance(rng):
+    first_integer = rng.randint(2, 60)
+    second_integer = rng.randint(2, 60)
+    answer = math.gcd(first_integer, second_integer) == 1
+    check = all(not (first_integer % divisor == 0 and second_integer % divisor == 0) for divisor in range(2, min(first_integer, second_integer) + 1))
+    parameters = {"first_integer": first_integer, "second_integer": second_integer}
+    return parameters, answer, check
+```
+</REPLY>
+</STAGE2_EXAMPLE>
+
+<STAGE2_EXAMPLE>
+<DOMAIN>
+algebra
+</DOMAIN>
+<FAMILY>
+Find all integers x with [[lower_bound]] &lt;= x &lt;= [[upper_bound]] such that x^2 + [[linear_coefficient]]x + [[constant_term]] = 0.
+</FAMILY>
+<REPLY>
+MODE: set
+CORE:
+```python
+import sympy
+
+def build_instance(rng):
+    lower_bound = rng.randint(-10, -2)
+    upper_bound = rng.randint(2, 10)
+    linear_coefficient = rng.randint(-8, 8)
+    constant_term = rng.randint(-12, 12)
+    x = sympy.symbols("x", integer=True)
+    symbolic_roots = sympy.solve(x**2 + linear_coefficient * x + constant_term, x)
+    answer = [int(root) for root in symbolic_roots if root.is_integer is True and lower_bound <= root <= upper_bound]
+    check = [candidate for candidate in range(lower_bound, upper_bound + 1) if candidate**2 + linear_coefficient * candidate + constant_term == 0]
+    parameters = {"lower_bound": lower_bound, "upper_bound": upper_bound, "linear_coefficient": linear_coefficient, "constant_term": constant_term}
+    return parameters, answer, check
+```
+</REPLY>
+</STAGE2_EXAMPLE>
+
+<STAGE2_EXAMPLE>
+<DOMAIN>
+geometry
+</DOMAIN>
+<FAMILY>
+An axis-aligned rectangle has positive integer side lengths [[width]] and [[height]]. How many lattice points lie strictly inside it?
+</FAMILY>
+<REPLY>
+MODE: expression
+CORE:
+```python
+def build_instance(rng):
+    width = rng.randint(2, 10)
+    height = rng.randint(2, 10)
+    answer = (width - 1) * (height - 1)
+    check = sum(1 for x in range(1, width) for y in range(1, height))
+    parameters = {"width": width, "height": height}
+    return parameters, answer, check
+```
+</REPLY>
+</STAGE2_EXAMPLE>
+
+<STAGE2_EXAMPLE>
+<DOMAIN>
 calculus
 </DOMAIN>
 <FAMILY>

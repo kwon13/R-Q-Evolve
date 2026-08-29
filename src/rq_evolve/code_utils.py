@@ -635,7 +635,41 @@ def _stage2_function_shape_errors(function: ast.FunctionDef) -> list[str]:
 
 
 def _normalize_stage2_core_ast(tree: ast.AST) -> ast.AST:
-    """Normalize common benign return-statement variations in build_instance AST."""
+    """Normalize common benign return-statement variations and missing imports in build_instance AST."""
+    # 0. Auto-inject missing whitelist imports if referenced in code without import
+    existing_imports: set[str] = set()
+    locally_bound_names: set[str] = set()
+    loaded_names: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                existing_imports.add(alias.asname or alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                existing_imports.add(alias.asname or alias.name)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    locally_bound_names.add(target.id)
+        elif isinstance(node, ast.FunctionDef):
+            locally_bound_names.add(node.name)
+            for arg in node.args.args + node.args.posonlyargs + node.args.kwonlyargs:
+                locally_bound_names.add(arg.arg)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            loaded_names.add(node.id)
+
+    allowed_to_inject = (
+        (set(ALLOWED_IMPORT_ROOTS) - {"random"})
+        - existing_imports
+        - locally_bound_names
+    )
+    needed_imports = allowed_to_inject & loaded_names
+    if needed_imports:
+        for pkg in sorted(needed_imports):
+            tree.body.insert(0, ast.Import(names=[ast.alias(name=pkg, asname=None)]))
+
     builder = next(
         (
             node
@@ -645,6 +679,7 @@ def _normalize_stage2_core_ast(tree: ast.AST) -> ast.AST:
         None,
     )
     if builder is None or not builder.body:
+        ast.fix_missing_locations(tree)
         return tree
 
     final_return = builder.body[-1] if isinstance(builder.body[-1], ast.Return) else None
@@ -1600,6 +1635,8 @@ def compile_stage2_reply(
     if core_error or tree is None or builder is None:
         return None, core_error or "stage2 CORE validation failed"
 
+    normalized_core = ast.unparse(tree)
+
     synthesized = _synthesized_stage2_generate(
         tree, builder, family_parts, parameter_locals
     )
@@ -1613,7 +1650,7 @@ def compile_stage2_reply(
         )
 
     source = _trusted_stage2_source(
-        core=core,
+        core=normalized_core,
         domain=domain,
         mode=mode,
         family_template=family_template,

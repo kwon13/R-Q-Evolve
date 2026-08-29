@@ -275,3 +275,34 @@ def build_instance(rng):
     assert err4 is None, err4
     assert source4 is not None
 
+
+def test_stage2_auto_injects_missing_allowed_imports():
+    from rq_evolve.code_utils import compile_stage2_reply
+
+    # Missing itertools, math, and sympy imports in body
+    reply = """MODE: expression
+CORE:
+```python
+def build_instance(rng):
+    n = rng.randint(2, 6)
+    answer = math.comb(n, 2)
+    check = len(list(itertools.combinations(range(n), 2)))
+    x = sympy.symbols("x")
+    parameters = {"n": n}
+    return parameters, answer, check
+```
+"""
+    family = "Let n = [[n]]. Compute C(n, 2)."
+    source, err = compile_stage2_reply(reply, family)
+    assert err is None, err
+    assert source is not None
+    assert "import itertools" in source
+    assert "import math" in source
+    assert "import sympy" in source
+
+    # Verify execution succeeds without NameError
+    namespace = {}
+    exec(source, namespace)
+    problem, answer, verifier = namespace["generate"](42)
+    assert int(answer) > 0
+

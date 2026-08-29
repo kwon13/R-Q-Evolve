@@ -79,12 +79,25 @@ Independent Cross-Check Guidelines:
    - `check`: count objects by bounded enumeration.
 
 4. MODE: expression — Optimization
-   - `answer`: derive the optimum from a theorem, formula, or structural argument.
-   - `check`: evaluate all bounded feasible candidates and take `min`/`max`.
+   - `answer`: derive the optimum from a mathematical theorem, exact formula (e.g., vertex formula, AM-GM inequality, critical-point analysis), or structural argument.
+   - `check`: independently verify the optimum by exhaustively evaluating all feasible candidates when the domain is finite/discrete, or by using an independent symbolic method when the domain is genuinely continuous.
+   - Target Consistency: both sides must compute exactly the quantity requested by the problem; if the question asks for the maximum/minimum VALUE, return `f(x*)`, not merely the optimizer `x*`, and if it asks for the optimizer, return `x*`.
+   - Never use the same `min(...)`, `max(...)`, symbolic solve, or equivalent computation on both sides; one side must use a mathematical derivation/formula and the other a genuinely independent verification route.
 
 5. MODE: expression — Function / Value Evaluation
    - `answer`: compute the value using a direct formula or efficient mathematical method.
    - `check`: recompute it through an independent summation, iteration, geometric formula, or other bounded route.
+
+6. Continuous / Calculus Problems (Calculus, Precalculus):
+   - Do not compute `answer` and `check` by invoking the same symbolic operation in the same way. In particular, never use the same `sympy.diff`, `sympy.integrate`, `sympy.solve`, or equivalent call as both derivations.
+   - Derivatives / Integrals:
+     - `answer`: derive the exact result analytically from the sampled coefficients and bounds.
+     - `check`: independently verify it with `sympy.diff`, `sympy.integrate`, exact symbolic simplification, or another bounded exact computation.
+     - If MODE requires an integer-valued answer, sample parameters so the exact analytical result is guaranteed to be an integer; never use truncating division to force integrality.
+   - Extrema / Critical Points:
+     - `answer`: derive the critical point or optimum using an analytical formula, symmetry, monotonicity, or another exact argument.
+     - `check`: independently verify the result using symbolic differentiation/solving or bounded enumeration when the feasible domain is explicitly discrete.
+     - Do not use an integer grid search as a verifier for a genuinely continuous extremum unless the fixed family restricts the optimizer to integer/grid points.
 
 The fenced CORE must obey all of the following:
 - At top level, CORE may contain only imports and function definitions. Imports are limited to `collections`, `fractions`, `functools`, `itertools`, `math`, and `sympy`. Do not define top-level constants or execute top-level statements.

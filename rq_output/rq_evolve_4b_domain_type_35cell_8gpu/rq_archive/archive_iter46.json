@@ -42,11 +42,11 @@
       "coverage": 0.6857142857142857,
       "domain_coverage": 1.0,
       "problem_type_coverage": 1.0,
-      "mean_rq": 0.006973252299034761,
-      "max_rq": 0.03508613427480061,
-      "total_insertions": 1023,
-      "total_replacements": 28,
-      "total_selections": 1664,
+      "mean_rq": 0.006038281600060009,
+      "max_rq": 0.030339297776420908,
+      "total_insertions": 874,
+      "total_replacements": 22,
+      "total_selections": 1472,
       "num_structural_donors": 0
     }
   },
@@ -56,9 +56,9 @@
       "program_id": "21a2da8e24aa",
       "parent_id": "1a27d05ee124",
       "generation": 1,
-      "s_hat": 1.0,
-      "u_score": 0.10331033319234847,
-      "rq_score": 0.0,
+      "s_hat": 0.9,
+      "u_score": 0.1581128381192684,
+      "rq_score": 0.015811283811926837,
       "niche_domain": 0,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
@@ -270,7 +270,7 @@
           "n_distinct_answers": 1,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0,
+          "rq_score_at_check": 0.015811283811926837,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -286,7 +286,7 @@
       "parent_id": "a843486086ac",
       "generation": 2,
       "s_hat": 0.0,
-      "u_score": 0.08057702332735062,
+      "u_score": 0.07385737113654614,
       "rq_score": 0.0,
       "niche_domain": 0,
       "niche_problem_type": 2,
@@ -609,8 +609,8 @@
       "parent_id": "90e9d2000fef",
       "generation": 2,
       "s_hat": 0.9,
-      "u_score": 0.05921282470226288,
-      "rq_score": 0.005921282470226287,
+      "u_score": 0.05138387866318226,
+      "rq_score": 0.005138387866318225,
       "niche_domain": 0,
       "niche_problem_type": 4,
       "last_reeval_step": -1,
@@ -1019,7 +1019,7 @@
           "n_distinct_answers": 5,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.005921282470226287,
+          "rq_score_at_check": 0.005138387866318225,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -1035,7 +1035,7 @@
       "parent_id": "b4d4b2b908d1",
       "generation": 3,
       "s_hat": 1.0,
-      "u_score": 0.1267825573682785,
+      "u_score": 0.12751775607466698,
       "rq_score": 0.0,
       "niche_domain": 1,
       "niche_problem_type": 0,
@@ -1277,9 +1277,9 @@
       "program_id": "b90f6cfa2e12",
       "parent_id": "",
       "generation": 0,
-      "s_hat": 1.0,
-      "u_score": 0.08689122647047043,
-      "rq_score": 0.0,
+      "s_hat": 0.9,
+      "u_score": 0.09344222769141197,
+      "rq_score": 0.009344222769141194,
       "niche_domain": 1,
       "niche_problem_type": 1,
       "last_reeval_step": -1,
@@ -1325,7 +1325,7 @@
           "n_distinct_answers": 5,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0,
+          "rq_score_at_check": 0.009344222769141194,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -1613,13 +1613,13 @@
       }
     },
     {
-      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\ndef build_instance(rng):\n    width = rng.randint(1, 100)\n    height = rng.randint(1, 100)\n    answer = (width - 1) * (height - 1)\n    check = 0\n    for x in range(1, width):\n        for y in range(1, height):\n            check += 1\n    parameters = {'width': width, 'height': height}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'An axis-aligned rectangle has vertices (0, 0), ([[width]], 0), ([[width]], [[height]]), and (0, [[height]]), where width and height are positive integers. How many lattice points lie strictly inside the rectangle?'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_normalize_counting_integers = True\n__rq_template_parts = (('literal', 'An axis-aligned rectangle has vertices (0, 0), ('), ('parameter', 'width'), ('literal', ', 0), ('), ('parameter', 'width'), ('literal', ', '), ('parameter', 'height'), ('literal', '), and (0, '), ('parameter', 'height'), ('literal', '), where width and height are positive integers. How many lattice points lie strictly inside the rectangle?'))\n__rq_parameter_keys = ('height', 'width')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
-      "program_id": "76673ad43164",
-      "parent_id": "90e9d2000fef",
-      "generation": 2,
-      "s_hat": 0.9,
-      "u_score": 0.1397022448480129,
-      "rq_score": 0.013970224484801287,
+      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport math\n\ndef build_instance(rng):\n    constant = rng.randint(1, 100)\n    answer = 0\n    for x in range(-int(math.sqrt(constant)), int(math.sqrt(constant)) + 1):\n        y_squared = constant - x ** 2\n        if y_squared >= 0:\n            y = int(math.sqrt(y_squared))\n            if y ** 2 == y_squared:\n                answer += 1\n    check = 0\n    for x in range(-int(math.sqrt(constant)), int(math.sqrt(constant)) + 1):\n        y_squared = constant - x ** 2\n        if y_squared >= 0:\n            y = int(math.sqrt(y_squared))\n            if y ** 2 == y_squared:\n                check += 1\n    parameters = {'constant': constant}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'Let C be the circle centered at the origin with radius √[[constant]]. Compute the number of lattice points (x, y) that lie on C.'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_normalize_counting_integers = True\n__rq_template_parts = (('literal', 'Let C be the circle centered at the origin with radius √'), ('parameter', 'constant'), ('literal', '. Compute the number of lattice points (x, y) that lie on C.'))\n__rq_parameter_keys = ('constant',)\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
+      "program_id": "c436f9dc8c72",
+      "parent_id": "34488b88f1c1",
+      "generation": 3,
+      "s_hat": 0.8,
+      "u_score": 0.09435322806239128,
+      "rq_score": 0.01677390721109178,
       "niche_domain": 1,
       "niche_problem_type": 2,
       "last_reeval_step": -1,
@@ -1627,19 +1627,19 @@
         "op": "mutate",
         "lineage_root_id": "b5066f4ab5e6",
         "family_plan": {
-          "STRUCTURAL MUTATION": "Replace modular square roots by determining the exact number of lattice points in a specific geometric region.",
-          "CHILD FAMILY": "An axis-aligned rectangle has vertices (0, 0), ([[width]], 0), ([[width]], [[height]]), and (0, [[height]]), where width and height are positive integers. How many lattice points lie strictly inside the rectangle?",
-          "WHY FINITE": "The bounded rectangle contains finitely many lattice points, and its integer side lengths determine the interior count uniquely."
+          "STRUCTURAL MUTATION": "Replace integer solutions enumeration by evaluating the exact number of lattice points on a circle.",
+          "CHILD FAMILY": "Let C be the circle centered at the origin with radius √[[constant]]. Compute the number of lattice points (x, y) that lie on C.",
+          "WHY FINITE": "A circle of finite radius has a finite number of lattice points, and the exact count can be determined by checking all integer pairs (x, y) that satisfy x^2 + y^2 = [[constant]]."
         },
         "stage2_one_shot": {
-          "example_index": 9,
-          "domain": "precalculus",
-          "family_sha256": "20bc92fac90b66859af1851e3a593777a1cb0933b1e69b7678ad426ea04131c4"
+          "example_index": 8,
+          "domain": "applied_mathematics",
+          "family_sha256": "4b547b33b183ad41eefcb9e4e839fbe51eb7a33b131736b7bb482f43fdb5a47a"
         },
         "generator_contract": {
           "version": "trusted-instance-v2",
-          "family_sha256": "8ca04e3dcaf7fa44f14208e9a208ae48e1511b032510b34514b180852326cd61",
-          "stage2_reply_sha256": "817ea7ac3975af9b4f67fd0798e08726a03651473af6f07bfb564b9208c6b56f"
+          "family_sha256": "88afeb2b59afe42b5784c487127a45a08e11d2e860e0d21491449ad8e41c7bb7",
+          "stage2_reply_sha256": "f8423d7b8a837775c5ebf0503109e7db087d169301ff5d8145b41b930fe681cd"
         },
         "ast_contract": {
           "verdict": "clean",
@@ -1655,29 +1655,29 @@
           "domain": "geometry",
           "problem_type": "counting",
           "type_evidence": [
-            "How many"
+            "Compute the number of"
           ],
-          "source_sha256": "30d475baed497be696b7ff1e5ac98946b819cd46381c98db464c82219f979f06",
+          "source_sha256": "242ed0c05ece8fc3e2920f9f3c55283af1cc2ee18463324f2635c1d55570725c",
           "domain_labeling": {
             "method": "local_policy_binary_label_v1",
             "passed": true,
             "predicted": "geometry",
             "probabilities": {
-              "algebra": 0.08509903828876653,
-              "geometry": 0.6513548793721767,
-              "number_theory": 0.09534948735396465,
-              "discrete_mathematics": 0.5926665998515953,
-              "applied_mathematics": 0.04742585232757257,
-              "calculus": 0.02931222859905147,
-              "precalculus": 0.245084987742347
+              "algebra": 0.20181319870788728,
+              "geometry": 0.6791786964925157,
+              "number_theory": 0.20181319870788728,
+              "discrete_mathematics": 0.16451647172555162,
+              "applied_mathematics": 0.060086674644611815,
+              "calculus": 0.04208775846041812,
+              "precalculus": 0.37754067012570147
             },
-            "top_probability": 0.6513548793721767,
-            "logit_margin": 0.25000006518299767,
+            "top_probability": 0.6791786964925157,
+            "logit_margin": 1.2499999820382073,
             "min_probability": 0.0,
             "min_logit_margin": 0.0,
             "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-            "family_sha256": "8ca04e3dcaf7fa44f14208e9a208ae48e1511b032510b34514b180852326cd61",
-            "policy_iteration": 52,
+            "family_sha256": "88afeb2b59afe42b5784c487127a45a08e11d2e860e0d21491449ad8e41c7bb7",
+            "policy_iteration": 40,
             "failure_kind": null
           }
         },
@@ -1685,13 +1685,13 @@
           "canonical_template_count": 1,
           "verifier_mode_count": 1,
           "verified_seeds": 5,
-          "template_sha256": "8dffb2b65409c4f5a7b9a538decf38686d8f166628f78bca7bf521160006aba8",
+          "template_sha256": "b34d108dbc48154ce5095e046c105423d13c272d3188c71d1a1169a8b68f6075",
           "verifier_mode": "expression"
         },
         "mutation_strategy": "untargeted",
-        "_behavior_sig_5": "ebc9d4f1ef95448a62cc30bebd87405ac0b24b0bf1fedecc45c8d333ba3a3865",
-        "_template_sig_5": "877948c386bca233387490a93239f3f43a348e882e946d2d62bb5fc0761d2512",
-        "_template_text_5": "an axis-aligned rectangle has vertices (n, n), (n, n), (n, n), and (n, n), where width and height are positive integers. how many lattice points lie strictly inside the rectangle?",
+        "_behavior_sig_5": "7b2b1892101b8c1d2bd62074d0ead595017a224bb0e1d0c2c726dd909297cce5",
+        "_template_sig_5": "b19b6966f908e2c3f48c2b01178909255f6d8684a8c3fa38edbc915ad3b1381d",
+        "_template_text_5": "let c be the circle centered at the origin with radius √n. compute the number of lattice points (x, y) that lie on c.",
         "_ast_skeleton_v2_builder_aware": [
           "FunctionDef",
           "arguments",
@@ -1709,27 +1709,83 @@
           "Assign",
           "Name",
           "Store",
+          "Constant",
+          "For",
+          "Name",
+          "Store",
+          "Call",
+          "Name",
+          "Load",
+          "UnaryOp",
+          "USub",
+          "Call",
+          "Name",
+          "Load",
           "Call",
           "Attribute",
           "Name",
           "Load",
           "Load",
-          "Constant",
+          "Name",
+          "Load",
+          "BinOp",
+          "Call",
+          "Name",
+          "Load",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "Add",
           "Constant",
           "Assign",
           "Name",
           "Store",
           "BinOp",
-          "BinOp",
           "Name",
           "Load",
           "Sub",
+          "BinOp",
+          "Name",
+          "Load",
+          "Pow",
           "Constant",
-          "Mult",
+          "If",
+          "Compare",
+          "Name",
+          "Load",
+          "GtE",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Name",
+          "Load",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "If",
+          "Compare",
           "BinOp",
           "Name",
           "Load",
-          "Sub",
+          "Pow",
+          "Constant",
+          "Eq",
+          "Name",
+          "Load",
+          "AugAssign",
+          "Name",
+          "Store",
+          "Add",
           "Constant",
           "Assign",
           "Name",
@@ -1741,16 +1797,70 @@
           "Call",
           "Name",
           "Load",
-          "Constant",
+          "UnaryOp",
+          "USub",
+          "Call",
           "Name",
           "Load",
-          "For",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "BinOp",
+          "Call",
+          "Name",
+          "Load",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "Add",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "BinOp",
+          "Name",
+          "Load",
+          "Sub",
+          "BinOp",
+          "Name",
+          "Load",
+          "Pow",
+          "Constant",
+          "If",
+          "Compare",
+          "Name",
+          "Load",
+          "GtE",
+          "Constant",
+          "Assign",
           "Name",
           "Store",
           "Call",
           "Name",
           "Load",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "If",
+          "Compare",
+          "BinOp",
+          "Name",
+          "Load",
+          "Pow",
           "Constant",
+          "Eq",
           "Name",
           "Load",
           "AugAssign",
@@ -1763,9 +1873,6 @@
           "Store",
           "Dict",
           "Constant",
-          "Constant",
-          "Name",
-          "Load",
           "Name",
           "Load",
           "Return",
@@ -1791,13 +1898,13 @@
               "exact_source": false,
               "exact_behavior": false,
               "exact_template": false,
-              "token_jaccard": 0.088235,
+              "token_jaccard": 0.142857,
               "max_token_jaccard": null,
               "near_duplicate_min_chars": 40,
-              "near_template_ratio": 0.136364,
-              "structural_ratio": 0.741722,
-              "example_index": 9,
-              "family_sha256": "20bc92fac90b66859af1851e3a593777a1cb0933b1e69b7678ad426ea04131c4"
+              "near_template_ratio": 0.392523,
+              "structural_ratio": 0.366972,
+              "example_index": 8,
+              "family_sha256": "4b547b33b183ad41eefcb9e4e839fbe51eb7a33b131736b7bb482f43fdb5a47a"
             }
           ]
         },
@@ -1806,21 +1913,21 @@
           "passed": true,
           "predicted": "geometry",
           "probabilities": {
-            "algebra": 0.08509903828876653,
-            "geometry": 0.6513548793721767,
-            "number_theory": 0.09534948735396465,
-            "discrete_mathematics": 0.5926665998515953,
-            "applied_mathematics": 0.04742585232757257,
-            "calculus": 0.02931222859905147,
-            "precalculus": 0.245084987742347
+            "algebra": 0.20181319870788728,
+            "geometry": 0.6791786964925157,
+            "number_theory": 0.20181319870788728,
+            "discrete_mathematics": 0.16451647172555162,
+            "applied_mathematics": 0.060086674644611815,
+            "calculus": 0.04208775846041812,
+            "precalculus": 0.37754067012570147
           },
-          "top_probability": 0.6513548793721767,
-          "logit_margin": 0.25000006518299767,
+          "top_probability": 0.6791786964925157,
+          "logit_margin": 1.2499999820382073,
           "min_probability": 0.0,
           "min_logit_margin": 0.0,
           "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-          "family_sha256": "8ca04e3dcaf7fa44f14208e9a208ae48e1511b032510b34514b180852326cd61",
-          "policy_iteration": 52,
+          "family_sha256": "88afeb2b59afe42b5784c487127a45a08e11d2e860e0d21491449ad8e41c7bb7",
+          "policy_iteration": 40,
           "failure_kind": null
         },
         "domain": "geometry",
@@ -1828,16 +1935,16 @@
         "num_seeds": 1,
         "validity_check": {
           "passed": true,
-          "n_distinct_problems": 5,
-          "n_distinct_answers": 5,
+          "n_distinct_problems": 4,
+          "n_distinct_answers": 3,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.013970224484801287,
+          "rq_score_at_check": 0.01677390721109178,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
-          "distinct_answers": 5,
-          "z_sensitive_fraction": 0.857
+          "distinct_answers": 3,
+          "z_sensitive_fraction": 0.714
         },
         "archive_status": "champion"
       }
@@ -1848,7 +1955,7 @@
       "parent_id": "ef03e159eece",
       "generation": 1,
       "s_hat": 1.0,
-      "u_score": 0.08170956484973431,
+      "u_score": 0.0795292466878891,
       "rq_score": 0.0,
       "niche_domain": 1,
       "niche_problem_type": 3,
@@ -2069,9 +2176,9 @@
       "program_id": "fa1329e94c7f",
       "parent_id": "668f156047e9",
       "generation": 2,
-      "s_hat": 0.8,
-      "u_score": 0.19735950529575347,
-      "rq_score": 0.03508613427480061,
+      "s_hat": 1.0,
+      "u_score": 0.08740071207284927,
+      "rq_score": 0.0,
       "niche_domain": 1,
       "niche_problem_type": 4,
       "last_reeval_step": -1,
@@ -2312,7 +2419,7 @@
           "n_distinct_answers": 5,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.03508613427480061,
+          "rq_score_at_check": 0.0,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -2328,7 +2435,7 @@
       "parent_id": "b5066f4ab5e6",
       "generation": 1,
       "s_hat": 1.0,
-      "u_score": 0.07261841259896755,
+      "u_score": 0.06678951047360897,
       "rq_score": 0.0,
       "niche_domain": 2,
       "niche_problem_type": 0,
@@ -2586,13 +2693,13 @@
       }
     },
     {
-      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\ndef build_instance(rng):\n    modulus = rng.randint(2, 100)\n    residue = rng.randint(0, modulus - 1)\n    solutions = []\n    for x in range(modulus):\n        if x ** 2 % modulus == residue:\n            solutions.append(x)\n    answer = frozenset(solutions)\n    check = frozenset((x for x in range(modulus) if x ** 2 % modulus == residue))\n    parameters = {'modulus': modulus, 'residue': residue}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'Find all integers x with 0 <= x < [[modulus]] such that x^2 has remainder [[residue]] when divided by [[modulus]].'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'set'\n__rq_normalize_counting_integers = False\n__rq_template_parts = (('literal', 'Find all integers x with 0 <= x < '), ('parameter', 'modulus'), ('literal', ' such that x^2 has remainder '), ('parameter', 'residue'), ('literal', ' when divided by '), ('parameter', 'modulus'), ('literal', '.'))\n__rq_parameter_keys = ('modulus', 'residue')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
-      "program_id": "1decd6f6aaf7",
+      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport fractions\nimport itertools\n\ndef build_instance(rng):\n    modulus = rng.randint(2, 10)\n    residue = rng.randint(0, modulus - 1)\n    solutions = []\n    for x in range(modulus):\n        if x ** 2 % modulus == residue:\n            solutions.append(x)\n    answer = tuple(solutions)\n    check = tuple((x for x in range(modulus) if x ** 2 % modulus == residue))\n    parameters = {'modulus': modulus, 'residue': residue}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'Find all integers x with 0 <= x < [[modulus]] such that x^2 has remainder [[residue]] when divided by [[modulus]].'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'set'\n__rq_normalize_counting_integers = False\n__rq_template_parts = (('literal', 'Find all integers x with 0 <= x < '), ('parameter', 'modulus'), ('literal', ' such that x^2 has remainder '), ('parameter', 'residue'), ('literal', ' when divided by '), ('parameter', 'modulus'), ('literal', '.'))\n__rq_parameter_keys = ('modulus', 'residue')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
+      "program_id": "fa51a5b5275a",
       "parent_id": "5cb7950fa167",
       "generation": 1,
-      "s_hat": 0.6,
-      "u_score": 0.08140360377728939,
-      "rq_score": 0.02170762767394384,
+      "s_hat": 1.0,
+      "u_score": 0.05121554508805275,
+      "rq_score": 0.0,
       "niche_domain": 2,
       "niche_problem_type": 1,
       "last_reeval_step": -1,
@@ -2600,19 +2707,19 @@
         "op": "mutate",
         "lineage_root_id": "5cb7950fa167",
         "family_plan": {
-          "STRUCTURAL MUTATION": "Replace a data set correction by recovering every integer compatible with a finite modular observation.",
+          "STRUCTURAL MUTATION": "Replace a mean correction by recovering a new integer from a modular observation.",
           "CHILD FAMILY": "Find all integers x with 0 <= x < [[modulus]] such that x^2 has remainder [[residue]] when divided by [[modulus]].",
           "WHY FINITE": "The explicit interval 0 <= x < modulus makes the requested solution set finite and uniquely determined."
         },
         "stage2_one_shot": {
-          "example_index": 9,
-          "domain": "precalculus",
-          "family_sha256": "20bc92fac90b66859af1851e3a593777a1cb0933b1e69b7678ad426ea04131c4"
+          "example_index": 8,
+          "domain": "applied_mathematics",
+          "family_sha256": "4b547b33b183ad41eefcb9e4e839fbe51eb7a33b131736b7bb482f43fdb5a47a"
         },
         "generator_contract": {
           "version": "trusted-instance-v2",
           "family_sha256": "971b88663e387e106a50cf0d1d5d5e725cc94167be931e2e89395a71ce159e86",
-          "stage2_reply_sha256": "5fc7b6b47028b22267934e150598058afcbc8053d245d88756744e17c1972ed3"
+          "stage2_reply_sha256": "014bdb4d6af3de7a4854e2dbadb32a17d46210c788211fe083eaf861b55c4e3f"
         },
         "ast_contract": {
           "verdict": "clean",
@@ -2630,27 +2737,27 @@
           "type_evidence": [
             "Find all"
           ],
-          "source_sha256": "ae66df28f6a157853494e5add98fed4ee41c1c82798e35b1f834274b2b15621d",
+          "source_sha256": "45a68657b873899cb065e21031d60f12b694175c689ef0ad975eb205134cfce3",
           "domain_labeling": {
             "method": "local_policy_binary_label_v1",
             "passed": true,
             "predicted": "number_theory",
             "probabilities": {
               "algebra": 0.245084987742347,
-              "geometry": 0.022977352334881296,
-              "number_theory": 0.8519528492100928,
-              "discrete_mathematics": 0.16451647172555162,
+              "geometry": 0.025957375747600153,
+              "number_theory": 0.8354835282744484,
+              "discrete_mathematics": 0.20181319870788728,
               "applied_mathematics": 0.02931222859905147,
-              "calculus": 0.02033235321312632,
+              "calculus": 0.022977352334881296,
               "precalculus": 0.09534948735396465
             },
-            "top_probability": 0.8519528492100928,
-            "logit_margin": 2.8750005117804625,
+            "top_probability": 0.8354835282744484,
+            "logit_margin": 2.750000072995961,
             "min_probability": 0.0,
             "min_logit_margin": 0.0,
             "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
             "family_sha256": "971b88663e387e106a50cf0d1d5d5e725cc94167be931e2e89395a71ce159e86",
-            "policy_iteration": 51,
+            "policy_iteration": 3,
             "failure_kind": null
           }
         },
@@ -2662,7 +2769,7 @@
           "verifier_mode": "set"
         },
         "mutation_strategy": "untargeted",
-        "_behavior_sig_5": "ad63dfeb21814f3c406b98e059f6bde7d322682bb068d0de2c116880ded562fd",
+        "_behavior_sig_5": "9ed3f7f013a5aa2ced95085722616a543b9d0f08f8c1d6d9e8653b71acd72367",
         "_template_sig_5": "89646513d45d6645707a6a20befc44a7151dfeb70fbb80e52c30d3d5b06dbdd1",
         "_template_text_5": "find all integers x with n <= x < n such that x^n has remainder n when divided by n.",
         "_ast_skeleton_v2_builder_aware": [
@@ -2799,13 +2906,13 @@
               "exact_source": false,
               "exact_behavior": false,
               "exact_template": false,
-              "token_jaccard": 0.076923,
+              "token_jaccard": 0.066667,
               "max_token_jaccard": null,
               "near_duplicate_min_chars": 40,
-              "near_template_ratio": 0.380952,
-              "structural_ratio": 0.569892,
-              "example_index": 9,
-              "family_sha256": "20bc92fac90b66859af1851e3a593777a1cb0933b1e69b7678ad426ea04131c4"
+              "near_template_ratio": 0.309524,
+              "structural_ratio": 0.533333,
+              "example_index": 8,
+              "family_sha256": "4b547b33b183ad41eefcb9e4e839fbe51eb7a33b131736b7bb482f43fdb5a47a"
             }
           ]
         },
@@ -2815,20 +2922,20 @@
           "predicted": "number_theory",
           "probabilities": {
             "algebra": 0.245084987742347,
-            "geometry": 0.022977352334881296,
-            "number_theory": 0.8519528492100928,
-            "discrete_mathematics": 0.16451647172555162,
+            "geometry": 0.025957375747600153,
+            "number_theory": 0.8354835282744484,
+            "discrete_mathematics": 0.20181319870788728,
             "applied_mathematics": 0.02931222859905147,
-            "calculus": 0.02033235321312632,
+            "calculus": 0.022977352334881296,
             "precalculus": 0.09534948735396465
           },
-          "top_probability": 0.8519528492100928,
-          "logit_margin": 2.8750005117804625,
+          "top_probability": 0.8354835282744484,
+          "logit_margin": 2.750000072995961,
           "min_probability": 0.0,
           "min_logit_margin": 0.0,
           "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
           "family_sha256": "971b88663e387e106a50cf0d1d5d5e725cc94167be931e2e89395a71ce159e86",
-          "policy_iteration": 51,
+          "policy_iteration": 3,
           "failure_kind": null
         },
         "domain": "number_theory",
@@ -2837,27 +2944,27 @@
         "validity_check": {
           "passed": true,
           "n_distinct_problems": 5,
-          "n_distinct_answers": 2,
+          "n_distinct_answers": 4,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.02170762767394384,
+          "rq_score_at_check": 0.0,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
-          "distinct_answers": 2,
+          "distinct_answers": 4,
           "z_sensitive_fraction": 0.714
         },
         "archive_status": "champion"
       }
     },
     {
-      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport math\n\ndef build_instance(rng):\n    upper_bound = rng.randint(1, 100)\n    multiples_of_3 = [i for i in range(3, upper_bound + 1, 3)]\n    perfect_squares = [i for i in multiples_of_3 if int(math.isqrt(i)) ** 2 == i]\n    count = len(perfect_squares)\n    check = len([i for i in multiples_of_3 if int(math.isqrt(i)) ** 2 == i])\n    answer = count\n    parameters = {'upper_bound': upper_bound}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'Let S be the set of all positive integers that are multiples of 3 and less than or equal to [[upper_bound]]. How many elements in S are also perfect squares?'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_normalize_counting_integers = True\n__rq_template_parts = (('literal', 'Let S be the set of all positive integers that are multiples of 3 and less than or equal to '), ('parameter', 'upper_bound'), ('literal', '. How many elements in S are also perfect squares?'))\n__rq_parameter_keys = ('upper_bound',)\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
-      "program_id": "ebc7fe65df84",
+      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport math\n\ndef build_instance(rng):\n    modulus = rng.randint(1, 100)\n    upper_bound = rng.randint(0, modulus)\n    count = upper_bound // 3 + 1\n    answer = count\n    check = sum((1 for x in range(0, upper_bound + 1, 3)))\n    parameters = {'modulus': modulus, 'upper_bound': upper_bound}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'Find all integers x with 0 <= x < [[modulus]] such that x is a multiple of 3 and x <= [[upper_bound]]. How many such integers are there?'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_normalize_counting_integers = True\n__rq_template_parts = (('literal', 'Find all integers x with 0 <= x < '), ('parameter', 'modulus'), ('literal', ' such that x is a multiple of 3 and x <= '), ('parameter', 'upper_bound'), ('literal', '. How many such integers are there?'))\n__rq_parameter_keys = ('modulus', 'upper_bound')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
+      "program_id": "6e53a9e3d4ec",
       "parent_id": "5f9c6657fa39",
       "generation": 3,
-      "s_hat": 0.9,
-      "u_score": 0.10254292227327824,
-      "rq_score": 0.010254292227327821,
+      "s_hat": 1.0,
+      "u_score": 0.12896977886557578,
+      "rq_score": 0.0,
       "niche_domain": 2,
       "niche_problem_type": 2,
       "last_reeval_step": -1,
@@ -2865,19 +2972,19 @@
         "op": "mutate",
         "lineage_root_id": "5cb7950fa167",
         "family_plan": {
-          "STRUCTURAL MUTATION": "Replace the computation of a product with a count of elements satisfying a specific property.",
-          "CHILD FAMILY": "Let S be the set of all positive integers that are multiples of 3 and less than or equal to [[upper_bound]]. How many elements in S are also perfect squares?",
-          "WHY FINITE": "The set S is finite, and the condition of being a perfect square is a discrete property that can be checked for each element in S. Therefore, the number of elements in S that are perfect squares is a finite, unambiguous, and exactly computable answer."
+          "STRUCTURAL MUTATION": "Replace a product computation by a count of compatible integers in a finite modular system.",
+          "CHILD FAMILY": "Find all integers x with 0 <= x < [[modulus]] such that x is a multiple of 3 and x <= [[upper_bound]]. How many such integers are there?",
+          "WHY FINITE": "The explicit interval 0 <= x < modulus, combined with the conditions that x is a multiple of 3 and x <= upper_bound, ensures that the set of compatible integers is finite and uniquely determined."
         },
         "stage2_one_shot": {
-          "example_index": 2,
-          "domain": "number_theory",
-          "family_sha256": "ccb3f628226299f36e6c46434897076bb474ac68aa320b823d3fa7fbc51a4d0e"
+          "example_index": 9,
+          "domain": "precalculus",
+          "family_sha256": "20bc92fac90b66859af1851e3a593777a1cb0933b1e69b7678ad426ea04131c4"
         },
         "generator_contract": {
           "version": "trusted-instance-v2",
-          "family_sha256": "0913d025cf38d9e4fdd557618f594604d088e13bdea83ec0adcd72d7ee5f0820",
-          "stage2_reply_sha256": "3303de1f733a978a01bbec2db34990b653236973bfbbfd67b7bdb3e86411677c"
+          "family_sha256": "862d986ea599ed1a3f2dce973d631aa3db06cfcaa9fa17aae4135eab652a0528",
+          "stage2_reply_sha256": "021234abedc5d8363824e6b9cfa882d22fc68b9f11c37429557806914ebd9063"
         },
         "ast_contract": {
           "verdict": "clean",
@@ -2895,27 +3002,27 @@
           "type_evidence": [
             "How many"
           ],
-          "source_sha256": "aed78d604c080fb46d4d18f9b1ba50a6b15ee7f1dcfc190f3d50e2876dc07118",
+          "source_sha256": "d314699557a89031bf508d868a5488e087bbcf488293b6a1b31e1c8b002d5e50",
           "domain_labeling": {
             "method": "local_policy_binary_label_v1",
             "passed": true,
             "predicted": "number_theory",
             "probabilities": {
-              "algebra": 0.11920295311666573,
+              "algebra": 0.18242556912715124,
               "geometry": 0.022977352334881296,
-              "number_theory": 0.5000000009523271,
-              "discrete_mathematics": 0.3208213035074843,
-              "applied_mathematics": 0.03732692695097428,
-              "calculus": 0.010986941060304178,
-              "precalculus": 0.16451647172555162
+              "number_theory": 0.705785027818136,
+              "discrete_mathematics": 0.37754067012570147,
+              "applied_mathematics": 0.04208775846041812,
+              "calculus": 0.014063619624191448,
+              "precalculus": 0.09534948735396465
             },
-            "top_probability": 0.5000000009523271,
-            "logit_margin": 0.7499999914966012,
+            "top_probability": 0.705785027818136,
+            "logit_margin": 1.3749999942600166,
             "min_probability": 0.0,
             "min_logit_margin": 0.0,
             "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-            "family_sha256": "0913d025cf38d9e4fdd557618f594604d088e13bdea83ec0adcd72d7ee5f0820",
-            "policy_iteration": 51,
+            "family_sha256": "862d986ea599ed1a3f2dce973d631aa3db06cfcaa9fa17aae4135eab652a0528",
+            "policy_iteration": 40,
             "failure_kind": null
           }
         },
@@ -2923,13 +3030,13 @@
           "canonical_template_count": 1,
           "verifier_mode_count": 1,
           "verified_seeds": 5,
-          "template_sha256": "a1ff145db920b10fdfaecb94f1770f572d6254ab72e524ca5b7d6ad5b03db1c1",
+          "template_sha256": "4e4a1a20fb220facce17816b448056fe570d7f4244cc18aa02d561005d0d72c6",
           "verifier_mode": "expression"
         },
         "mutation_strategy": "untargeted",
-        "_behavior_sig_5": "393ceab44f7036ce5cda0939dc97832d1beb17271b974cd7068ee9e235cb5f00",
-        "_template_sig_5": "7b56452f02740c1533d13a44fd17f9a62d41084dcfc97e7b8a0dd4254a1fb1d4",
-        "_template_text_5": "let s be the set of all positive integers that are multiples of n and less than or equal to n. how many elements in s are also perfect squares?",
+        "_behavior_sig_5": "1cf1454f76f6c920be86262dd72a534786d511ef0a69ba2b9a13cf8f681a74aa",
+        "_template_sig_5": "3148019120c6dc4af9cf87060b2e5fcd2fc0396264177c6064d84f2d37438a3c",
+        "_template_text_5": "find all integers x with n <= x < n such that x is a multiple of n and x <= n. how many such integers are there?",
         "_ast_skeleton_v2_builder_aware": [
           "FunctionDef",
           "arguments",
@@ -2947,9 +3054,38 @@
           "Assign",
           "Name",
           "Store",
-          "ListComp",
+          "Call",
+          "Attribute",
           "Name",
           "Load",
+          "Load",
+          "Constant",
+          "Name",
+          "Load",
+          "Assign",
+          "Name",
+          "Store",
+          "BinOp",
+          "BinOp",
+          "Name",
+          "Load",
+          "FloorDiv",
+          "Constant",
+          "Add",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "Name",
+          "Load",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Name",
+          "Load",
+          "GeneratorExp",
+          "Constant",
           "comprehension",
           "Name",
           "Store",
@@ -2966,80 +3102,11 @@
           "Assign",
           "Name",
           "Store",
-          "ListComp",
-          "Name",
-          "Load",
-          "comprehension",
-          "Name",
-          "Store",
-          "Name",
-          "Load",
-          "Compare",
-          "BinOp",
-          "Call",
-          "Name",
-          "Load",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "Name",
-          "Load",
-          "Pow",
-          "Constant",
-          "Eq",
-          "Name",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
-          "Name",
-          "Load",
-          "ListComp",
-          "Name",
-          "Load",
-          "comprehension",
-          "Name",
-          "Store",
-          "Name",
-          "Load",
-          "Compare",
-          "BinOp",
-          "Call",
-          "Name",
-          "Load",
-          "Call",
-          "Attribute",
-          "Name",
-          "Load",
-          "Load",
-          "Name",
-          "Load",
-          "Pow",
-          "Constant",
-          "Eq",
-          "Name",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
-          "Name",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
           "Dict",
           "Constant",
+          "Constant",
+          "Name",
+          "Load",
           "Name",
           "Load",
           "Return",
@@ -3065,13 +3132,13 @@
               "exact_source": false,
               "exact_behavior": false,
               "exact_template": false,
-              "token_jaccard": 0.129032,
+              "token_jaccard": 0.185185,
               "max_token_jaccard": null,
               "near_duplicate_min_chars": 40,
-              "near_template_ratio": null,
-              "structural_ratio": 0.44843,
-              "example_index": 2,
-              "family_sha256": "ccb3f628226299f36e6c46434897076bb474ac68aa320b823d3fa7fbc51a4d0e"
+              "near_template_ratio": 0.3,
+              "structural_ratio": 0.680272,
+              "example_index": 9,
+              "family_sha256": "20bc92fac90b66859af1851e3a593777a1cb0933b1e69b7678ad426ea04131c4"
             }
           ]
         },
@@ -3080,21 +3147,21 @@
           "passed": true,
           "predicted": "number_theory",
           "probabilities": {
-            "algebra": 0.11920295311666573,
+            "algebra": 0.18242556912715124,
             "geometry": 0.022977352334881296,
-            "number_theory": 0.5000000009523271,
-            "discrete_mathematics": 0.3208213035074843,
-            "applied_mathematics": 0.03732692695097428,
-            "calculus": 0.010986941060304178,
-            "precalculus": 0.16451647172555162
+            "number_theory": 0.705785027818136,
+            "discrete_mathematics": 0.37754067012570147,
+            "applied_mathematics": 0.04208775846041812,
+            "calculus": 0.014063619624191448,
+            "precalculus": 0.09534948735396465
           },
-          "top_probability": 0.5000000009523271,
-          "logit_margin": 0.7499999914966012,
+          "top_probability": 0.705785027818136,
+          "logit_margin": 1.3749999942600166,
           "min_probability": 0.0,
           "min_logit_margin": 0.0,
           "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-          "family_sha256": "0913d025cf38d9e4fdd557618f594604d088e13bdea83ec0adcd72d7ee5f0820",
-          "policy_iteration": 51,
+          "family_sha256": "862d986ea599ed1a3f2dce973d631aa3db06cfcaa9fa17aae4135eab652a0528",
+          "policy_iteration": 40,
           "failure_kind": null
         },
         "domain": "number_theory",
@@ -3102,15 +3169,15 @@
         "num_seeds": 1,
         "validity_check": {
           "passed": true,
-          "n_distinct_problems": 4,
-          "n_distinct_answers": 3,
+          "n_distinct_problems": 5,
+          "n_distinct_answers": 4,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.010254292227327821,
+          "rq_score_at_check": 0.0,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
-          "distinct_answers": 3,
+          "distinct_answers": 4,
           "z_sensitive_fraction": 1.0
         },
         "archive_status": "champion"
@@ -3122,7 +3189,7 @@
       "parent_id": "6a506bdff677",
       "generation": 2,
       "s_hat": 1.0,
-      "u_score": 0.1626121498644352,
+      "u_score": 0.10913456529378891,
       "rq_score": 0.0,
       "niche_domain": 2,
       "niche_problem_type": 4,
@@ -3354,9 +3421,9 @@
       "program_id": "ae8a7fc4eb58",
       "parent_id": "b5066f4ab5e6",
       "generation": 1,
-      "s_hat": 1.0,
-      "u_score": 0.21768104583024978,
-      "rq_score": 0.0,
+      "s_hat": 0.9,
+      "u_score": 0.2215264305472374,
+      "rq_score": 0.022152643054723736,
       "niche_domain": 3,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
@@ -3591,7 +3658,7 @@
           "n_distinct_answers": 2,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0,
+          "rq_score_at_check": 0.022152643054723736,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -3602,33 +3669,33 @@
       }
     },
     {
-      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport math\nfrom collections import Counter\nfrom itertools import combinations, product\n\ndef build_instance(rng):\n    vertex_count = rng.randint(2, 10)\n    vertex_degree = rng.randint(1, vertex_count - 1)\n    answer = math.comb(vertex_count, vertex_degree)\n    check = sum((1 for _ in combinations(range(vertex_count), vertex_degree)))\n    parameters = {'vertex_count': vertex_count, 'vertex_degree': vertex_degree}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'How many simple graphs are there on [[vertex_count]] labeled vertices in which every vertex has exactly [[vertex_degree]] neighbors?'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_normalize_counting_integers = True\n__rq_template_parts = (('literal', 'How many simple graphs are there on '), ('parameter', 'vertex_count'), ('literal', ' labeled vertices in which every vertex has exactly '), ('parameter', 'vertex_degree'), ('literal', ' neighbors?'))\n__rq_parameter_keys = ('vertex_count', 'vertex_degree')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
-      "program_id": "2630aac871f9",
-      "parent_id": "ae8a7fc4eb58",
-      "generation": 2,
-      "s_hat": 0.0,
-      "u_score": 0.22165339887142183,
-      "rq_score": 0.0,
+      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport math\n\ndef build_instance(rng):\n    length = rng.randint(1, 10)\n    width = rng.randint(1, 10)\n    answer = (length - 1) * (width - 1)\n    check = sum((1 for x in range(1, length) for y in range(1, width)))\n    parameters = {'length': length, 'width': width}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'An axis-aligned rectangle has vertices (0, 0), ([[length]], 0), ([[length]], [[width]]), and (0, [[width]]), where both [[length]] and [[width]] are positive integers. How many lattice points lie strictly inside the rectangle?'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_normalize_counting_integers = True\n__rq_template_parts = (('literal', 'An axis-aligned rectangle has vertices (0, 0), ('), ('parameter', 'length'), ('literal', ', 0), ('), ('parameter', 'length'), ('literal', ', '), ('parameter', 'width'), ('literal', '), and (0, '), ('parameter', 'width'), ('literal', '), where both '), ('parameter', 'length'), ('literal', ' and '), ('parameter', 'width'), ('literal', ' are positive integers. How many lattice points lie strictly inside the rectangle?'))\n__rq_parameter_keys = ('length', 'width')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
+      "program_id": "9c89f4e8cc9f",
+      "parent_id": "9adf9162932c",
+      "generation": 3,
+      "s_hat": 0.9,
+      "u_score": 0.1535114176571369,
+      "rq_score": 0.015351141765713687,
       "niche_domain": 3,
       "niche_problem_type": 2,
       "last_reeval_step": -1,
       "metadata": {
         "op": "mutate",
-        "lineage_root_id": "b5066f4ab5e6",
+        "lineage_root_id": "8cd7da8aaf57",
         "family_plan": {
-          "STRUCTURAL MUTATION": "Replace graph existence questions with a combinatorial counting problem involving labeled graphs.",
-          "CHILD FAMILY": "How many simple graphs are there on [[vertex_count]] labeled vertices in which every vertex has exactly [[vertex_degree]] neighbors?",
-          "WHY FINITE": "For a fixed number of vertices and degrees, the number of such graphs is finite and can be computed using combinatorial methods, ensuring a unique, exact, and finite answer."
+          "STRUCTURAL MUTATION": "Replace the sum of integers in a rectangle with a question about the number of lattice points in a specific geometric shape.",
+          "CHILD FAMILY": "An axis-aligned rectangle has vertices (0, 0), ([[length]], 0), ([[length]], [[width]]), and (0, [[width]]), where both [[length]] and [[width]] are positive integers. How many lattice points lie strictly inside the rectangle?",
+          "WHY FINITE": "The bounded rectangle contains finitely many lattice points, and its integer side lengths determine the interior count uniquely."
         },
         "stage2_one_shot": {
-          "example_index": 1,
-          "domain": "geometry",
-          "family_sha256": "941d35f8166d3ed38903a4f5ea49ee190205de3b2b8d039e596ddf31a8fd7659"
+          "example_index": 2,
+          "domain": "number_theory",
+          "family_sha256": "ccb3f628226299f36e6c46434897076bb474ac68aa320b823d3fa7fbc51a4d0e"
         },
         "generator_contract": {
           "version": "trusted-instance-v2",
-          "family_sha256": "718d9289ad5f31ba5b6ee59698607d38be9b518aa137cb9d78c6f8f3fdb1a86d",
-          "stage2_reply_sha256": "9a522632e30cfa3c82e9aae58998548d6d8b49b48c26300fe6e707ffb22afb76"
+          "family_sha256": "9ef43b42a847c124a2663341f5da2dd77f9a8793f56c4ebdf82eb826b626fbb1",
+          "stage2_reply_sha256": "5e4dc891158abde97d71b3c0a4d3ffc17430ae5a3ec9224b9c0f98ed3643e79e"
         },
         "ast_contract": {
           "verdict": "clean",
@@ -3646,27 +3713,27 @@
           "type_evidence": [
             "How many"
           ],
-          "source_sha256": "833d5bd804b7f1d5f08621a610ff5a3a6b0365ab819ba71decae90e4a5999fd6",
+          "source_sha256": "55bdda5aed48f7f17c085e2ad23bdf8b378d02e3dd15c74275c72a916be17ace",
           "domain_labeling": {
             "method": "local_policy_binary_label_v1",
             "passed": true,
             "predicted": "discrete_mathematics",
             "probabilities": {
-              "algebra": 0.08509903828876653,
-              "geometry": 0.03308593582205954,
-              "number_theory": 0.03308593582205954,
-              "discrete_mathematics": 0.8807970468833343,
-              "applied_mathematics": 0.05340334112443346,
-              "calculus": 0.008577522801712312,
-              "precalculus": 0.08509903828876653
+              "algebra": 0.07585819448559739,
+              "geometry": 0.5312093941731293,
+              "number_theory": 0.11920295311666573,
+              "discrete_mathematics": 0.6513548793721767,
+              "applied_mathematics": 0.04742585232757257,
+              "calculus": 0.02033235321312632,
+              "precalculus": 0.2689414651180061
             },
-            "top_probability": 0.8807970468833343,
-            "logit_margin": 4.374999790132827,
+            "top_probability": 0.6513548793721767,
+            "logit_margin": 0.4999999812356137,
             "min_probability": 0.0,
             "min_logit_margin": 0.0,
             "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-            "family_sha256": "718d9289ad5f31ba5b6ee59698607d38be9b518aa137cb9d78c6f8f3fdb1a86d",
-            "policy_iteration": 49,
+            "family_sha256": "9ef43b42a847c124a2663341f5da2dd77f9a8793f56c4ebdf82eb826b626fbb1",
+            "policy_iteration": 46,
             "failure_kind": null
           }
         },
@@ -3674,13 +3741,13 @@
           "canonical_template_count": 1,
           "verifier_mode_count": 1,
           "verified_seeds": 5,
-          "template_sha256": "0f81ded6630aad171ea7c8cad878d7cbf4a7ebce60430488c771766a3f736589",
+          "template_sha256": "c0b33002ca2770da25dfe2ddc16930a456d6c272330a09758d239129652a9cc2",
           "verifier_mode": "expression"
         },
         "mutation_strategy": "untargeted",
-        "_behavior_sig_5": "f94360e260a0e9bacd98aafc7bc944dfb865038151bf87f9c70d56db365dbfca",
-        "_template_sig_5": "85998e4a6a17ceb29ccd5e185d4b461577b90541dd38ece8fe40f65d16ca037b",
-        "_template_text_5": "how many simple graphs are there on n labeled vertices in which every vertex has exactly n neighbors?",
+        "_behavior_sig_5": "d272333a12c371c4c4db4e84a35b43b4800141b83502148ed559fbc93b7ba9dc",
+        "_template_sig_5": "1ea1dc6dd680d2e2fceae8c04405dc66d3ea37b4724418d20841e404559d504f",
+        "_template_text_5": "an axis-aligned rectangle has vertices (n, n), (n, n), (n, n), and (n, n), where both n and n are positive integers. how many lattice points lie strictly inside the rectangle?",
         "_ast_skeleton_v2_builder_aware": [
           "FunctionDef",
           "arguments",
@@ -3704,23 +3771,22 @@
           "Load",
           "Load",
           "Constant",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "BinOp",
           "BinOp",
           "Name",
           "Load",
           "Sub",
           "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
-          "Attribute",
+          "Mult",
+          "BinOp",
           "Name",
           "Load",
-          "Load",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
+          "Sub",
+          "Constant",
           "Assign",
           "Name",
           "Store",
@@ -3735,11 +3801,16 @@
           "Call",
           "Name",
           "Load",
+          "Constant",
+          "Name",
+          "Load",
+          "comprehension",
+          "Name",
+          "Store",
           "Call",
           "Name",
           "Load",
-          "Name",
-          "Load",
+          "Constant",
           "Name",
           "Load",
           "Assign",
@@ -3775,13 +3846,13 @@
               "exact_source": false,
               "exact_behavior": false,
               "exact_template": false,
-              "token_jaccard": 0.035714,
+              "token_jaccard": 0.111111,
               "max_token_jaccard": null,
               "near_duplicate_min_chars": 40,
-              "near_template_ratio": 0.333333,
-              "structural_ratio": 0.896104,
-              "example_index": 1,
-              "family_sha256": "941d35f8166d3ed38903a4f5ea49ee190205de3b2b8d039e596ddf31a8fd7659"
+              "near_template_ratio": null,
+              "structural_ratio": 0.752688,
+              "example_index": 2,
+              "family_sha256": "ccb3f628226299f36e6c46434897076bb474ac68aa320b823d3fa7fbc51a4d0e"
             }
           ]
         },
@@ -3790,21 +3861,21 @@
           "passed": true,
           "predicted": "discrete_mathematics",
           "probabilities": {
-            "algebra": 0.08509903828876653,
-            "geometry": 0.03308593582205954,
-            "number_theory": 0.03308593582205954,
-            "discrete_mathematics": 0.8807970468833343,
-            "applied_mathematics": 0.05340334112443346,
-            "calculus": 0.008577522801712312,
-            "precalculus": 0.08509903828876653
+            "algebra": 0.07585819448559739,
+            "geometry": 0.5312093941731293,
+            "number_theory": 0.11920295311666573,
+            "discrete_mathematics": 0.6513548793721767,
+            "applied_mathematics": 0.04742585232757257,
+            "calculus": 0.02033235321312632,
+            "precalculus": 0.2689414651180061
           },
-          "top_probability": 0.8807970468833343,
-          "logit_margin": 4.374999790132827,
+          "top_probability": 0.6513548793721767,
+          "logit_margin": 0.4999999812356137,
           "min_probability": 0.0,
           "min_logit_margin": 0.0,
           "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-          "family_sha256": "718d9289ad5f31ba5b6ee59698607d38be9b518aa137cb9d78c6f8f3fdb1a86d",
-          "policy_iteration": 49,
+          "family_sha256": "9ef43b42a847c124a2663341f5da2dd77f9a8793f56c4ebdf82eb826b626fbb1",
+          "policy_iteration": 46,
           "failure_kind": null
         },
         "domain": "discrete_mathematics",
@@ -3813,14 +3884,14 @@
         "validity_check": {
           "passed": true,
           "n_distinct_problems": 5,
-          "n_distinct_answers": 4,
+          "n_distinct_answers": 5,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0,
+          "rq_score_at_check": 0.015351141765713687,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
-          "distinct_answers": 4,
+          "distinct_answers": 5,
           "z_sensitive_fraction": 1.0
         },
         "archive_status": "champion"
@@ -3831,9 +3902,9 @@
       "program_id": "ef03e159eece",
       "parent_id": "",
       "generation": 0,
-      "s_hat": 0.9,
-      "u_score": 0.24235611855983735,
-      "rq_score": 0.02423561185598373,
+      "s_hat": 1.0,
+      "u_score": 0.25022632628679276,
+      "rq_score": 0.0,
       "niche_domain": 3,
       "niche_problem_type": 3,
       "last_reeval_step": -1,
@@ -3879,7 +3950,7 @@
           "n_distinct_answers": 2,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.02423561185598373,
+          "rq_score_at_check": 0.0,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -4112,7 +4183,7 @@
       "parent_id": "ee620fb22ff4",
       "generation": 2,
       "s_hat": 1.0,
-      "u_score": 0.09192366003990174,
+      "u_score": 0.08684923090040683,
       "rq_score": 0.0,
       "niche_domain": 3,
       "niche_problem_type": 4,
@@ -4341,9 +4412,9 @@
       "program_id": "ef8c3a0cde17",
       "parent_id": "5cb7950fa167",
       "generation": 1,
-      "s_hat": 0.0,
-      "u_score": 0.19151945859193803,
-      "rq_score": 0.0,
+      "s_hat": 0.1,
+      "u_score": 0.2137196883559227,
+      "rq_score": 0.02137196883559227,
       "niche_domain": 4,
       "niche_problem_type": 0,
       "last_reeval_step": -1,
@@ -4638,7 +4709,7 @@
           "n_distinct_answers": 1,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0,
+          "rq_score_at_check": 0.02137196883559227,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -4654,7 +4725,7 @@
       "parent_id": "",
       "generation": 0,
       "s_hat": 1.0,
-      "u_score": 0.12405863553285598,
+      "u_score": 0.14612850546836853,
       "rq_score": 0.0,
       "niche_domain": 4,
       "niche_problem_type": 4,
@@ -4894,7 +4965,7 @@
       "parent_id": "0927f1665d2e",
       "generation": 3,
       "s_hat": 1.0,
-      "u_score": 0.2323528543114662,
+      "u_score": 0.23671881705522538,
       "rq_score": 0.0,
       "niche_domain": 5,
       "niche_problem_type": 0,
@@ -5147,13 +5218,13 @@
       }
     },
     {
-      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\ndef build_instance(rng):\n    degree = rng.randint(1, 5)\n    leading_coefficient = rng.randint(1, 10)\n    interval_length = rng.randint(1, 10)\n\n    def P(x):\n        return leading_coefficient * x ** degree\n\n    def P_prime(x):\n        return degree * leading_coefficient * x ** (degree - 1)\n    critical_points = [x for x in range(interval_length + 1) if P_prime(x) == 0]\n    values = [P(x) for x in critical_points + [0, interval_length]]\n    answer = max(values)\n    check_values = [P(x) for x in range(interval_length + 1)]\n    check = max(check_values)\n    parameters = {'degree': degree, 'leading_coefficient': leading_coefficient, 'interval_length': interval_length}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'Let P(x) be a polynomial of degree [[degree]] with leading coefficient [[leading_coefficient]]. Find the maximum value of P(x) on the interval [0, [[interval_length]]].'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_normalize_counting_integers = False\n__rq_template_parts = (('literal', 'Let P(x) be a polynomial of degree '), ('parameter', 'degree'), ('literal', ' with leading coefficient '), ('parameter', 'leading_coefficient'), ('literal', '. Find the maximum value of P(x) on the interval [0, '), ('parameter', 'interval_length'), ('literal', '].'))\n__rq_parameter_keys = ('degree', 'interval_length', 'leading_coefficient')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
-      "program_id": "28f102463182",
-      "parent_id": "a999c755f767",
-      "generation": 4,
-      "s_hat": 0.3,
-      "u_score": 0.14480536580085754,
-      "rq_score": 0.03378791868686676,
+      "source_code": "import math\nimport random\n\n__rq_type = type\n__rq_len = len\n__rq_str = str\n__rq_repr = repr\n__rq_id = id\n__rq_sorted = sorted\n__rq_tuple = tuple\n__rq_list = list\n__rq_set = set\n__rq_isfinite = math.isfinite\n\n\ndef __rq_validate_plain(value, *, depth=0, seen=None, budget=None):\n    if seen is None:\n        seen = __rq_set()\n    if budget is None:\n        budget = [0]\n    budget[0] += 1\n    if budget[0] > 256:\n        raise ValueError(\"stage2 payload contains too many values\")\n    if depth > 6:\n        raise ValueError(\"stage2 payload is nested too deeply\")\n    value_type = __rq_type(value)\n    if value_type is str:\n        if __rq_len(value) > 2048:\n            raise ValueError(\"stage2 payload string is too long\")\n        return\n    if value_type is int:\n        if value.bit_length() > 4096:\n            raise ValueError(\"stage2 payload integer is too large\")\n        return\n    if value_type is float:\n        if not __rq_isfinite(value):\n            raise ValueError(\"stage2 payload float must be finite\")\n        return\n    if value_type is bool:\n        return\n    if hasattr(value, \"is_FiniteSet\") or (hasattr(value, \"args\") and __rq_type(value).__name__ == \"FiniteSet\"):\n        pass\n    elif hasattr(value, \"is_integer\") and value.is_integer is True:\n        return\n    elif hasattr(value, \"is_number\") and value.is_number is True:\n        return\n    elif value_type in (set, frozenset):\n        pass\n    elif value_type not in (dict, list, tuple):\n        raise ValueError(\"stage2 payload must contain exact built-in data only\")\n    marker = __rq_id(value)\n    if marker in seen:\n        raise ValueError(\"stage2 payload may not contain cycles\")\n    if __rq_len(value) > 64:\n        raise ValueError(\"stage2 payload container is too large\")\n    seen.add(marker)\n    try:\n        if value_type is dict:\n            for key, item in value.items():\n                if __rq_type(key) is not str or not key or __rq_len(key) > 128:\n                    raise ValueError(\"stage2 payload dict keys must be short strings\")\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n        else:\n            for item in value:\n                __rq_validate_plain(item, depth=depth + 1, seen=seen, budget=budget)\n    finally:\n        seen.remove(marker)\n\n\ndef __rq_scalar_text(value):\n    value_type = __rq_type(value)\n    if value_type is str:\n        return value\n    if value_type is bool:\n        return \"True\" if value else \"False\"\n    if value_type in (int, float):\n        return __rq_str(value)\n    if hasattr(value, \"is_integer\") and value.is_integer is True:\n        return __rq_str(int(value))\n    if hasattr(value, \"is_number\") and value.is_number is True:\n        return __rq_str(value)\n    raise ValueError(\"a scalar answer/parameter was required\")\n\n\ndef __rq_render_parameter(value):\n    value_type = __rq_type(value)\n    if value_type in (str, int, float, bool):\n        return __rq_scalar_text(value)\n    if value_type is list:\n        return \"[\" + \", \".join(__rq_render_parameter(v) for v in value) + \"]\"\n    if value_type is tuple:\n        return \"(\" + \", \".join(__rq_render_parameter(v) for v in value) + \")\"\n    if value_type in (set, frozenset):\n        return \"(' + ', '.join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + ')\"\n    if value_type is dict:\n        return \"{\" + \", \".join(\n            __rq_repr(key) + \": \" + __rq_render_parameter(value[key])\n            for key in __rq_sorted(value)\n        ) + \"}\"\n    raise ValueError(\"unsupported parameter value\")\n\n\nimport fractions\nimport sympy\n\ndef build_instance(rng):\n    quadratic_coefficient = rng.randint(1, 8)\n    linear_coefficient = rng.randint(-5, 5)\n    constant_term = rng.randint(-5, 5)\n    left_endpoint = rng.randint(1, 10)\n    right_endpoint = rng.randint(left_endpoint + 1, 15)\n    x = sympy.symbols('x')\n    polynomial = quadratic_coefficient * x ** 2 + linear_coefficient * x + constant_term\n    critical_point = -linear_coefficient / (2 * quadratic_coefficient)\n    if left_endpoint <= critical_point <= right_endpoint:\n        minimum_value = polynomial.subs(x, critical_point)\n    else:\n        minimum_value = min(polynomial.subs(x, left_endpoint), polynomial.subs(x, right_endpoint))\n    answer = str(minimum_value)\n    check = str(sympy.minimum(polynomial, x, domain=sympy.Interval(left_endpoint, right_endpoint)))\n    parameters = {'quadratic_coefficient': quadratic_coefficient, 'linear_coefficient': linear_coefficient, 'constant_term': constant_term, 'left_endpoint': left_endpoint, 'right_endpoint': right_endpoint}\n    return (parameters, answer, check)\n\n\n\nFAMILY_TEMPLATE = 'Let f(x) = [[quadratic_coefficient]]x^2 + [[linear_coefficient]]x + [[constant_term]], where the quadratic coefficient is positive. Find the minimum value of f on the closed interval from [[left_endpoint]] to [[right_endpoint]].'\nTRUSTED_ASSEMBLER_VERSION = 'trusted-instance-v2'\n__rq_mode = 'expression'\n__rq_normalize_counting_integers = False\n__rq_template_parts = (('literal', 'Let f(x) = '), ('parameter', 'quadratic_coefficient'), ('literal', 'x^2 + '), ('parameter', 'linear_coefficient'), ('literal', 'x + '), ('parameter', 'constant_term'), ('literal', ', where the quadratic coefficient is positive. Find the minimum value of f on the closed interval from '), ('parameter', 'left_endpoint'), ('literal', ' to '), ('parameter', 'right_endpoint'), ('literal', '.'))\n__rq_parameter_keys = ('constant_term', 'left_endpoint', 'linear_coefficient', 'quadratic_coefficient', 'right_endpoint')\n\n\ndef generate(seed):\n    rng = random.Random(seed)\n    payload = build_instance(rng)\n    if __rq_type(payload) is not tuple or __rq_len(payload) != 3:\n        raise ValueError(\"build_instance must return one exact 3-tuple\")\n    parameters = payload[0]\n    answer = payload[1]\n    check = payload[2]\n    __rq_validate_plain(parameters)\n    __rq_validate_plain(answer)\n    __rq_validate_plain(check)\n    if __rq_type(parameters) is not dict:\n        raise ValueError(\"parameters must be an exact built-in dict\")\n    if __rq_tuple(__rq_sorted(parameters)) != __rq_parameter_keys:\n        raise ValueError(\"runtime parameters keys do not match FAMILY_TEMPLATE\")\n\n    problem_parts = []\n    for part_kind, part_value in __rq_template_parts:\n        if part_kind == \"literal\":\n            problem_parts.append(part_value)\n        else:\n            problem_parts.append(__rq_render_parameter(parameters[part_value]))\n    problem = \"\".join(problem_parts)\n    if not (10 <= __rq_len(problem) <= 4000):\n        raise ValueError(\"assembled problem length must be between 10 and 4000\")\n\n    if __rq_mode == \"expression\":\n        if __rq_normalize_counting_integers:\n            if __rq_type(answer) is float and answer.is_integer() and -(2**53) <= answer <= 2**53:\n                answer = int(answer)\n            if __rq_type(check) is float and check.is_integer() and -(2**53) <= check <= 2**53:\n                check = int(check)\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) not in (str, int, float) or __rq_type(answer) is bool:\n            raise ValueError(\"expression answer must be an exact scalar\")\n        answer_text = __rq_scalar_text(answer).strip()\n        check_text = __rq_scalar_text(check).strip()\n        verifier = {\"mode\": \"expression\"}\n    elif __rq_mode == \"boolean\":\n        if __rq_type(answer) is not __rq_type(check):\n            raise ValueError(\"answer and check must have the same exact built-in type\")\n        assert answer == check, \"answer/check mismatch\"\n        if __rq_type(answer) is bool:\n            answer_text = \"Yes\" if answer else \"No\"\n            check_text = \"Yes\" if check else \"No\"\n        elif __rq_type(answer) is str and answer in (\"Yes\", \"No\"):\n            answer_text = answer\n            check_text = check\n        else:\n            raise ValueError(\"boolean answer must be bool, Yes, or No\")\n        verifier = {\"mode\": \"boolean\"}\n    else:\n        if hasattr(answer, \"is_FiniteSet\") or (hasattr(answer, \"args\") and __rq_type(answer).__name__ == \"FiniteSet\"):\n            try:\n                answer = __rq_list(answer)\n            except Exception:\n                pass\n        if hasattr(check, \"is_FiniteSet\") or (hasattr(check, \"args\") and __rq_type(check).__name__ == \"FiniteSet\"):\n            try:\n                check = __rq_list(check)\n            except Exception:\n                pass\n        if __rq_type(answer) in (set, frozenset):\n            answer = __rq_list(answer)\n        if __rq_type(check) in (set, frozenset):\n            check = __rq_list(check)\n        if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):\n            raise ValueError(\"set answer/check must be exact lists, tuples, or sets\")\n        elements = []\n        for element in answer:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        check_elements = []\n        for element in check:\n            if __rq_type(element) is bool:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n            try:\n                check_elements.append(__rq_scalar_text(element).strip())\n            except ValueError:\n                raise ValueError(\"set elements must be exact non-boolean scalars\")\n        if any(\n            not element or __rq_len(element) > 512\n            for element in elements + check_elements\n        ):\n            raise ValueError(\"set elements must contain 1..512 characters\")\n        canonical_elements = __rq_sorted(__rq_set(elements))\n        canonical_check_elements = __rq_sorted(__rq_set(check_elements))\n        if __rq_len(canonical_elements) > 32 or __rq_len(canonical_check_elements) > 32:\n            raise ValueError(\"set answer/check has too many unique elements\")\n        assert canonical_elements == canonical_check_elements, \"answer/check mismatch\"\n        answer_text = r\"\\{\" + \",\".join(canonical_elements) + r\"\\}\"\n        check_text = r\"\\{\" + \",\".join(canonical_check_elements) + r\"\\}\"\n        verifier = {\"mode\": \"set\", \"elements\": canonical_elements}\n    if not answer_text or __rq_len(answer_text) > 2048:\n        raise ValueError(\"assembled answer must contain 1..2048 characters\")\n    assert answer_text == check_text, \"serialized answer/check mismatch\"\n    return problem, answer_text, verifier\n",
+      "program_id": "a843486086ac",
+      "parent_id": "5cb7950fa167",
+      "generation": 1,
+      "s_hat": 1.0,
+      "u_score": 0.0695919256657362,
+      "rq_score": 0.0,
       "niche_domain": 5,
       "niche_problem_type": 3,
       "last_reeval_step": -1,
@@ -5161,19 +5232,19 @@
         "op": "mutate",
         "lineage_root_id": "5cb7950fa167",
         "family_plan": {
-          "STRUCTURAL MUTATION": "Replace convergence of a series by determining the maximum value of a polynomial function over a finite interval.",
-          "CHILD FAMILY": "Let P(x) be a polynomial of degree [[degree]] with leading coefficient [[leading_coefficient]]. Find the maximum value of P(x) on the interval [0, [[interval_length]]].",
-          "WHY FINITE": "The polynomial P(x) is continuous on the closed interval [0, [[interval_length]]], and by the Extreme Value Theorem, it attains its maximum value on this interval. Since the interval is finite and the polynomial is of a fixed degree, there is one unique maximum value."
+          "STRUCTURAL MUTATION": "Replace mean correction by finding the exact extremum of a continuous polynomial on a compact interval.",
+          "CHILD FAMILY": "Let f(x) = [[quadratic_coefficient]]x^2 + [[linear_coefficient]]x + [[constant_term]], where the quadratic coefficient is positive. Find the minimum value of f on the closed interval from [[left_endpoint]] to [[right_endpoint]].",
+          "WHY FINITE": "A continuous quadratic on a closed interval attains one exact minimum value among its endpoints and any interior critical point."
         },
         "stage2_one_shot": {
-          "example_index": 1,
-          "domain": "geometry",
-          "family_sha256": "941d35f8166d3ed38903a4f5ea49ee190205de3b2b8d039e596ddf31a8fd7659"
+          "example_index": 6,
+          "domain": "calculus",
+          "family_sha256": "ea91515b82c5db77528ad248aa0b871bce3480af31d8831de9d390b3f2a52569"
         },
         "generator_contract": {
           "version": "trusted-instance-v2",
-          "family_sha256": "0463bc030e9921305fcfe48fd6385728779a4db6cad79e748a6d348db160fa42",
-          "stage2_reply_sha256": "61cbed09c75678cbc98fbfc43a4e2f8ce3e57fa10f3288b1809cf85f3db9e721"
+          "family_sha256": "21884b4161c73c66ac0ff7f31d5ca021e3a41f2f2ab373778d46ee4d503f35cb",
+          "stage2_reply_sha256": "3fe4ce6c159ba0308f1fe65650548bd635159875dab4735e34a39436a7bc9acd"
         },
         "ast_contract": {
           "verdict": "clean",
@@ -5189,29 +5260,29 @@
           "domain": "calculus",
           "problem_type": "optimization",
           "type_evidence": [
-            "Find the maximum"
+            "Find the minimum"
           ],
-          "source_sha256": "6c44d24368ed8e00e1ce77551874fe30adf83cab8385046639410550a9ba1459",
+          "source_sha256": "02bd7a3d5d44e822636f07996f1b32d695ffe7989117b5ffae3c43e930e6a733",
           "domain_labeling": {
             "method": "local_policy_binary_label_v1",
             "passed": true,
             "predicted": "calculus",
             "probabilities": {
-              "algebra": 0.245084987742347,
-              "geometry": 0.025957375747600153,
-              "number_theory": 0.010986941060304178,
-              "discrete_mathematics": 0.017986242239209416,
-              "applied_mathematics": 0.04742585232757257,
-              "calculus": 0.705785027818136,
-              "precalculus": 0.22270011035913995
+              "algebra": 0.37754067012570147,
+              "geometry": 0.04208775846041812,
+              "number_theory": 0.017986242239209416,
+              "discrete_mathematics": 0.03308593582205954,
+              "applied_mathematics": 0.04208775846041812,
+              "calculus": 0.77729988964086,
+              "precalculus": 0.5312093941731293
             },
-            "top_probability": 0.705785027818136,
-            "logit_margin": 2.0000001371388727,
+            "top_probability": 0.77729988964086,
+            "logit_margin": 1.1250000809218255,
             "min_probability": 0.0,
             "min_logit_margin": 0.0,
             "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-            "family_sha256": "0463bc030e9921305fcfe48fd6385728779a4db6cad79e748a6d348db160fa42",
-            "policy_iteration": 51,
+            "family_sha256": "21884b4161c73c66ac0ff7f31d5ca021e3a41f2f2ab373778d46ee4d503f35cb",
+            "policy_iteration": 17,
             "failure_kind": null
           }
         },
@@ -5219,13 +5290,13 @@
           "canonical_template_count": 1,
           "verifier_mode_count": 1,
           "verified_seeds": 5,
-          "template_sha256": "2bf3de867ade5d7ee12ab0e58a74413c6a22a7116995bf119f9063a706cb8e9a",
+          "template_sha256": "922492511a1bcef3ae8d9b7ae24a8395200b314f28e2d1b4a75c656c7d392e05",
           "verifier_mode": "expression"
         },
         "mutation_strategy": "untargeted",
-        "_behavior_sig_5": "e0e3729c0a3441201351034d82b8da59cd93d87ffde1cd1e90c2ec4aa7185dfb",
-        "_template_sig_5": "ca54ed9e4440e6a02a222f5a8448384a6952d5aba63ce5e9856ac36dc123937a",
-        "_template_text_5": "let p(x) be a polynomial of degree n with leading coefficient n. find the maximum value of p(x) on the interval [n, n].",
+        "_behavior_sig_5": "2bb75ce396a182e4d5df469b3ba70ee434b7b62227f21f30241a296808504a41",
+        "_template_sig_5": "fe29ac1ddb67a0ce0b2b2164c9c8d9d9570126e3869c6cf976a04440e07b8e1a",
+        "_template_text_5": "let f(x) = nx^n + nx + n, where the quadratic coefficient is positive. find the minimum value of f on the closed interval from n to n.",
         "_ast_skeleton_v2_builder_aware": [
           "FunctionDef",
           "arguments",
@@ -5248,6 +5319,20 @@
           "Name",
           "Load",
           "Load",
+          "UnaryOp",
+          "USub",
+          "Constant",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "UnaryOp",
+          "USub",
           "Constant",
           "Constant",
           "Assign",
@@ -5260,91 +5345,73 @@
           "Load",
           "Constant",
           "Constant",
-          "FunctionDef",
-          "arguments",
-          "arg",
-          "Return",
-          "BinOp",
-          "Name",
-          "Load",
-          "Mult",
-          "BinOp",
-          "Name",
-          "Load",
-          "Pow",
-          "Name",
-          "Load",
-          "FunctionDef",
-          "arguments",
-          "arg",
-          "Return",
-          "BinOp",
-          "BinOp",
-          "Name",
-          "Load",
-          "Mult",
-          "Name",
-          "Load",
-          "Mult",
-          "BinOp",
-          "Name",
-          "Load",
-          "Pow",
-          "BinOp",
-          "Name",
-          "Load",
-          "Sub",
-          "Constant",
           "Assign",
           "Name",
           "Store",
-          "ListComp",
+          "Call",
+          "Attribute",
           "Name",
           "Load",
-          "comprehension",
-          "Name",
-          "Store",
-          "Call",
-          "Name",
           "Load",
           "BinOp",
           "Name",
           "Load",
           "Add",
           "Constant",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Constant",
+          "Assign",
+          "Name",
+          "Store",
+          "BinOp",
+          "BinOp",
+          "BinOp",
+          "Name",
+          "Load",
+          "Mult",
+          "BinOp",
+          "Name",
+          "Load",
+          "Pow",
+          "Constant",
+          "Add",
+          "BinOp",
+          "Name",
+          "Load",
+          "Mult",
+          "Name",
+          "Load",
+          "Add",
+          "Name",
+          "Load",
+          "Assign",
+          "Name",
+          "Store",
+          "BinOp",
+          "UnaryOp",
+          "USub",
+          "Name",
+          "Load",
+          "Div",
+          "BinOp",
+          "Constant",
+          "Mult",
+          "Name",
+          "Load",
+          "If",
           "Compare",
-          "Call",
           "Name",
           "Load",
-          "Name",
-          "Load",
-          "Eq",
-          "Constant",
-          "Assign",
-          "Name",
-          "Store",
-          "ListComp",
-          "Call",
-          "Name",
-          "Load",
-          "Name",
-          "Load",
-          "comprehension",
-          "Name",
-          "Store",
-          "BinOp",
-          "Name",
-          "Load",
-          "Add",
-          "List",
-          "Constant",
-          "Name",
-          "Load",
-          "Load",
-          "Assign",
-          "Name",
-          "Store",
-          "Call",
+          "LtE",
+          "LtE",
           "Name",
           "Load",
           "Name",
@@ -5352,27 +5419,68 @@
           "Assign",
           "Name",
           "Store",
-          "ListComp",
           "Call",
+          "Attribute",
           "Name",
+          "Load",
           "Load",
           "Name",
           "Load",
-          "comprehension",
-          "Name",
-          "Store",
-          "Call",
           "Name",
           "Load",
-          "BinOp",
-          "Name",
-          "Load",
-          "Add",
-          "Constant",
           "Assign",
           "Name",
           "Store",
           "Call",
+          "Name",
+          "Load",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "Name",
+          "Load",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "Name",
+          "Load",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Name",
+          "Load",
+          "Name",
+          "Load",
+          "Assign",
+          "Name",
+          "Store",
+          "Call",
+          "Name",
+          "Load",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
+          "Name",
+          "Load",
+          "Name",
+          "Load",
+          "keyword",
+          "Call",
+          "Attribute",
+          "Name",
+          "Load",
+          "Load",
           "Name",
           "Load",
           "Name",
@@ -5384,6 +5492,12 @@
           "Constant",
           "Constant",
           "Constant",
+          "Constant",
+          "Constant",
+          "Name",
+          "Load",
+          "Name",
+          "Load",
           "Name",
           "Load",
           "Name",
@@ -5413,13 +5527,13 @@
               "exact_source": false,
               "exact_behavior": false,
               "exact_template": false,
-              "token_jaccard": 0.25,
+              "token_jaccard": 0.391304,
               "max_token_jaccard": null,
               "near_duplicate_min_chars": 40,
               "near_template_ratio": null,
-              "structural_ratio": 0.582996,
-              "example_index": 1,
-              "family_sha256": "941d35f8166d3ed38903a4f5ea49ee190205de3b2b8d039e596ddf31a8fd7659"
+              "structural_ratio": 0.702564,
+              "example_index": 6,
+              "family_sha256": "ea91515b82c5db77528ad248aa0b871bce3480af31d8831de9d390b3f2a52569"
             }
           ]
         },
@@ -5428,21 +5542,21 @@
           "passed": true,
           "predicted": "calculus",
           "probabilities": {
-            "algebra": 0.245084987742347,
-            "geometry": 0.025957375747600153,
-            "number_theory": 0.010986941060304178,
-            "discrete_mathematics": 0.017986242239209416,
-            "applied_mathematics": 0.04742585232757257,
-            "calculus": 0.705785027818136,
-            "precalculus": 0.22270011035913995
+            "algebra": 0.37754067012570147,
+            "geometry": 0.04208775846041812,
+            "number_theory": 0.017986242239209416,
+            "discrete_mathematics": 0.03308593582205954,
+            "applied_mathematics": 0.04208775846041812,
+            "calculus": 0.77729988964086,
+            "precalculus": 0.5312093941731293
           },
-          "top_probability": 0.705785027818136,
-          "logit_margin": 2.0000001371388727,
+          "top_probability": 0.77729988964086,
+          "logit_margin": 1.1250000809218255,
           "min_probability": 0.0,
           "min_logit_margin": 0.0,
           "ruleset_sha256": "38c54d4639c057284de722a45825352ef1df8b4dd6642d706a51c3c78641a401",
-          "family_sha256": "0463bc030e9921305fcfe48fd6385728779a4db6cad79e748a6d348db160fa42",
-          "policy_iteration": 51,
+          "family_sha256": "21884b4161c73c66ac0ff7f31d5ca021e3a41f2f2ab373778d46ee4d503f35cb",
+          "policy_iteration": 17,
           "failure_kind": null
         },
         "domain": "calculus",
@@ -5454,12 +5568,12 @@
           "n_distinct_answers": 5,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.03378791868686676,
+          "rq_score_at_check": 0.0,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
           "distinct_answers": 5,
-          "z_sensitive_fraction": 1.0
+          "z_sensitive_fraction": 0.917
         },
         "archive_status": "champion"
       }
@@ -5469,9 +5583,9 @@
       "program_id": "0927f1665d2e",
       "parent_id": "6a506bdff677",
       "generation": 2,
-      "s_hat": 0.1,
-      "u_score": 0.2239496350288391,
-      "rq_score": 0.022394963502883912,
+      "s_hat": 0.3,
+      "u_score": 0.13002556189894676,
+      "rq_score": 0.030339297776420908,
       "niche_domain": 5,
       "niche_problem_type": 4,
       "last_reeval_step": -1,
@@ -5694,7 +5808,7 @@
           "n_distinct_answers": 4,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.022394963502883912,
+          "rq_score_at_check": 0.030339297776420908,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -5710,7 +5824,7 @@
       "parent_id": "",
       "generation": 0,
       "s_hat": 1.0,
-      "u_score": 0.07099170461297036,
+      "u_score": 0.05908221267163753,
       "rq_score": 0.0,
       "niche_domain": 6,
       "niche_problem_type": 1,
@@ -6016,9 +6130,9 @@
       "program_id": "12b9236221d2",
       "parent_id": "0927f1665d2e",
       "generation": 3,
-      "s_hat": 1.0,
-      "u_score": 0.093043003231287,
-      "rq_score": 0.0,
+      "s_hat": 0.9,
+      "u_score": 0.0863590531051159,
+      "rq_score": 0.008635905310511588,
       "niche_domain": 6,
       "niche_problem_type": 2,
       "last_reeval_step": -1,
@@ -6249,7 +6363,7 @@
           "n_distinct_answers": 1,
           "n_valid": 5,
           "n_total": 5,
-          "rq_score_at_check": 0.0,
+          "rq_score_at_check": 0.008635905310511588,
           "constancy_passed": true,
           "constancy_reason": "",
           "canonical_templates": 1,
@@ -6265,7 +6379,7 @@
       "parent_id": "ae8a7fc4eb58",
       "generation": 2,
       "s_hat": 1.0,
-      "u_score": 0.0681201558560133,
+      "u_score": 0.06600411757826805,
       "rq_score": 0.0,
       "niche_domain": 6,
       "niche_problem_type": 4,
@@ -6518,8 +6632,8 @@
     {
       "domain_bin": 0,
       "problem_type_bin": 0,
-      "selection_count": 86,
-      "update_count": 54,
+      "selection_count": 78,
+      "update_count": 48,
       "history": [
         {
           "event": "inserted",
@@ -6760,36 +6874,6 @@
           "event": "replaced",
           "program_id": "21a2da8e24aa",
           "rq_score": 0.015811283811926837
-        },
-        {
-          "event": "inserted",
-          "program_id": "21a2da8e24aa",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "21a2da8e24aa",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "21a2da8e24aa",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "21a2da8e24aa",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "21a2da8e24aa",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "21a2da8e24aa",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -6797,39 +6881,9 @@
     {
       "domain_bin": 0,
       "problem_type_bin": 2,
-      "selection_count": 9,
-      "update_count": 7,
+      "selection_count": 0,
+      "update_count": 1,
       "history": [
-        {
-          "event": "inserted",
-          "program_id": "0fa431e99d33",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0fa431e99d33",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0fa431e99d33",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0fa431e99d33",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0fa431e99d33",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0fa431e99d33",
-          "rq_score": 0.0
-        },
         {
           "event": "inserted",
           "program_id": "0fa431e99d33",
@@ -6841,8 +6895,8 @@
     {
       "domain_bin": 0,
       "problem_type_bin": 4,
-      "selection_count": 55,
-      "update_count": 38,
+      "selection_count": 49,
+      "update_count": 32,
       "history": [
         {
           "event": "inserted",
@@ -7003,36 +7057,6 @@
           "event": "inserted",
           "program_id": "50d22fb71e6e",
           "rq_score": 0.005138387866318225
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.015922015607357023
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.009273757007386947
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.00513322927057743
-        },
-        {
-          "event": "inserted",
-          "program_id": "50d22fb71e6e",
-          "rq_score": 0.005921282470226287
         }
       ],
       "mce_history": []
@@ -7040,8 +7064,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 0,
-      "selection_count": 48,
-      "update_count": 37,
+      "selection_count": 39,
+      "update_count": 31,
       "history": [
         {
           "event": "inserted",
@@ -7197,36 +7221,6 @@
           "event": "inserted",
           "program_id": "fb11b6cf885e",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.013802840188145635
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.020907099644343057
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fb11b6cf885e",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -7234,8 +7228,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 1,
-      "selection_count": 112,
-      "update_count": 53,
+      "selection_count": 100,
+      "update_count": 47,
       "history": [
         {
           "event": "inserted",
@@ -7471,36 +7465,6 @@
           "event": "inserted",
           "program_id": "b90f6cfa2e12",
           "rq_score": 0.009344222769141194
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b90f6cfa2e12",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -7508,8 +7472,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 2,
-      "selection_count": 68,
-      "update_count": 45,
+      "selection_count": 61,
+      "update_count": 38,
       "history": [
         {
           "event": "inserted",
@@ -7700,41 +7664,6 @@
           "event": "inserted",
           "program_id": "c436f9dc8c72",
           "rq_score": 0.01677390721109178
-        },
-        {
-          "event": "inserted",
-          "program_id": "c436f9dc8c72",
-          "rq_score": 0.024346955915292106
-        },
-        {
-          "event": "inserted",
-          "program_id": "c436f9dc8c72",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "c436f9dc8c72",
-          "rq_score": 0.008959306105971334
-        },
-        {
-          "event": "inserted",
-          "program_id": "c436f9dc8c72",
-          "rq_score": 0.008666787482798097
-        },
-        {
-          "event": "inserted",
-          "program_id": "c436f9dc8c72",
-          "rq_score": 0.016003457175360784
-        },
-        {
-          "event": "inserted",
-          "program_id": "c436f9dc8c72",
-          "rq_score": 0.0
-        },
-        {
-          "event": "replaced",
-          "program_id": "76673ad43164",
-          "rq_score": 0.013970224484801287
         }
       ],
       "mce_history": []
@@ -7742,39 +7671,9 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 3,
-      "selection_count": 28,
-      "update_count": 26,
+      "selection_count": 21,
+      "update_count": 20,
       "history": [
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9087535fbcea",
-          "rq_score": 0.0
-        },
         {
           "event": "inserted",
           "program_id": "9087535fbcea",
@@ -7881,8 +7780,8 @@
     {
       "domain_bin": 1,
       "problem_type_bin": 4,
-      "selection_count": 92,
-      "update_count": 55,
+      "selection_count": 79,
+      "update_count": 49,
       "history": [
         {
           "event": "inserted",
@@ -8128,36 +8027,6 @@
           "event": "inserted",
           "program_id": "fa1329e94c7f",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa1329e94c7f",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa1329e94c7f",
-          "rq_score": 0.0565563569466273
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa1329e94c7f",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa1329e94c7f",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa1329e94c7f",
-          "rq_score": 0.04620245029528937
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa1329e94c7f",
-          "rq_score": 0.03508613427480061
         }
       ],
       "mce_history": []
@@ -8165,8 +8034,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 0,
-      "selection_count": 53,
-      "update_count": 41,
+      "selection_count": 48,
+      "update_count": 35,
       "history": [
         {
           "event": "inserted",
@@ -8342,36 +8211,6 @@
           "event": "inserted",
           "program_id": "90e9d2000fef",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "90e9d2000fef",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -8379,8 +8218,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 1,
-      "selection_count": 70,
-      "update_count": 52,
+      "selection_count": 66,
+      "update_count": 44,
       "history": [
         {
           "event": "inserted",
@@ -8601,46 +8440,6 @@
           "event": "inserted",
           "program_id": "fa51a5b5275a",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "fa51a5b5275a",
-          "rq_score": 0.0
-        },
-        {
-          "event": "replaced",
-          "program_id": "44bc0981f8f1",
-          "rq_score": 0.010166727788746355
-        },
-        {
-          "event": "inserted",
-          "program_id": "44bc0981f8f1",
-          "rq_score": 0.00919905588030815
-        },
-        {
-          "event": "replaced",
-          "program_id": "1decd6f6aaf7",
-          "rq_score": 0.03511965385327737
-        },
-        {
-          "event": "inserted",
-          "program_id": "1decd6f6aaf7",
-          "rq_score": 0.02170762767394384
         }
       ],
       "mce_history": []
@@ -8648,8 +8447,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 2,
-      "selection_count": 106,
-      "update_count": 57,
+      "selection_count": 93,
+      "update_count": 50,
       "history": [
         {
           "event": "inserted",
@@ -8900,41 +8699,6 @@
           "event": "inserted",
           "program_id": "6e53a9e3d4ec",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6e53a9e3d4ec",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6e53a9e3d4ec",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6e53a9e3d4ec",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "6e53a9e3d4ec",
-          "rq_score": 0.010918149873614308
-        },
-        {
-          "event": "inserted",
-          "program_id": "6e53a9e3d4ec",
-          "rq_score": 0.01302639342844486
-        },
-        {
-          "event": "replaced",
-          "program_id": "ebc7fe65df84",
-          "rq_score": 0.015278244415918985
-        },
-        {
-          "event": "inserted",
-          "program_id": "ebc7fe65df84",
-          "rq_score": 0.010254292227327821
         }
       ],
       "mce_history": []
@@ -8942,8 +8706,8 @@
     {
       "domain_bin": 2,
       "problem_type_bin": 4,
-      "selection_count": 64,
-      "update_count": 45,
+      "selection_count": 59,
+      "update_count": 39,
       "history": [
         {
           "event": "inserted",
@@ -9139,36 +8903,6 @@
           "event": "inserted",
           "program_id": "5f9c6657fa39",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.019585693544811676
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.022424401117511733
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5f9c6657fa39",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -9176,8 +8910,8 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 0,
-      "selection_count": 81,
-      "update_count": 41,
+      "selection_count": 73,
+      "update_count": 36,
       "history": [
         {
           "event": "inserted",
@@ -9358,31 +9092,6 @@
           "event": "inserted",
           "program_id": "ae8a7fc4eb58",
           "rq_score": 0.022152643054723736
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.07229951858520509
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.028152429163455953
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ae8a7fc4eb58",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -9390,8 +9099,8 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 2,
-      "selection_count": 96,
-      "update_count": 61,
+      "selection_count": 86,
+      "update_count": 54,
       "history": [
         {
           "event": "inserted",
@@ -9662,41 +9371,6 @@
           "event": "replaced",
           "program_id": "9c89f4e8cc9f",
           "rq_score": 0.015351141765713687
-        },
-        {
-          "event": "inserted",
-          "program_id": "9c89f4e8cc9f",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9c89f4e8cc9f",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9c89f4e8cc9f",
-          "rq_score": 0.020594286471605296
-        },
-        {
-          "event": "replaced",
-          "program_id": "2630aac871f9",
-          "rq_score": 0.041362999810112856
-        },
-        {
-          "event": "inserted",
-          "program_id": "2630aac871f9",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "2630aac871f9",
-          "rq_score": 0.029765532463788987
-        },
-        {
-          "event": "inserted",
-          "program_id": "2630aac871f9",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -9704,8 +9378,8 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 3,
-      "selection_count": 104,
-      "update_count": 53,
+      "selection_count": 99,
+      "update_count": 47,
       "history": [
         {
           "event": "inserted",
@@ -9941,36 +9615,6 @@
           "event": "inserted",
           "program_id": "ef03e159eece",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.021837604790925974
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.023305927962064737
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef03e159eece",
-          "rq_score": 0.02423561185598373
         }
       ],
       "mce_history": []
@@ -9978,39 +9622,9 @@
     {
       "domain_bin": 3,
       "problem_type_bin": 4,
-      "selection_count": 44,
-      "update_count": 33,
+      "selection_count": 38,
+      "update_count": 27,
       "history": [
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "9adf9162932c",
-          "rq_score": 0.0
-        },
         {
           "event": "inserted",
           "program_id": "9adf9162932c",
@@ -10152,8 +9766,8 @@
     {
       "domain_bin": 4,
       "problem_type_bin": 0,
-      "selection_count": 21,
-      "update_count": 16,
+      "selection_count": 11,
+      "update_count": 10,
       "history": [
         {
           "event": "inserted",
@@ -10204,36 +9818,6 @@
           "event": "inserted",
           "program_id": "ef8c3a0cde17",
           "rq_score": 0.02137196883559227
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef8c3a0cde17",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef8c3a0cde17",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef8c3a0cde17",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef8c3a0cde17",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef8c3a0cde17",
-          "rq_score": 0.050784519662459685
-        },
-        {
-          "event": "inserted",
-          "program_id": "ef8c3a0cde17",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -10241,8 +9825,8 @@
     {
       "domain_bin": 4,
       "problem_type_bin": 4,
-      "selection_count": 106,
-      "update_count": 53,
+      "selection_count": 101,
+      "update_count": 47,
       "history": [
         {
           "event": "inserted",
@@ -10478,36 +10062,6 @@
           "event": "inserted",
           "program_id": "5cb7950fa167",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.03970376381443607
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.013317611217498776
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "5cb7950fa167",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -10515,8 +10069,8 @@
     {
       "domain_bin": 5,
       "problem_type_bin": 0,
-      "selection_count": 92,
-      "update_count": 54,
+      "selection_count": 84,
+      "update_count": 48,
       "history": [
         {
           "event": "inserted",
@@ -10757,36 +10311,6 @@
           "event": "inserted",
           "program_id": "a999c755f767",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a999c755f767",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -10794,8 +10318,8 @@
     {
       "domain_bin": 5,
       "problem_type_bin": 3,
-      "selection_count": 57,
-      "update_count": 37,
+      "selection_count": 51,
+      "update_count": 30,
       "history": [
         {
           "event": "inserted",
@@ -10946,41 +10470,6 @@
           "event": "inserted",
           "program_id": "a843486086ac",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "a843486086ac",
-          "rq_score": 0.0
-        },
-        {
-          "event": "replaced",
-          "program_id": "28f102463182",
-          "rq_score": 0.03965187758207321
-        },
-        {
-          "event": "inserted",
-          "program_id": "28f102463182",
-          "rq_score": 0.03378791868686676
         }
       ],
       "mce_history": []
@@ -10988,8 +10477,8 @@
     {
       "domain_bin": 5,
       "problem_type_bin": 4,
-      "selection_count": 63,
-      "update_count": 44,
+      "selection_count": 52,
+      "update_count": 38,
       "history": [
         {
           "event": "inserted",
@@ -11180,36 +10669,6 @@
           "event": "inserted",
           "program_id": "0927f1665d2e",
           "rq_score": 0.030339297776420908
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.01729469619691372
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.016638724046448866
-        },
-        {
-          "event": "inserted",
-          "program_id": "0927f1665d2e",
-          "rq_score": 0.022394963502883912
         }
       ],
       "mce_history": []
@@ -11217,8 +10676,8 @@
     {
       "domain_bin": 6,
       "problem_type_bin": 1,
-      "selection_count": 97,
-      "update_count": 53,
+      "selection_count": 86,
+      "update_count": 47,
       "history": [
         {
           "event": "inserted",
@@ -11454,36 +10913,6 @@
           "event": "inserted",
           "program_id": "8cd7da8aaf57",
           "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "8cd7da8aaf57",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -11491,8 +10920,8 @@
     {
       "domain_bin": 6,
       "problem_type_bin": 2,
-      "selection_count": 14,
-      "update_count": 13,
+      "selection_count": 7,
+      "update_count": 7,
       "history": [
         {
           "event": "inserted",
@@ -11528,36 +10957,6 @@
           "event": "inserted",
           "program_id": "12b9236221d2",
           "rq_score": 0.008635905310511588
-        },
-        {
-          "event": "inserted",
-          "program_id": "12b9236221d2",
-          "rq_score": 0.007528724446892737
-        },
-        {
-          "event": "inserted",
-          "program_id": "12b9236221d2",
-          "rq_score": 0.009100509136915205
-        },
-        {
-          "event": "inserted",
-          "program_id": "12b9236221d2",
-          "rq_score": 0.009147425815463064
-        },
-        {
-          "event": "inserted",
-          "program_id": "12b9236221d2",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "12b9236221d2",
-          "rq_score": 0.00817417800426483
-        },
-        {
-          "event": "inserted",
-          "program_id": "12b9236221d2",
-          "rq_score": 0.0
         }
       ],
       "mce_history": []
@@ -11565,8 +10964,8 @@
     {
       "domain_bin": 6,
       "problem_type_bin": 4,
-      "selection_count": 98,
-      "update_count": 55,
+      "selection_count": 91,
+      "update_count": 49,
       "history": [
         {
           "event": "inserted",
@@ -11737,36 +11136,6 @@
           "event": "inserted",
           "program_id": "b4d4b2b908d1",
           "rq_score": 0.0189439681917429
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
-        },
-        {
-          "event": "inserted",
-          "program_id": "b4d4b2b908d1",
-          "rq_score": 0.0
         },
         {
           "event": "inserted",

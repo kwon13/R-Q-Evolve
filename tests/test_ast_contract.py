@@ -110,6 +110,74 @@ def test_a_genuinely_independent_cross_check_survives():
     assert check_generator_contract(SOUND_CROSS_CHECK) == []
 
 
+def test_duplicate_symbolic_differentiation_is_still_vacuous():
+    source = '''
+import random
+import sympy
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    a = rng.randint(1, 5)
+    b = rng.randint(-5, 5)
+    x0 = rng.randint(-3, 3)
+    x = sympy.symbols("x")
+    polynomial = a * x ** 2 + b * x
+    answer = int(sympy.diff(polynomial, x).subs(x, x0))
+    check = int(sympy.diff(polynomial, x).subs(x, x0))
+    assert answer == check
+    return f"Compute the derivative at {x0}.", str(answer)
+'''
+    assert "A3v" in _codes(source)
+
+
+def test_coefficient_formula_and_symbolic_derivative_are_independent():
+    source = '''
+import random
+import sympy
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    a = rng.randint(1, 5)
+    b = rng.randint(-5, 5)
+    c = rng.randint(-5, 5)
+    x0 = rng.randint(-3, 3)
+    answer = 2 * a * x0 + b
+    x = sympy.symbols("x")
+    polynomial = a * x ** 2 + b * x + c
+    check = int(sympy.diff(polynomial, x).subs(x, x0))
+    assert answer == check
+    return f"Compute the derivative at {x0}.", str(answer)
+'''
+    assert check_generator_contract(source) == []
+
+
+def test_fraction_antiderivative_and_symbolic_integral_are_independent():
+    source = '''
+import random
+import sympy
+from fractions import Fraction
+
+
+def generate(seed):
+    rng = random.Random(seed)
+    a = rng.randint(1, 4)
+    b = rng.randint(-4, 4)
+    left = rng.randint(-3, 0)
+    right = rng.randint(1, 4)
+    exact = Fraction(a * (right ** 3 - left ** 3), 3)
+    exact += Fraction(b * (right ** 2 - left ** 2), 2)
+    answer = str(exact)
+    x = sympy.symbols("x")
+    symbolic = sympy.integrate(a * x ** 2 + b * x, (x, left, right))
+    check = str(symbolic)
+    assert answer == check
+    return f"Evaluate the integral from {left} to {right}.", answer
+'''
+    assert check_generator_contract(source) == []
+
+
 def test_the_same_computation_through_a_renamed_variable_is_still_vacuous():
     """A static gate inside a selection loop is adversarial.
 

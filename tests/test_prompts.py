@@ -1,5 +1,6 @@
 """Untargeted two-stage mutation and local descriptor prompt contracts."""
 
+import random
 import re
 
 import pytest
@@ -73,13 +74,37 @@ def test_stage_one_requires_collision_free_child_placeholders_in_all_examples():
     for name in (
         "modulus",
         "residue",
-        "board_size",
+        "value_at_zero",
         "vertex_count",
         "vertex_degree",
+        "x_one",
+        "heads_numerator",
+        "cubic_coefficient",
+        "common_ratio",
     ):
         assert f"[[{name}]]" in system
-    for old in ("{modulus}", "{residue}", "{board_size}", "{vertex_count}"):
+    for old in ("{modulus}", "{residue}", "{value_at_zero}", "{vertex_count}"):
         assert old not in system
+
+
+def test_stage_one_balanced_bank_rotates_three_of_seven_examples():
+    full_system = build_family_task(_program()).messages[0]["content"]
+    rotated_system = build_family_task(
+        _program(), rotate_shots=True, rng=random.Random(7)
+    ).messages[0]["content"]
+
+    assert full_system.count("<FAMILY_EXAMPLE>") == 7
+    assert rotated_system.count("<FAMILY_EXAMPLE>") == prompts.FAMILY_SHOTS_SHOWN == 3
+    for child_signal in (
+        "modular observation",
+        "polynomial P of degree at most 2",
+        "simple graph",
+        "twice the area",
+        "expected number of adjacent pairs",
+        "Compute f'(",
+        "geometric sequence",
+    ):
+        assert child_signal in full_system
 
 
 def test_stage_two_uses_header_contract_without_a_target():
@@ -436,6 +461,10 @@ def test_stage_two_states_core_and_materialized_verifier_contracts():
     assert "genuinely different derivation or verification route" in system
     assert "fully materialized, non-callable" in system
     assert "All loops, searches, enumerations" in system
+    assert "finite certified candidate set" in system
+    assert "`fractions.Fraction`" in system
+    assert "`sympy.diff(...).subs(...)`" in system
+    assert "Never replace the continuum by an integer grid" in system
     # One fenced parent generator and one fenced accepted MODE/CORE reply.
     assert system.count("```python") == 2
     assert system.count("```") == 4

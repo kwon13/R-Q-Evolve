@@ -452,13 +452,15 @@ def _count_route_signature(
     """
 
     value = _resolved_value(operand, visible)
-    while (
-        isinstance(value, ast.Call)
-        and isinstance(value.func, ast.Name)
-        and value.func.id in {"str", "int"}
-        and len(value.args) == 1
-        and not value.keywords
-    ):
+    for _ in range(8):
+        if not (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Name)
+            and value.func.id in {"str", "int"}
+            and len(value.args) == 1
+            and not value.keywords
+        ):
+            break
         value = _resolved_value(value.args[0], visible)
 
     if (

@@ -1107,7 +1107,15 @@ def __rq_validate_plain(value, *, depth=0, seen=None, budget=None):
         return
     if value_type is bool:
         return
-    if value_type not in (dict, list, tuple):
+    if hasattr(value, "is_FiniteSet") or (hasattr(value, "args") and __rq_type(value).__name__ == "FiniteSet"):
+        pass
+    elif hasattr(value, "is_integer") and getattr(value, "is_integer", False):
+        return
+    elif hasattr(value, "is_number") and getattr(value, "is_number", False):
+        return
+    elif value_type in (set, frozenset):
+        pass
+    elif value_type not in (dict, list, tuple):
         raise ValueError("stage2 payload must contain exact built-in data only")
     marker = __rq_id(value)
     if marker in seen:
@@ -1136,6 +1144,10 @@ def __rq_scalar_text(value):
         return "True" if value else "False"
     if value_type in (int, float):
         return __rq_str(value)
+    if hasattr(value, "is_integer") and getattr(value, "is_integer", False):
+        return __rq_str(int(value))
+    if hasattr(value, "is_number") and getattr(value, "is_number", False):
+        return __rq_str(value)
     raise ValueError("a scalar answer/parameter was required")
 
 
@@ -1147,6 +1159,8 @@ def __rq_render_parameter(value):
         return "[" + ", ".join(__rq_render_parameter(v) for v in value) + "]"
     if value_type is tuple:
         return "(" + ", ".join(__rq_render_parameter(v) for v in value) + ")"
+    if value_type in (set, frozenset):
+        return "{" + ", ".join(__rq_render_parameter(v) for v in __rq_sorted(value, key=__rq_str)) + "}"
     if value_type is dict:
         return "{{" + ", ".join(
             __rq_repr(key) + ": " + __rq_render_parameter(value[key])
@@ -1215,20 +1229,40 @@ def generate(seed):
             raise ValueError("boolean answer must be bool, Yes, or No")
         verifier = {{"mode": "boolean"}}
     else:
+        if hasattr(answer, "is_FiniteSet") or (hasattr(answer, "args") and __rq_type(answer).__name__ == "FiniteSet"):
+            try:
+                answer = __rq_list(answer)
+            except Exception:
+                pass
+        if hasattr(check, "is_FiniteSet") or (hasattr(check, "args") and __rq_type(check).__name__ == "FiniteSet"):
+            try:
+                check = __rq_list(check)
+            except Exception:
+                pass
+        if __rq_type(answer) in (set, frozenset):
+            answer = __rq_list(answer)
+        if __rq_type(check) in (set, frozenset):
+            check = __rq_list(check)
         if __rq_type(answer) not in (list, tuple) or __rq_type(check) not in (list, tuple):
-            raise ValueError("set answer/check must be exact lists or tuples")
+            raise ValueError("set answer/check must be exact lists, tuples, or sets")
         if __rq_len(answer) > 32 or __rq_len(check) > 32:
             raise ValueError("set answer/check has too many elements")
         elements = []
         for element in answer:
-            if __rq_type(element) not in (str, int, float) or __rq_type(element) is bool:
+            if __rq_type(element) is bool:
                 raise ValueError("set elements must be exact non-boolean scalars")
-            elements.append(__rq_scalar_text(element).strip())
+            try:
+                elements.append(__rq_scalar_text(element).strip())
+            except ValueError:
+                raise ValueError("set elements must be exact non-boolean scalars")
         check_elements = []
         for element in check:
-            if __rq_type(element) not in (str, int, float) or __rq_type(element) is bool:
+            if __rq_type(element) is bool:
                 raise ValueError("set elements must be exact non-boolean scalars")
-            check_elements.append(__rq_scalar_text(element).strip())
+            try:
+                check_elements.append(__rq_scalar_text(element).strip())
+            except ValueError:
+                raise ValueError("set elements must be exact non-boolean scalars")
         if any(
             not element or __rq_len(element) > 512
             for element in elements + check_elements
@@ -1252,6 +1286,147 @@ def generate(seed):
 """
 
 
+def _strip_redundant_random_import(core: str) -> str:
+    """Remove boilerplate `import random` / `from random import ...` from CORE.
+
+    Models frequently emit `import random` out of reflex while correctly using
+    the runtime-supplied `rng` parameter in `build_instance(rng)`. If the code
+    actually uses global `random.<method>`, subsequent AST checking or name
+    resolution will safely reject it.
+    """
+    try:
+        tree = safe_ast_parse(core)
+    except (SyntaxError, ValueError):
+        return core
+
+    class _RandomImportRemover(ast.NodeTransformer):
+        def visit_Import(self, node: ast.Import):
+            new_names = [
+                alias
+                for alias in node.names
+                if alias.name.split(".", 1)[0] != "random"
+            ]
+            if not new_names:
+                return None
+            node.names = new_names
+            return node
+
+        def visit_ImportFrom(self, node: ast.ImportFrom):
+            if (node.module or "").split(".", 1)[0] == "random":
+                return None
+            return node
+
+    new_tree = _RandomImportRemover().visit(tree)
+    ast.fix_missing_locations(new_tree)
+    try:
+        return ast.unparse(new_tree)
+    except Exception:
+        lines = []
+        for line in core.splitlines():
+            s = line.strip()
+            if re.match(r"^import\s+random(\s+as\s+\w+)?$", s) or re.match(r"^from\s+random\s+import\s+.*$", s):
+                continue
+            lines.append(line)
+        return "\n".join(lines)
+
+
+def _extract_stage2_protocol(
+    text: str,
+) -> tuple[str | None, str | None, str | None, str | None]:
+    """Robustly extract (domain, mode, core, error_or_invalid_reason) from stage2 reply."""
+    # 1. Model explicitly declared INVALID
+    inv_match = re.search(r"^\s*[\.\*\#\-\>]*\s*INVALID:\s*([^\n]+)", text, re.M)
+    if inv_match and not ("def build_instance" in text):
+        reason = inv_match.group(1).strip()
+        if not reason:
+            return None, None, None, "stage2 INVALID requires a nonempty single-line reason"
+        return None, None, None, f"stage2 reply declared INVALID: {reason}"
+
+    # 2. Try standard strict match first
+    strict_match = _STAGE2_PROTOCOL_RE.match(text)
+    if strict_match:
+        domain, mode, core = strict_match.groups()
+        return domain, mode, core, None
+
+    # 3. Clean leading bullet/markdown markers on header lines
+    cleaned_lines = []
+    for line in text.splitlines():
+        cleaned_line = re.sub(
+            r"^\s*[\.\*\#\-\>]+\s*(DOMAIN|MODE|CORE)\s*:",
+            r"\1:",
+            line,
+            flags=re.I,
+        )
+        cleaned_lines.append(cleaned_line)
+    cleaned_text = "\n".join(cleaned_lines)
+
+    strict_match2 = _STAGE2_PROTOCOL_RE.search(cleaned_text)
+    if strict_match2:
+        domain, mode, core = strict_match2.groups()
+        return domain, mode, core, None
+
+    # 4. Search for DOMAIN and MODE flexibly
+    domain_match = re.search(
+        r"(?:^|\n)\s*DOMAIN\s*:\s*([a-z_]+)", cleaned_text, re.I
+    )
+    domain = domain_match.group(1).lower() if domain_match else None
+
+    mode_match = re.search(
+        r"(?:^|\n)\s*MODE\s*:\s*(expression|boolean|set)", cleaned_text, re.I
+    )
+    mode = mode_match.group(1).lower() if mode_match else None
+
+    # 5. Extract CORE python code
+    core = None
+    fence_matches = list(
+        re.finditer(r"```(?:python)?\s*\n(.*?)\n```", cleaned_text, re.DOTALL)
+    )
+    for fm in fence_matches:
+        cand = fm.group(1).strip()
+        if "def build_instance" in cand:
+            core = cand
+            break
+
+    if not core and "def build_instance" in cleaned_text:
+        lines = cleaned_text.splitlines()
+        start_idx = 0
+        for i, l in enumerate(lines):
+            s = l.strip()
+            if (
+                s.startswith("import ")
+                or s.startswith("from ")
+                or s.startswith("def build_instance")
+            ):
+                start_idx = i
+                break
+        cand_block = "\n".join(lines[start_idx:]).strip()
+        cand_block = re.sub(r"\n```.*$", "", cand_block, flags=re.DOTALL).strip()
+        if "def build_instance" in cand_block:
+            core = cand_block
+
+    if not core:
+        return None, None, None, (
+            "stage2 reply must start with exact MODE/CORE and one python fence, "
+            "or one line `INVALID: <specific reason>`"
+        )
+
+    # Clean core: remove any accidental DOMAIN/MODE/CORE lines inside the code block
+    core_lines = []
+    for l in core.splitlines():
+        s = l.strip()
+        if re.match(r"^(?:DOMAIN|MODE|CORE)\s*:", s, re.I):
+            continue
+        core_lines.append(l)
+    cleaned_core = "\n".join(core_lines).strip()
+
+    if not mode:
+        return None, None, None, (
+            "stage2 reply must declare MODE: expression, MODE: boolean, or MODE: set"
+        )
+
+    return domain, mode, cleaned_core, None
+
+
 def compile_stage2_reply(
     reply: str,
     family_template: str,
@@ -1273,29 +1448,19 @@ def compile_stage2_reply(
     normalized = _STAGE2_THINK_RE.sub("", normalized).strip()
     if "<think>" in normalized or "</think>" in normalized:
         return None, "stage2 reply contains an unclosed <think> block"
-    invalid = re.fullmatch(r"INVALID: ([^\n]+)", normalized)
-    if invalid is not None:
-        invalid_reason = invalid.group(1).strip()
-        if not invalid_reason:
-            return None, "stage2 INVALID requires a nonempty single-line reason"
-        return None, "stage2 reply declared INVALID: " + invalid_reason
 
-    # The reply must start with the executable protocol, so explanatory prose or
-    # a copied wrapper still fails closed. Once the first complete Python fence
-    # closes, trailing decode degeneration is inert and is deliberately ignored.
-    protocol = _STAGE2_PROTOCOL_RE.match(normalized)
-    if protocol is None:
-        return None, (
-            "stage2 reply must start with exact MODE/CORE and one python fence, "
-            "or one line `INVALID: <specific reason>`"
-        )
-    domain, mode, core = protocol.groups()
+    domain, mode, core, extract_error = _extract_stage2_protocol(normalized)
+    if extract_error is not None:
+        return None, extract_error
+
     if require_domain and domain is None:
         return None, "stage2 legacy path requires one DOMAIN header"
     if not require_domain and domain is not None:
         return None, "stage2 DOMAIN is assigned downstream and must be omitted"
     if domain is not None and domain not in DOMAINS:
         return None, "stage2 DOMAIN must be one of " + ", ".join(DOMAINS)
+
+    core = _strip_redundant_random_import(core)
 
     family_parts, placeholder_keys, family_error = _stage2_family_parts(family_template)
     if family_error:

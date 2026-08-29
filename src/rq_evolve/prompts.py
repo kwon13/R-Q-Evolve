@@ -16,6 +16,7 @@ from .code_utils import (
     strip_module_docstring,
 )
 from .concepts import DOMAINS, GROUPS, SKILLS
+from .problem_type import annotate_problem_type
 from .program import ProblemProgram
 
 SOLVER_SYSTEM_PROMPT = (
@@ -649,6 +650,26 @@ def build_generator_task(
         extract_problem_statement_template(parent.source_code)
         or "Parent family unavailable from source; use the fixed child family."
     )
+    annotation = annotate_problem_type(plan["CHILD FAMILY"])
+    if annotation.problem_type == "decision":
+        required_mode = "MODE: boolean"
+        target_mode_desc = (
+            "MODE: boolean (Yes/No decision question - answer and check must be "
+            "equal booleans, or both 'Yes', or both 'No')"
+        )
+    elif annotation.problem_type == "search":
+        required_mode = "MODE: set"
+        target_mode_desc = (
+            "MODE: set (Search/all-solutions question - answer and check must be "
+            "lists, tuples, or sets containing all unique solution elements)"
+        )
+    else:
+        required_mode = "MODE: expression"
+        target_mode_desc = (
+            "MODE: expression (Scalar/count/extremum computation - answer and "
+            "check must be equal scalar numbers or strings)"
+        )
+
     user_prompt = _render_template(
         _load_template(GENERATOR_USER_PROMPT_FILE),
         {
@@ -657,6 +678,8 @@ def build_generator_task(
             "placeholder_names": rendered_placeholder_names,
             "parent_source": parent_source,
             "parent_family": _neutralize_prompt_control_text(parent_family),
+            "required_mode": required_mode,
+            "target_mode_desc": target_mode_desc,
         },
     )
     return MutationTask(

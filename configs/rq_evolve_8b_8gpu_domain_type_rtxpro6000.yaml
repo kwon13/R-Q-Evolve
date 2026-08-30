@@ -9,7 +9,7 @@ extends: rq_evolve_4b_8gpu_domain_type.yaml
 verl_config:
   actor_rollout_ref:
     model:
-      path: /data1/yhoon113/qwen3-8b-base
+      path: Qwen/Qwen3-8B-Base
 
     actor:
       # Verified 8-rank 8B geometry: 40 rollout sequences per rank and four
@@ -18,14 +18,14 @@ verl_config:
 
     ref:
       # Forward-only pass, kept conservative for the doubled parameter count.
-      log_prob_micro_batch_size_per_gpu: 2
+      log_prob_micro_batch_size_per_gpu: 4
 
     rollout:
       # This is a KV-cache memory budget, not an SM utilization target. At
       # 0.45 each 95.6-GiB card gives vLLM about 43 GiB while retaining more
       # actor headroom than the same proven setting on an 80-GiB A100.
       gpu_memory_utilization: 0.45
-      log_prob_micro_batch_size_per_gpu: 2
+      log_prob_micro_batch_size_per_gpu: 4
 
   trainer:
     n_gpus_per_node: 8

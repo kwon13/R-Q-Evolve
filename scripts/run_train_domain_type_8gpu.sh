@@ -195,6 +195,9 @@ fi
 
 export CUDA_VISIBLE_DEVICES="$GPUS"
 export WANDB_MODE="${WANDB_MODE:-online}"
+export NCCL_IB_DISABLE=1
+export NCCL_P2P_DISABLE=1
+export NCCL_SOCKET_IFNAME=eth0
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 RUN_KEY="$(basename "$CKPT_DIR")"

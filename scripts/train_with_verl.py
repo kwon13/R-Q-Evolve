@@ -8,6 +8,11 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
+import os
+
+os.environ["NCCL_IB_DISABLE"] = "1"
+os.environ["NCCL_P2P_DISABLE"] = "1"
+os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))

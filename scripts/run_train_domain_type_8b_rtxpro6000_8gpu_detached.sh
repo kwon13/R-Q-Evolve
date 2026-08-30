@@ -70,15 +70,6 @@ if ! $DRY_RUN; then
   fi
 fi
 
-# sm_120 requires the CUDA 12.8 Blackwell environment. Keep CONDA_ENV
-# overridable so the same launcher remains portable to another server.
-set +u
-source /data1/yhoon113/miniforge3/etc/profile.d/conda.sh
-conda activate "${CONDA_ENV:-azr-bw-blackwell}" || {
-  echo "[8b-rtxpro6000] conda activation failed: ${CONDA_ENV:-azr-bw-blackwell}" >&2
-  exit 1
-}
-set -u
 
 export RQ_DOMAIN_TYPE_CONFIG="configs/rq_evolve_8b_8gpu_domain_type_rtxpro6000.yaml"
 export RQ_EXPECTED_RQ_FITNESS_MODE="standard"

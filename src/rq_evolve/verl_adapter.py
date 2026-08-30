@@ -8,6 +8,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterator
 
+os.environ["NCCL_IB_DISABLE"] = "1"
+os.environ["NCCL_P2P_DISABLE"] = "1"
+os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
+
 from .archive import MAPElitesArchive
 from .config import RQEvolveConfig
 from .dataset import (

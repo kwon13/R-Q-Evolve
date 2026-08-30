@@ -1,0 +1,18 @@
+# Four-GPU Reverse-U ablation of the DOMAIN x PROBLEM_TYPE production run.
+# The ablation semantics and all data/search settings come from the 8-GPU
+# Reverse-U arm. Only the worker count, vLLM reservation, and run identity
+# differ for the four RTX PRO 6000 GPUs used by this launcher.
+extends: rq_evolve_4b_8gpu_domain_type_reverse_u.yaml
+
+verl_config:
+  actor_rollout_ref:
+    rollout:
+      # The production 4B setting is 0.42. Reserve eight percentage points
+      # more of each 96-GB card for vLLM to improve rollout throughput.
+      gpu_memory_utilization: 0.50
+
+  trainer:
+    n_gpus_per_node: 4
+    experiment_name: qwen3_4b_domain_type_reverse_u_35cell_4gpu
+    default_local_dir: ./rq_output/rq_evolve_4b_domain_type_reverse_u_35cell_4gpu
+    resume_mode: disable

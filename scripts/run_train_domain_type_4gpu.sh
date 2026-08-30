@@ -16,7 +16,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
-CONFIG="configs/rq_evolve_4b_4gpu_domain_type.yaml"
+CONFIG="${RQ_DOMAIN_TYPE_CONFIG:-configs/rq_evolve_4b_4gpu_domain_type.yaml}"
+EXPECTED_RQ_FITNESS_MODE="${RQ_EXPECTED_RQ_FITNESS_MODE:-standard}"
+EXPECTED_REVERSE_U_CONSTANT="${RQ_EXPECTED_REVERSE_U_CONSTANT:-2.0}"
 GPUS="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 DETACH=false
 DRY_RUN=false
@@ -99,6 +101,9 @@ print(str(get("verl_config.trainer.resume_mode")).lower())
 print(get("evolution.verify_seeds"))
 print(get("evolution.program_verify_workers"))
 print(get("evolution.mutation_refill_max_iterations"))
+print(get("evolution.rq_fitness_mode"))
+print(get("evolution.rq_reverse_u_constant"))
+print(get("verl_config.actor_rollout_ref.rollout.gpu_memory_utilization"))
 PY
 )"; then
   echo "[domain-type-4gpu] config resolution failed; activate the training environment:" >&2
@@ -123,6 +128,9 @@ RESUME_MODE="${VALUES[12]}"
 VERIFY_SEEDS="${VALUES[13]}"
 PROGRAM_VERIFY_WORKERS="${VALUES[14]}"
 REFILL_MAX="${VALUES[15]}"
+RQ_FITNESS_MODE="${VALUES[16]}"
+REVERSE_U_CONSTANT="${VALUES[17]}"
+GPU_MEMORY_UTILIZATION="${VALUES[18]}"
 
 [[ "$EXPECTED_GPUS" == "4" ]] || { echo "[domain-type-4gpu] config must request four GPUs" >&2; exit 1; }
 [[ "$SAVE_FREQ" == "32" ]] || { echo "[domain-type-4gpu] save_freq must be 32" >&2; exit 1; }
@@ -137,6 +145,14 @@ REFILL_MAX="${VALUES[15]}"
 [[ "$VERIFY_SEEDS" == "5" ]] || { echo "[domain-type-4gpu] verify_seeds must be 5" >&2; exit 1; }
 [[ "$PROGRAM_VERIFY_WORKERS" == "8" ]] || { echo "[domain-type-4gpu] program_verify_workers must be 8" >&2; exit 1; }
 [[ "$REFILL_MAX" == "128" ]] || { echo "[domain-type-4gpu] mutation refill cap must be 128" >&2; exit 1; }
+[[ "$RQ_FITNESS_MODE" == "$EXPECTED_RQ_FITNESS_MODE" ]] || {
+  echo "[domain-type-4gpu] expected R_Q fitness mode '$EXPECTED_RQ_FITNESS_MODE', got '$RQ_FITNESS_MODE'" >&2
+  exit 1
+}
+[[ "$REVERSE_U_CONSTANT" == "$EXPECTED_REVERSE_U_CONSTANT" ]] || {
+  echo "[domain-type-4gpu] expected Reverse-U constant '$EXPECTED_REVERSE_U_CONSTANT', got '$REVERSE_U_CONSTANT'" >&2
+  exit 1
+}
 
 IFS=',' read -r -a GPU_IDS <<< "$GPUS"
 [[ "${#GPU_IDS[@]}" == "$EXPECTED_GPUS" ]] || {
@@ -183,6 +199,14 @@ echo "[domain-type-4gpu] mutation    : untargeted; Stage 2 emits no DOMAIN"
 echo "[domain-type-4gpu] domain label: local-policy 7-way YES/NO readback"
 echo "[domain-type-4gpu] verification: ${VERIFY_SEEDS} seeds x ${PROGRAM_VERIFY_WORKERS} workers"
 echo "[domain-type-4gpu] refill cap  : ${REFILL_MAX} proposals"
+echo "[domain-type-4gpu] vLLM util   : ${GPU_MEMORY_UTILIZATION}"
+case "$RQ_FITNESS_MODE" in
+  standard)  RQ_FORMULA='L * U' ;;
+  reverse_u) RQ_FORMULA="L * (${REVERSE_U_CONSTANT} - U)" ;;
+  no_u)      RQ_FORMULA='L (U multiplier = 1)' ;;
+  *) echo "[domain-type-4gpu] unsupported R_Q fitness mode: $RQ_FITNESS_MODE" >&2; exit 1 ;;
+esac
+echo "[domain-type-4gpu] fitness     : ${RQ_FITNESS_MODE} -- ${RQ_FORMULA}"
 
 if $DRY_RUN; then
   echo "[domain-type-4gpu] dry-run complete; no process started"

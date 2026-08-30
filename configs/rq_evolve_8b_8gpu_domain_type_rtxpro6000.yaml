@@ -1,0 +1,34 @@
+# Qwen3-8B DOMAIN x PROBLEM_TYPE production run on eight 96-GB
+# NVIDIA RTX PRO 6000 Blackwell Server Edition GPUs.
+#
+# Search, archive, replay, and optimization semantics are inherited from the
+# current 4B production arm. Only model/forward memory geometry and run
+# identity differ.
+extends: rq_evolve_4b_8gpu_domain_type.yaml
+
+verl_config:
+  actor_rollout_ref:
+    model:
+      path: /data1/yhoon113/qwen3-8b-base
+
+    actor:
+      # Verified 8-rank 8B geometry: 40 rollout sequences per rank and four
+      # sequences per backward micro-batch.
+      ppo_micro_batch_size_per_gpu: 4
+
+    ref:
+      # Forward-only pass, kept conservative for the doubled parameter count.
+      log_prob_micro_batch_size_per_gpu: 2
+
+    rollout:
+      # This is a KV-cache memory budget, not an SM utilization target. At
+      # 0.45 each 95.6-GiB card gives vLLM about 43 GiB while retaining more
+      # actor headroom than the same proven setting on an 80-GiB A100.
+      gpu_memory_utilization: 0.45
+      log_prob_micro_batch_size_per_gpu: 2
+
+  trainer:
+    n_gpus_per_node: 8
+    experiment_name: qwen3_8b_domain_type_35cell_8gpu_rtxpro6000
+    default_local_dir: ./rq_output/rq_evolve_8b_domain_type_35cell_8gpu_rtxpro6000
+    resume_mode: disable

@@ -1,0 +1,309 @@
+# 4B on ALL EIGHT GPUs -- the single live training arm, not half of a pair.
+#
+# Identical to rq_evolve_4b_base.yaml (R_Q = s(1-s)U, n=5 x m=2 on fresh seeds,
+# replay batch, RLOO, 256 steps, test_freq 32, one checkpoint) in
+# everything the science depends on. Only the device count and the run identity
+# differ, so its curves are directly comparable to a later 4-GPU arm.
+#
+# Batches are NOT rescaled with the device count: train_batch_size 32 over 8
+# ranks is 4 prompts x m=2 rollouts per rank, and ppo_micro_batch_size_per_gpu
+# stays 2. Doubling ranks halves the FSDP parameter shard, so this run has MORE
+# headroom than the 4-GPU one, not less -- raising the micro-batch at the same
+# time would put an untested memory profile on the critical path.
+#
+#   bash scripts/run_train_4b_8gpu.sh
+archive:
+  epsilon: 0.3
+  ucb_c: 1.0
+  selection_strategy: random
+
+evolution:
+  seed_programs_dir: seed_programs
+  inner_iterations: 32
+  inner_iteration_batch_size: 32
+  # n x m fitness (paper Table B.1 default): 5 fresh seeds x 2 rollouts =
+  # the same 10-rollout budget the old single-instance G=10 scoring spent.
+  # m MUST equal actor_rollout_ref.rollout.n below: replay hands the
+  # re-scoring rollouts to the trainer as its batch, so the group the
+  # RLOO baseline averages over IS these m rollouts.
+  # n=5, m=2 -- the paper's Table B.1 default, and the same 10-rollout budget
+  # per program the old single-instance G=10 scoring spent.
+  #
+  # m=4 was tried and reverted. It does what it claims: measured on 8B it took
+  # degenerate replay groups (both rollouts of a seed scoring alike, so the
+  # RLOO advantage is exactly 0) from 82-95% down to 33-50%. It also doubles
+  # the scoring pass, which is ~83% of the evolve phase's generated tokens, and
+  # the evolve phase is ~72% of an iteration. n controls concentration
+  # (O(sqrt(1/n))) and m the estimator's bias (O(1/m)); this budget spends it
+  # on n. m >= 2 is not a preference: at m=1 the plug-in learnability is
+  # identically 0 for every program and R_Q is unidentifiable.
+  # G: rollouts per instance == actor_rollout_ref.rollout.n below.
+  # R_Q is one fresh instance x G rollouts, overwritten each
+  # re-evaluation (Dynamic MAP-Elites / LILO-SFL semantics).
+  group_size: 10
+  # Prompts per training step. The frontier is usually smaller than this
+  # (median 18 over the 8B run), so the shortfall is covered by drawing
+  # further FRESH seeds from the highest-R_Q champions -- extra problems,
+  # not extra rollouts on the same problem. LILO Sec 6.3: scaling the
+  # number of levels beat scaling rollouts per level.
+  train_batch_target: 32
+  select_ignores_uncertainty: false
+  select_ignores_variance: false
+  verify_seeds: 5
+  frontier_p_hat_range: [0.0, 1.0]
+  # Matched to configs/rq_evolve_base.yaml; see that file for the evidence
+  # behind each value.
+  #
+  # OFF. The self-fix round shows the model its own rejected program and asks
+  # for a repair, and it was earning its extra generation back when 38% of
+  # candidates died on their own AssertionError. It is not earning it now:
+  # measured over 41 children, the FIRST mutation output was already 99%
+  # identical to its parent (14 of 15 non-retried children were >95% copies),
+  # so the fix round is repairing copies rather than rescuing ideas -- and it
+  # spends one generation per failure to do it.
+  fix_retry: false
+  # Structural contract on the child's own cross-check, before execution.
+  # Measured on 456 archived champions: 45% flagged, 0 of the 14 clean
+  # programs. Keep this enforced as the local two-route validity gate.
+  ast_contract: enforce
+  # NOT 0. The mutation prompt is a pure function of (operator, parent) and
+  # sample_parent draws with replacement from a 10-16 champion archive, so
+  # greedy decoding makes 36-49% of a batch byte-identical to something
+  # already in it -- and identical children are rejected as duplicate_behavior,
+  # so those slots yield nothing. 0.4 tightens instruction-following without
+  # collapsing the batch.
+  # Mutation runs in two calls: stage 1 writes the child PROBLEM in prose
+  # with no program in front of it, stage 2 writes that problem's generator
+  # with the parent shown only as a worked example of the statement-to-
+  # program mapping. Measured against the single call that asked for a
+  # mutated program: child/parent source similarity 0.99 -> 0.14, children
+  # declaring their parent's own cell 96% -> 0%.
+  two_stage_mutation: true
+  # Stage 1 is invention and needs temperature; at 0 one parent yields one
+  # child and a 32-slot batch collapses.
+  code_temperature: 0.45
+  code_top_p: 0.85
+  # Stage 2 uses the same moderate sampling settings as Stage 1.
+  generator_temperature: 0.45
+  generator_top_p: 0.85
+  # Output caps for the two mutation calls. Unset, both inherit
+  # data.max_response_length (5000) -- the 4B 8-GPU run's stage-1/stage-2
+  # replies had p50 171/301 tokens, so a runaway cost ~20x the median reply.
+  # 2048 is the ceiling rq_output/gate_experiment ran stage 2 under, i.e. the
+  # one every prompt-side measurement was taken at. See EvolutionConfig in
+  # src/rq_evolve/config.py.
+  family_max_output_tokens: 2048
+  generator_max_output_tokens: 2048
+
+training_data:
+  # The training batch IS the re-scoring rollouts; there is no separate
+  # sampling pass, so instances_per_program no longer applies.
+  replay_training_batch: true
+  instances_per_program: 8
+  training_budget: null
+  strict_anti_reuse: true
+  select_lowest_rq_first: false
+  select_random_order: False
+  select_random_seed: 0
+  static_training_jsonl: null
+  static_condition: null
+  static_expected_rows: null
+  static_expected_tokens: null
+  static_epochs: 1
+
+verl:
+  enabled: true
+  config_path: null
+  reward_function: ./src/rq_evolve/reward.py:compute_score
+  evolve_on_first_epoch: false
+
+math_eval:
+  enabled: true
+  benchmarks: [math500, amc23, aime24, aime25, minerva_math, olympiadbench]
+  max_samples_per_benchmark: -1
+  sample_seed: 42
+  inflate_x32: false
+  grader: sympy
+
+async_rollout:
+  streaming_enabled: true
+  chunk_size: 1
+  # 32, not 8. At 8 this was the binding constraint on the run, not a margin:
+  # max_pending_chunks read exactly 8 in all 243 iterations of the 4B 8-GPU run,
+  # i.e. 80 sequences over 8 vLLM engines and 1,890 tok/s aggregate. See
+  # AsyncRolloutConfig.max_in_flight_chunks in src/rq_evolve/config.py for the
+  # concurrency/throughput measurement and the KV-cache budget behind 32.
+  max_in_flight_chunks: 32
+  request_timeout_s: 900
+  max_retries: 1
+  verify_workers: 4
+  queue_maxsize: 32
+  staleness_mode: bounded
+  max_policy_lag: 1
+  log_samples: true
+  entropy_mode: deferred
+
+lora:
+  enabled: false
+  rank: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  sync_mode: auto
+  
+verl_config:
+  data:
+    max_prompt_length: 6000
+    max_response_length: 5000
+    train_batch_size: 32
+    val_batch_size: 60000
+    shuffle: true
+    truncation: left
+    dataloader_num_workers: 0
+    filter_overlong_prompts: false
+    trust_remote_code: true
+
+  actor_rollout_ref:
+    model:
+      path: /data1/yhoon113/qwen3-4b-base
+      trust_remote_code: true
+      use_remove_padding: true
+      enable_gradient_checkpointing: true
+
+    actor:
+      strategy: fsdp
+      ppo_mini_batch_size: 32
+      ppo_micro_batch_size: null
+      # 2, not 4. Activation memory scales with hidden_size x micro-batch, not
+      # with parameter count: 4B has hidden 2560 against 8B's 4096, so micro=4
+      # costs (2560/4096) x (4/2) = 1.25x the 8B config's peak, on a model that
+      # is supposed to be the cheaper one. A run at 4 OOMed in backward at step
+      # 5 once another user took 18 GiB on GPU 0.
+      ppo_micro_batch_size_per_gpu: 4
+      use_dynamic_bsz: false
+      # vLLM stays resident (enable_sleep_mode: false) holding ~36 GiB, leaving
+      # <10 GiB for the actor forward. The unchunked entropy path materializes a
+      # full (tokens x 151936) softmax and OOMs on long micro-batches; chunking
+      # caps that at 2048 tokens at a time.
+      entropy_from_logits_with_chunking: true
+      use_kl_loss: true
+      kl_loss_coef: 1.0e-3
+      kl_loss_type: low_var_kl
+      use_torch_compile: false
+      fsdp_config:
+        param_offload: false
+        optimizer_offload: false
+      optim:
+        lr: 1.0e-6
+        weight_decay: 1.0e-2
+        lr_warmup_steps_ratio: 0.0
+        total_training_steps: 256
+
+    ref:
+      log_prob_micro_batch_size: null
+      # 4, not 2. The two log_prob passes are pure forward with no grad and no
+      # optimizer state, and they cost 2,388 s of the 4B 8-GPU run's 7,335 s of
+      # training time (ref 1,504 s + old_log_prob 884 s, from timing_s/* in
+      # rq_output/rq_evolve_4b_8gpu_logs). The 28.4 GB the run peaked at
+      # (perf/max_memory_reserved_gb) is the update_actor BACKWARD, not this
+      # pass, so the headroom next to vLLM's resident 0.38 x 80 GB is larger
+      # here than that number suggests.
+      #
+      # This is the one change in this pass that can OOM rather than just run
+      # slower, and the file already records a backward OOM at micro-batch 4
+      # when another user held 18 GiB on GPU 0. Revert BOTH of these to 2
+      # first if a run dies in compute_log_prob; it is worth ~3% of wall clock,
+      # nothing depends on it, and the machine is shared.
+      log_prob_micro_batch_size_per_gpu: 4
+      fsdp_config:
+        param_offload: true
+
+    rollout:
+      name: vllm
+      mode: async
+      temperature: 1.0
+      top_p: 0.95
+      n: 10  # == evolution.group_size (G); replay requires it
+      tensor_model_parallel_size: 1
+      checkpoint_engine:
+        update_weights_bucket_megabytes: 4096
+      gpu_memory_utilization: 0.42
+      max_model_len: 12000
+      max_num_batched_tokens: 12000
+      dtype: bfloat16
+      enable_chunked_prefill: true
+      enforce_eager: false
+      free_cache_engine: false
+      enable_sleep_mode: false
+      log_prob_micro_batch_size: null
+      # 4: the actor-side old_log_prob recompute. See the ref block above for
+      # the measurement and the revert condition -- these two move together.
+      log_prob_micro_batch_size_per_gpu: 4
+
+  # Inert under algorithm.adv_estimator: grpo -- verl's need_critic() returns
+  # False for anything but gae when critic.enable is unset, so no critic worker
+  # is built and nothing below is read. Kept so switching back to gae works.
+  critic:
+    ppo_mini_batch_size: 32
+    ppo_micro_batch_size: null
+    ppo_micro_batch_size_per_gpu: 2
+
+  reward_model:
+    enable: false
+    reward_manager: naive
+
+  reward:
+    custom_reward_function:
+      path: ./src/rq_evolve/reward.py
+      name: compute_score
+    reward_manager:
+      source: register
+      name: naive
+    reward_model:
+      enable: false
+
+  algorithm:
+    # GRPO with the group-std division removed (Dr.GRPO / RLOO form).
+    # This is a CONSISTENCY condition for R_Q, not a tuning choice:
+    # dividing by sqrt(Var[r]) 'removes the dependency of the expected
+    # gradient magnitude on learnability' (LILO Thm 3.1), and our archive
+    # fitness IS learnability (R_Q = L x U). Normalised, the curriculum
+    # could pick perfectly and the solver's gradient would not notice.
+    # Unnormalised, expected policy improvement is upper bounded by a
+    # quantity increasing linearly with learnability. RLOO's advantage is
+    # exactly k/(k-1) times this one, so the two differ only by a scale.
+    # Only the std term is dropped; length normalisation stays at verl's
+    # default loss_agg_mode.
+    adv_estimator: grpo
+    use_kl_in_reward: false
+    kl_penalty: low_var_kl
+    norm_adv_by_std_in_grpo: false
+
+  trainer:
+    total_epochs: 10000
+    total_training_steps: 256
+    project_name: rq_evolve
+    experiment_name: qwen3_4b_rq_evolve_8gpu
+    logger:
+      - console
+      - wandb
+    nnodes: 1
+    n_gpus_per_node: 8
+    val_before_train: false
+    test_freq: 32
+    save_freq: 32
+    # Keep EVERY checkpoint. The old policy (keep 1, with the launch shell
+    # merging each 32-step actor/ to HF and then deleting only the actor)
+    # silently failed on the 2026-08-23 run: no merge ran, verl deleted on
+    # schedule, and the step-32/64/96 weights were lost unmerged. Deletion is
+    # now nobody's job: merge on demand with scripts/merge_fsdp_to_hf.py and
+    # remove an actor/ by hand only after its hf_merged/ exists.
+    # Sizing: 8B actor ~92G x 8 saves = ~736G; /home holds ~1T free.
+    max_actor_ckpt_to_keep: null
+    max_critic_ckpt_to_keep: null
+    default_local_dir: ./rq_output/rq_evolve_4b_8gpu
+    device: cuda
+    resume_mode: auto
+
+  ray_init:
+    num_cpus: null

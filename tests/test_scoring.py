@@ -12,6 +12,7 @@ from rq_evolve.scoring import (
     score_seed,
     selection_priority,
     unbiased_learnability,
+    uncertainty_weight,
 )
 
 
@@ -159,6 +160,41 @@ def test_the_result_carries_the_per_seed_breakdown():
 def test_an_empty_seed_set_scores_zero_rather_than_raising():
     result = compute_rq_program([])
     assert result.rq_score == 0.0 and result.num_seeds == 0
+
+
+def test_uncertainty_fitness_ablation_modes_use_the_per_seed_product():
+    stats = [
+        _seed(0, [True, False], [0.2, 0.2]),
+        _seed(1, [True, False], [0.6, 0.6]),
+    ]
+
+    standard = compute_rq_program(stats, fitness_mode="standard")
+    reverse = compute_rq_program(stats, fitness_mode="reverse_u")
+    no_u = compute_rq_program(stats, fitness_mode="no_u")
+
+    assert standard.rq_score == pytest.approx(0.2)  # mean(0.5 * U)
+    assert reverse.rq_score == pytest.approx(0.8)  # mean(0.5 * (2-U))
+    assert no_u.rq_score == pytest.approx(0.5)  # mean(0.5)
+    assert (
+        standard.u_score == reverse.u_score == no_u.u_score
+        == pytest.approx(0.4)
+    )
+    assert reverse.fitness_mode == "reverse_u"
+    assert no_u.fitness_mode == "no_u"
+
+
+def test_reverse_u_is_exact_and_not_clipped():
+    assert uncertainty_weight(2.25, "reverse_u") == pytest.approx(-0.25)
+
+
+def test_reverse_u_constant_must_be_positive_and_finite():
+    with pytest.raises(ValueError, match="positive finite"):
+        uncertainty_weight(0.2, "reverse_u", reverse_u_constant=0.0)
+
+
+def test_unknown_fitness_mode_is_rejected_even_for_an_empty_seed_set():
+    with pytest.raises(ValueError, match="unknown R_Q fitness mode"):
+        compute_rq_program([], fitness_mode="typo")
 
 
 def test_selection_priority_ablations():

@@ -7,7 +7,7 @@ and length-normalized rollout entropies h_{z,j}:
     s_hat_z      = (1/m) sum_j r_{z,j}                  per-instance success
     L_hat_z      = m/(m-1) * s_hat_z (1 - s_hat_z)      UNBIASED learnability
     U_hat_z      = (1/m) sum_j h_{z,j}                  policy uncertainty
-    R_Q_hat      = (1/n) sum_z L_hat_z * U_hat_z        program fitness
+    R_Q_hat      = (1/n) sum_z L_hat_z * w(U_hat_z)     program fitness
     D_hat        = ddof-1 var of s_hat_z  -  L_bar/m    difficulty dispersion
 
 Three properties this shape has and the obvious alternatives do not:
@@ -34,8 +34,40 @@ diagnostic rather than folded in.
 
 from __future__ import annotations
 
+import math
 import statistics
 from dataclasses import dataclass, field
+
+
+RQ_FITNESS_MODES = ("standard", "reverse_u", "no_u")
+
+
+def uncertainty_weight(
+    u_score: float,
+    fitness_mode: str = "standard",
+    *,
+    reverse_u_constant: float = 2.0,
+) -> float:
+    """Return the configured uncertainty factor ``w(U)``.
+
+    ``standard`` is the production score ``U``; ``reverse_u`` is the requested
+    ablation ``C-U``; and ``no_u`` fixes the factor to one. Reverse-U is kept
+    exact rather than clipped: if ``U > C``, a negative contribution is part
+    of that ablation's stated definition.
+    """
+    mode = str(fitness_mode)
+    if mode == "standard":
+        return float(u_score)
+    if mode == "reverse_u":
+        constant = float(reverse_u_constant)
+        if not math.isfinite(constant) or constant <= 0.0:
+            raise ValueError("reverse_u_constant must be a positive finite value")
+        return constant - float(u_score)
+    if mode == "no_u":
+        return 1.0
+    raise ValueError(
+        f"unknown R_Q fitness mode {mode!r}; expected one of {RQ_FITNESS_MODES}"
+    )
 
 
 @dataclass(slots=True)
@@ -54,6 +86,19 @@ class SeedStat:
         """L_hat_z * U_hat_z, this seed's term in R_Q."""
         return self.learnability * self.u_score
 
+    def fitness_contribution(
+        self,
+        fitness_mode: str = "standard",
+        *,
+        reverse_u_constant: float = 2.0,
+    ) -> float:
+        """This seed's term under the selected uncertainty ablation."""
+        return self.learnability * uncertainty_weight(
+            self.u_score,
+            fitness_mode,
+            reverse_u_constant=reverse_u_constant,
+        )
+
     @property
     def degenerate(self) -> bool:
         """s in {0,1}: the solver never varies here, so the seed teaches nothing."""
@@ -71,6 +116,8 @@ class RQResult:
     num_correct: int
     num_seeds: int = 0
     per_seed: list[SeedStat] = field(default_factory=list)
+    fitness_mode: str = "standard"
+    reverse_u_constant: float = 2.0
 
 
 def estimate_success_rate(correct_flags: list[bool]) -> float:
@@ -137,17 +184,50 @@ def estimate_dispersion(per_seed: list[SeedStat]) -> float:
     return raw - correction
 
 
-def compute_rq_program(per_seed: list[SeedStat]) -> RQResult:
-    """R_Q_hat = (1/n) sum_z L_hat_z * U_hat_z, plus the reported aggregates.
+def compute_rq_program(
+    per_seed: list[SeedStat],
+    *,
+    fitness_mode: str = "standard",
+    reverse_u_constant: float = 2.0,
+) -> RQResult:
+    """Compute the configured per-seed fitness, plus reported raw aggregates.
 
     ``s_hat`` and ``u_score`` on the result are seed averages, carried for the
     frontier band and for logging; the fitness itself never goes through them.
+    ``fitness_mode`` selects ``L*U`` (standard), ``L*(C-U)`` (reverse_u), or
+    ``L`` (no_u).  The raw U is always retained for comparable diagnostics.
     """
+    # Validate even an empty batch so a misspelled experiment arm cannot run
+    # silently until the first successful rollout arrives.
+    uncertainty_weight(
+        0.0,
+        fitness_mode,
+        reverse_u_constant=reverse_u_constant,
+    )
     if not per_seed:
-        return RQResult(0.0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, [])
+        return RQResult(
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0,
+            0,
+            0,
+            [],
+            fitness_mode=fitness_mode,
+            reverse_u_constant=reverse_u_constant,
+        )
     n = len(per_seed)
     return RQResult(
-        rq_score=sum(st.contribution for st in per_seed) / n,
+        rq_score=sum(
+            st.fitness_contribution(
+                fitness_mode,
+                reverse_u_constant=reverse_u_constant,
+            )
+            for st in per_seed
+        )
+        / n,
         s_hat=sum(st.s_hat for st in per_seed) / n,
         learnability=sum(st.learnability for st in per_seed) / n,
         u_score=sum(st.u_score for st in per_seed) / n,
@@ -156,6 +236,8 @@ def compute_rq_program(per_seed: list[SeedStat]) -> RQResult:
         num_correct=sum(st.num_correct for st in per_seed),
         num_seeds=n,
         per_seed=list(per_seed),
+        fitness_mode=fitness_mode,
+        reverse_u_constant=reverse_u_constant,
     )
 
 

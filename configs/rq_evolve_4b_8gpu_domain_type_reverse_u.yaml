@@ -1,0 +1,15 @@
+# Reverse-U ablation of the 4B DOMAIN x PROBLEM_TYPE production run.
+# Every compute, mutation, archive, and replay setting is inherited unchanged;
+# only the fitness factor and the run identity differ.
+extends: rq_evolve_4b_8gpu_domain_type.yaml
+
+evolution:
+  # Per instance: L_hat * (C - U_hat), then average across instances.
+  rq_fitness_mode: reverse_u
+  rq_reverse_u_constant: 2.0
+
+verl_config:
+  trainer:
+    experiment_name: qwen3_4b_domain_type_reverse_u_35cell_8gpu
+    default_local_dir: ./rq_output/rq_evolve_4b_domain_type_reverse_u_35cell_8gpu
+    resume_mode: disable

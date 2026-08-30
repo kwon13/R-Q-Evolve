@@ -1460,7 +1460,16 @@ class RQEvolver:
                     )
                 )
                 continue
-            result = self._store_result(child, compute_rq_program(stats))
+            result = self._store_result(
+                child,
+                compute_rq_program(
+                    stats,
+                    fitness_mode=self.evolution_config.rq_fitness_mode,
+                    reverse_u_constant=(
+                        self.evolution_config.rq_reverse_u_constant
+                    ),
+                ),
+            )
             # An R_Q of 0 no longer ends the candidate's run. It still cannot
             # take a cell from a scoring champion (competition is a strict `>`)
             # and it still contributes no training examples (the frontier band
@@ -2253,7 +2262,14 @@ class RQEvolver:
         stat = self._seed_stat(
             program, instance, rollouts, seed=int(getattr(instance, "seed", 0) or 0)
         )
-        return self._store_result(program, compute_rq_program([stat] if stat else []))
+        return self._store_result(
+            program,
+            compute_rq_program(
+                [stat] if stat else [],
+                fitness_mode=self.evolution_config.rq_fitness_mode,
+                reverse_u_constant=self.evolution_config.rq_reverse_u_constant,
+            ),
+        )
 
     def _seed_stat(
         self,
@@ -2295,6 +2311,8 @@ class RQEvolver:
         program.rq_score = result.rq_score
         program.metadata["dispersion"] = result.dispersion
         program.metadata["num_seeds"] = result.num_seeds
+        program.metadata["rq_fitness_mode"] = result.fitness_mode
+        program.metadata["rq_reverse_u_constant"] = result.reverse_u_constant
         return result
 
     def draw_instances(
@@ -2401,7 +2419,18 @@ class RQEvolver:
             # The FIRST instance is the measurement; any others were drawn to
             # fill the batch. Scoring on all of them would make R_Q depend on
             # how many slots a champion happened to be given.
-            results.append(self._store_result(program, compute_rq_program(stats[:1])))
+            results.append(
+                self._store_result(
+                    program,
+                    compute_rq_program(
+                        stats[:1],
+                        fitness_mode=self.evolution_config.rq_fitness_mode,
+                        reverse_u_constant=(
+                            self.evolution_config.rq_reverse_u_constant
+                        ),
+                    ),
+                )
+            )
         return results
 
     def _allocate_instances(self, champions: list[ProblemProgram]) -> list[int]:
@@ -2968,6 +2997,10 @@ class RQEvolver:
         reports = self.last_reports if reports is None else reports
         record = {
             "iteration": int(iteration),
+            "rq_fitness_mode": self.evolution_config.rq_fitness_mode,
+            "rq_reverse_u_constant": (
+                self.evolution_config.rq_reverse_u_constant
+            ),
             "metrics": metrics,
             "reports": [asdict(r) for r in reports],
             "frontier": self.last_frontier,

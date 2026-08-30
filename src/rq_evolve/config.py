@@ -1,4 +1,5 @@
 import ast
+import math
 from dataclasses import MISSING, dataclass, field, fields, is_dataclass
 from pathlib import Path
 from typing import Any
@@ -254,6 +255,14 @@ class EvolutionConfig:
     # proposal. Rotation never consults DOMAIN, PROBLEM_TYPE, archive occupancy,
     # or any desired destination.
     rotate_few_shots: bool = True
+    # Program fitness uncertainty factor. ``standard`` keeps R_Q=L*U;
+    # ``reverse_u`` uses L*(C-U); and ``no_u`` fixes U=1, giving R_Q=L.
+    # This changes the score stored in MAP and the lagged training priority,
+    # unlike ``select_ignores_uncertainty`` below, which changes priority only.
+    rq_fitness_mode: str = "standard"
+    # Fixed across every Reverse-U round. It is deliberately not estimated
+    # from the current population, which would make fitness drift over time.
+    rq_reverse_u_constant: float = 2.0
     # Ablation: drop the H/u_score term ONLY from the priority that drives
     # evolution -- which champions are picked as mutation parents and which are
     # drained into the training batch -- so those decisions rank by s(1-s)
@@ -411,6 +420,17 @@ class EvolutionConfig:
             raise ValueError(
                 "evolution.archive_binning must be 'grid' or 'flat', got "
                 f"{self.archive_binning!r}"
+            )
+        if self.rq_fitness_mode not in ("standard", "reverse_u", "no_u"):
+            raise ValueError(
+                "evolution.rq_fitness_mode must be 'standard', 'reverse_u' "
+                f"or 'no_u', got {self.rq_fitness_mode!r}"
+            )
+        if not math.isfinite(float(self.rq_reverse_u_constant)) or float(
+            self.rq_reverse_u_constant
+        ) <= 0.0:
+            raise ValueError(
+                "evolution.rq_reverse_u_constant must be a positive finite value"
             )
         if self.ast_contract not in ("off", "shadow", "enforce"):
             raise ValueError(

@@ -5,6 +5,10 @@ extends: rq_evolve_4b_8gpu.yaml
 
 evolution:
   seed_programs_dir: seed_programs_domain_type
+  # Baseline arm. Ablation children override only this value and run identity.
+  rq_fitness_mode: standard
+  # Frozen Reverse-U reference constant; inactive in this baseline arm.
+  rq_reverse_u_constant: 2.0
   two_stage_mutation: true
   # Keeps 32 as the minimum, samples in the existing 32-wide batches, and adds
   # at most three refill batches (64/96/128 proposals). There is no

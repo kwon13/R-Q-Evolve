@@ -158,6 +158,41 @@ def test_domain_type_production_configs_share_descriptor_contract(
     assert str(raw.verl_config.trainer.default_local_dir).endswith(output_suffix)
 
 
+@pytest.mark.parametrize(
+    ("path", "fitness_mode", "output_suffix"),
+    [
+        (
+            "configs/rq_evolve_4b_8gpu_domain_type_reverse_u.yaml",
+            "reverse_u",
+            "rq_evolve_4b_domain_type_reverse_u_35cell_8gpu",
+        ),
+        (
+            "configs/rq_evolve_4b_8gpu_domain_type_no_u.yaml",
+            "no_u",
+            "rq_evolve_4b_domain_type_no_u_35cell_8gpu",
+        ),
+    ],
+)
+def test_domain_type_fitness_ablation_configs_change_only_the_named_score_arm(
+    path, fitness_mode, output_suffix
+):
+    baseline = load_config("configs/rq_evolve_4b_8gpu_domain_type.yaml")
+    cfg = load_config(path)
+    raw = load_raw_config(path)
+
+    assert baseline.evolution.rq_fitness_mode == "standard"
+    assert cfg.evolution.rq_fitness_mode == fitness_mode
+    assert cfg.evolution.rq_reverse_u_constant == pytest.approx(2.0)
+    assert cfg.evolution.seed_programs_dir == baseline.evolution.seed_programs_dir
+    assert cfg.evolution.group_size == baseline.evolution.group_size
+    assert cfg.evolution.inner_iterations == baseline.evolution.inner_iterations
+    assert cfg.training_data == baseline.training_data
+    assert raw.verl_config.trainer.n_gpus_per_node == 8
+    assert raw.verl_config.trainer.max_actor_ckpt_to_keep is None
+    assert str(raw.verl_config.trainer.default_local_dir).endswith(output_suffix)
+    assert raw.verl_config.trainer.resume_mode == "disable"
+
+
 def test_uncertified_children_can_enter_map_but_not_donor_pool():
     archive = MAPElitesArchive()
     program = _program(

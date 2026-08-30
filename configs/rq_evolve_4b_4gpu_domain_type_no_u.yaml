@@ -1,0 +1,15 @@
+# No-U ablation of the 4B DOMAIN x PROBLEM_TYPE production run for 4 GPUs.
+# Every compute, mutation, archive, and replay setting is inherited unchanged;
+# only the fitness factor and the run identity differ.
+extends: rq_evolve_4b_4gpu_domain_type.yaml
+
+evolution:
+  # Fix the uncertainty multiplier to one: L_hat * 1 = L_hat.
+  rq_fitness_mode: no_u
+  rq_reverse_u_constant: 2.0
+
+verl_config:
+  trainer:
+    experiment_name: qwen3_4b_domain_type_no_u_35cell_4gpu
+    default_local_dir: ./rq_output/rq_evolve_4b_domain_type_no_u_35cell_4gpu
+    resume_mode: disable

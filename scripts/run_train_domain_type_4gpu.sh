@@ -19,6 +19,7 @@ cd "$ROOT"
 CONFIG="${RQ_DOMAIN_TYPE_CONFIG:-configs/rq_evolve_4b_4gpu_domain_type.yaml}"
 EXPECTED_RQ_FITNESS_MODE="${RQ_EXPECTED_RQ_FITNESS_MODE:-standard}"
 EXPECTED_REVERSE_U_CONSTANT="${RQ_EXPECTED_REVERSE_U_CONSTANT:-2.0}"
+EXPECTED_RESUME_MODE="${RQ_EXPECTED_RESUME_MODE:-disable}"
 GPUS="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 DETACH=false
 DRY_RUN=false
@@ -141,7 +142,10 @@ GPU_MEMORY_UTILIZATION="${VALUES[18]}"
 [[ "$DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-4gpu] local independent DOMAIN labeling must be enabled" >&2; exit 1; }
 [[ "$ARCHIVE_DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-4gpu] archive must require DOMAIN labeling" >&2; exit 1; }
 [[ "$STRUCTURAL_INSPIRATION" == "false" ]] || { echo "[domain-type-4gpu] donor context must be disabled for the clean run" >&2; exit 1; }
-[[ "$RESUME_MODE" == "disable" ]] || { echo "[domain-type-4gpu] resume_mode must be disable" >&2; exit 1; }
+[[ "$RESUME_MODE" == "$EXPECTED_RESUME_MODE" ]] || {
+  echo "[domain-type-4gpu] resume_mode must be $EXPECTED_RESUME_MODE, got $RESUME_MODE" >&2
+  exit 1
+}
 [[ "$VERIFY_SEEDS" == "5" ]] || { echo "[domain-type-4gpu] verify_seeds must be 5" >&2; exit 1; }
 [[ "$PROGRAM_VERIFY_WORKERS" == "8" ]] || { echo "[domain-type-4gpu] program_verify_workers must be 8" >&2; exit 1; }
 [[ "$REFILL_MAX" == "128" ]] || { echo "[domain-type-4gpu] mutation refill cap must be 128" >&2; exit 1; }
@@ -172,9 +176,14 @@ seed_count=$(find "$SEED_DIR" -maxdepth 1 -type f -name '*.py' | wc -l)
   exit 1
 }
 
-if [[ -d "$CKPT_DIR" ]] && [[ -n "$(find "$CKPT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
-  echo "[domain-type-4gpu] refusing to reuse non-empty run directory: $CKPT_DIR" >&2
-  echo "[domain-type-4gpu] choose a new config identity and output directory for a fresh run" >&2
+if [[ "$RESUME_MODE" == "disable" ]]; then
+  if [[ -d "$CKPT_DIR" ]] && [[ -n "$(find "$CKPT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+    echo "[domain-type-4gpu] refusing to reuse non-empty run directory: $CKPT_DIR" >&2
+    echo "[domain-type-4gpu] choose a new config identity and output directory for a fresh run" >&2
+    exit 1
+  fi
+elif [[ ! -s "$CKPT_DIR/latest_checkpointed_iteration.txt" ]]; then
+  echo "[domain-type-4gpu] resume requested but no latest checkpoint pointer exists: $CKPT_DIR" >&2
   exit 1
 fi
 
@@ -200,6 +209,7 @@ echo "[domain-type-4gpu] domain label: local-policy 7-way YES/NO readback"
 echo "[domain-type-4gpu] verification: ${VERIFY_SEEDS} seeds x ${PROGRAM_VERIFY_WORKERS} workers"
 echo "[domain-type-4gpu] refill cap  : ${REFILL_MAX} proposals"
 echo "[domain-type-4gpu] vLLM util   : ${GPU_MEMORY_UTILIZATION}"
+echo "[domain-type-4gpu] resume mode : ${RESUME_MODE}"
 case "$RQ_FITNESS_MODE" in
   standard)  RQ_FORMULA='L * U' ;;
   reverse_u) RQ_FORMULA="L * (${REVERSE_U_CONSTANT} - U)" ;;

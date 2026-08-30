@@ -1,0 +1,19 @@
+# Exact continuation of the four-rank Reverse-U run on four 80-GB A100 GPUs.
+# verl 0.7.1 FSDP checkpoints are rank-count specific, so the transferred
+# world_size_4 checkpoint must first resume with four ranks, even on an
+# eight-GPU host.
+extends: rq_evolve_4b_4gpu_domain_type_reverse_u.yaml
+
+verl_config:
+  actor_rollout_ref:
+    rollout:
+      # The source RTX PRO run uses 0.50 on 95.6-GiB cards. Four-rank 4B on
+      # 80-GiB A100 was calibrated at 0.38; keeping 0.50 would consume the
+      # extra memory needed by the actor/optimizer shard.
+      gpu_memory_utilization: 0.38
+
+  trainer:
+    # Must match model_world_size_4/optim_world_size_4 checkpoint shards.
+    n_gpus_per_node: 4
+    resume_mode: auto
+    default_local_dir: ./rq_output/rq_evolve_4b_domain_type_reverse_u_35cell_4gpu

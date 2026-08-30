@@ -10,7 +10,7 @@ from typing import Any, Iterator
 
 os.environ["NCCL_IB_DISABLE"] = "1"
 os.environ["NCCL_P2P_DISABLE"] = "1"
-os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
+os.environ["NCCL_SOCKET_IFNAME"] = "ens22f0"
 
 from .archive import MAPElitesArchive
 from .config import RQEvolveConfig

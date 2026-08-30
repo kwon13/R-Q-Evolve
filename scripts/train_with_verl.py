@@ -12,7 +12,7 @@ import os
 
 os.environ["NCCL_IB_DISABLE"] = "1"
 os.environ["NCCL_P2P_DISABLE"] = "1"
-os.environ["NCCL_SOCKET_IFNAME"] = "eth0"
+os.environ["NCCL_SOCKET_IFNAME"] = "ens22f0"
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))

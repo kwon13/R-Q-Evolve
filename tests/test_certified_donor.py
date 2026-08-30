@@ -238,6 +238,30 @@ def test_8b_rtxpro6000_domain_type_compute_geometry():
     assert raw.verl_config.trainer.resume_mode == "disable"
 
 
+def test_reverse_u_a100_resume_preserves_method_and_four_rank_checkpoint_geometry():
+    source = load_config("configs/rq_evolve_4b_4gpu_domain_type_reverse_u.yaml")
+    resumed = load_config(
+        "configs/rq_evolve_4b_4gpu_domain_type_reverse_u_resume_a100.yaml"
+    )
+    raw = load_raw_config(
+        "configs/rq_evolve_4b_4gpu_domain_type_reverse_u_resume_a100.yaml"
+    )
+
+    assert resumed.evolution == source.evolution
+    assert resumed.archive == source.archive
+    assert resumed.training_data == source.training_data
+    assert resumed.evolution.rq_fitness_mode == "reverse_u"
+    assert resumed.evolution.rq_reverse_u_constant == pytest.approx(2.0)
+    assert raw.verl_config.trainer.n_gpus_per_node == 4
+    assert raw.verl_config.trainer.resume_mode == "auto"
+    assert raw.verl_config.actor_rollout_ref.rollout.gpu_memory_utilization == pytest.approx(
+        0.38
+    )
+    assert str(raw.verl_config.trainer.default_local_dir).endswith(
+        "rq_evolve_4b_domain_type_reverse_u_35cell_4gpu"
+    )
+
+
 def test_uncertified_children_can_enter_map_but_not_donor_pool():
     archive = MAPElitesArchive()
     program = _program(

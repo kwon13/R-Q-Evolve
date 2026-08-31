@@ -1,0 +1,23 @@
+# Exact continuation of the eight-rank 8B DOMAIN x PROBLEM_TYPE run after its
+# step-160 checkpoint is transferred from RTX PRO 6000 to eight 80-GB A100s.
+# The FSDP checkpoint is world-size specific, so keep n_gpus_per_node at 8.
+extends: rq_evolve_8b_8gpu_domain_type_rtxpro6000.yaml
+
+verl_config:
+  actor_rollout_ref:
+    model:
+      # The 41_80GB_8 server already keeps the base model at this path.
+      path: /data1/yhoon113/qwen3-8b-base
+
+    ref:
+      # 96-GB RTX PRO source setting is 4; use the proven 80-GB 8B geometry.
+      log_prob_micro_batch_size_per_gpu: 2
+
+    rollout:
+      log_prob_micro_batch_size_per_gpu: 2
+
+  trainer:
+    n_gpus_per_node: 8
+    experiment_name: qwen3_8b_domain_type_35cell_8gpu_rtxpro6000
+    default_local_dir: ./rq_output/rq_evolve_8b_domain_type_35cell_8gpu_rtxpro6000
+    resume_mode: auto

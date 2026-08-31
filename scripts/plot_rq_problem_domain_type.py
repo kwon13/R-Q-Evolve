@@ -6,6 +6,10 @@ One problem is one unique ``(iteration, program_id, instance_seed)`` group in
 that problem are therefore counted once.  The bootstrap iteration ``-1`` is
 shown as round 0.
 
+If a resumed run leaves multiple non-contiguous sample blocks for the same
+iteration, only the latest block is used.  This excludes samples from rolled
+back attempts while preserving repeated solver rollouts within the live one.
+
 Program descriptors are resolved at the time the problem was used:
 
 * newly evaluated children use that iteration's final archive-placement label;
@@ -155,15 +159,32 @@ def cumulative_counts(
     Counter[str],
     set[str],
 ]:
+    latest_block_by_iteration: dict[int, int] = {}
+    previous_iteration: int | None = None
+    block_index = -1
+    for row in read_jsonl(samples_path):
+        raw_iteration = int(row["iteration"])
+        if raw_iteration != previous_iteration:
+            block_index += 1
+            previous_iteration = raw_iteration
+        latest_block_by_iteration[raw_iteration] = block_index
+
     counts: Counter[tuple[str, str]] = Counter()
     round_counts: Counter[int] = Counter()
     resolution_counts: Counter[str] = Counter()
     program_ids: set[str] = set()
     seen: set[tuple[int, str, int]] = set()
     missing: list[tuple[int, str]] = []
+    previous_iteration = None
+    block_index = -1
 
     for row in read_jsonl(samples_path):
         raw_iteration = int(row["iteration"])
+        if raw_iteration != previous_iteration:
+            block_index += 1
+            previous_iteration = raw_iteration
+        if block_index != latest_block_by_iteration[raw_iteration]:
+            continue
         display_round = 0 if raw_iteration == -1 else raw_iteration
         if display_round < start_round or display_round > end_round:
             continue
@@ -302,7 +323,7 @@ def main() -> None:
     parser.add_argument(
         "run_dir",
         type=Path,
-        help="R-Q run directory containing rq_archive/",
+        help="R-Q run directory containing rq_archive/ or rq_output/",
     )
     parser.add_argument("--start-round", type=int, default=0)
     parser.add_argument("--end-round", type=int, required=True)
@@ -314,7 +335,16 @@ def main() -> None:
         parser.error("--end-round must be at least --start-round")
 
     run_dir = args.run_dir.expanduser().resolve()
-    archive_dir = run_dir / "rq_archive"
+    archive_candidates = (run_dir / "rq_archive", run_dir / "rq_output")
+    archive_dir = next(
+        (
+            path
+            for path in archive_candidates
+            if (path / "rollout_samples.jsonl").is_file()
+            and (path / "evolution_log.jsonl").is_file()
+        ),
+        archive_candidates[0],
+    )
     samples_path = archive_dir / "rollout_samples.jsonl"
     evolution_path = archive_dir / "evolution_log.jsonl"
     for path in (samples_path, evolution_path):
@@ -376,6 +406,7 @@ def main() -> None:
         "bootstrap_log_iteration": -1,
         "bootstrap_display_round": 0,
         "count_unit": "unique (raw_iteration, program_id, instance_seed)",
+        "resumed_iteration_policy": "latest contiguous sample block per iteration",
         "unique_problem_instances": total,
         "unique_program_ids": len(program_ids),
         "occupied_cells": occupied,

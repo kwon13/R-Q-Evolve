@@ -8,8 +8,9 @@
 #
 # Checkpoints are written every 32 steps. A companion daemon converts every
 # previous FSDP actor checkpoint to hf_merged/ and retains the newest actor/
-# intact as a full recovery artifact. The launcher refuses non-empty output
-# directories and keeps automatic resume disabled.
+# intact as a full recovery artifact. Fresh runs refuse non-empty output
+# directories. A purpose-built resume wrapper may explicitly set
+# RQ_EXPECTED_RESUME_MODE=auto and point at a validated checkpoint instead.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,6 +20,7 @@ cd "$ROOT"
 CONFIG="${RQ_DOMAIN_TYPE_CONFIG:-configs/rq_evolve_4b_8gpu_domain_type.yaml}"
 EXPECTED_RQ_FITNESS_MODE="${RQ_EXPECTED_RQ_FITNESS_MODE:-standard}"
 EXPECTED_REVERSE_U_CONSTANT="${RQ_EXPECTED_REVERSE_U_CONSTANT:-2.0}"
+EXPECTED_RESUME_MODE="${RQ_EXPECTED_RESUME_MODE:-disable}"
 GPUS="${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}"
 DETACH=false
 DRY_RUN=false
@@ -151,7 +153,10 @@ REVERSE_U_CONSTANT="${VALUES[21]}"
 [[ "$AST_CONTRACT" == "enforce" ]] || { echo "[domain-type-8gpu] AST contract must be enforce" >&2; exit 1; }
 [[ "$USE_EVALUATOR" == "false" ]] || { echo "[domain-type-8gpu] external evaluator/API classifier must be disabled" >&2; exit 1; }
 [[ "$SELECTION_STRATEGY" == "random" ]] || { echo "[domain-type-8gpu] archive selection must be random" >&2; exit 1; }
-[[ "$RESUME_MODE" == "disable" ]] || { echo "[domain-type-8gpu] resume_mode must be disable" >&2; exit 1; }
+[[ "$RESUME_MODE" == "$EXPECTED_RESUME_MODE" ]] || {
+  echo "[domain-type-8gpu] resume_mode must be $EXPECTED_RESUME_MODE, got $RESUME_MODE" >&2
+  exit 1
+}
 [[ "$VERIFY_SEEDS" == "5" ]] || { echo "[domain-type-8gpu] verify_seeds must be 5" >&2; exit 1; }
 [[ "$PROGRAM_VERIFY_WORKERS" == "8" ]] || { echo "[domain-type-8gpu] program_verify_workers must be 8" >&2; exit 1; }
 [[ "$REFILL_MAX" == "128" ]] || { echo "[domain-type-8gpu] mutation refill cap must be 128" >&2; exit 1; }
@@ -187,9 +192,14 @@ if [[ "$MODEL_PATH" = /* && ! -e "$MODEL_PATH" ]]; then
   exit 1
 fi
 
-if [[ -d "$CKPT_DIR" ]] && [[ -n "$(find "$CKPT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
-  echo "[domain-type-8gpu] refusing to reuse non-empty run directory: $CKPT_DIR" >&2
-  echo "[domain-type-8gpu] choose a new config identity and output directory for a fresh run" >&2
+if [[ "$RESUME_MODE" == "disable" ]]; then
+  if [[ -d "$CKPT_DIR" ]] && [[ -n "$(find "$CKPT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+    echo "[domain-type-8gpu] refusing to reuse non-empty run directory: $CKPT_DIR" >&2
+    echo "[domain-type-8gpu] choose a new config identity and output directory for a fresh run" >&2
+    exit 1
+  fi
+elif [[ ! -s "$CKPT_DIR/latest_checkpointed_iteration.txt" ]]; then
+  echo "[domain-type-8gpu] resume requested but no latest checkpoint pointer exists: $CKPT_DIR" >&2
   exit 1
 fi
 
@@ -216,6 +226,7 @@ echo "[domain-type-8gpu] descriptors : 7 DOMAIN x 5 PROBLEM_TYPE"
 echo "[domain-type-8gpu] mutation    : untargeted; Stage 2 emits no DOMAIN"
 echo "[domain-type-8gpu] domain label: local-policy 7-way YES/NO readback"
 echo "[domain-type-8gpu] selection   : random"
+echo "[domain-type-8gpu] resume mode : ${RESUME_MODE}"
 echo "[domain-type-8gpu] verification: ${VERIFY_SEEDS} seeds x ${PROGRAM_VERIFY_WORKERS} workers"
 echo "[domain-type-8gpu] refill cap  : ${REFILL_MAX} proposals"
 case "$RQ_FITNESS_MODE" in

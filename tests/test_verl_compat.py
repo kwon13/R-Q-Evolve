@@ -93,6 +93,26 @@ def test_entropy_uses_trainer_dataproto_conversion():
     assert backend._compute_actor_log_probs("padded") is expected
 
 
+def test_entropy_stamps_rollout_temperature_for_unified_worker():
+    expected = object()
+
+    class Trainer:
+        config = SimpleNamespace(
+            actor_rollout_ref=SimpleNamespace(
+                rollout=SimpleNamespace(temperature=0.75)
+            )
+        )
+
+        def _compute_old_log_prob(self, batch):
+            assert batch.meta_info["temperature"] == 0.75
+            return expected, {"mfu": 0.0}
+
+    backend = VerlPolicyBackend(trainer=Trainer())
+    batch = SimpleNamespace(meta_info={})
+
+    assert backend._compute_actor_log_probs(batch) is expected
+
+
 def test_static_actor_log_prob_padding_includes_per_gpu_micro_batch():
     trainer = SimpleNamespace(
         actor_rollout_wg=SimpleNamespace(world_size=4),

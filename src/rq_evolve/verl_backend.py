@@ -1197,6 +1197,22 @@ class VerlPolicyBackend(EvolutionBackend):
 
     def _compute_actor_log_probs(self, padded_batch):
         trainer = self._require_trainer()
+        # The normal verl PPO loop stamps this immediately after constructing
+        # its DataProto. R_Q's bootstrap/refresh entropy pass builds a separate
+        # rollout batch, so mirror that contract before the unified worker turns
+        # DataProto.meta_info into TensorDict NonTensorData.  Preserve an
+        # explicit per-call value if a caller supplied one.
+        meta_info = getattr(padded_batch, "meta_info", None)
+        if meta_info is not None:
+            meta_info.setdefault(
+                "temperature",
+                float(
+                    self._cfg_get(
+                        "actor_rollout_ref.rollout.temperature",
+                        1.0,
+                    )
+                ),
+            )
         # The unified engine used by verl 0.9 accepts an unpadded TensorDict,
         # while R_Q keeps its rollout cache in the padded DataProto format.
         # Let the trainer perform the same DataProto -> TensorDict -> DataProto

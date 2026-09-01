@@ -1157,7 +1157,18 @@ class VerlPolicyBackend(EvolutionBackend):
         return self.tokenizer
 
     def _compute_actor_log_probs(self, padded_batch):
-        worker_group = self._require_trainer().actor_rollout_wg
+        trainer = self._require_trainer()
+        # The unified engine used by verl 0.9 accepts an unpadded TensorDict,
+        # while R_Q keeps its rollout cache in the padded DataProto format.
+        # Let the trainer perform the same DataProto -> TensorDict -> DataProto
+        # conversion it uses for its own PPO old-log-prob/entropy pass.  The
+        # legacy 0.7 trainer exposes this helper too, returning the same pair.
+        compute_old = getattr(trainer, "_compute_old_log_prob", None)
+        if compute_old is not None:
+            result = compute_old(padded_batch)
+            return result[0] if isinstance(result, tuple) else result
+
+        worker_group = trainer.actor_rollout_wg
         if hasattr(worker_group, "compute_log_prob"):
             return worker_group.compute_log_prob(padded_batch)
         if hasattr(worker_group, "compute_log_probs"):

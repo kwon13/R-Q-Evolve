@@ -1421,14 +1421,20 @@ class VerlTrainerAdapter:
             ]
         )
 
-        actor_rollout_cls, critic_cls, reward_model_cls, ray_worker_group_cls = (
-            _select_worker_classes(
-                verl_config,
-                default_ray_worker_group_cls=RayWorkerGroup,
-            )
+        (
+            actor_rollout_cls,
+            critic_cls,
+            reward_model_cls,
+            ray_worker_group_cls,
+            unified_engine_workers,
+        ) = _select_worker_classes(
+            verl_config,
+            default_ray_worker_group_cls=RayWorkerGroup,
         )
-        actor_role = getattr(
-            Role, "ActorRollout", getattr(Role, "ActorRolloutRef", None)
+        actor_role = _select_actor_role(
+            Role,
+            verl_config,
+            unified_engine_workers=unified_engine_workers,
         )
         if actor_role is None:
             raise RuntimeError(
@@ -1459,7 +1465,11 @@ class VerlTrainerAdapter:
             mapping[reward_role] = global_pool_id
 
         ref_role = getattr(Role, "RefPolicy", None)
-        if ref_role is not None and _needs_reference_policy(verl_config):
+        if (
+            not unified_engine_workers
+            and ref_role is not None
+            and _needs_reference_policy(verl_config)
+        ):
             role_worker_mapping[ref_role] = ray.remote(actor_rollout_cls)
             mapping[ref_role] = global_pool_id
 
@@ -1602,8 +1612,27 @@ def _optional_import_attr(candidate: tuple[str, str]):
 def _select_worker_classes(config, *, default_ray_worker_group_cls):
     strategy = str(config.actor_rollout_ref.actor.get("strategy", "fsdp"))
     if strategy in {"fsdp", "fsdp2"}:
-        worker_module = importlib.import_module("verl.workers.fsdp_workers")
         ray_worker_group_cls = default_ray_worker_group_cls
+        # verl 0.9 removed ``verl.workers.fsdp_workers`` and routes every
+        # training backend through the unified model-engine workers. Detect by
+        # module availability rather than the package version so editable/dev
+        # installs and later patch releases follow the API they actually expose.
+        if importlib.util.find_spec("verl.workers.fsdp_workers") is None:
+            worker_module = importlib.import_module("verl.workers.engine_workers")
+            actor_cls = getattr(worker_module, "ActorRolloutRefWorker")
+            critic_cls = (
+                getattr(worker_module, "TrainingWorker")
+                if _needs_critic(config)
+                else None
+            )
+            return (
+                actor_cls,
+                critic_cls,
+                None,
+                ray_worker_group_cls,
+                True,
+            )
+        worker_module = importlib.import_module("verl.workers.fsdp_workers")
     elif strategy == "megatron":
         worker_module = importlib.import_module("verl.workers.megatron_workers")
         ray_worker_group_cls = _import_attr(
@@ -1630,7 +1659,36 @@ def _select_worker_classes(config, *, default_ray_worker_group_cls):
         critic_cls,
         reward_model_cls,
         ray_worker_group_cls,
+        False,
     )
+
+
+def _select_actor_role(Role, config, *, unified_engine_workers: bool):
+    """Choose the actor role using the contract of the installed verl worker.
+
+    The legacy FSDP worker exposes a separate RefPolicy role.  verl 0.9's
+    unified ``ActorRolloutRefWorker`` instead owns the reference policy in the
+    actor worker unless LoRA makes the actor itself provide the no-adapter
+    reference.  This mirrors ``verl.trainer.main_ppo_v0.BaseTaskRunner``.
+    """
+    actor_role = getattr(Role, "ActorRollout", None)
+    if not unified_engine_workers:
+        return actor_role or getattr(Role, "ActorRolloutRef", None)
+
+    lora_rank = int(
+        _cfg_select(config, "actor_rollout_ref.model.lora.rank", 0) or 0
+    )
+    if lora_rank <= 0:
+        lora_rank = int(
+            _cfg_select(config, "actor_rollout_ref.model.lora_rank", 0) or 0
+        )
+    ref_in_actor = bool(
+        lora_rank > 0
+        or _cfg_select(config, "actor_rollout_ref.model.lora_adapter_path", None)
+    )
+    if _needs_reference_policy(config) and not ref_in_actor:
+        return getattr(Role, "ActorRolloutRef", actor_role)
+    return actor_role or getattr(Role, "ActorRolloutRef", None)
 
 
 def _needs_reference_policy(config) -> bool:
@@ -1638,6 +1696,14 @@ def _needs_reference_policy(config) -> bool:
         _cfg_select(config, "algorithm.use_kl_in_reward", False)
         or _cfg_select(config, "actor_rollout_ref.actor.use_kl_loss", False)
     )
+
+
+def _needs_critic(config) -> bool:
+    explicit = _cfg_select(config, "critic.enable", None)
+    if explicit is not None:
+        return bool(explicit)
+    estimator = str(_cfg_select(config, "algorithm.adv_estimator", "") or "")
+    return estimator.lower() == "gae"
 
 
 def _cfg_select(config, dotted_key: str, default=None):

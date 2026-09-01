@@ -4,10 +4,10 @@ THE BUG. ``verl_backend._generate_with_batch`` sets temperature / top_p /
 max_tokens on ``DataProto.meta_info``, which is how every other verl rollout
 backend takes a per-call override (see ``verl/workers/rollout/hf_rollout.py``:
 ``prompts.meta_info.get("temperature", self.config.temperature)``).
-``AgentLoopWorker.generate_sequences`` -- the path verl 0.7.x actually uses for
-an async vLLM rollout -- builds its sampling_params from the rollout config
-alone and reads meta_info only for ``validate``. Every override was therefore
-dropped in silence.
+``AgentLoopWorker.generate_sequences`` -- the async vLLM rollout path in the
+supported verl 0.7/0.9 layouts -- builds its sampling_params from the rollout
+config alone and reads meta_info only for ``validate``. Every override is
+therefore dropped in silence without this patch.
 
 WHAT IT COST. With ``rollout.temperature: 1.0`` in the config:
 

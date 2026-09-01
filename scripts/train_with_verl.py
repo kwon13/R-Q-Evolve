@@ -295,8 +295,11 @@ def _warn_if_project_venv_exists() -> None:
         and Path(sys.executable).resolve() != project_python.resolve()
     ):
         print(
-            "[RQ-Evolve] project .venv detected. "
-            f"Use {project_python} to train against that environment's verl."
+            "[RQ-Evolve] project .venv detected but the active interpreter is "
+            f"{Path(sys.executable).resolve()}; continuing with the active "
+            "environment. A copied/stale .venv is not portable between servers. "
+            f"Activate {project_python} only if it was created on this server "
+            "for this exact training stack."
         )
 
 

@@ -91,3 +91,38 @@ def test_entropy_uses_trainer_dataproto_conversion():
     backend = VerlPolicyBackend(trainer=Trainer())
 
     assert backend._compute_actor_log_probs("padded") is expected
+
+
+def test_static_actor_log_prob_padding_includes_per_gpu_micro_batch():
+    trainer = SimpleNamespace(
+        actor_rollout_wg=SimpleNamespace(world_size=4),
+        config=SimpleNamespace(
+            actor_rollout_ref=SimpleNamespace(
+                actor=SimpleNamespace(use_dynamic_bsz=False),
+                rollout=SimpleNamespace(
+                    log_prob_micro_batch_size_per_gpu=4,
+                    log_prob_micro_batch_size=None,
+                ),
+            )
+        ),
+    )
+    backend = VerlPolicyBackend(trainer=trainer)
+    batch = SimpleNamespace(meta_info={})
+
+    assert backend._actor_log_prob_batch_divisor(batch) == 16
+
+
+def test_dynamic_actor_log_prob_padding_only_requires_world_size():
+    trainer = SimpleNamespace(
+        actor_rollout_wg=SimpleNamespace(world_size=4),
+        config=SimpleNamespace(
+            actor_rollout_ref=SimpleNamespace(
+                actor=SimpleNamespace(use_dynamic_bsz=True),
+                rollout=SimpleNamespace(log_prob_micro_batch_size_per_gpu=4),
+            )
+        ),
+    )
+    backend = VerlPolicyBackend(trainer=trainer)
+    batch = SimpleNamespace(meta_info={})
+
+    assert backend._actor_log_prob_batch_divisor(batch) == 4

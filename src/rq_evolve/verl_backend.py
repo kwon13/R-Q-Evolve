@@ -1,3 +1,4 @@
+import math
 import time as _time
 from collections import deque
 
@@ -825,8 +826,8 @@ class VerlPolicyBackend(EvolutionBackend):
             logprob_batch.batch["attention_mask"], dim=-1
         ).tolist()
 
-        world_size = max(1, int(getattr(trainer.actor_rollout_wg, "world_size", 1)))
-        padded, pad_size = pad_dataproto_to_divisor(logprob_batch, world_size)
+        divisor = self._actor_log_prob_batch_divisor(logprob_batch)
+        padded, pad_size = pad_dataproto_to_divisor(logprob_batch, divisor)
         old_padded = self._compute_actor_log_probs(padded)
         old = unpad_dataproto(old_padded, pad_size=pad_size)
         entropy = old.batch.get("entropys")
@@ -849,6 +850,44 @@ class VerlPolicyBackend(EvolutionBackend):
             # program rather than one scaled by each program's response length.
             values.append(float(valid.mean().item()) if valid.numel() else 0.0)
         return values
+
+    def _actor_log_prob_batch_divisor(self, batch) -> int:
+        """Return the global batch divisor required by actor log-prob inference.
+
+        Unified verl workers split the global batch over the actor data-parallel
+        ranks before ``prepare_micro_batches`` runs.  With static batching, each
+        rank must therefore receive a multiple of
+        ``log_prob_micro_batch_size_per_gpu``.  Padding only to ``world_size``
+        can leave, for example, 12 samples as three per rank on four GPUs while
+        the configured local micro-batch is four.  The temporary padding is
+        removed immediately after inference, so it never changes the rollout
+        set or the R_Q statistics.
+        """
+        trainer = self._require_trainer()
+        world_size = max(1, int(getattr(trainer.actor_rollout_wg, "world_size", 1)))
+        force_group_size = max(
+            1, int(getattr(batch, "meta_info", {}).get("force_group_size", 1))
+        )
+
+        use_dynamic_bsz = bool(
+            self._cfg_get("actor_rollout_ref.actor.use_dynamic_bsz", False)
+        )
+        if use_dynamic_bsz:
+            return world_size * force_group_size
+
+        per_gpu = self._cfg_get(
+            "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu", None
+        )
+        if per_gpu is not None:
+            return world_size * max(1, int(per_gpu)) * force_group_size
+
+        # Legacy configs may specify a global rather than per-GPU micro-batch.
+        global_micro_batch = self._cfg_get(
+            "actor_rollout_ref.rollout.log_prob_micro_batch_size", None
+        )
+        if global_micro_batch is not None:
+            return math.lcm(world_size, max(1, int(global_micro_batch))) * force_group_size
+        return world_size * force_group_size
 
     def _chat_template_len(self, text: str) -> int:
         """Token count of ``text`` after the chat template the agent loop applies."""

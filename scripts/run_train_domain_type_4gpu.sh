@@ -190,6 +190,7 @@ fi
 export CUDA_VISIBLE_DEVICES="$GPUS"
 export WANDB_MODE="${WANDB_MODE:-online}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
+export LD_PRELOAD=/data1/yhoon113/miniforge3/envs/vllm/lib/libgomp.so.1
 
 RUN_KEY="$(basename "$CKPT_DIR")"
 LOG_DIR="$ROOT/logs/$RUN_KEY"

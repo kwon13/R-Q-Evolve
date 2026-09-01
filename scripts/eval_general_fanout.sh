@@ -32,7 +32,7 @@ export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}
 export LD_PRELOAD=/data1/yhoon113/miniforge3/envs/vllm/lib/libgomp.so.1
 PY="${PY:-$CONDA_PREFIX/bin/python}"
-BASE="${BASE:-$RQ/rq_output/rq_evolve_4b_8gpu}"
+BASE="${BASE:-/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_8b_domain_type_35cell_8gpu}"
 
 # Default: every global_step_N under $BASE, numerically ordered.
 if [[ -n "${STEPS_LIST:-}" ]]; then
@@ -47,7 +47,7 @@ if [[ ${#STEPS[@]} -eq 0 ]]; then
   echo "no global_step_* checkpoints under $BASE" >&2; exit 1
 fi
 
-IFS=',' read -ra GPUS <<< "${GPU_LIST:-0,1,2,3,4,5,6,7}"
+IFS=',' read -ra GPUS <<< "${GPU_LIST:-0,3}"
 IFS=',' read -ra BENCHES <<< "${BENCH_LIST:-mmlupro,supergpqa,bbeh}"
 MAX_SAMPLES="${MAX_SAMPLES:-1000}"
 SAMPLE_SEED="${SAMPLE_SEED:-42}"

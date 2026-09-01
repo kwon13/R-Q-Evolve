@@ -209,6 +209,7 @@ export NCCL_IB_DISABLE=1
 export NCCL_P2P_DISABLE=1
 export NCCL_SOCKET_IFNAME=ens22f0
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
+export LD_PRELOAD=/data1/yhoon113/miniforge3/envs/vllm/lib/libgomp.so.1
 
 RUN_KEY="$(basename "$CKPT_DIR")"
 LOG_DIR="$ROOT/logs/$RUN_KEY"

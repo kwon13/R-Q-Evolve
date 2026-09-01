@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
-GPUS="0,1,2,3"
+GPUS="4,5,6,7"
 RUN_DIR="$ROOT/rq_output/rq_evolve_4b_domain_type_reverse_u_35cell_4gpu"
 DRY_RUN=false
 for arg in "$@"; do

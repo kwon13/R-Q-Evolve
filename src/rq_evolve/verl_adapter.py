@@ -624,20 +624,22 @@ class VerlTrainerAdapter:
         # must fail above, before Ray starts and reserves CPUs/GPUs.
         if not ray.is_initialized():
             ray_init = verl_config.get("ray_init", {})
+            env_vars = {
+                "TOKENIZERS_PARALLELISM": "true",
+                "NCCL_DEBUG": "WARN",
+                # async agent-loop rollout requires the vLLM V1 engine
+                "VLLM_USE_V1": "1",
+                "VLLM_LOGGING_LEVEL": "WARN",
+                "VLLM_ALLOW_RUNTIME_LORA_UPDATING": "true",
+                "PYTHONPATH": str(self.project_root / "src")
+                + os.pathsep
+                + os.environ.get("PYTHONPATH", ""),
+            }
+            if "LD_PRELOAD" in os.environ:
+                env_vars["LD_PRELOAD"] = os.environ["LD_PRELOAD"]
+
             ray.init(
-                runtime_env={
-                    "env_vars": {
-                        "TOKENIZERS_PARALLELISM": "true",
-                        "NCCL_DEBUG": "WARN",
-                        # async agent-loop rollout requires the vLLM V1 engine
-                        "VLLM_USE_V1": "1",
-                        "VLLM_LOGGING_LEVEL": "WARN",
-                        "VLLM_ALLOW_RUNTIME_LORA_UPDATING": "true",
-                        "PYTHONPATH": str(self.project_root / "src")
-                        + os.pathsep
-                        + os.environ.get("PYTHONPATH", ""),
-                    },
-                },
+                runtime_env={"env_vars": env_vars},
                 num_cpus=ray_init.get("num_cpus", None),
                 _temp_dir=_ray_temp_dir(self.project_root),
             )

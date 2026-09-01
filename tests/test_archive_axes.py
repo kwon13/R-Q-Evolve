@@ -139,6 +139,89 @@ def test_fitness_never_changes_a_programs_cell():
     assert high.u_score == pytest.approx(5.0)
 
 
+def test_random_admission_ignores_fitness_in_an_occupied_cell():
+    never_replace = MAPElitesArchive(
+        admission_strategy="random",
+        random_replace_probability=0.0,
+        random_seed=7,
+    )
+    incumbent = _program("algebra", "function", value=1, tag="incumbent family")
+    stronger = _program("algebra", "function", value=2, tag="stronger family")
+    assert never_replace.try_insert(incumbent, u_value=1.0, rq_score=0.01)
+    assert not never_replace.try_insert(stronger, u_value=9.0, rq_score=999.0)
+    assert never_replace.champions()[0].program_id == incumbent.program_id
+    assert stronger.metadata["archive_status"] == "random_cell_contest_rejected"
+    assert never_replace.admission_draw_count == 1
+
+    always_replace = MAPElitesArchive(
+        admission_strategy="random",
+        random_replace_probability=1.0,
+        random_seed=7,
+    )
+    incumbent = _program("geometry", "search", value=3, tag="high score family")
+    weaker = _program("geometry", "search", value=4, tag="low score family")
+    assert always_replace.try_insert(incumbent, u_value=9.0, rq_score=999.0)
+    assert always_replace.try_insert(weaker, u_value=0.01, rq_score=-999.0)
+    assert always_replace.champions()[0].program_id == weaker.program_id
+    assert always_replace.admission_draw_count == 1
+
+
+def test_random_admission_resume_continues_the_exact_draw_stream():
+    archive = MAPElitesArchive(
+        admission_strategy="random",
+        random_replace_probability=0.5,
+        random_seed=19,
+    )
+    first = _program("algebra", "function", value=1, tag="first family")
+    second = _program("algebra", "function", value=2, tag="second family")
+    assert archive.try_insert(first, u_value=1.0, rq_score=0.1)
+    archive.try_insert(second, u_value=1.0, rq_score=0.2)
+
+    restored = MAPElitesArchive(
+        admission_strategy="random",
+        random_replace_probability=0.5,
+        random_seed=19,
+    )
+    restored.load_payload(archive.to_payload())
+    assert restored.admission_draw_count == archive.admission_draw_count == 1
+
+    third = _program("algebra", "function", value=3, tag="third family")
+    original_result = archive.try_insert(
+        copy.deepcopy(third), u_value=1.0, rq_score=1000.0
+    )
+    restored_result = restored.try_insert(
+        copy.deepcopy(third), u_value=1.0, rq_score=-1000.0
+    )
+    assert restored_result is original_result
+    assert restored.admission_draw_count == archive.admission_draw_count == 2
+    assert restored.champions()[0].program_id == archive.champions()[0].program_id
+
+
+def test_random_admission_configuration_is_pinned_in_the_snapshot():
+    payload = MAPElitesArchive(
+        admission_strategy="random",
+        random_replace_probability=0.5,
+        random_seed=3,
+    ).to_payload()
+    with pytest.raises(ArchiveSchemaError, match="random_seed"):
+        MAPElitesArchive(
+            admission_strategy="random",
+            random_replace_probability=0.5,
+            random_seed=4,
+        ).load_payload(payload)
+
+
+def test_random_admission_rejects_invalid_configuration():
+    with pytest.raises(ValueError, match="admission_strategy"):
+        MAPElitesArchive(admission_strategy="roulette")
+    with pytest.raises(ValueError, match="random_replace_probability"):
+        MAPElitesArchive(
+            admission_strategy="random", random_replace_probability=1.1
+        )
+    with pytest.raises(ValueError, match="requires binning='grid'"):
+        MAPElitesArchive(admission_strategy="random", binning="flat")
+
+
 def test_missing_or_out_of_vocabulary_descriptors_are_rejected():
     archive = MAPElitesArchive()
     missing = ProblemProgram(

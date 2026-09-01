@@ -218,6 +218,27 @@ def test_domain_type_fitness_ablation_configs_change_only_the_named_score_arm(
     assert raw.verl_config.trainer.resume_mode == "disable"
 
 
+def test_random_cell_ablation_is_score_free_and_fixed_to_128_steps():
+    cfg = load_config("configs/rq_evolve_4b_4gpu_domain_type_random_cell.yaml")
+    raw = load_raw_config("configs/rq_evolve_4b_4gpu_domain_type_random_cell.yaml")
+
+    assert cfg.archive.selection_strategy == "random"
+    assert cfg.archive.admission_strategy == "random"
+    assert cfg.archive.random_replace_probability == pytest.approx(0.5)
+    assert cfg.archive.random_seed == 0
+    assert cfg.training_data.select_random_order is True
+    assert cfg.training_data.select_random_seed == 0
+    assert cfg.evolution.rq_fitness_mode == "standard"
+    assert raw.verl_config.trainer.n_gpus_per_node == 4
+    assert raw.verl_config.actor_rollout_ref.actor.optim.total_training_steps == 128
+    assert raw.verl_config.trainer.total_training_steps == 128
+    assert raw.verl_config.trainer.save_freq == 32
+    assert raw.verl_config.trainer.resume_mode == "disable"
+    assert str(raw.verl_config.trainer.default_local_dir).endswith(
+        "rq_evolve_4b_domain_type_random_cell_35cell_4gpu"
+    )
+
+
 def test_8b_rtxpro6000_domain_type_compute_geometry():
     baseline = load_config("configs/rq_evolve_4b_8gpu_domain_type.yaml")
     cfg = load_config("configs/rq_evolve_8b_8gpu_domain_type_rtxpro6000.yaml")

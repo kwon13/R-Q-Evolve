@@ -88,6 +88,9 @@ class MAPElitesArchive:
         epsilon: float = 0.3,
         ucb_c: float = 1.0,
         selection_strategy: str = "random",
+        admission_strategy: str = "fitness",
+        random_replace_probability: float = 0.5,
+        random_seed: int = 0,
         mce_window_iterations: int = 50,
         select_ignores_uncertainty: bool = False,
         select_ignores_variance: bool = False,
@@ -98,10 +101,18 @@ class MAPElitesArchive:
     ) -> None:
         if selection_strategy not in {"ucb", "random", "sliding_window_mce"}:
             raise ValueError(f"unknown selection_strategy: {selection_strategy}")
+        if admission_strategy not in {"fitness", "random"}:
+            raise ValueError(f"unknown admission_strategy: {admission_strategy}")
+        if not 0.0 <= float(random_replace_probability) <= 1.0:
+            raise ValueError("random_replace_probability must be in [0, 1]")
+        if isinstance(random_seed, bool) or not isinstance(random_seed, int):
+            raise ValueError("random_seed must be an integer")
         if int(mce_window_iterations) <= 0:
             raise ValueError("mce_window_iterations must be positive")
         if binning not in {"grid", "flat"}:
             raise ValueError(f"binning must be 'grid' or 'flat', got {binning!r}")
+        if admission_strategy == "random" and binning != "grid":
+            raise ValueError("random admission requires binning='grid'")
         if select_ignores_uncertainty and select_ignores_variance:
             raise ValueError(
                 "select_ignores_uncertainty and select_ignores_variance are "
@@ -113,6 +124,10 @@ class MAPElitesArchive:
         self.epsilon = float(epsilon)
         self.ucb_c = float(ucb_c)
         self.selection_strategy = selection_strategy
+        self.admission_strategy = admission_strategy
+        self.random_replace_probability = float(random_replace_probability)
+        self.random_seed = int(random_seed)
+        self.admission_draw_count = 0
         self.mce_window_iterations = int(mce_window_iterations)
         # The evolver announces the current outer iteration before drawing a
         # batch. Pending pulls are virtual losses in the UCB denominator, which
@@ -418,15 +433,45 @@ class MAPElitesArchive:
             self.structural_donors[program.program_id] = program
 
         niche = self.grid[cell]
-        # Champion competition ranks by selection priority: real R_Q in
-        # production, s(1-s) under the select_ignores_uncertainty ablation
-        # (program.rq_score / s_hat are already set above). The stored
-        # champion_rq stays the real R_Q, so the MAP still logs true scores --
-        # only the winner choice is H-blind under the ablation.
-        new_priority = self._select_priority(program)
-        if niche.champion is None or new_priority > self._select_priority(
-            niche.champion
-        ):
+        # Production champion competition ranks by selection priority: real R_Q,
+        # s(1-s) under the select_ignores_uncertainty ablation, or H under the
+        # mirror ablation. The random-cell control flips a checkpointed,
+        # deterministic Bernoulli coin instead. In every arm champion_rq stays
+        # the measured R_Q so snapshots retain the same diagnostics.
+        admission_audit: dict[str, float | int | str | None] = {
+            "strategy": self.admission_strategy,
+            "draw_index": None,
+            "draw": None,
+            "replace_probability": None,
+        }
+        if niche.champion is None:
+            admitted = True
+        elif self.admission_strategy == "random":
+            draw_index = self.admission_draw_count
+            draw_bytes = hashlib.sha256(
+                f"rq-random-admission-v1:{self.random_seed}:{draw_index}".encode(
+                    "utf-8"
+                )
+            ).digest()[:8]
+            draw = int.from_bytes(draw_bytes, "big") / float(1 << 64)
+            self.admission_draw_count += 1
+            admitted = draw < self.random_replace_probability
+            admission_audit.update(
+                {
+                    "draw_index": draw_index,
+                    "draw": draw,
+                    "replace_probability": self.random_replace_probability,
+                }
+            )
+        else:
+            admitted = self._select_priority(program) > self._select_priority(
+                niche.champion
+            )
+
+        if self.admission_strategy == "random":
+            program.metadata["archive_admission"] = dict(admission_audit)
+
+        if admitted:
             event = "inserted" if niche.champion is None else "replaced"
             if niche.champion is not None:
                 self.total_replacements += 1
@@ -434,18 +479,23 @@ class MAPElitesArchive:
             niche.champion_rq = float(rq_score)
             program.metadata["archive_status"] = "champion"
             niche.update_count += 1
-            niche.history.append(
-                {
-                    "event": event,
-                    "program_id": program.program_id,
-                    "rq_score": float(rq_score),
-                }
-            )
+            history_event = {
+                "event": event,
+                "program_id": program.program_id,
+                "rq_score": float(rq_score),
+            }
+            if self.admission_strategy == "random":
+                history_event["archive_admission"] = dict(admission_audit)
+            niche.history.append(history_event)
             self.total_insertions += 1
             # Archive-global uniqueness: one generator occupies one cell only.
             self._purge_program_from_other_cells(program.program_id, keep_cell=cell)
             return True
-        program.metadata["archive_status"] = "lost_cell_contest"
+        program.metadata["archive_status"] = (
+            "random_cell_contest_rejected"
+            if self.admission_strategy == "random"
+            else "lost_cell_contest"
+        )
         return False
 
     def passes_admission_preflight(self, program: ProblemProgram) -> bool:
@@ -1480,6 +1530,7 @@ class MAPElitesArchive:
             "total_insertions": self.total_insertions,
             "total_replacements": self.total_replacements,
             "total_selections": self.total_selections,
+            "admission_draw_count": self.admission_draw_count,
             "num_structural_donors": len(self.structural_donors),
         }
         if self.selection_strategy == "sliding_window_mce":
@@ -1518,6 +1569,9 @@ class MAPElitesArchive:
                 "epsilon": self.epsilon,
                 "ucb_c": self.ucb_c,
                 "selection_strategy": self.selection_strategy,
+                "admission_strategy": self.admission_strategy,
+                "random_replace_probability": self.random_replace_probability,
+                "random_seed": self.random_seed,
                 "mce_window_iterations": self.mce_window_iterations,
                 "stats": self.stats(),
             },
@@ -1575,11 +1629,23 @@ class MAPElitesArchive:
             "problem_type_ruleset": PROBLEM_TYPE_RULESET,
             "problem_type_ruleset_sha256": problem_type_ruleset_sha256(),
             "binning": self.binning,
+            "admission_strategy": self.admission_strategy,
         }
+        actual = dict(meta)
+        # Snapshots written before the random-admission ablation implicitly use
+        # the production fitness contest. Keep those resumable.
+        actual.setdefault("admission_strategy", "fitness")
+        if self.admission_strategy == "random":
+            expected.update(
+                {
+                    "random_replace_probability": self.random_replace_probability,
+                    "random_seed": self.random_seed,
+                }
+            )
         mismatches = [
-            f"{key}={meta.get(key)!r} (expected {value!r})"
+            f"{key}={actual.get(key)!r} (expected {value!r})"
             for key, value in expected.items()
-            if meta.get(key) != value
+            if actual.get(key) != value
         ]
         if mismatches:
             raise ArchiveSchemaError(
@@ -1748,6 +1814,7 @@ class MAPElitesArchive:
                 int(saved_stats.get("total_insertions", 0)),
                 int(saved_stats.get("total_replacements", 0)),
                 int(saved_stats.get("total_selections", 0)),
+                int(saved_stats.get("admission_draw_count", 0)),
             )
         except (TypeError, ValueError) as exc:
             raise ArchiveSchemaError("archive totals must be integers") from exc
@@ -1806,6 +1873,7 @@ class MAPElitesArchive:
             self.total_insertions,
             self.total_replacements,
             self.total_selections,
+            self.admission_draw_count,
         ) = saved_totals
         return placed
 

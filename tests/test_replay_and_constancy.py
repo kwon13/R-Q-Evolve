@@ -247,6 +247,64 @@ def test_the_batch_budget_binds_before_dataloader_shuffle():
     assert [r["program_id"] for r in rows] == ["high", "mid"]
 
 
+def test_random_replay_order_is_seeded_and_independent_of_rq_values():
+    buf = RolloutReplayBuffer()
+    buf.begin_iteration(1)
+    champs = []
+    first_board = PreviousRQScoreboard()
+    second_board = PreviousRQScoreboard()
+    for index, pid in enumerate(("a", "b", "c", "d")):
+        buf.store(pid, _inst(index, pid), _rollouts(True, False))
+        first_board.record(pid, 0, float(index + 1))
+        second_board.record(pid, 0, float(4 - index))
+        champs.append(_champion(pid, 0.5, float(index)))
+
+    def selected_ids(board):
+        return [
+            row["program_id"]
+            for row in build_replay_training_examples(
+                champs,
+                replay=buf,
+                previous_rq=board,
+                iteration=1,
+                frontier_s_hat_range=(0.0, 1.0),
+                training_budget=3,
+                select_random_order=True,
+                select_random_seed=23,
+            )
+        ]
+
+    assert selected_ids(first_board) == selected_ids(second_board)
+    assert selected_ids(first_board) == selected_ids(first_board)
+
+
+def test_random_extra_instance_allocation_is_independent_of_rq_values():
+    champions = [_champion(pid, 0.5, rq) for pid, rq in (("a", 1), ("b", 2), ("c", 3))]
+
+    def allocation(scores):
+        evolver = RQEvolver(
+            archive=MAPElitesArchive(),
+            backend=None,
+            evolution_config=EvolutionConfig(
+                train_batch_target=8,
+                frontier_s_hat_range=(0.0, 1.0),
+            ),
+            training_config=TrainingDataConfig(
+                select_random_order=True,
+                select_random_seed=29,
+            ),
+        )
+        evolver.current_iteration = 1
+        for champion, score in zip(champions, scores):
+            evolver.previous_rq.record(champion.program_id, 0, score)
+        return evolver._allocate_instances(champions)
+
+    first = allocation((0.1, 0.2, 0.3))
+    second = allocation((100.0, -5.0, 0.0))
+    assert first == second
+    assert sum(first) == 8
+
+
 # --- the constancy gate -----------------------------------------------------
 
 

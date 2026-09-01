@@ -14,6 +14,15 @@ class ArchiveConfig:
     epsilon: float = 0.3
     ucb_c: float = 1.0
     selection_strategy: str = "ucb"
+    # Champion competition inside an occupied DOMAIN x PROBLEM_TYPE cell.
+    # ``fitness`` is production MAP-Elites (higher selection priority wins).
+    # ``random`` is the score-free control: every valid challenger replaces the
+    # incumbent with a fixed Bernoulli probability. Empty cells are always
+    # filled. The draw counter is checkpointed by MAPElitesArchive, so resume is
+    # bit-for-bit reproducible.
+    admission_strategy: str = "fitness"
+    random_replace_probability: float = 0.5
+    random_seed: int = 0
     # Sliding-Window Monte Carlo Elites (SW-MCE) keeps the original MCE
     # binary offspring-survival reward, but estimates each cell's success rate
     # from only the most recent outer iterations.  The window is iteration-

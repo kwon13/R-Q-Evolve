@@ -20,6 +20,9 @@ CONFIG="${RQ_DOMAIN_TYPE_CONFIG:-configs/rq_evolve_4b_4gpu_domain_type.yaml}"
 EXPECTED_RQ_FITNESS_MODE="${RQ_EXPECTED_RQ_FITNESS_MODE:-standard}"
 EXPECTED_REVERSE_U_CONSTANT="${RQ_EXPECTED_REVERSE_U_CONSTANT:-2.0}"
 EXPECTED_RESUME_MODE="${RQ_EXPECTED_RESUME_MODE:-disable}"
+EXPECTED_ARCHIVE_ADMISSION_STRATEGY="${RQ_EXPECTED_ARCHIVE_ADMISSION_STRATEGY:-fitness}"
+EXPECTED_RANDOM_REPLACE_PROBABILITY="${RQ_EXPECTED_RANDOM_REPLACE_PROBABILITY:-0.5}"
+EXPECTED_TRAINING_RANDOM_ORDER="${RQ_EXPECTED_TRAINING_RANDOM_ORDER:-false}"
 GPUS="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 DETACH=false
 DRY_RUN=false
@@ -73,6 +76,10 @@ def get(path):
         raise SystemExit(f"missing effective config value: {path}")
     return value
 
+def get_or(path, default):
+    value = OmegaConf.select(cfg, path)
+    return default if value is None else value
+
 output = Path(str(get("verl_config.trainer.default_local_dir"))).expanduser()
 if not output.is_absolute():
     output = (Path.cwd() / output).resolve()
@@ -105,6 +112,11 @@ print(get("evolution.mutation_refill_max_iterations"))
 print(get("evolution.rq_fitness_mode"))
 print(get("evolution.rq_reverse_u_constant"))
 print(get("verl_config.actor_rollout_ref.rollout.gpu_memory_utilization"))
+print(get_or("archive.admission_strategy", "fitness"))
+print(get_or("archive.random_replace_probability", 0.5))
+print(get_or("archive.random_seed", 0))
+print(str(get_or("training_data.select_random_order", False)).lower())
+print(get_or("training_data.select_random_seed", 0))
 PY
 )"; then
   echo "[domain-type-4gpu] config resolution failed; activate the training environment:" >&2
@@ -132,6 +144,11 @@ REFILL_MAX="${VALUES[15]}"
 RQ_FITNESS_MODE="${VALUES[16]}"
 REVERSE_U_CONSTANT="${VALUES[17]}"
 GPU_MEMORY_UTILIZATION="${VALUES[18]}"
+ARCHIVE_ADMISSION_STRATEGY="${VALUES[19]}"
+RANDOM_REPLACE_PROBABILITY="${VALUES[20]}"
+ARCHIVE_RANDOM_SEED="${VALUES[21]}"
+TRAINING_RANDOM_ORDER="${VALUES[22]}"
+TRAINING_RANDOM_SEED="${VALUES[23]}"
 
 [[ "$EXPECTED_GPUS" == "4" ]] || { echo "[domain-type-4gpu] config must request four GPUs" >&2; exit 1; }
 [[ "$SAVE_FREQ" == "32" ]] || { echo "[domain-type-4gpu] save_freq must be 32" >&2; exit 1; }
@@ -155,6 +172,18 @@ GPU_MEMORY_UTILIZATION="${VALUES[18]}"
 }
 [[ "$REVERSE_U_CONSTANT" == "$EXPECTED_REVERSE_U_CONSTANT" ]] || {
   echo "[domain-type-4gpu] expected Reverse-U constant '$EXPECTED_REVERSE_U_CONSTANT', got '$REVERSE_U_CONSTANT'" >&2
+  exit 1
+}
+[[ "$ARCHIVE_ADMISSION_STRATEGY" == "$EXPECTED_ARCHIVE_ADMISSION_STRATEGY" ]] || {
+  echo "[domain-type-4gpu] expected archive admission '$EXPECTED_ARCHIVE_ADMISSION_STRATEGY', got '$ARCHIVE_ADMISSION_STRATEGY'" >&2
+  exit 1
+}
+[[ "$RANDOM_REPLACE_PROBABILITY" == "$EXPECTED_RANDOM_REPLACE_PROBABILITY" ]] || {
+  echo "[domain-type-4gpu] expected random replacement probability '$EXPECTED_RANDOM_REPLACE_PROBABILITY', got '$RANDOM_REPLACE_PROBABILITY'" >&2
+  exit 1
+}
+[[ "$TRAINING_RANDOM_ORDER" == "$EXPECTED_TRAINING_RANDOM_ORDER" ]] || {
+  echo "[domain-type-4gpu] expected training random order '$EXPECTED_TRAINING_RANDOM_ORDER', got '$TRAINING_RANDOM_ORDER'" >&2
   exit 1
 }
 
@@ -190,7 +219,17 @@ fi
 export CUDA_VISIBLE_DEVICES="$GPUS"
 export WANDB_MODE="${WANDB_MODE:-online}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
-export LD_PRELOAD=/data1/yhoon113/miniforge3/envs/vllm/lib/libgomp.so.1
+if [[ -n "${RQ_LD_PRELOAD:-}" ]]; then
+  [[ -f "$RQ_LD_PRELOAD" ]] || {
+    echo "[domain-type-4gpu] RQ_LD_PRELOAD does not exist: $RQ_LD_PRELOAD" >&2
+    exit 1
+  }
+  export LD_PRELOAD="$RQ_LD_PRELOAD"
+elif [[ -n "${CONDA_PREFIX:-}" && -f "$CONDA_PREFIX/lib/libgomp.so.1" ]]; then
+  export LD_PRELOAD="$CONDA_PREFIX/lib/libgomp.so.1"
+elif [[ -f /data1/yhoon113/miniforge3/envs/vllm/lib/libgomp.so.1 ]]; then
+  export LD_PRELOAD=/data1/yhoon113/miniforge3/envs/vllm/lib/libgomp.so.1
+fi
 
 RUN_KEY="$(basename "$CKPT_DIR")"
 LOG_DIR="$ROOT/logs/$RUN_KEY"
@@ -211,13 +250,19 @@ echo "[domain-type-4gpu] verification: ${VERIFY_SEEDS} seeds x ${PROGRAM_VERIFY_
 echo "[domain-type-4gpu] refill cap  : ${REFILL_MAX} proposals"
 echo "[domain-type-4gpu] vLLM util   : ${GPU_MEMORY_UTILIZATION}"
 echo "[domain-type-4gpu] resume mode : ${RESUME_MODE}"
+echo "[domain-type-4gpu] admission   : ${ARCHIVE_ADMISSION_STRATEGY} (replace p=${RANDOM_REPLACE_PROBABILITY}, seed=${ARCHIVE_RANDOM_SEED})"
+echo "[domain-type-4gpu] train order : random=${TRAINING_RANDOM_ORDER}, seed=${TRAINING_RANDOM_SEED}"
 case "$RQ_FITNESS_MODE" in
   standard)  RQ_FORMULA='L * U' ;;
   reverse_u) RQ_FORMULA="L * (${REVERSE_U_CONSTANT} - U)" ;;
   no_u)      RQ_FORMULA='L (U multiplier = 1)' ;;
   *) echo "[domain-type-4gpu] unsupported R_Q fitness mode: $RQ_FITNESS_MODE" >&2; exit 1 ;;
 esac
-echo "[domain-type-4gpu] fitness     : ${RQ_FITNESS_MODE} -- ${RQ_FORMULA}"
+if [[ "$ARCHIVE_ADMISSION_STRATEGY" == "random" && "$TRAINING_RANDOM_ORDER" == "true" ]]; then
+  echo "[domain-type-4gpu] score log   : ${RQ_FITNESS_MODE} -- ${RQ_FORMULA} (diagnostic only)"
+else
+  echo "[domain-type-4gpu] fitness     : ${RQ_FITNESS_MODE} -- ${RQ_FORMULA}"
+fi
 
 if $DRY_RUN; then
   echo "[domain-type-4gpu] dry-run complete; no process started"

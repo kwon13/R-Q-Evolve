@@ -1,0 +1,38 @@
+# Score-free random-cell control for the 4B DOMAIN x PROBLEM_TYPE run.
+#
+# All generation, verification, rollout, optimizer, and 4-GPU settings inherit
+# from the matched production config. R_Q is still measured and logged so the
+# rollout budget and diagnostics remain identical, but it makes no archive or
+# training-priority decision in this arm:
+#   1. mutation parents are sampled uniformly across occupied cells (inherited),
+#   2. a valid challenger to an occupied cell replaces its champion with p=0.5,
+#   3. replay groups and extra fresh instances are allocated in seeded random
+#      order rather than by previous R_Q.
+extends: rq_evolve_4b_4gpu_domain_type.yaml
+
+archive:
+  selection_strategy: random
+  admission_strategy: random
+  random_replace_probability: 0.5
+  random_seed: 0
+
+evolution:
+  # Measurement only in this control; no decision path below ranks by it.
+  rq_fitness_mode: standard
+  rq_reverse_u_constant: 2.0
+
+training_data:
+  select_lowest_rq_first: false
+  select_random_order: true
+  select_random_seed: 0
+
+verl_config:
+  actor_rollout_ref:
+    actor:
+      optim:
+        total_training_steps: 128
+  trainer:
+    experiment_name: qwen3_4b_domain_type_random_cell_35cell_4gpu
+    default_local_dir: ./rq_output/rq_evolve_4b_domain_type_random_cell_35cell_4gpu
+    total_training_steps: 128
+    resume_mode: disable

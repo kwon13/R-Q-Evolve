@@ -518,8 +518,10 @@ def build_replay_training_examples(
     training_budget: int | None = None,
     warmup: bool = False,
     allow_degenerate: bool = False,
+    select_random_order: bool = False,
+    select_random_seed: int = 0,
 ) -> list[dict]:
-    """Current re-scoring rollouts selected by the previous raw R_Q.
+    """Current re-scoring rollouts selected by lagged eligibility and priority.
 
     There is no sampling pass. Each elite contributes exactly the instances the
     re-scoring already rolled out, so every instance trained on is an instance
@@ -527,7 +529,9 @@ def build_replay_training_examples(
     the batch, and nothing goes stale between scoring and the update.
 
     WHICH elites contribute is decided by their score as of the previous
-    iteration. Ranking by the same rollouts that will be trained on conditions
+    iteration. Production ranks eligible elites by that previous R_Q;
+    ``select_random_order`` instead applies a reproducible score-free shuffle.
+    Ranking by the same rollouts that will be trained on conditions
     the sample on the selection event: the elite whose measurement noise
     happened to land high is the one kept, which biases the update even though
     each per-instance baseline is individually unbiased. The lag breaks that at
@@ -563,7 +567,10 @@ def build_replay_training_examples(
         ):
             continue
         ranked.append((score, champion))
-    ranked.sort(key=lambda pair: pair[0], reverse=True)
+    if select_random_order:
+        random.Random(select_random_seed).shuffle(ranked)
+    else:
+        ranked.sort(key=lambda pair: pair[0], reverse=True)
 
     examples: list[dict] = []
     for score, champion in ranked:

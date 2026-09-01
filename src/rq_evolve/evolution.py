@@ -333,8 +333,9 @@ class RQEvolver:
     # Candidate reports from the most recent run_outer_iteration, exposed so the
     # sampler can persist them to the per-step evolution log.
     last_reports: list[CandidateReport] = field(default_factory=list)
-    # Number of refresh_dataset() calls so far. Only used to vary the seed of the
-    # select_random_order ablation shuffle across outer iterations (reproducible).
+    # Number of refresh_dataset() calls so far, retained as lifecycle telemetry.
+    # Random ablations key their shuffle to current_iteration so checkpoint
+    # resume does not depend on this process-local counter.
     dataset_refresh_count: int = 0
     # Per-champion frontier decision from the most recent refresh_dataset():
     # {program_id, s_hat, rq_score, decision: in_frontier | s_hat_out_of_range}.
@@ -2434,7 +2435,7 @@ class RQEvolver:
         return results
 
     def _allocate_instances(self, champions: list[ProblemProgram]) -> list[int]:
-        """One fresh instance each, then extras by the previous raw R_Q.
+        """One fresh instance each, then extras by lagged R_Q or seeded random.
 
         The trainer needs ``train_batch_target`` prompts and the frontier is
         routinely smaller than that (median 18 against a target of 16-32 over
@@ -2444,7 +2445,9 @@ class RQEvolver:
         -- LILO found scaling the number of levels more effective than scaling
         rollouts per level.
 
-        Ranked by the same previous raw R_Q used to build the training batch.
+        Production ranks by the same previous raw R_Q used to build the training
+        batch. The random-cell control instead shuffles the eligible indices
+        using its fixed training seed plus the checkpointed outer iteration.
         ``program.rq_score`` is deliberately not the ranking key: it is only
         overwritten by the current re-score before the batch is built, whereas
         ``PreviousRQScoreboard`` preserves exactly the t-1 value without an EWMA.
@@ -2482,26 +2485,34 @@ class RQEvolver:
         pool = frontier or list(range(n))
         if target <= len(pool):
             return counts
-        past_scores = {
-            i: self.previous_rq.selection_score(
-                champions[i].program_id, self.current_iteration
-            )
-            for i in pool
-        }
-        # Bootstrap / a pre-scoreboard checkpoint has no past-only value at
-        # all.  Only in that all-missing state may the already-stored score seed
-        # the first batch.  Once any history exists, a missing program is a new
-        # child and must not receive priority before its next iteration.
-        if all(score is None for score in past_scores.values()):
-            rank_score = {
-                i: float(getattr(champions[i], "rq_score", 0.0) or 0.0) for i in pool
-            }
+        if self.training_config.select_random_order:
+            order = list(pool)
+            random.Random(
+                self.training_config.select_random_seed
+                + max(int(self.current_iteration), 0)
+            ).shuffle(order)
         else:
-            rank_score = {
-                i: (float(score) if score is not None else float("-inf"))
-                for i, score in past_scores.items()
+            past_scores = {
+                i: self.previous_rq.selection_score(
+                    champions[i].program_id, self.current_iteration
+                )
+                for i in pool
             }
-        order = sorted(pool, key=lambda i: rank_score[i], reverse=True)
+            # Bootstrap / a pre-scoreboard checkpoint has no past-only value at
+            # all. Only in that all-missing state may the already-stored score
+            # seed the first batch. Once any history exists, a missing program
+            # is a new child and must not receive priority before t+1.
+            if all(score is None for score in past_scores.values()):
+                rank_score = {
+                    i: float(getattr(champions[i], "rq_score", 0.0) or 0.0)
+                    for i in pool
+                }
+            else:
+                rank_score = {
+                    i: (float(score) if score is not None else float("-inf"))
+                    for i, score in past_scores.items()
+                }
+            order = sorted(pool, key=lambda i: rank_score[i], reverse=True)
         for j in range(target - len(pool)):
             counts[order[j % len(order)]] += 1
         return counts
@@ -2722,6 +2733,9 @@ class RQEvolver:
                 float(incumbent.rq_score) if incumbent is not None else None
             ),
             "incoming_rq": float(rq_score),
+            "admission": dict(
+                (program.metadata or {}).get("archive_admission") or {}
+            ),
         }
         if not inserted:
             # WHY it was refused. try_insert distinguishes six rejections --
@@ -2802,6 +2816,10 @@ class RQEvolver:
             for champion in champions
         ]
         if self.training_config.replay_training_batch:
+            random_order_seed = (
+                self.training_config.select_random_seed
+                + max(int(self.current_iteration), 0)
+            )
             replay_budget = (
                 self.training_config.training_budget
                 if self.training_config.training_budget is not None
@@ -2815,6 +2833,8 @@ class RQEvolver:
                 frontier_s_hat_range=self.evolution_config.frontier_s_hat_range,
                 training_budget=replay_budget,
                 warmup=warmup,
+                select_random_order=self.training_config.select_random_order,
+                select_random_seed=random_order_seed,
             )
             if not examples and not warmup:
                 # Nothing has a prior measurement to be selected on. That is the
@@ -2847,6 +2867,10 @@ class RQEvolver:
                         ),
                         training_budget=replay_budget,
                         warmup=True,
+                        select_random_order=(
+                            self.training_config.select_random_order
+                        ),
+                        select_random_seed=random_order_seed,
                     )
             if not examples and not warmup and champions:
                 # The frontier admitted nobody: every champion currently reads
@@ -2877,6 +2901,8 @@ class RQEvolver:
                     training_budget=replay_budget,
                     warmup=True,
                     allow_degenerate=True,
+                    select_random_order=self.training_config.select_random_order,
+                    select_random_seed=random_order_seed,
                 )
             # The dataset is modulo-padded up to train_batch_size. Under replay
             # that repeats IDENTICAL responses rather than resampling them, so a
@@ -2907,7 +2933,8 @@ class RQEvolver:
             # Vary the shuffle per refresh so the random ablation isn't frozen to
             # one ordering across outer iterations, while staying reproducible.
             select_random_seed=(
-                self.training_config.select_random_seed + self.dataset_refresh_count
+                self.training_config.select_random_seed
+                + max(int(self.current_iteration), 0)
             ),
             select_ignores_uncertainty=self.evolution_config.select_ignores_uncertainty,
             select_ignores_variance=self.evolution_config.select_ignores_variance,
@@ -3001,6 +3028,13 @@ class RQEvolver:
             "rq_reverse_u_constant": (
                 self.evolution_config.rq_reverse_u_constant
             ),
+            "archive_admission_strategy": self.archive.admission_strategy,
+            "archive_random_replace_probability": (
+                self.archive.random_replace_probability
+            ),
+            "archive_random_seed": self.archive.random_seed,
+            "training_random_order": self.training_config.select_random_order,
+            "training_random_seed": self.training_config.select_random_seed,
             "metrics": metrics,
             "reports": [asdict(r) for r in reports],
             "frontier": self.last_frontier,

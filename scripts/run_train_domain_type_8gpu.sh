@@ -17,6 +17,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
+if [[ -d "/data1/yhoon113/miniforge3/envs/vllm-g4/bin" ]]; then
+  export PATH="/data1/yhoon113/miniforge3/envs/vllm-g4/bin:$PATH"
+fi
+
 CONFIG="${RQ_DOMAIN_TYPE_CONFIG:-configs/rq_evolve_4b_8gpu_domain_type.yaml}"
 EXPECTED_RQ_FITNESS_MODE="${RQ_EXPECTED_RQ_FITNESS_MODE:-standard}"
 EXPECTED_REVERSE_U_CONSTANT="${RQ_EXPECTED_REVERSE_U_CONSTANT:-2.0}"
@@ -209,7 +213,17 @@ export NCCL_IB_DISABLE=1
 export NCCL_P2P_DISABLE=1
 export NCCL_SOCKET_IFNAME=ens22f0
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
-export LD_PRELOAD=/data1/yhoon113/miniforge3/envs/vllm/lib/libgomp.so.1
+PRELOAD_LIBS=()
+if [[ -n "${CONDA_PREFIX:-}" ]]; then
+  export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
+  [[ -f "$CONDA_PREFIX/lib/libstdc++.so.6" ]] && PRELOAD_LIBS+=("$CONDA_PREFIX/lib/libstdc++.so.6")
+  [[ -f "$CONDA_PREFIX/lib/libgomp.so.1" ]] && PRELOAD_LIBS+=("$CONDA_PREFIX/lib/libgomp.so.1")
+elif [[ -f /data1/yhoon113/miniforge3/envs/vllm-g4/lib/libgomp.so.1 ]]; then
+  PRELOAD_LIBS+=("/data1/yhoon113/miniforge3/envs/vllm-g4/lib/libgomp.so.1")
+fi
+if [[ ${#PRELOAD_LIBS[@]} -gt 0 ]]; then
+  export LD_PRELOAD="$(IFS=:; echo "${PRELOAD_LIBS[*]}")"
+fi
 
 RUN_KEY="$(basename "$CKPT_DIR")"
 LOG_DIR="$ROOT/logs/$RUN_KEY"

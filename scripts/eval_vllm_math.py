@@ -481,6 +481,7 @@ def main() -> None:
     accs = [b["pass_at_1"] for b in summary["benchmarks"].values()]
     if accs:
         logger.info("AVG pass@1 = %.2f%%", 100.0 * sum(accs) / len(accs))
+    os._exit(0)
 
 
 if __name__ == "__main__":

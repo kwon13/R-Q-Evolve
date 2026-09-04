@@ -1,0 +1,27 @@
+# Qwen3-8B DOMAIN x PROBLEM_TYPE production run on eight 80-GB NVIDIA A100 GPUs.
+#
+# Search, archive, replay, and optimization semantics are inherited from the
+# current 4B/8-GPU domain_type production arm. Forward/backward micro-batches
+# and vLLM memory budgets are tailored for 80-GB A100 cards.
+extends: rq_evolve_4b_8gpu_domain_type.yaml
+
+verl_config:
+  actor_rollout_ref:
+    model:
+      path: /data1/yhoon113/qwen3-8b-base
+
+    actor:
+      ppo_micro_batch_size_per_gpu: 2
+
+    ref:
+      log_prob_micro_batch_size_per_gpu: 2
+
+    rollout:
+      gpu_memory_utilization: 0.42
+      log_prob_micro_batch_size_per_gpu: 2
+
+  trainer:
+    n_gpus_per_node: 8
+    experiment_name: qwen3_8b_domain_type_35cell_8gpu
+    default_local_dir: ./rq_output/rq_evolve_8b_domain_type_35cell_8gpu
+    resume_mode: disable

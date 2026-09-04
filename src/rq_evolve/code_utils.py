@@ -1551,10 +1551,19 @@ def _strip_redundant_random_import(core: str) -> str:
     actually uses global `random.<method>`, subsequent AST checking or name
     resolution will safely reject it.
     """
+    def _fallback_strip(text: str) -> str:
+        lines = []
+        for line in text.splitlines():
+            s = line.strip()
+            if re.match(r"^import\s+random(\s+as\s+\w+)?$", s) or re.match(r"^from\s+random\s+import\s+.*$", s):
+                continue
+            lines.append(line)
+        return "\n".join(lines)
+
     try:
         tree = safe_ast_parse(core)
-    except (SyntaxError, ValueError):
-        return core
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        return _fallback_strip(core)
 
     class _RandomImportRemover(ast.NodeTransformer):
         def visit_Import(self, node: ast.Import):
@@ -1573,18 +1582,12 @@ def _strip_redundant_random_import(core: str) -> str:
                 return None
             return node
 
-    new_tree = _RandomImportRemover().visit(tree)
-    ast.fix_missing_locations(new_tree)
     try:
+        new_tree = _RandomImportRemover().visit(tree)
+        ast.fix_missing_locations(new_tree)
         return ast.unparse(new_tree)
     except Exception:
-        lines = []
-        for line in core.splitlines():
-            s = line.strip()
-            if re.match(r"^import\s+random(\s+as\s+\w+)?$", s) or re.match(r"^from\s+random\s+import\s+.*$", s):
-                continue
-            lines.append(line)
-        return "\n".join(lines)
+        return _fallback_strip(core)
 
 
 def _extract_stage2_protocol(
@@ -1717,51 +1720,56 @@ def compile_stage2_reply(
     if domain is not None and domain not in DOMAINS:
         return None, "stage2 DOMAIN must be one of " + ", ".join(DOMAINS)
 
-    core = _strip_redundant_random_import(core)
+    try:
+        core = _strip_redundant_random_import(core)
 
-    family_parts, placeholder_keys, family_error = _stage2_family_parts(family_template)
-    if family_error:
-        return None, family_error
-    semantic_error = _stage2_family_semantic_error(family_template, mode=mode)
-    if semantic_error:
-        return None, "stage2 fixed family failed semantic contract: " + semantic_error
-    tree, builder, parameter_locals, core_error = _validate_stage2_core(
-        core, placeholder_keys
-    )
-    if core_error or tree is None or builder is None:
-        return None, core_error or "stage2 CORE validation failed"
-
-    normalized_core = ast.unparse(tree)
-
-    synthesized = _synthesized_stage2_generate(
-        tree, builder, family_parts, parameter_locals
-    )
-    bare_draw = answer_is_bare_draw(synthesized)
-    if bare_draw:
-        return None, "stage2 CORE failed bare-answer contract: " + bare_draw
-    findings = check_generator_contract(synthesized)
-    if findings:
-        return None, "stage2 CORE failed independent-check contract: " + "; ".join(
-            str(finding) for finding in findings[:3]
+        family_parts, placeholder_keys, family_error = _stage2_family_parts(family_template)
+        if family_error:
+            return None, family_error
+        semantic_error = _stage2_family_semantic_error(family_template, mode=mode)
+        if semantic_error:
+            return None, "stage2 fixed family failed semantic contract: " + semantic_error
+        tree, builder, parameter_locals, core_error = _validate_stage2_core(
+            core, placeholder_keys
         )
+        if core_error or tree is None or builder is None:
+            return None, core_error or "stage2 CORE validation failed"
 
-    source = _trusted_stage2_source(
-        core=normalized_core,
-        domain=domain,
-        mode=mode,
-        family_template=family_template,
-        family_parts=family_parts,
-        placeholder_keys=placeholder_keys,
-        normalize_counting_integers=(
-            annotate_problem_type(family_template).problem_type == "counting"
-        ),
-    )
-    source_errors = lint_generator_source(source)
-    if source_errors:
-        return None, "compiled stage2 source failed lint: " + "; ".join(
-            source_errors[:3]
+        normalized_core = ast.unparse(tree)
+
+        synthesized = _synthesized_stage2_generate(
+            tree, builder, family_parts, parameter_locals
         )
-    return source, None
+        bare_draw = answer_is_bare_draw(synthesized)
+        if bare_draw:
+            return None, "stage2 CORE failed bare-answer contract: " + bare_draw
+        findings = check_generator_contract(synthesized)
+        if findings:
+            return None, "stage2 CORE failed independent-check contract: " + "; ".join(
+                str(finding) for finding in findings[:3]
+            )
+
+        source = _trusted_stage2_source(
+            core=normalized_core,
+            domain=domain,
+            mode=mode,
+            family_template=family_template,
+            family_parts=family_parts,
+            placeholder_keys=placeholder_keys,
+            normalize_counting_integers=(
+                annotate_problem_type(family_template).problem_type == "counting"
+            ),
+        )
+        source_errors = lint_generator_source(source)
+        if source_errors:
+            return None, "compiled stage2 source failed lint: " + "; ".join(
+                source_errors[:3]
+            )
+        return source, None
+    except (RecursionError, MemoryError) as exc:
+        return None, f"stage2 CORE parse resource exhausted: {exc}"
+    except SyntaxError as exc:
+        return None, f"stage2 CORE syntax error: {exc}"
 
 
 def lint_compiled_stage2_semantics(source_code: str) -> list[str]:

@@ -18,7 +18,7 @@ EVAL_SCRIPT="$RQ/scripts/eval_vllm_math.py"   # R-Zero-aligned eval (math_eval l
 # That used to be a standalone `vllm` env against /data1/yhoon113/cuda-12.8;
 # neither exists any more, and the cu128 stack now lives in azr-bw-blackwell
 # (vllm 0.10.1.1 / torch 2.7.1+cu128) with nvcc inside the env prefix.
-CONDA_ENV="${CONDA_ENV:-vllm}"
+CONDA_ENV="${CONDA_ENV:-vllm-g4}"
 source /data1/yhoon113/miniforge3/etc/profile.d/conda.sh
 # The env's binutils activate hook reads $ADDR2LINE before setting it, which is
 # fatal under `set -u` and aborts this script before the first merge. Drop -u
@@ -29,9 +29,9 @@ set -u
 export CUDA_HOME=/data1/yhoon113/cuda-12.8
 export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}
-export LD_PRELOAD=/data1/yhoon113/miniforge3/envs/vllm/lib/libgomp.so.1
+export LD_PRELOAD="${CONDA_PREFIX}/lib/libgomp.so.1"
 PY="${PY:-$CONDA_PREFIX/bin/python}"
-BASE="${BASE:-/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_8b_domain_type_35cell_8gpu}"
+BASE="${BASE:-/data1/yhoon113/R-Q-Evolve/rq_output/rq_evolve_4b_domain_type_35cell_4gpu}"
 # Steps to evaluate. Default: every global_step_N under $BASE, in numeric order.
 # A hardcoded list silently skipped step 256 when a run trained past the length
 # the list was written for. Override with STEPS_LIST=32,64 (comma-separated).
@@ -46,7 +46,7 @@ fi
 if [[ ${#STEPS[@]} -eq 0 ]]; then
   echo "no global_step_* checkpoints under $BASE" >&2; exit 1
 fi
-IFS=',' read -ra GPUS <<< "${GPU_LIST:-4,5,6,7}"
+IFS=',' read -ra GPUS <<< "${GPU_LIST:-0,1,2,3,4,5,6,7}"
 # R-Zero/evaluation/generate.py uses max_tokens=4096; match it for parity.
 #
 # Raising it is a real option but breaks comparability: in the 8B run 100% of

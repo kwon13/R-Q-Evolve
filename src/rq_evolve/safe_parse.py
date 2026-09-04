@@ -17,8 +17,11 @@ of the package rather than of the call order.
 """
 
 import ast
+from collections import deque
 
-__all__ = ["ParserBomb", "safe_ast_parse"]
+__all__ = ["MAX_AST_DEPTH", "ParserBomb", "check_ast_depth", "safe_ast_parse"]
+
+MAX_AST_DEPTH = 100
 
 
 class ParserBomb(SyntaxError):
@@ -27,10 +30,27 @@ class ParserBomb(SyntaxError):
     as the unparseable source it is."""
 
 
-def safe_ast_parse(source: str, filename: str = "<generated>") -> ast.Module:
+def check_ast_depth(tree: ast.AST, max_depth: int = MAX_AST_DEPTH) -> None:
+    """Iteratively check AST tree depth using BFS to prevent RecursionError."""
+    queue = deque([(tree, 1)])
+    while queue:
+        node, depth = queue.popleft()
+        if depth > max_depth:
+            raise ParserBomb(
+                f"AST depth ({depth}) exceeds safety limit ({max_depth})"
+            )
+        for child in ast.iter_child_nodes(node):
+            queue.append((child, depth + 1))
+
+
+def safe_ast_parse(
+    source: str, filename: str = "<generated>", max_depth: int = MAX_AST_DEPTH
+) -> ast.Module:
     try:
-        return ast.parse(source, filename)
+        tree = ast.parse(source, filename)
     except (MemoryError, RecursionError) as exc:
         raise ParserBomb(
             f"parser exhausted on a {len(source)}-char source ({type(exc).__name__})"
         ) from exc
+    check_ast_depth(tree, max_depth=max_depth)
+    return tree

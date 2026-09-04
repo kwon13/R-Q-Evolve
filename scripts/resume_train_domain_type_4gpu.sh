@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# Launch the fresh 35-cell DOMAIN x PROBLEM_TYPE run on four selected GPUs.
+# Resume the 35-cell DOMAIN x PROBLEM_TYPE run on four selected GPUs.
 #
 # Usage (from an activated training environment):
-#   bash scripts/run_train_domain_type_4gpu.sh --gpus 0,1,2,3
-#   bash scripts/run_train_domain_type_4gpu.sh --gpus 0,1,2,3 --detach
-#   bash scripts/run_train_domain_type_4gpu.sh --gpus 0,1,2,3 --dry-run
+#   bash scripts/resume_train_domain_type_4gpu.sh --gpus 0,1,2,3
+#   bash scripts/resume_train_domain_type_4gpu.sh --gpus 0,1,2,3 --detach
+#   bash scripts/resume_train_domain_type_4gpu.sh --gpus 0,1,2,3 --dry-run
 #
-# Checkpoints are written every 32 steps.  A companion daemon converts every
-# previous FSDP actor checkpoint to hf_merged/ and retains the newest actor/
-# intact as a full recovery artifact without consuming unbounded disk.  This
-# fresh-run launcher itself deliberately keeps automatic resume disabled.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,10 +16,9 @@ if [[ -d /data1/yhoon113/miniforge3/envs/vllm-g4/bin ]]; then
   export PATH="/data1/yhoon113/miniforge3/envs/vllm-g4/bin:$PATH"
 fi
 
-CONFIG="${RQ_DOMAIN_TYPE_CONFIG:-configs/rq_evolve_4b_4gpu_domain_type.yaml}"
+CONFIG="${RQ_DOMAIN_TYPE_CONFIG:-configs/rq_evolve_4b_4gpu_domain_type_resume.yaml}"
 EXPECTED_RQ_FITNESS_MODE="${RQ_EXPECTED_RQ_FITNESS_MODE:-standard}"
 EXPECTED_REVERSE_U_CONSTANT="${RQ_EXPECTED_REVERSE_U_CONSTANT:-2.0}"
-EXPECTED_RESUME_MODE="${RQ_EXPECTED_RESUME_MODE:-disable}"
 EXPECTED_ARCHIVE_ADMISSION_STRATEGY="${RQ_EXPECTED_ARCHIVE_ADMISSION_STRATEGY:-fitness}"
 EXPECTED_RANDOM_REPLACE_PROBABILITY="${RQ_EXPECTED_RANDOM_REPLACE_PROBABILITY:-0.5}"
 EXPECTED_TRAINING_RANDOM_ORDER="${RQ_EXPECTED_TRAINING_RANDOM_ORDER:-false}"
@@ -38,7 +33,7 @@ usage() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --gpus)
-      [[ $# -ge 2 ]] || { echo "[domain-type-4gpu] --gpus requires a value" >&2; exit 2; }
+      [[ $# -ge 2 ]] || { echo "[domain-type-4gpu-resume] --gpus requires a value" >&2; exit 2; }
       GPUS="$2"
       shift 2
       ;;
@@ -55,14 +50,14 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      echo "[domain-type-4gpu] unknown option: $1" >&2
+      echo "[domain-type-4gpu-resume] unknown option: $1" >&2
       usage >&2
       exit 2
       ;;
   esac
 done
 
-[[ -f "$CONFIG" ]] || { echo "[domain-type-4gpu] missing config: $CONFIG" >&2; exit 1; }
+[[ -f "$CONFIG" ]] || { echo "[domain-type-4gpu-resume] missing config: $CONFIG" >&2; exit 1; }
 
 if ! RESOLVED="$(python3 - "$CONFIG" 2>&1 <<'PY'
 import sys
@@ -123,7 +118,7 @@ print(str(get_or("training_data.select_random_order", False)).lower())
 print(get_or("training_data.select_random_seed", 0))
 PY
 )"; then
-  echo "[domain-type-4gpu] config resolution failed; activate the training environment:" >&2
+  echo "[domain-type-4gpu-resume] config resolution failed; activate the training environment:" >&2
   echo "$RESOLVED" >&2
   exit 1
 fi
@@ -154,78 +149,89 @@ ARCHIVE_RANDOM_SEED="${VALUES[21]}"
 TRAINING_RANDOM_ORDER="${VALUES[22]}"
 TRAINING_RANDOM_SEED="${VALUES[23]}"
 
-[[ "$EXPECTED_GPUS" == "4" ]] || { echo "[domain-type-4gpu] config must request four GPUs" >&2; exit 1; }
-[[ "$SAVE_FREQ" == "32" ]] || { echo "[domain-type-4gpu] save_freq must be 32" >&2; exit 1; }
-[[ "$MAX_KEEP" == "null" ]] || { echo "[domain-type-4gpu] max_actor_ckpt_to_keep must be null" >&2; exit 1; }
-[[ "$SEED_DIR" == "seed_programs_domain_type" ]] || { echo "[domain-type-4gpu] wrong seed directory: $SEED_DIR" >&2; exit 1; }
-[[ "$TARGET_INJECTION" == "false" ]] || { echo "[domain-type-4gpu] targeted mutation must be disabled" >&2; exit 1; }
-[[ "$RELABEL_SKILL" == "false" ]] || { echo "[domain-type-4gpu] legacy skill relabelling must be disabled" >&2; exit 1; }
-[[ "$DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-4gpu] local independent DOMAIN labeling must be enabled" >&2; exit 1; }
-[[ "$ARCHIVE_DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-4gpu] archive must require DOMAIN labeling" >&2; exit 1; }
-[[ "$STRUCTURAL_INSPIRATION" == "false" ]] || { echo "[domain-type-4gpu] donor context must be disabled for the clean run" >&2; exit 1; }
-[[ "$RESUME_MODE" == "$EXPECTED_RESUME_MODE" ]] || {
-  echo "[domain-type-4gpu] resume_mode must be $EXPECTED_RESUME_MODE, got $RESUME_MODE" >&2
-  exit 1
-}
-[[ "$VERIFY_SEEDS" == "5" ]] || { echo "[domain-type-4gpu] verify_seeds must be 5" >&2; exit 1; }
-[[ "$PROGRAM_VERIFY_WORKERS" == "8" ]] || { echo "[domain-type-4gpu] program_verify_workers must be 8" >&2; exit 1; }
-[[ "$REFILL_MAX" == "128" ]] || { echo "[domain-type-4gpu] mutation refill cap must be 128" >&2; exit 1; }
+[[ "$EXPECTED_GPUS" == "4" ]] || { echo "[domain-type-4gpu-resume] config must request four GPUs" >&2; exit 1; }
+[[ "$SAVE_FREQ" == "32" ]] || { echo "[domain-type-4gpu-resume] save_freq must be 32" >&2; exit 1; }
+[[ "$MAX_KEEP" == "null" ]] || { echo "[domain-type-4gpu-resume] max_actor_ckpt_to_keep must be null" >&2; exit 1; }
+[[ "$SEED_DIR" == "seed_programs_domain_type" ]] || { echo "[domain-type-4gpu-resume] wrong seed directory: $SEED_DIR" >&2; exit 1; }
+[[ "$TARGET_INJECTION" == "false" ]] || { echo "[domain-type-4gpu-resume] targeted mutation must be disabled" >&2; exit 1; }
+[[ "$RELABEL_SKILL" == "false" ]] || { echo "[domain-type-4gpu-resume] legacy skill relabelling must be disabled" >&2; exit 1; }
+[[ "$DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-4gpu-resume] local independent DOMAIN labeling must be enabled" >&2; exit 1; }
+[[ "$ARCHIVE_DOMAIN_LABELING" == "true" ]] || { echo "[domain-type-4gpu-resume] archive must require DOMAIN labeling" >&2; exit 1; }
+[[ "$STRUCTURAL_INSPIRATION" == "false" ]] || { echo "[domain-type-4gpu-resume] donor context must be disabled for the clean run" >&2; exit 1; }
+[[ "$RESUME_MODE" == "auto" ]] || { echo "[domain-type-4gpu-resume] resume_mode must be auto, got $RESUME_MODE" >&2; exit 1; }
+[[ "$VERIFY_SEEDS" == "5" ]] || { echo "[domain-type-4gpu-resume] verify_seeds must be 5" >&2; exit 1; }
+[[ "$PROGRAM_VERIFY_WORKERS" == "8" ]] || { echo "[domain-type-4gpu-resume] program_verify_workers must be 8" >&2; exit 1; }
+[[ "$REFILL_MAX" == "128" ]] || { echo "[domain-type-4gpu-resume] mutation refill cap must be 128" >&2; exit 1; }
 [[ "$RQ_FITNESS_MODE" == "$EXPECTED_RQ_FITNESS_MODE" ]] || {
-  echo "[domain-type-4gpu] expected R_Q fitness mode '$EXPECTED_RQ_FITNESS_MODE', got '$RQ_FITNESS_MODE'" >&2
+  echo "[domain-type-4gpu-resume] expected R_Q fitness mode '$EXPECTED_RQ_FITNESS_MODE', got '$RQ_FITNESS_MODE'" >&2
   exit 1
 }
 [[ "$REVERSE_U_CONSTANT" == "$EXPECTED_REVERSE_U_CONSTANT" ]] || {
-  echo "[domain-type-4gpu] expected Reverse-U constant '$EXPECTED_REVERSE_U_CONSTANT', got '$REVERSE_U_CONSTANT'" >&2
+  echo "[domain-type-4gpu-resume] expected Reverse-U constant '$EXPECTED_REVERSE_U_CONSTANT', got '$REVERSE_U_CONSTANT'" >&2
   exit 1
 }
 [[ "$ARCHIVE_ADMISSION_STRATEGY" == "$EXPECTED_ARCHIVE_ADMISSION_STRATEGY" ]] || {
-  echo "[domain-type-4gpu] expected archive admission '$EXPECTED_ARCHIVE_ADMISSION_STRATEGY', got '$ARCHIVE_ADMISSION_STRATEGY'" >&2
+  echo "[domain-type-4gpu-resume] expected archive admission '$EXPECTED_ARCHIVE_ADMISSION_STRATEGY', got '$ARCHIVE_ADMISSION_STRATEGY'" >&2
   exit 1
 }
 [[ "$RANDOM_REPLACE_PROBABILITY" == "$EXPECTED_RANDOM_REPLACE_PROBABILITY" ]] || {
-  echo "[domain-type-4gpu] expected random replacement probability '$EXPECTED_RANDOM_REPLACE_PROBABILITY', got '$RANDOM_REPLACE_PROBABILITY'" >&2
+  echo "[domain-type-4gpu-resume] expected random replacement probability '$EXPECTED_RANDOM_REPLACE_PROBABILITY', got '$RANDOM_REPLACE_PROBABILITY'" >&2
   exit 1
 }
 [[ "$TRAINING_RANDOM_ORDER" == "$EXPECTED_TRAINING_RANDOM_ORDER" ]] || {
-  echo "[domain-type-4gpu] expected training random order '$EXPECTED_TRAINING_RANDOM_ORDER', got '$TRAINING_RANDOM_ORDER'" >&2
+  echo "[domain-type-4gpu-resume] expected training random order '$EXPECTED_TRAINING_RANDOM_ORDER', got '$TRAINING_RANDOM_ORDER'" >&2
   exit 1
 }
 
 IFS=',' read -r -a GPU_IDS <<< "$GPUS"
 [[ "${#GPU_IDS[@]}" == "$EXPECTED_GPUS" ]] || {
-  echo "[domain-type-4gpu] --gpus must name exactly four devices, got: $GPUS" >&2
+  echo "[domain-type-4gpu-resume] --gpus must name exactly four devices, got: $GPUS" >&2
   exit 2
 }
 declare -A SEEN_GPUS=()
 for gpu in "${GPU_IDS[@]}"; do
-  [[ "$gpu" =~ ^[0-9]+$ ]] || { echo "[domain-type-4gpu] invalid GPU id: $gpu" >&2; exit 2; }
-  [[ -z "${SEEN_GPUS[$gpu]:-}" ]] || { echo "[domain-type-4gpu] duplicate GPU id: $gpu" >&2; exit 2; }
+  [[ "$gpu" =~ ^[0-9]+$ ]] || { echo "[domain-type-4gpu-resume] invalid GPU id: $gpu" >&2; exit 2; }
+  [[ -z "${SEEN_GPUS[$gpu]:-}" ]] || { echo "[domain-type-4gpu-resume] duplicate GPU id: $gpu" >&2; exit 2; }
   SEEN_GPUS[$gpu]=1
 done
 
 seed_count=$(find "$SEED_DIR" -maxdepth 1 -type f -name '*.py' | wc -l)
 [[ "$seed_count" == "7" ]] || {
-  echo "[domain-type-4gpu] expected exactly 7 diagonal seed programs, found $seed_count" >&2
+  echo "[domain-type-4gpu-resume] expected exactly 7 diagonal seed programs, found $seed_count" >&2
   exit 1
 }
 
-if [[ "$RESUME_MODE" == "disable" ]]; then
-  if [[ -d "$CKPT_DIR" ]] && [[ -n "$(find "$CKPT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
-    echo "[domain-type-4gpu] refusing to reuse non-empty run directory: $CKPT_DIR" >&2
-    echo "[domain-type-4gpu] choose a new config identity and output directory for a fresh run" >&2
-    exit 1
-  fi
-elif [[ ! -s "$CKPT_DIR/latest_checkpointed_iteration.txt" ]]; then
-  echo "[domain-type-4gpu] resume requested but no latest checkpoint pointer exists: $CKPT_DIR" >&2
+if [[ ! -s "$CKPT_DIR/latest_checkpointed_iteration.txt" ]]; then
+  echo "[domain-type-4gpu-resume] resume requested but no latest checkpoint pointer exists: $CKPT_DIR/latest_checkpointed_iteration.txt" >&2
   exit 1
 fi
+
+LATEST_STEP="$(tr -dc '0-9' < "$CKPT_DIR/latest_checkpointed_iteration.txt")"
+LATEST_CKPT_DIR="$CKPT_DIR/global_step_$LATEST_STEP"
+if [[ ! -d "$LATEST_CKPT_DIR/actor" ]]; then
+  echo "[domain-type-4gpu-resume] latest checkpoint actor directory missing: $LATEST_CKPT_DIR/actor" >&2
+  exit 1
+fi
+
+# Clean up any incomplete / crashed checkpoint directories beyond latest_step
+for d in "$CKPT_DIR"/global_step_*; do
+  if [[ -d "$d" ]]; then
+    step_num="$(basename "$d" | sed 's/global_step_//')"
+    if [[ "$step_num" =~ ^[0-9]+$ ]] && (( step_num > LATEST_STEP )); then
+      echo "[domain-type-4gpu-resume] removing incomplete step directory beyond step $LATEST_STEP: $d"
+      if ! $DRY_RUN; then
+        rm -rf "$d"
+      fi
+    fi
+  fi
+done
 
 export CUDA_VISIBLE_DEVICES="$GPUS"
 export WANDB_MODE="${WANDB_MODE:-online}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 if [[ -n "${RQ_LD_PRELOAD:-}" ]]; then
   [[ -f "$RQ_LD_PRELOAD" ]] || {
-    echo "[domain-type-4gpu] RQ_LD_PRELOAD does not exist: $RQ_LD_PRELOAD" >&2
+    echo "[domain-type-4gpu-resume] RQ_LD_PRELOAD does not exist: $RQ_LD_PRELOAD" >&2
     exit 1
   }
   export LD_PRELOAD="$RQ_LD_PRELOAD"
@@ -250,43 +256,40 @@ MERGE_LOG="$LOG_DIR/auto_merge.log"
 MERGE_PID_FILE="$LOG_DIR/auto_merge.pid"
 TRAIN_PID_FILE="$LOG_DIR/train.pid"
 
-echo "[domain-type-4gpu] config      : $CONFIG"
-echo "[domain-type-4gpu] model       : $MODEL_PATH"
-echo "[domain-type-4gpu] output      : $CKPT_DIR"
-echo "[domain-type-4gpu] GPUs        : $CUDA_VISIBLE_DEVICES"
-echo "[domain-type-4gpu] steps/save  : $TOTAL_STEPS / every $SAVE_FREQ"
-echo "[domain-type-4gpu] descriptors : 7 DOMAIN x 5 PROBLEM_TYPE"
-echo "[domain-type-4gpu] mutation    : untargeted; Stage 2 emits no DOMAIN"
-echo "[domain-type-4gpu] domain label: local-policy 7-way YES/NO readback"
-echo "[domain-type-4gpu] verification: ${VERIFY_SEEDS} seeds x ${PROGRAM_VERIFY_WORKERS} workers"
-echo "[domain-type-4gpu] refill cap  : ${REFILL_MAX} proposals"
-echo "[domain-type-4gpu] vLLM util   : ${GPU_MEMORY_UTILIZATION}"
-echo "[domain-type-4gpu] resume mode : ${RESUME_MODE}"
-echo "[domain-type-4gpu] admission   : ${ARCHIVE_ADMISSION_STRATEGY} (replace p=${RANDOM_REPLACE_PROBABILITY}, seed=${ARCHIVE_RANDOM_SEED})"
-echo "[domain-type-4gpu] train order : random=${TRAINING_RANDOM_ORDER}, seed=${TRAINING_RANDOM_SEED}"
+echo "[domain-type-4gpu-resume] config      : $CONFIG"
+echo "[domain-type-4gpu-resume] model       : $MODEL_PATH"
+echo "[domain-type-4gpu-resume] output      : $CKPT_DIR"
+echo "[domain-type-4gpu-resume] resume from : global_step_$LATEST_STEP"
+echo "[domain-type-4gpu-resume] GPUs        : $CUDA_VISIBLE_DEVICES"
+echo "[domain-type-4gpu-resume] steps/save  : $TOTAL_STEPS / every $SAVE_FREQ"
+echo "[domain-type-4gpu-resume] descriptors : 7 DOMAIN x 5 PROBLEM_TYPE"
+echo "[domain-type-4gpu-resume] mutation    : untargeted; Stage 2 emits no DOMAIN"
+echo "[domain-type-4gpu-resume] domain label: local-policy 7-way YES/NO readback"
+echo "[domain-type-4gpu-resume] verification: ${VERIFY_SEEDS} seeds x ${PROGRAM_VERIFY_WORKERS} workers"
+echo "[domain-type-4gpu-resume] refill cap  : ${REFILL_MAX} proposals"
+echo "[domain-type-4gpu-resume] vLLM util   : ${GPU_MEMORY_UTILIZATION}"
+echo "[domain-type-4gpu-resume] resume mode : ${RESUME_MODE}"
+echo "[domain-type-4gpu-resume] admission   : ${ARCHIVE_ADMISSION_STRATEGY} (replace p=${RANDOM_REPLACE_PROBABILITY}, seed=${ARCHIVE_RANDOM_SEED})"
+echo "[domain-type-4gpu-resume] train order : random=${TRAINING_RANDOM_ORDER}, seed=${TRAINING_RANDOM_SEED}"
 case "$RQ_FITNESS_MODE" in
   standard)  RQ_FORMULA='L * U' ;;
   reverse_u) RQ_FORMULA="L * (${REVERSE_U_CONSTANT} - U)" ;;
   no_u)      RQ_FORMULA='L (U multiplier = 1)' ;;
-  *) echo "[domain-type-4gpu] unsupported R_Q fitness mode: $RQ_FITNESS_MODE" >&2; exit 1 ;;
+  *) echo "[domain-type-4gpu-resume] unsupported R_Q fitness mode: $RQ_FITNESS_MODE" >&2; exit 1 ;;
 esac
-if [[ "$ARCHIVE_ADMISSION_STRATEGY" == "random" && "$TRAINING_RANDOM_ORDER" == "true" ]]; then
-  echo "[domain-type-4gpu] score log   : ${RQ_FITNESS_MODE} -- ${RQ_FORMULA} (diagnostic only)"
-else
-  echo "[domain-type-4gpu] fitness     : ${RQ_FITNESS_MODE} -- ${RQ_FORMULA}"
-fi
+echo "[domain-type-4gpu-resume] fitness     : ${RQ_FITNESS_MODE} -- ${RQ_FORMULA}"
 
 if $DRY_RUN; then
-  echo "[domain-type-4gpu] dry-run complete; no process started"
+  echo "[domain-type-4gpu-resume] dry-run complete; no process started"
   exit 0
 fi
 
 if ! PATCH_RESULT="$(python3 patches/verl_agent_loop_sampling.py 2>&1)"; then
-  echo "[domain-type-4gpu] failed to install required verl sampling patch:" >&2
+  echo "[domain-type-4gpu-resume] failed to install required verl sampling patch:" >&2
   echo "$PATCH_RESULT" >&2
   exit 1
 fi
-echo "[domain-type-4gpu] verl patch  : $PATCH_RESULT"
+echo "[domain-type-4gpu-resume] verl patch  : $PATCH_RESULT"
 mkdir -p "$CKPT_DIR" "$LOG_DIR"
 
 MERGE_PID=""
@@ -301,7 +304,7 @@ if [[ -z "$MERGE_PID" ]]; then
 fi
 
 if [[ -n "$MERGE_PID" ]]; then
-  echo "[domain-type-4gpu] auto-merge  : already running (PID $MERGE_PID)"
+  echo "[domain-type-4gpu-resume] auto-merge  : already running (PID $MERGE_PID)"
 else
   nohup python3 scripts/auto_merge_checkpoints.py \
     --ckpt_dir "$CKPT_DIR" --interval 60 \
@@ -310,14 +313,14 @@ else
   echo "$MERGE_PID" > "$MERGE_PID_FILE"
   sleep 2
   if ! kill -0 "$MERGE_PID" 2>/dev/null; then
-    echo "[domain-type-4gpu] auto-merge exited; inspect $MERGE_LOG" >&2
+    echo "[domain-type-4gpu-resume] auto-merge exited; inspect $MERGE_LOG" >&2
     exit 1
   fi
-  echo "[domain-type-4gpu] auto-merge  : started (PID $MERGE_PID)"
+  echo "[domain-type-4gpu-resume] auto-merge  : started (PID $MERGE_PID)"
 fi
 
-echo "[domain-type-4gpu] merge log   : $MERGE_LOG"
-echo "[domain-type-4gpu] train log   : $TRAIN_LOG"
+echo "[domain-type-4gpu-resume] merge log   : $MERGE_LOG"
+echo "[domain-type-4gpu-resume] train log   : $TRAIN_LOG"
 
 if $DETACH; then
   nohup python3 scripts/train_with_verl.py --config "$CONFIG" \
@@ -325,10 +328,10 @@ if $DETACH; then
   TRAIN_PID=$!
   echo "$TRAIN_PID" > "$TRAIN_PID_FILE"
   ln -sfn "$TRAIN_LOG" "$LOG_DIR/latest.log"
-  echo "[domain-type-4gpu] training    : started detached (PID $TRAIN_PID)"
-  echo "[domain-type-4gpu] follow      : tail -f $LOG_DIR/latest.log"
+  echo "[domain-type-4gpu-resume] training    : started detached (PID $TRAIN_PID)"
+  echo "[domain-type-4gpu-resume] follow      : tail -f $LOG_DIR/latest.log"
 else
-  echo "[domain-type-4gpu] training    : starting in foreground"
+  echo "[domain-type-4gpu-resume] training    : starting in foreground"
   set -o pipefail
   python3 scripts/train_with_verl.py --config "$CONFIG" 2>&1 | tee "$TRAIN_LOG"
 fi

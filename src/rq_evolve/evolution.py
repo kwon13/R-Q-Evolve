@@ -1126,6 +1126,26 @@ class RQEvolver:
             getattr(self, "_domain_labeling_stats", {}) or {}
         )
 
+        # Count mutation contests only: re-scoring/reinserting incumbents and
+        # validity failures are not opportunities for probabilistic replacement.
+        epsilon_reasons = collections.Counter()
+        for report in reports:
+            admission = (report.archive_decision or {}).get("admission") or {}
+            if admission.get("strategy") == "epsilon_greedy":
+                epsilon_reasons[admission.get("reason")] += 1
+        epsilon_nonwinning = (
+            epsilon_reasons["epsilon_override"] + epsilon_reasons["epsilon_rejected"]
+        )
+        epsilon_metrics = {
+            "epsilon_score_wins": epsilon_reasons["score_improved"],
+            "epsilon_nonwinning_candidates": epsilon_nonwinning,
+            "epsilon_overrides": epsilon_reasons["epsilon_override"],
+            "epsilon_override_rate": (
+                epsilon_reasons["epsilon_override"] / epsilon_nonwinning
+                if epsilon_nonwinning else 0.0
+            ),
+        }
+
         result = {
             "outer_iteration": outer_iteration,
             "attempted": attempted,
@@ -1154,6 +1174,7 @@ class RQEvolver:
             **insert_metrics,
             **preflight_metrics,
             **domain_labeling_metrics,
+            **epsilon_metrics,
             **inspiration_metrics,
             **status_counts,
             **stats,
@@ -3029,6 +3050,7 @@ class RQEvolver:
                 self.evolution_config.rq_reverse_u_constant
             ),
             "archive_admission_strategy": self.archive.admission_strategy,
+            "archive_admission_epsilon": self.archive.admission_epsilon,
             "archive_random_replace_probability": (
                 self.archive.random_replace_probability
             ),

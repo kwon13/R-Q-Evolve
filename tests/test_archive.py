@@ -1,9 +1,10 @@
+import copy
 import hashlib
 
 import pytest
 
 import rq_evolve.archive as archive_module
-from rq_evolve.archive import MAPElitesArchive
+from rq_evolve.archive import ArchiveSchemaError, MAPElitesArchive
 from rq_evolve.problem_type import PROBLEM_TYPE_RULESET, problem_type_ruleset_sha256
 from rq_evolve.program import ProblemProgram
 from rq_evolve.similarity import SimilarityTimeout
@@ -59,6 +60,193 @@ DOMAIN = "{domain}"
 '''
     )
     return _certify(program, domain, "counting")
+
+
+def _admission_candidate(index: int) -> ProblemProgram:
+    """Distinct verified fixtures in the same cell, so real novelty gates run."""
+    subjects = (
+        "lattice points inside a convex hull",
+        "prime gaps below a bound",
+        "leaves of a rooted binary tree",
+        "coins stacked in decreasing piles",
+        "tilings of a strip by dominoes",
+        "chords crossing inside a circle",
+        "roots arranged around the unit disk",
+        "permutations satisfying cyclic inequalities",
+        "integrals of a smooth periodic function",
+        "diameters in a collection of spheres",
+    )
+    program = ProblemProgram(
+        source_code=(
+            "def generate(seed):\n"
+            f'    return f"Consider {subjects[index]}, then add {{seed}} to {index + 1}.", str(seed + {index + 1})\n'
+            '\nDOMAIN = "algebra"\n'
+        )
+    )
+    return _certify(program, "algebra", "function")
+
+
+@pytest.mark.parametrize(
+    "epsilon", [-0.01, 1.01, float("nan"), float("inf"), -float("inf"), True, False, None, "invalid"]
+)
+def test_epsilon_admission_rejects_invalid_probabilities(epsilon):
+    with pytest.raises(ValueError, match="admission_epsilon"):
+        MAPElitesArchive(admission_strategy="epsilon_greedy", admission_epsilon=epsilon)
+
+
+def test_epsilon_admission_is_independent_of_parent_epsilon_and_requires_grid():
+    archive = MAPElitesArchive(epsilon=0.9, admission_strategy="epsilon_greedy")
+    assert archive.epsilon == 0.9
+    assert archive.admission_epsilon == 0.25
+    with pytest.raises(ValueError, match="requires binning='grid'"):
+        MAPElitesArchive(admission_strategy="epsilon_greedy", binning="flat")
+
+
+def test_zero_epsilon_reproduces_strict_fitness_contests_without_draws():
+    strict = MAPElitesArchive()
+    soft = MAPElitesArchive(admission_strategy="epsilon_greedy", admission_epsilon=0.0)
+    decisions = []
+    for index, score in enumerate((0.1, 0.1, 0.05, 0.3, 0.0, 0.8)):
+        candidate = _admission_candidate(index)
+        strict_result = strict.try_insert(copy.deepcopy(candidate), u_value=1.0, rq_score=score)
+        soft_result = soft.try_insert(candidate, u_value=1.0, rq_score=score)
+        assert strict_result is soft_result
+        assert strict.champions()[0].program_id == soft.champions()[0].program_id
+        decisions.append(soft_result)
+    assert decisions == [True, False, False, True, False, True]
+    assert soft.total_replacements == strict.total_replacements == 2
+    assert soft.total_epsilon_replacements == soft.admission_draw_count == 0
+
+
+def test_epsilon_admission_preserves_improvements_without_drawing():
+    archive = MAPElitesArchive(admission_strategy="epsilon_greedy", random_seed=0)
+    first = _admission_candidate(0)
+    stronger = _admission_candidate(1)
+    assert archive.try_insert(first, u_value=0.0, rq_score=0.0)
+    assert first.metadata["archive_admission"]["reason"] == "empty_cell"
+    assert archive.try_insert(stronger, u_value=0.4, rq_score=0.2)
+    assert stronger.metadata["archive_admission"]["reason"] == "score_improved"
+    assert archive.admission_draw_count == archive.total_epsilon_replacements == 0
+    assert archive.total_replacements == 1
+
+
+@pytest.mark.parametrize("candidate_score", [0.2, 0.0, -1.0])
+def test_epsilon_one_accepts_valid_ties_and_lower_scores(candidate_score):
+    archive = MAPElitesArchive(admission_strategy="epsilon_greedy", admission_epsilon=1.0)
+    first, candidate = _admission_candidate(0), _admission_candidate(1)
+    assert archive.try_insert(first, u_value=1.0, rq_score=0.2)
+    assert archive.try_insert(candidate, u_value=0.1, rq_score=candidate_score)
+    assert candidate.metadata["archive_status"] == "champion"
+    assert candidate.metadata["archive_admission"]["reason"] == "epsilon_override"
+    assert archive.total_replacements == archive.total_epsilon_replacements == 1
+    cell = archive.program_to_cell(candidate)
+    assert archive.grid[cell].champion_rq == candidate_score
+    assert archive.grid[cell].history[-1]["archive_admission"]["reason"] == "epsilon_override"
+
+
+def test_epsilon_uses_selection_priority_in_existing_score_ablations():
+    archive = MAPElitesArchive(
+        admission_strategy="epsilon_greedy", admission_epsilon=0.0,
+        select_ignores_uncertainty=True,
+    )
+    first, candidate = _admission_candidate(0), _admission_candidate(1)
+    first.s_hat, candidate.s_hat = 0.1, 0.5
+    assert archive.try_insert(first, u_value=9.0, rq_score=9.0)
+    assert archive.try_insert(candidate, u_value=0.1, rq_score=0.01)
+    assert candidate.metadata["archive_admission"]["reason"] == "score_improved"
+    assert archive.admission_draw_count == 0
+
+
+def test_epsilon_does_not_bypass_validity_or_duplicate_gates():
+    archive = MAPElitesArchive(admission_strategy="epsilon_greedy", admission_epsilon=1.0)
+    first = _admission_candidate(0)
+    assert archive.try_insert(first, u_value=1.0, rq_score=0.1)
+    unlabelled = _admission_candidate(1)
+    unlabelled.metadata.pop("descriptor_contract")
+    constant = _certify(
+        ProblemProgram(source_code='def generate(seed):\n    return "Find one plus two.", "3"\n\nDOMAIN = "algebra"\n'),
+        "algebra", "function",
+    )
+    duplicate = ProblemProgram(source_code=first.source_code + "\n# Another identity\n")
+    _certify(duplicate, "algebra", "function")
+    for candidate, expected_status in (
+        (unlabelled, "unlabelled_rejected"),
+        (constant, "seed_variation_rejected"),
+        (duplicate, "duplicate_behavior_rejected"),
+    ):
+        # Stale audit data must be cleared even if preflight refuses admission.
+        candidate.metadata["archive_admission"] = {"reason": "epsilon_override"}
+        assert not archive.try_insert(candidate, u_value=9.0, rq_score=9.0)
+        assert candidate.metadata["archive_status"] == expected_status
+        assert "archive_admission" not in candidate.metadata
+    assert archive.admission_draw_count == archive.total_epsilon_replacements == 0
+    assert archive.champions()[0] is first
+
+
+def test_epsilon_champion_reevaluation_does_not_draw_or_recount_override():
+    archive = MAPElitesArchive(admission_strategy="epsilon_greedy", admission_epsilon=1.0)
+    first, champion = _admission_candidate(0), _admission_candidate(1)
+    assert archive.try_insert(first, u_value=1.0, rq_score=0.2)
+    assert archive.try_insert(champion, u_value=1.0, rq_score=0.1)
+    assert archive.total_epsilon_replacements == archive.admission_draw_count == 1
+    assert archive.try_insert(champion, u_value=2.0, rq_score=0.05)
+    assert champion.metadata["archive_admission"]["reason"] == "incumbent_refresh"
+    assert archive.total_replacements == archive.total_epsilon_replacements == 1
+    assert archive.total_insertions == 2
+    assert archive.remove_program(champion.program_id)
+    assert archive.try_insert(champion, u_value=2.0, rq_score=0.0)
+    assert champion.metadata["archive_admission"]["reason"] == "empty_cell"
+    assert archive.total_replacements == archive.total_epsilon_replacements == 1
+    assert archive.admission_draw_count == 1
+
+
+def test_epsilon_resume_preserves_decisions_and_override_counters(tmp_path):
+    archive = MAPElitesArchive(admission_strategy="epsilon_greedy", random_seed=19)
+    for index in range(3):
+        archive.try_insert(_admission_candidate(index), u_value=1.0, rq_score=1.0 - index / 10)
+    archive.save(tmp_path)
+    restored = MAPElitesArchive(admission_strategy="epsilon_greedy", random_seed=19)
+    assert restored.load(tmp_path) == 1
+    assert restored.to_payload() == archive.to_payload()
+    decisions = []
+    for index in range(3, 9):
+        left, right = _admission_candidate(index), _admission_candidate(index)
+        expected = archive.try_insert(left, u_value=1.0, rq_score=1.0 - index / 10)
+        actual = restored.try_insert(right, u_value=1.0, rq_score=1.0 - index / 10)
+        assert actual is expected
+        assert right.metadata["archive_admission"] == left.metadata["archive_admission"]
+        assert restored.to_payload() == archive.to_payload()
+        decisions.append(actual)
+    assert set(decisions) == {True, False}
+    assert restored.admission_draw_count == 8
+    assert restored.total_epsilon_replacements == 4
+
+
+@pytest.mark.parametrize(
+    "changed_config, mismatch",
+    [({"admission_epsilon": 0.5}, "admission_epsilon"), ({"random_seed": 2}, "random_seed"), ({"admission_strategy": "fitness"}, "admission_strategy")],
+)
+def test_epsilon_resume_rejects_a_changed_experimental_condition(changed_config, mismatch):
+    original = MAPElitesArchive(admission_strategy="epsilon_greedy")
+    config = {"admission_strategy": "epsilon_greedy", **changed_config}
+    restored = MAPElitesArchive(**config)
+    before = restored.to_payload()
+    with pytest.raises(ArchiveSchemaError, match=mismatch):
+        restored.load_payload(original.to_payload())
+    assert restored.to_payload() == before
+
+
+def test_legacy_fitness_snapshot_without_epsilon_fields_still_loads():
+    archive = MAPElitesArchive()
+    assert archive.try_insert(_admission_candidate(0), u_value=1.0, rq_score=0.1)
+    payload = archive.to_payload()
+    payload["meta"].pop("admission_strategy")
+    payload["meta"].pop("admission_epsilon")
+    payload["meta"]["stats"].pop("total_epsilon_replacements")
+    restored = MAPElitesArchive()
+    assert restored.load_payload(payload) == 1
+    assert restored.total_epsilon_replacements == 0
+    assert restored.admission_epsilon == 0.25
 
 
 def test_random_selection_strategy_does_not_call_ucb():

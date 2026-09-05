@@ -37,6 +37,24 @@ class ArchiveConfig:
     # the same score thresholds without trusting mutable evolution metadata.
     domain_labeling_min_probability: float = 0.55
     domain_labeling_min_logit_margin: float = 0.50
+    # ``epsilon_greedy`` keeps strict fitness wins and admits a non-winning
+    # challenger with this probability. Independent of parent-selection epsilon.
+    admission_epsilon: float = 0.25
+
+    def __post_init__(self) -> None:
+        if self.admission_strategy not in {"fitness", "random", "epsilon_greedy"}:
+            raise ValueError(f"unknown admission_strategy: {self.admission_strategy}")
+        if isinstance(self.admission_epsilon, bool):
+            raise ValueError("admission_epsilon must be a finite number in [0, 1]")
+        try:
+            value = float(self.admission_epsilon)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "admission_epsilon must be a finite number in [0, 1]"
+            ) from exc
+        if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+            raise ValueError("admission_epsilon must be a finite number in [0, 1]")
+        self.admission_epsilon = value
 
 
 @dataclass(slots=True)

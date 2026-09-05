@@ -98,11 +98,20 @@ class MAPElitesArchive:
         require_domain_labeling: bool = False,
         domain_labeling_min_probability: float = 0.55,
         domain_labeling_min_logit_margin: float = 0.50,
+        admission_epsilon: float = 0.25,
     ) -> None:
         if selection_strategy not in {"ucb", "random", "sliding_window_mce"}:
             raise ValueError(f"unknown selection_strategy: {selection_strategy}")
-        if admission_strategy not in {"fitness", "random"}:
+        if admission_strategy not in {"fitness", "random", "epsilon_greedy"}:
             raise ValueError(f"unknown admission_strategy: {admission_strategy}")
+        try:
+            validated_admission_epsilon = float(admission_epsilon)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("admission_epsilon must be in [0, 1]") from exc
+        if isinstance(admission_epsilon, bool) or not (
+            0.0 <= validated_admission_epsilon <= 1.0
+        ):
+            raise ValueError("admission_epsilon must be in [0, 1]")
         if not 0.0 <= float(random_replace_probability) <= 1.0:
             raise ValueError("random_replace_probability must be in [0, 1]")
         if isinstance(random_seed, bool) or not isinstance(random_seed, int):
@@ -111,8 +120,8 @@ class MAPElitesArchive:
             raise ValueError("mce_window_iterations must be positive")
         if binning not in {"grid", "flat"}:
             raise ValueError(f"binning must be 'grid' or 'flat', got {binning!r}")
-        if admission_strategy == "random" and binning != "grid":
-            raise ValueError("random admission requires binning='grid'")
+        if admission_strategy in {"random", "epsilon_greedy"} and binning != "grid":
+            raise ValueError(f"{admission_strategy} admission requires binning='grid'")
         if select_ignores_uncertainty and select_ignores_variance:
             raise ValueError(
                 "select_ignores_uncertainty and select_ignores_variance are "
@@ -125,6 +134,8 @@ class MAPElitesArchive:
         self.ucb_c = float(ucb_c)
         self.selection_strategy = selection_strategy
         self.admission_strategy = admission_strategy
+        # Independent of epsilon above, which controls parent exploration.
+        self.admission_epsilon = validated_admission_epsilon
         self.random_replace_probability = float(random_replace_probability)
         self.random_seed = int(random_seed)
         self.admission_draw_count = 0
@@ -164,6 +175,7 @@ class MAPElitesArchive:
             raise ValueError("domain_labeling_min_logit_margin must be >= 0")
         self.total_insertions = 0
         self.total_replacements = 0
+        self.total_epsilon_replacements = 0
         self.total_selections = 0
         # Manually certified structural donors live independently of MAP cell
         # competition. Otherwise a valid child replacing a seed champion would
@@ -394,6 +406,10 @@ class MAPElitesArchive:
         u_value: float,
         rq_score: float,
     ) -> bool:
+        if self.admission_strategy == "epsilon_greedy":
+            # Re-evaluated champions retain their metadata. A failed preflight
+            # must not report an override belonging to an earlier admission.
+            program.metadata.pop("archive_admission", None)
         cell = self._insert_cell(program)
         if cell is None:
             program.metadata["archive_status"] = "unlabelled_rejected"
@@ -421,7 +437,8 @@ class MAPElitesArchive:
         # the frontier band in dataset.py (low < s_hat < high), which excludes
         # p=0 and p=1 on its own, and cell competition below is a strict `>`
         # so an R_Q=0 champion yields to the first scoring program that
-        # arrives and never displaces one.
+        # arrives in the fitness arm. Probabilistic arms may also admit a
+        # verified zero-score candidate; frontier filtering is unchanged.
         #
         if not self.passes_admission_preflight(program):
             return False
@@ -436,8 +453,10 @@ class MAPElitesArchive:
         # Production champion competition ranks by selection priority: real R_Q,
         # s(1-s) under the select_ignores_uncertainty ablation, or H under the
         # mirror ablation. The random-cell control flips a checkpointed,
-        # deterministic Bernoulli coin instead. In every arm champion_rq stays
-        # the measured R_Q so snapshots retain the same diagnostics.
+        # deterministic Bernoulli coin instead. Epsilon admission always keeps
+        # strict score improvements and gives remaining valid candidates an
+        # independent chance to replace. In every arm champion_rq stays the
+        # measured R_Q so snapshots retain the same diagnostics.
         admission_audit: dict[str, float | int | str | None] = {
             "strategy": self.admission_strategy,
             "draw_index": None,
@@ -446,6 +465,8 @@ class MAPElitesArchive:
         }
         if niche.champion is None:
             admitted = True
+            if self.admission_strategy == "epsilon_greedy":
+                admission_audit["reason"] = "empty_cell"
         elif self.admission_strategy == "random":
             draw_index = self.admission_draw_count
             draw_bytes = hashlib.sha256(
@@ -463,18 +484,56 @@ class MAPElitesArchive:
                     "replace_probability": self.random_replace_probability,
                 }
             )
+        elif self.admission_strategy == "epsilon_greedy":
+            admission_audit["admission_epsilon"] = self.admission_epsilon
+            if niche.champion.program_id == program.program_id:
+                # Live evolution removes an incumbent before re-evaluation,
+                # but direct refresh callers must not compete with themselves
+                # or inflate the count of newly accepted programs.
+                niche.champion = program
+                niche.champion_rq = float(rq_score)
+                program.metadata["archive_status"] = "champion"
+                admission_audit["reason"] = "incumbent_refresh"
+                program.metadata["archive_admission"] = dict(admission_audit)
+                return True
+            if self._select_priority(program) > self._select_priority(niche.champion):
+                admitted = True
+                admission_audit["reason"] = "score_improved"
+            else:
+                # Do not advance the admission stream when epsilon is zero:
+                # this boundary reproduces the original strict contest.
+                admitted = False
+                admission_audit["replace_probability"] = self.admission_epsilon
+                if self.admission_epsilon > 0.0:
+                    draw_index = self.admission_draw_count
+                    draw_bytes = hashlib.sha256(
+                        f"rq-epsilon-admission-v1:{self.random_seed}:{draw_index}".encode(
+                            "utf-8"
+                        )
+                    ).digest()[:8]
+                    draw = int.from_bytes(draw_bytes, "big") / float(1 << 64)
+                    self.admission_draw_count += 1
+                    admitted = draw < self.admission_epsilon
+                    admission_audit.update({"draw_index": draw_index, "draw": draw})
+                admission_audit["reason"] = (
+                    "epsilon_override" if admitted else "epsilon_rejected"
+                )
         else:
             admitted = self._select_priority(program) > self._select_priority(
                 niche.champion
             )
 
-        if self.admission_strategy == "random":
+        if self.admission_strategy == "epsilon_greedy":
+            admission_audit["admission_epsilon"] = self.admission_epsilon
+        if self.admission_strategy in {"random", "epsilon_greedy"}:
             program.metadata["archive_admission"] = dict(admission_audit)
 
         if admitted:
             event = "inserted" if niche.champion is None else "replaced"
             if niche.champion is not None:
                 self.total_replacements += 1
+                if admission_audit.get("reason") == "epsilon_override":
+                    self.total_epsilon_replacements += 1
             niche.champion = program
             niche.champion_rq = float(rq_score)
             program.metadata["archive_status"] = "champion"
@@ -484,7 +543,7 @@ class MAPElitesArchive:
                 "program_id": program.program_id,
                 "rq_score": float(rq_score),
             }
-            if self.admission_strategy == "random":
+            if self.admission_strategy in {"random", "epsilon_greedy"}:
                 history_event["archive_admission"] = dict(admission_audit)
             niche.history.append(history_event)
             self.total_insertions += 1
@@ -1529,6 +1588,7 @@ class MAPElitesArchive:
             "max_rq": max(rqs) if rqs else 0.0,
             "total_insertions": self.total_insertions,
             "total_replacements": self.total_replacements,
+            "total_epsilon_replacements": self.total_epsilon_replacements,
             "total_selections": self.total_selections,
             "admission_draw_count": self.admission_draw_count,
             "num_structural_donors": len(self.structural_donors),
@@ -1570,6 +1630,7 @@ class MAPElitesArchive:
                 "ucb_c": self.ucb_c,
                 "selection_strategy": self.selection_strategy,
                 "admission_strategy": self.admission_strategy,
+                "admission_epsilon": self.admission_epsilon,
                 "random_replace_probability": self.random_replace_probability,
                 "random_seed": self.random_seed,
                 "mce_window_iterations": self.mce_window_iterations,
@@ -1635,10 +1696,18 @@ class MAPElitesArchive:
         # Snapshots written before the random-admission ablation implicitly use
         # the production fitness contest. Keep those resumable.
         actual.setdefault("admission_strategy", "fitness")
+        actual.setdefault("admission_epsilon", 0.25)
         if self.admission_strategy == "random":
             expected.update(
                 {
                     "random_replace_probability": self.random_replace_probability,
+                    "random_seed": self.random_seed,
+                }
+            )
+        elif self.admission_strategy == "epsilon_greedy":
+            expected.update(
+                {
+                    "admission_epsilon": self.admission_epsilon,
                     "random_seed": self.random_seed,
                 }
             )
@@ -1815,6 +1884,7 @@ class MAPElitesArchive:
                 int(saved_stats.get("total_replacements", 0)),
                 int(saved_stats.get("total_selections", 0)),
                 int(saved_stats.get("admission_draw_count", 0)),
+                int(saved_stats.get("total_epsilon_replacements", 0)),
             )
         except (TypeError, ValueError) as exc:
             raise ArchiveSchemaError("archive totals must be integers") from exc
@@ -1874,6 +1944,7 @@ class MAPElitesArchive:
             self.total_replacements,
             self.total_selections,
             self.admission_draw_count,
+            self.total_epsilon_replacements,
         ) = saved_totals
         return placed
 

@@ -25,6 +25,8 @@ CONFIG="${RQ_DOMAIN_TYPE_CONFIG:-configs/rq_evolve_4b_8gpu_domain_type.yaml}"
 EXPECTED_RQ_FITNESS_MODE="${RQ_EXPECTED_RQ_FITNESS_MODE:-standard}"
 EXPECTED_REVERSE_U_CONSTANT="${RQ_EXPECTED_REVERSE_U_CONSTANT:-2.0}"
 EXPECTED_RESUME_MODE="${RQ_EXPECTED_RESUME_MODE:-disable}"
+EXPECTED_ADMISSION_STRATEGY="${RQ_EXPECTED_ADMISSION_STRATEGY:-fitness}"
+EXPECTED_ADMISSION_EPSILON="${RQ_EXPECTED_ADMISSION_EPSILON:-}"
 GPUS="${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}"
 DETACH=false
 DRY_RUN=false
@@ -63,14 +65,22 @@ done
 [[ -f "$CONFIG" ]] || { echo "[domain-type-8gpu] missing config: $CONFIG" >&2; exit 1; }
 
 if ! RESOLVED="$(python3 - "$CONFIG" 2>&1 <<'PY'
+import importlib.util
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "src")
 from omegaconf import OmegaConf
-from rq_evolve.config import load_raw_config
+# Import the configuration module without rq_evolve.__init__, whose eager
+# training imports need the server stack even for a GPU-free dry run.
+spec = importlib.util.spec_from_file_location("_rq_launch_config", "src/rq_evolve/config.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+load_config, load_raw_config = module.load_config, module.load_raw_config
 
 cfg = load_raw_config(sys.argv[1])
+# Validate dataclass constraints as well as resolving inherited YAML values.
+typed_cfg = load_config(sys.argv[1])
 
 def get(path):
     value = OmegaConf.select(cfg, path)
@@ -113,6 +123,8 @@ print(get("evolution.program_verify_workers"))
 print(get("evolution.mutation_refill_max_iterations"))
 print(get("evolution.rq_fitness_mode"))
 print(get("evolution.rq_reverse_u_constant"))
+print(typed_cfg.archive.admission_strategy)
+print(typed_cfg.archive.admission_epsilon)
 PY
 )"; then
   echo "[domain-type-8gpu] config resolution failed; activate the training environment:" >&2
@@ -120,7 +132,8 @@ PY
   exit 1
 fi
 
-mapfile -t VALUES <<< "$RESOLVED"
+VALUES=()
+while IFS= read -r value; do VALUES+=("$value"); done <<< "$RESOLVED"
 CKPT_DIR="${VALUES[0]}"
 EXPECTED_GPUS="${VALUES[1]}"
 SAVE_FREQ="${VALUES[2]}"
@@ -143,6 +156,8 @@ PROGRAM_VERIFY_WORKERS="${VALUES[18]}"
 REFILL_MAX="${VALUES[19]}"
 RQ_FITNESS_MODE="${VALUES[20]}"
 REVERSE_U_CONSTANT="${VALUES[21]}"
+ADMISSION_STRATEGY="${VALUES[22]}"
+ADMISSION_EPSILON="${VALUES[23]}"
 
 [[ "$EXPECTED_GPUS" == "8" ]] || { echo "[domain-type-8gpu] config must request eight GPUs" >&2; exit 1; }
 [[ "$SAVE_FREQ" == "32" ]] || { echo "[domain-type-8gpu] save_freq must be 32" >&2; exit 1; }
@@ -172,26 +187,36 @@ REVERSE_U_CONSTANT="${VALUES[21]}"
   echo "[domain-type-8gpu] expected Reverse-U constant '$EXPECTED_REVERSE_U_CONSTANT', got '$REVERSE_U_CONSTANT'" >&2
   exit 1
 }
+[[ "$ADMISSION_STRATEGY" == "$EXPECTED_ADMISSION_STRATEGY" ]] || {
+  echo "[domain-type-8gpu] expected admission '$EXPECTED_ADMISSION_STRATEGY', got '$ADMISSION_STRATEGY'" >&2
+  exit 1
+}
+if [[ -n "$EXPECTED_ADMISSION_EPSILON" && "$ADMISSION_EPSILON" != "$EXPECTED_ADMISSION_EPSILON" ]]; then
+  echo "[domain-type-8gpu] expected admission epsilon '$EXPECTED_ADMISSION_EPSILON', got '$ADMISSION_EPSILON'" >&2
+  exit 1
+fi
 
 IFS=',' read -r -a GPU_IDS <<< "$GPUS"
 [[ "${#GPU_IDS[@]}" == "$EXPECTED_GPUS" ]] || {
   echo "[domain-type-8gpu] --gpus must name exactly eight devices, got: $GPUS" >&2
   exit 2
 }
-declare -A SEEN_GPUS=()
+SEEN_GPUS=,
 for gpu in "${GPU_IDS[@]}"; do
   [[ "$gpu" =~ ^[0-9]+$ ]] || { echo "[domain-type-8gpu] invalid GPU id: $gpu" >&2; exit 2; }
-  [[ -z "${SEEN_GPUS[$gpu]:-}" ]] || { echo "[domain-type-8gpu] duplicate GPU id: $gpu" >&2; exit 2; }
-  SEEN_GPUS[$gpu]=1
+  # Normalize leading zeros before checking duplicates (e.g. 1 and 01).
+  gpu="$((10#$gpu))"
+  [[ "$SEEN_GPUS" != *",$gpu,"* ]] || { echo "[domain-type-8gpu] duplicate GPU id: $gpu" >&2; exit 2; }
+  SEEN_GPUS+="$gpu,"
 done
 
 seed_count=$(find "$SEED_DIR" -maxdepth 1 -type f -name '*.py' | wc -l)
-[[ "$seed_count" == "7" ]] || {
+[[ "$seed_count" -eq 7 ]] || {
   echo "[domain-type-8gpu] expected exactly 7 diagonal seed programs, found $seed_count" >&2
   exit 1
 }
 
-if [[ "$MODEL_PATH" = /* && ! -e "$MODEL_PATH" ]]; then
+if ! $DRY_RUN && [[ "$MODEL_PATH" = /* && ! -e "$MODEL_PATH" ]]; then
   echo "[domain-type-8gpu] model path does not exist on this server: $MODEL_PATH" >&2
   exit 1
 fi
@@ -241,6 +266,11 @@ echo "[domain-type-8gpu] descriptors : 7 DOMAIN x 5 PROBLEM_TYPE"
 echo "[domain-type-8gpu] mutation    : untargeted; Stage 2 emits no DOMAIN"
 echo "[domain-type-8gpu] domain label: local-policy 7-way YES/NO readback"
 echo "[domain-type-8gpu] selection   : random"
+if [[ "$ADMISSION_STRATEGY" == "epsilon_greedy" ]]; then
+  echo "[domain-type-8gpu] admission   : ${ADMISSION_STRATEGY} (epsilon=${ADMISSION_EPSILON})"
+else
+  echo "[domain-type-8gpu] admission   : ${ADMISSION_STRATEGY} (admission epsilon inactive)"
+fi
 echo "[domain-type-8gpu] resume mode : ${RESUME_MODE}"
 echo "[domain-type-8gpu] verification: ${VERIFY_SEEDS} seeds x ${PROGRAM_VERIFY_WORKERS} workers"
 echo "[domain-type-8gpu] refill cap  : ${REFILL_MAX} proposals"
@@ -251,9 +281,12 @@ case "$RQ_FITNESS_MODE" in
   *) echo "[domain-type-8gpu] unsupported R_Q fitness mode: $RQ_FITNESS_MODE" >&2; exit 1 ;;
 esac
 echo "[domain-type-8gpu] fitness     : ${RQ_FITNESS_MODE} -- ${RQ_FORMULA}"
+echo "[domain-type-8gpu] detached    : ${DETACH}"
+echo "[domain-type-8gpu] train log   : $TRAIN_LOG"
+printf '[domain-type-8gpu] command     : python3 scripts/train_with_verl.py --config %q\n' "$CONFIG"
 
 if $DRY_RUN; then
-  echo "[domain-type-8gpu] dry-run complete; no process started"
+  echo "[domain-type-8gpu] dry-run complete; model/hardware availability not checked; no process started"
   exit 0
 fi
 

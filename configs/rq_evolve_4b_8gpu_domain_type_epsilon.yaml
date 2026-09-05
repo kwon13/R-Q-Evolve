@@ -1,0 +1,16 @@
+# Fresh 4B epsilon-admission arm. Only admission and run identity differ.
+extends: rq_evolve_4b_8gpu_domain_type.yaml
+run_contract: epsilon_admission_v1
+
+archive:
+  admission_strategy: epsilon_greedy
+  admission_epsilon: ${oc.decode:${oc.env:RQ_ADMISSION_EPSILON,0.25}}
+
+verl_config:
+  actor_rollout_ref:
+    model:
+      path: ${oc.env:RQ_EPSILON_MODEL_PATH,/data1/yhoon113/qwen3-4b-base}
+  trainer:
+    experiment_name: qwen3_4b_domain_type_epsilon_${archive.admission_epsilon}_35cell_8gpu_a100
+    default_local_dir: ./rq_output/rq_evolve_4b_domain_type_epsilon_${archive.admission_epsilon}_35cell_8gpu_a100
+    resume_mode: disable

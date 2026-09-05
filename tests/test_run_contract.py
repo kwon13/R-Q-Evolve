@@ -122,6 +122,20 @@ def test_training_state_without_a_contract_requires_a_fresh_directory(tmp_path):
         _freeze(root, child, prompts, output)
 
 
+def test_run_contract_pins_admission_epsilon(tmp_path):
+    root, child, prompts = _project(tmp_path)
+    text = child.read_text(encoding="utf-8") + (
+        "archive:\n  admission_strategy: epsilon_greedy\n"
+        "  admission_epsilon: 0.25\n"
+    )
+    child.write_text(text, encoding="utf-8")
+    output = tmp_path / "epsilon-run"
+    _freeze(root, child, prompts, output)
+    child.write_text(text.replace("admission_epsilon: 0.25", "admission_epsilon: 0.5"), encoding="utf-8")
+    with pytest.raises(RunContractMismatch, match="contract changed"):
+        _freeze(root, child, prompts, output)
+
+
 def test_config_extends_is_relative_and_rejects_a_cycle(tmp_path):
     nested = tmp_path / "nested"
     nested.mkdir()

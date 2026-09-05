@@ -30,9 +30,9 @@ verl_config:
   actor_rollout_ref:
     actor:
       optim:
-        total_training_steps: 128
+        total_training_steps: 256
   trainer:
     experiment_name: qwen3_4b_domain_type_random_cell_35cell_4gpu
     default_local_dir: ./rq_output/rq_evolve_4b_domain_type_random_cell_35cell_4gpu
-    total_training_steps: 128
+    total_training_steps: 256
     resume_mode: disable

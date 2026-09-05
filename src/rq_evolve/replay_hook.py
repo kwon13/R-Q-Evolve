@@ -87,6 +87,7 @@ class ReplayRolloutHook:
         self.stats = ReplayServeStats()
         self._installed_on: Any = None
         self._original = None
+        self._reported_meta_collisions: set[str] = set()
 
     def install(self, manager) -> bool:
         if manager is None or not hasattr(manager, "generate_sequences"):
@@ -167,8 +168,17 @@ class ReplayRolloutHook:
             self.stats.generated_rows += self._batch_size(gen_batch)
             print(f"[replay] concat failed, generating instead: {exc!r}", flush=True)
             return None
-        served.meta_info = dict(getattr(gen_batch, "meta_info", {}) or {})
-        served.meta_info.setdefault("timing", {})
+        request_meta = dict(getattr(gen_batch, "meta_info", {}) or {})
+        request_meta.setdefault("timing", {})
+        collisions = self._install_request_meta(served, request_meta)
+        new_collisions = collisions - self._reported_meta_collisions
+        if new_collisions:
+            print(
+                "[replay] removed payload copies of request metadata before "
+                f"TensorDict conversion: {sorted(new_collisions)}",
+                flush=True,
+            )
+            self._reported_meta_collisions.update(new_collisions)
         self.stats.served_steps += 1
         self.stats.served_rows += self._batch_size(served)
         print(
@@ -179,6 +189,43 @@ class ReplayRolloutHook:
             flush=True,
         )
         return served
+
+    @staticmethod
+    def _install_request_meta(served, request_meta: dict) -> set[str]:
+        """Make request metadata canonical on a replayed generation batch.
+
+        verl 0.9 converts a DataProto by first combining its tensor and
+        per-row non-tensor keys, then inserting every ``meta_info`` key.  It
+        rejects a key present on both sides even when the values agree. Agent
+        loop outputs can retain controls such as ``global_steps`` per row,
+        while the trainer supplies the same control as request metadata. A
+        real generation call treats the request value as authoritative, so a
+        replay call must do the same and discard only those duplicate control
+        copies from the stored payload.
+        """
+        data_keys: set[str] = set()
+        tensors = getattr(served, "batch", None)
+        if tensors is not None:
+            try:
+                data_keys.update(tensors.keys())
+            except Exception:
+                pass
+        non_tensors = getattr(served, "non_tensor_batch", None)
+        if non_tensors is not None:
+            data_keys.update(non_tensors.keys())
+
+        collisions = data_keys & set(request_meta)
+        for key in collisions:
+            if tensors is not None:
+                try:
+                    if key in tensors:
+                        tensors.pop(key)
+                except Exception:
+                    pass
+            if non_tensors is not None:
+                non_tensors.pop(key, None)
+        served.meta_info = request_meta
+        return collisions
 
     @staticmethod
     def _batch_size(batch) -> int:

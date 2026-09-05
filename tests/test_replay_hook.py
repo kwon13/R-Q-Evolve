@@ -21,8 +21,18 @@ M = 2
 class _Tensors:
     """Stands in for a TensorDict: only ``batch_size`` is read."""
 
-    def __init__(self, rows):
+    def __init__(self, rows, keys=()):
         self.batch_size = (rows,)
+        self._data = {key: object() for key in keys}
+
+    def keys(self):
+        return self._data.keys()
+
+    def __contains__(self, key):
+        return key in self._data
+
+    def pop(self, key):
+        return self._data.pop(key)
 
 
 class _FakeBatch:
@@ -202,6 +212,24 @@ def test_a_tensorless_batch_is_planned_normally():
     request.batch = None            # exactly the training-path shape
     plan = hook._plan(request)
     assert plan is not None and [p.tag for p in plan] == ["a/0", "b/1"]
+
+
+def test_replayed_request_metadata_has_no_tensordict_key_collision():
+    served = _FakeBatch(2)
+    served.batch = _Tensors(2, keys=("temperature",))
+    served.non_tensor_batch["global_steps"] = [0, 0]
+    served.non_tensor_batch["responses"] = ["a", "b"]
+
+    collisions = ReplayRolloutHook._install_request_meta(
+        served,
+        {"temperature": 1.0, "global_steps": 7},
+    )
+
+    assert collisions == {"temperature", "global_steps"}
+    assert "temperature" not in served.batch
+    assert "global_steps" not in served.non_tensor_batch
+    assert served.non_tensor_batch["responses"] == ["a", "b"]
+    assert served.meta_info == {"temperature": 1.0, "global_steps": 7}
 
 
 # --- the reward that replay makes load-bearing ------------------------------

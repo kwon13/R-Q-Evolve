@@ -25,6 +25,17 @@ def main() -> None:
     parser.add_argument("--counts", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument(
+        "--dataset-label",
+        default="Omni-MATH",
+        help="Dataset name shown in the title and footer.",
+    )
+    parser.add_argument(
+        "--problem-count",
+        type=int,
+        default=4428,
+        help="Number of source problems shown in the title.",
+    )
+    parser.add_argument(
         "--view",
         choices=("expanded", "single_domain"),
         default="expanded",
@@ -95,15 +106,16 @@ def main() -> None:
         else "exactly-one-domain problems only"
     )
     ax.set_title(
-        "Omni-MATH: Domain × Computational Problem Type\n"
-        f"4,428 problems · {view_text} · cell text = pilot-labeled count",
+        f"{args.dataset_label}: Domain × Computational Problem Type\n"
+        f"{args.problem_count:,} problems · {view_text} · "
+        "cell text = pilot-labeled count",
         fontsize=15,
         pad=16,
     )
     fig.text(
         0.5,
         0.018,
-        "All 35 cells remain valid MAP coordinates; counts show Omni-MATH "
+        f"All 35 cells remain valid MAP coordinates; counts show {args.dataset_label} "
         "frequency only · statement-only abstentions excluded",
         ha="center",
         fontsize=10,

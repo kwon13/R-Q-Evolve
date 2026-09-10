@@ -465,6 +465,10 @@ class VerlDynamicDataset:
             "problem_type": row.get("problem_type"),
             "verifier": verifier,
         }
+        # A fixed seed can have several independently sampled rollout groups.
+        # Keep the selected group's identity when this row is padded/shuffled.
+        if "replay_group_id" in row:
+            extra["replay_group_id"] = row["replay_group_id"]
         # Fixed expansion-study datasets carry explicit experimental units.
         # Preserve them in extra_info so rollout logs can be joined back to the
         # paired run/parent/generator/sample hierarchy.  Existing evolving rows
@@ -597,6 +601,7 @@ def build_replay_training_examples(
                     ),
                     "previous_rq": score,
                     "replay_rollouts": group.size,
+                    "replay_group_id": group.group_id,
                 }
             )
     return examples

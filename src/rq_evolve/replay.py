@@ -42,6 +42,10 @@ class ReplayGroup:
     # Carrying it is what lets the trainer skip re-sampling: the text alone is
     # not enough for a gradient step, which needs the response token ids.
     payload: Any = None
+    # Stable within a program's replay buffer, including across dataset
+    # padding/shuffling. The iteration prevents a seed-0 row from resolving
+    # to the same slot in a later iteration's rollouts.
+    group_id: str | None = None
 
     @property
     def size(self) -> int:
@@ -89,12 +93,14 @@ class RolloutReplayBuffer:
         ]
         if not accepted:
             return
-        self.groups.setdefault(program_id, []).append(
+        groups = self.groups.setdefault(program_id, [])
+        groups.append(
             ReplayGroup(
                 program_id=program_id,
                 instance=instance,
                 rollouts=accepted,
                 payload=payload,
+                group_id=f"{self.iteration}:{len(groups)}",
             )
         )
 

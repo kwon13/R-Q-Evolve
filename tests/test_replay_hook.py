@@ -100,6 +100,68 @@ def test_a_fully_cached_batch_is_planned_from_the_buffer():
     assert [p.tag for p in plan] == ["a/0", "b/3"]
 
 
+def test_same_seed_groups_follow_requested_ids_and_repetitions():
+    entries = [("a", 0, "q"), ("a", 0, "q")]
+    buf = _buffer(entries)
+    first, second = buf.get("a")
+    first.payload.tag, second.payload.tag = "first", "second"
+    requested = [second, first, second]
+    request = _request([entries[0]] * len(requested))
+    for index, group in enumerate(requested):
+        for extra in request.non_tensor_batch["extra_info"][index * M:(index + 1) * M]:
+            extra["replay_group_id"] = group.group_id
+
+    plan = _hook(buf)._plan(request)
+
+    assert plan is not None
+    assert [payload.tag for payload in plan] == ["second", "first", "second"]
+
+
+def test_same_seed_groups_without_ids_are_not_guessed():
+    entries = [("a", 0, "q"), ("a", 0, "q")]
+    assert _hook(_buffer(entries))._plan(_request(entries)) is None
+
+
+def test_an_unknown_group_id_does_not_fall_back_to_the_matching_seed():
+    entries = [("a", 0, "q")]
+    request = _request(entries)
+    for extra in request.non_tensor_batch["extra_info"]:
+        extra["replay_group_id"] = "missing"
+    assert _hook(_buffer(entries))._plan(request) is None
+
+
+def test_a_previous_iterations_seed_zero_group_is_not_replayed():
+    entries = [("a", 0, "q")]
+    buf = _buffer(entries)
+    request = _request(entries)
+    for extra in request.non_tensor_batch["extra_info"]:
+        extra["replay_group_id"] = buf.get("a")[0].group_id
+    buf.begin_iteration(1)
+    buf.store("a", _instance("a", 0, "q"), _records(), payload=_payload())
+
+    assert _hook(buf)._plan(request) is None
+
+
+def test_a_group_id_cannot_override_a_different_seed():
+    buf = _buffer([("a", 0, "q"), ("a", 1, "q")])
+    request = _request([("a", 0, "q")])
+    for extra in request.non_tensor_batch["extra_info"]:
+        extra["replay_group_id"] = buf.get("a")[1].group_id
+    assert _hook(buf)._plan(request) is None
+
+
+def test_a_rollout_group_cannot_mix_ids_for_the_same_seed():
+    entries = [("a", 0, "q"), ("a", 0, "q")]
+    buf = _buffer(entries)
+    request = _request([entries[0]])
+    for extra, group in zip(request.non_tensor_batch["extra_info"], buf.get("a")):
+        extra["replay_group_id"] = group.group_id
+    hook = _hook(buf)
+
+    assert hook._plan(request) is None
+    assert hook.stats.misses["group_not_contiguous"] == 1
+
+
 def test_a_prompt_that_does_not_match_is_never_served():
     """The check that makes a silent swap impossible."""
     hook = _hook(_buffer([("a", 0, "the stored problem")]))

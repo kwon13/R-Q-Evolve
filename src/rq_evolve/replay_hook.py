@@ -49,16 +49,19 @@ class ReplayServeStats:
         return payload
 
 
-def _row_key(extra: Any) -> tuple[str, int] | None:
-    """(program_id, seed) for one row, or None when the row is not replayable."""
+def _row_key(extra: Any) -> tuple[str, int, str | None] | None:
+    """Program, seed and replay group ID, or None for an invalid row."""
     if not isinstance(extra, dict):
         return None
     program_id = extra.get("program_id")
     seed = extra.get("seed")
+    group_id = extra.get("replay_group_id")
     if program_id is None or seed is None:
         return None
+    if group_id is not None and (not isinstance(group_id, str) or not group_id):
+        return None
     try:
-        return (str(program_id), int(seed))
+        return (str(program_id), int(seed), group_id)
     except (TypeError, ValueError):
         return None
 
@@ -283,22 +286,19 @@ class ReplayRolloutHook:
             return None
 
         planned: list = []
-        consumed_counts: dict[tuple[str, int], int] = {}
         for start in range(0, size, n):
             key = _row_key(extras[start])
             if key is None:
                 self.stats.miss("unkeyed_row")
                 return None
-            program_id, seed = key
+            program_id, seed, group_id = key
             # Every row of the group must be the same instance, or the trainer
             # is not repeating the way this assumes.
             if any(_row_key(extras[start + k]) != key for k in range(n)):
                 self.stats.miss("group_not_contiguous")
                 return None
 
-            idx = consumed_counts.get(key, 0)
-            group = self._lookup(program_id, seed, index=idx)
-            consumed_counts[key] = idx + 1
+            group = self._lookup(program_id, seed, group_id=group_id)
             if group is None:
                 self.stats.miss("not_in_buffer")
                 print(
@@ -329,14 +329,15 @@ class ReplayRolloutHook:
             planned.append(payload)
         return planned
 
-    def _lookup(self, program_id: str, seed: int, index: int = 0):
+    def _lookup(self, program_id: str, seed: int, *, group_id: str | None = None):
+        # Resolve the dataset row itself, not its occurrence count in this
+        # batch: padding, shuffle and batch boundaries must preserve which
+        # independently sampled responses get repeated. Legacy rows without
+        # an ID are safe only when their program/seed identifies one group.
         matching = [
             group
             for group in self.buffer.get(program_id)
             if int(getattr(getattr(group, "instance", None), "seed", -1)) == int(seed)
+            and (group_id is None or getattr(group, "group_id", None) == group_id)
         ]
-        if not matching:
-            return None
-        if index < len(matching):
-            return matching[index]
-        return matching[-1]
+        return matching[0] if len(matching) == 1 else None

@@ -69,6 +69,7 @@ class _Replay:
 
     class _Group:
         size = 2
+        group_id = "2:0"
 
         def __init__(self, pid):
             self.instance = ProblemInstance(

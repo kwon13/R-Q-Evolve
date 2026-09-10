@@ -156,14 +156,17 @@ def test_replay_hook_serves_multiple_seed_zero_groups():
     )
 
     hook = ReplayRolloutHook(buffer, group_size=1)
-    # Lookup sequential groups with same seed
-    looked_up_1 = hook._lookup("p1", seed=0, index=0)
-    looked_up_2 = hook._lookup("p1", seed=0, index=1)
-    looked_up_3 = hook._lookup("p1", seed=0, index=2)  # beyond bounds falls back to last
+    # Equal seeds remain distinct groups; padding repeats the selected ID.
+    first, second = buffer.get("p1")
+    looked_up_1 = hook._lookup("p1", seed=0, group_id=first.group_id)
+    looked_up_2 = hook._lookup("p1", seed=0, group_id=second.group_id)
+    looked_up_3 = hook._lookup("p1", seed=0, group_id=first.group_id)
 
     assert looked_up_1.payload == ["dummy_proto_1"]
     assert looked_up_2.payload == ["dummy_proto_2"]
-    assert looked_up_3.payload == ["dummy_proto_2"]
+    assert looked_up_3.payload == ["dummy_proto_1"]
+    assert hook._lookup("p1", seed=0) is None  # ambiguous legacy row
+    assert hook._lookup("p1", seed=0, group_id="missing") is None
 
 
 def test_dataset_build_training_examples_no_refresh():

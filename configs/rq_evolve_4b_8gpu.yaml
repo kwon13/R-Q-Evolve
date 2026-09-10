@@ -181,6 +181,7 @@ verl_config:
       # 5 once another user took 18 GiB on GPU 0.
       ppo_micro_batch_size_per_gpu: 4
       use_dynamic_bsz: false
+      loss_agg_mode: seq-mean-token-mean
       # vLLM stays resident (enable_sleep_mode: false) holding ~36 GiB, leaving
       # <10 GiB for the actor forward. The unchunked entropy path materializes a
       # full (tokens x 151936) softmax and OOMs on long micro-batches; chunking

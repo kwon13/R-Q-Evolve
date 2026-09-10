@@ -360,6 +360,7 @@ class RQEvolver:
     )
 
     def __post_init__(self) -> None:
+        self.seed_stream.seed_refresh = bool(self.evolution_config.seed_refresh)
         configure_sandbox_workers(self.evolution_config.program_verify_workers)
         expected = bool(self.evolution_config.independent_domain_labeling)
         actual = bool(self.archive.require_domain_labeling)
@@ -816,7 +817,7 @@ class RQEvolver:
         # Move past verification seeds so the first scored instance is fresh.
         # Doing this after every gate also leaves a rejected candidate with no
         # certified metadata and no consumed scoring cursor.
-        if reserve_seed_stream:
+        if reserve_seed_stream and self.evolution_config.seed_refresh:
             self.seed_stream.reserve_through(program.program_id, n - 1)
         return first, None
 
@@ -1160,6 +1161,7 @@ class RQEvolver:
             "mutation_refill_enabled": int(cfg.adaptive_mutation_refill),
             "program_verify_workers": int(cfg.program_verify_workers),
             "verify_seeds": int(cfg.verify_seeds),
+            "seed_refresh": int(cfg.seed_refresh),
             "archive_preflight_enabled": int(
                 cfg.archive_preflight_before_rollout
             ),
@@ -2236,7 +2238,11 @@ class RQEvolver:
             if result is None:
                 raise RuntimeError("candidate verification produced no result")
             child, inst, _reason, _source = result
-            if child is not None and inst is not None:
+            if (
+                child is not None
+                and inst is not None
+                and self.evolution_config.seed_refresh
+            ):
                 self.seed_stream.reserve_through(
                     child.program_id, self.evolution_config.verify_seeds - 1
                 )
@@ -2959,6 +2965,7 @@ class RQEvolver:
             ),
             select_ignores_uncertainty=self.evolution_config.select_ignores_uncertainty,
             select_ignores_variance=self.evolution_config.select_ignores_variance,
+            seed_refresh=self.evolution_config.seed_refresh,
         )
         self.dataset.update(examples)
         self.dataset_refresh_count += 1
@@ -3115,12 +3122,16 @@ class RQEvolver:
                 missing_search_draw_count = False
             cursor = payload.get("seed_cursor")
             if cursor:
-                self.seed_stream = SeedStream.from_dict(cursor)
+                self.seed_stream = SeedStream.from_dict(
+                    cursor, seed_refresh=self.evolution_config.seed_refresh
+                )
             else:
                 # A snapshot from before the stream existed records WHICH seeds
                 # were emitted, not how far the stream ran. Resume one past the
                 # largest so nothing is issued twice.
-                self.seed_stream = SeedStream.from_used_seeds(self.used_seeds)
+                self.seed_stream = SeedStream.from_used_seeds(
+                    self.used_seeds, seed_refresh=self.evolution_config.seed_refresh
+                )
         iteration_file = directory / self._ITERATION_FILE
         if iteration_file.exists():
             payload = json.loads(iteration_file.read_text(encoding="utf-8"))

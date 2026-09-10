@@ -117,6 +117,11 @@ class EvolutionConfig:
     eval_seeds: int | None = None
     rollouts_per_seed: int | None = None
     verify_seeds: int = 5
+    # Seed refresh: when True (default), every evaluation and batch allocation
+    # advances the program's seed cursor to draw fresh instances.
+    # When False (No-refresh ablation), the seed cursor does not advance and
+    # programs are repeatedly evaluated and trained on seed 0.
+    seed_refresh: bool = True
     # Candidate-level local verification workers. Each candidate preserves its
     # ordered multi-seed and repeat-execution checks; only independent
     # candidates run concurrently, each through a persistent sandbox process.

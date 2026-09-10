@@ -283,6 +283,7 @@ class ReplayRolloutHook:
             return None
 
         planned: list = []
+        consumed_counts: dict[tuple[str, int], int] = {}
         for start in range(0, size, n):
             key = _row_key(extras[start])
             if key is None:
@@ -295,7 +296,9 @@ class ReplayRolloutHook:
                 self.stats.miss("group_not_contiguous")
                 return None
 
-            group = self._lookup(program_id, seed)
+            idx = consumed_counts.get(key, 0)
+            group = self._lookup(program_id, seed, index=idx)
+            consumed_counts[key] = idx + 1
             if group is None:
                 self.stats.miss("not_in_buffer")
                 print(
@@ -326,8 +329,14 @@ class ReplayRolloutHook:
             planned.append(payload)
         return planned
 
-    def _lookup(self, program_id: str, seed: int):
-        for group in self.buffer.get(program_id):
-            if int(getattr(group.instance, "seed", -1)) == int(seed):
-                return group
-        return None
+    def _lookup(self, program_id: str, seed: int, index: int = 0):
+        matching = [
+            group
+            for group in self.buffer.get(program_id)
+            if int(getattr(getattr(group, "instance", None), "seed", -1)) == int(seed)
+        ]
+        if not matching:
+            return None
+        if index < len(matching):
+            return matching[index]
+        return matching[-1]

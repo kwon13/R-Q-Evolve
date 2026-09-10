@@ -615,6 +615,7 @@ def build_training_examples(
     select_random_seed: int = 0,
     select_ignores_uncertainty: bool = False,
     select_ignores_variance: bool = False,
+    seed_refresh: bool = True,
 ) -> list[dict]:
     """Render champion programs into training problems (global R_Q priority).
 
@@ -682,7 +683,7 @@ def build_training_examples(
             return False, False
         seen = used_seeds.setdefault(pid, set())
         seed = 0
-        if strict_anti_reuse:
+        if strict_anti_reuse and seed_refresh:
             while seed in seen:
                 seed += 1
         inst = champ.execute(seed=seed)
@@ -690,7 +691,7 @@ def build_training_examples(
         if inst is None:
             return False, True
         signature = (inst.problem.strip(), inst.answer.strip())
-        if signature in emitted_signatures:
+        if seed_refresh and signature in emitted_signatures:
             return False, True
         emitted_signatures.add(signature)
         examples.append(

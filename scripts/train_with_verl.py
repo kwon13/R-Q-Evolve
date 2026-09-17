@@ -189,6 +189,24 @@ def main() -> None:
             _run_smoke_checks(config, inline_verl_config, smoke_started_at)
         )
 
+    print("[RQ-Evolve] Training completed successfully. Initiating clean shutdown...", flush=True)
+    try:
+        import wandb
+        if wandb.run is not None:
+            wandb.finish()
+    except Exception as e:
+        print(f"[RQ-Evolve] wandb cleanup notice: {e}", flush=True)
+
+    try:
+        import ray
+        if ray.is_initialized():
+            ray.shutdown()
+    except Exception as e:
+        print(f"[RQ-Evolve] ray shutdown notice: {e}", flush=True)
+
+    import os
+    os._exit(0)
+
 
 def _run_smoke_checks(config, inline_verl_config, started_at: float) -> int:
     """Post-fit PASS/FAIL: did the LoRA + async instrumentation actually land?

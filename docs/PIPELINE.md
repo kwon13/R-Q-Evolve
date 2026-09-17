@@ -37,16 +37,19 @@ threshold는 없습니다.
 ## Current-fitness training selection
 
 Each iteration first evaluates one fresh instance per incumbent with the current
-Solver and caches its rollouts. The resulting fitness and success rate determine
-training priority and eligibility. If the cached eligible groups do not fill the
+Solver and caches its rollouts. Mutation then evaluates child programs with the
+same Solver weights and caches their rollout records and backend-native payloads.
+After mutation, programs still in the archive form the training pool, including
+newly admitted children. Current fitness and success rate determine training
+priority and eligibility. Rejected or displaced programs cannot supply training
+groups even if their rollouts are cached. If eligible groups do not fill the
 training budget, additional fresh instances are allocated round-robin in
 **descending current fitness** and evaluated with the same Solver weights.
 Their rollouts are appended to the cache without overwriting the primary fitness.
 The Random variant shuffles allocation and training priority with its configured seed.
 
-The training pool is captured after reassessment and before mutation. Newly
-admitted children first train in the next iteration. Selected cached rollout groups
-supply the update directly; they are not sampled again for training. If no program
+Selected cached rollout groups supply the current update directly; they are not
+sampled again for training. If no program
 passes the current success-rate gate, the existing cached-group fallback applies.
 Failed primary evaluations supply no cached group and cannot enter selection or
 receive extras using a stale score.
@@ -64,7 +67,7 @@ sync solver weights into rollout backend
         │
         ├─ re-evaluate current champions on fresh instances
         │    ├─ refresh fitness and archive membership
-        │    └─ fill missing training slots using current fitness; cache extra rollouts
+        │    └─ cache reassessment rollouts
         │
         ├─ sample parents from occupied cells
         │
@@ -82,9 +85,12 @@ sync solver weights into rollout backend
         │    ├─ statement + verifier deterministically derive PROBLEM_TYPE
         │    └─ missing/ambiguous score or type disagreement ──────> reject
         │
-        ├─ solver rollouts on fresh instances and R_Q scoring
+        ├─ solver rollouts on child instances, R_Q scoring, and rollout caching
         │
         ├─ novelty gates and same-cell champion competition
+        │
+        ├─ after all mutation batches: select programs retained in the archive
+        │    └─ fill missing training slots using current fitness; cache extra rollouts
         │
         └─ refresh replay-backed training dataset and run one solver update
 ```

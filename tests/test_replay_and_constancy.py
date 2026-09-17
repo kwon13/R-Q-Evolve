@@ -414,7 +414,7 @@ def test_extra_instances_use_current_fitness_and_available_groups():
     assert evolver._allocate_instances([high, low, failed]) == [0, 0, 0]
 
 
-def test_training_pool_is_frozen_before_mutation_changes_the_archive():
+def test_training_pool_excludes_programs_no_longer_in_the_archive():
     backend = _CountingBackend()
     evolver = _loop_evolver(backend, batch=1)
     incumbent = _champion("measured-incumbent", 0.5, 0.4)
@@ -426,14 +426,10 @@ def test_training_pool_is_frozen_before_mutation_changes_the_archive():
         _rollouts(True, False),
     )
 
-    # The live archive may no longer contain the incumbent after mutation.
-    # The current update must still consume the rollout measured before that
-    # mutation, and a replacement child must wait until the next iteration.
-    evolver.refresh_dataset(training_champions=[incumbent])
-
-    rows = evolver.dataset.snapshot()
-    assert [row["program_id"] for row in rows] == [incumbent.program_id]
-    assert [row["seed"] for row in rows] == [7]
+    # Cached responses alone do not qualify a program for training after it
+    # leaves the archive.
+    evolver.refresh_dataset()
+    assert evolver.dataset.snapshot() == []
 
 
 # One sentence per tag, and genuinely different sentences: the archive's
@@ -448,7 +444,7 @@ _TAG_QUESTIONS = {
 }
 
 
-def _seeded(evolver, tag, domain):
+def _tag_program(tag, domain):
     question = _TAG_QUESTIONS[tag]
     program = ProblemProgram(
         source_code=(
@@ -458,6 +454,11 @@ def _seeded(evolver, tag, domain):
         )
     )
     _certify(program, domain=domain)
+    return program
+
+
+def _seeded(evolver, tag, domain):
+    program = _tag_program(tag, domain)
     result = evolver.evaluate_programs([program])[0]
     evolver.archive.try_insert(
         program=program, u_value=result.u_score, rq_score=result.rq_score
@@ -675,31 +676,144 @@ def test_failed_extras_preserve_the_primary_fitness_and_cached_group():
     assert any(e["event"] == "replay_batch_short" for e in evolver.events)
 
 
-def test_mutation_child_waits_until_next_iteration_even_with_higher_current_score():
-    from rq_evolve.evolution import CandidateReport
+def _script_mutation_children(evolver, child_batches):
+    """Stub generation/validation; keep real scoring, caching and admission."""
+    from rq_evolve.prompts import MutationTask
 
+    pending = iter(child_batches)
+    by_id = {c.program_id: c for batch in child_batches for c in batch}
+
+    def mutate(parents, **_kwargs):
+        children = next(pending)
+        assert len(children) == len(parents)
+        return (
+            [MutationTask(op="mutate", prompt="", parent=p) for p in parents],
+            [c.program_id for c in children],
+            ["test"] * len(children),
+        )
+
+    def build(_tasks, outputs):
+        result = []
+        for pid in outputs:
+            child = by_id[pid]
+            evolver.seed_stream.reserve_through(pid, 4)
+            result.append((child, child.execute(seed=0), None, child.source_code))
+        return result
+
+    evolver.evolution_config.inner_iterations = sum(map(len, child_batches))
+    evolver.evolution_config.inner_iteration_batch_size = len(child_batches[0])
+    evolver.evolution_config.adaptive_mutation_refill = False
+    evolver.evolution_config.two_stage_mutation = True
+    evolver._mutate_in_two_stages = mutate
+    evolver._make_children_from_outputs = build
+    evolver._apply_domain_labeling = lambda _entries: None
+
+
+@pytest.mark.parametrize("budget", [1, 3])
+@pytest.mark.parametrize("seed_refresh", [True, False])
+def test_mutation_child_trains_now_and_receives_extras_by_current_fitness(budget, seed_refresh):
+    from rq_evolve.replay_hook import ReplayRolloutHook
+
+    evolver = _loop_evolver(_CountingBackend(), batch=budget)
+    evolver.seed_stream.seed_refresh = seed_refresh
+    incumbent = _seeded(evolver, "A", "algebra")
+    child = _tag_program("B", "geometry")
+    _script_mutation_children(evolver, [[child]])
+    backend = _ScriptedBackend([
+        {incumbent.program_id: ((True, False), 0.1)},
+        {child.program_id: ((True, False), 2.0)},
+        {child.program_id: ((True, True), 100.0)},
+    ])
+    evolver.backend = backend
+    evolver.run_outer_iteration(2)
+
+    rows = evolver.dataset.snapshot()
+    assert evolver.last_reports[0].status == "inserted"
+    assert rows[0]["program_id"] == child.program_id
+    assert len(rows) == budget
+    assert child.rq_score == 1.0
+    assert child.s_hat == 0.5
+    assert child.u_score == 2.0
+    hook = ReplayRolloutHook(evolver.replay, group_size=2)
+    primary = hook._lookup(child.program_id, rows[0]["seed"], group_id=rows[0]["replay_group_id"])
+    assert primary.payload is backend.payloads[1]
+    assert rows[0]["selection_iteration"] == 2
+    assert rows[0]["selection_score"] == child.rq_score
+    if budget == 3:
+        assert [i.program_id for i in backend.batches[2]] == [child.program_id]
+        assert [r["program_id"] for r in rows] == [child.program_id] * 2 + [incumbent.program_id]
+        extra = hook._lookup(child.program_id, rows[1]["seed"], group_id=rows[1]["replay_group_id"])
+        assert extra.payload is backend.payloads[2]
+        assert primary.group_id != extra.group_id
+    else:
+        assert len(backend.batches) == 2  # Child evaluation is reused, not repeated.
+
+
+def test_replaced_incumbent_and_child_are_excluded_from_current_training():
     evolver = _loop_evolver(_CountingBackend(), batch=1)
     incumbent = _seeded(evolver, "A", "algebra")
-    evolver.evolution_config.inner_iterations = 1
-    evolver.evolution_config.adaptive_mutation_refill = False
-    children = []
-
-    def mutate(_batch_size):
-        child = _seeded(evolver, "B", "geometry")
-        child.rq_score = 100.0
-        # Even if future mutation code caches child rollouts, the frozen pool
-        # must keep this newly admitted program out of the current batch.
-        evolver.replay.store(child.program_id, _inst(20, child.program_id), _rollouts(True, False))
-        children.append(child)
-        return [CandidateReport(status="inserted", op="mutation", s_hat=0.5, rq_score=100.0)]
-
-    evolver.inner_iteration_batch = mutate
+    first = _tag_program("B", "algebra")
+    final = _tag_program("C", "algebra")
+    _script_mutation_children(evolver, [[first], [final]])
+    backend = _ScriptedBackend([
+        {incumbent.program_id: ((True, False), 0.1)},
+        {first.program_id: ((True, False), 1.0)},
+        {final.program_id: ((True, False), 2.0)},
+    ])
+    evolver.backend = backend
     evolver.run_outer_iteration(2)
-    assert [row["program_id"] for row in evolver.dataset.snapshot()] == [incumbent.program_id]
-    evolver.evolution_config.inner_iterations = 0
-    evolver.evolution_config.train_batch_target = 2
-    evolver.run_outer_iteration(3)
-    assert children[0].program_id in {row["program_id"] for row in evolver.dataset.snapshot()}
+
+    assert [r.status for r in evolver.last_reports] == ["inserted", "inserted"]
+    assert {p.program_id for p in evolver.archive.champions()} == {final.program_id}
+    assert evolver.replay.has(incumbent.program_id)
+    assert evolver.replay.has(first.program_id)
+    assert [r["program_id"] for r in evolver.dataset.snapshot()] == [final.program_id]
+    assert evolver.replay.get(final.program_id)[0].payload is backend.payloads[2]
+
+
+@pytest.mark.parametrize("flags,entropy,domain,status,cached", [
+    ((True, False), 0.1, "algebra", "rejected_non_elite", True),
+    (None, 0.0, "geometry", "rollout_failed", False),
+    ((True, True), 2.0, "geometry", "inserted", True),
+])
+def test_ineligible_child_does_not_enter_training(flags, entropy, domain, status, cached):
+    evolver = _loop_evolver(_CountingBackend(), batch=2)
+    incumbent = _seeded(evolver, "A", "algebra")
+    child = _tag_program("B", domain)
+    _script_mutation_children(evolver, [[child]])
+    backend = _ScriptedBackend([
+        {incumbent.program_id: ((True, False), 1.0)},
+        {child.program_id: (flags, entropy)},
+        {incumbent.program_id: ((True, False), 1.0)},
+    ])
+    evolver.backend = backend
+    evolver.run_outer_iteration(2)
+
+    assert evolver.last_reports[0].status == status
+    assert evolver.replay.has(child.program_id) is cached
+    assert {r["program_id"] for r in evolver.dataset.snapshot()} == {incumbent.program_id}
+    assert [i.program_id for i in backend.batches[2]] == [incumbent.program_id]
+
+
+def test_multiple_children_keep_their_own_payloads_in_the_same_batch():
+    evolver = _loop_evolver(_CountingBackend(), batch=3)
+    incumbent = _seeded(evolver, "A", "algebra")
+    first = _tag_program("B", "geometry")
+    second = _tag_program("C", "number_theory")
+    _script_mutation_children(evolver, [[first, second]])
+    backend = _ScriptedBackend([
+        {incumbent.program_id: ((True, False), 0.1)},
+        {first.program_id: ((True, False), 1.0), second.program_id: ((True, False), 2.0)},
+    ])
+    evolver.backend = backend
+    evolver.run_outer_iteration(2)
+
+    assert [r.status for r in evolver.last_reports] == ["inserted", "inserted"]
+    assert [r["program_id"] for r in evolver.dataset.snapshot()] == [
+        second.program_id, first.program_id, incumbent.program_id,
+    ]
+    assert evolver.replay.get(first.program_id)[0].payload is backend.payloads[1]
+    assert evolver.replay.get(second.program_id)[0].payload is backend.payloads[2]
 
 
 def test_evolution_log_records_the_actual_current_selection(tmp_path):

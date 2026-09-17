@@ -894,11 +894,6 @@ class RQEvolver:
         if self.evolution_config.reevaluate_champions:
             self.reevaluate_champions()
 
-        # Freeze the reassessed population before mutation. Its current fitness
-        # ranks the cached rollouts for this update; newly admitted children
-        # first enter the training pool at the next iteration.
-        training_pool = list(self.archive.champions())
-
         cfg = self.evolution_config
         batch_size = cfg.inner_iteration_batch_size
         minimum_slots = int(cfg.inner_iterations)
@@ -972,7 +967,11 @@ class RQEvolver:
                 mutation_refill_stop_reason = "frontier_candidate_target"
                 break
 
-        self.refresh_dataset(training_champions=training_pool)
+        # Mutation evaluations cache their rollouts too. Select from the final
+        # archive, so retained children can train now and displaced programs
+        # cannot. Fill any remaining shortfall only after this pool is known.
+        self._collect_training_extras()
+        self.refresh_dataset()
         stats = self.archive.stats()
         frontier_in = sum(
             1 for f in self.last_frontier if f["decision"] == "in_frontier"
@@ -1428,13 +1427,19 @@ class RQEvolver:
             self.backend.end_session()
 
         grouped = self.backend.finalize_rollouts(pending)
+        payloads = getattr(pending, "payloads", None) or []
         rollouts_by_child: dict[int, list] = {}
         cursor = 0
         for e in to_eval:
             take = len(e["eval_instances"])
-            rollouts_by_child[id(e["child"])] = list(
-                zip(e["eval_instances"], grouped[cursor : cursor + take])
-            )
+            rollouts_by_child[id(e["child"])] = [
+                (
+                    instance,
+                    grouped[index] if index < len(grouped) else [],
+                    payloads[index] if index < len(payloads) else None,
+                )
+                for index, instance in enumerate(e["eval_instances"], start=cursor)
+            ]
             cursor += take
 
         reports: list[CandidateReport] = []
@@ -1445,16 +1450,19 @@ class RQEvolver:
             task, child, inst = entry["task"], entry["child"], entry["inst"]
             scored = rollouts_by_child.get(id(child), [])
             stats = []
-            for eval_inst, rollouts in scored:
+            for eval_inst, rollouts, payload in scored:
                 stat = self._seed_stat(child, eval_inst, rollouts)
                 if stat is not None:
                     stats.append(stat)
+                    self.replay.store(
+                        child.program_id, eval_inst, rollouts, payload=payload
+                    )
             if not stats:
                 # Every seed lost its rollouts (timeout / worker error / stale).
                 # Report the dominant reason instead of letting it masquerade as
                 # an ordinary s_hat_zero.
                 reasons: dict[str, int] = {}
-                for _, rollouts in scored:
+                for _, rollouts, _ in scored:
                     for r in rollouts:
                         key = r.reject_reason or "unknown"
                         reasons[key] = reasons.get(key, 0) + 1
@@ -2427,7 +2435,7 @@ class RQEvolver:
         return results
 
     def _allocate_instances(self, champions: list[ProblemProgram]) -> list[int]:
-        """Allocate extra instances after reassessment, using current fitness.
+        """Allocate extra instances from the final archive's current fitness.
 
         The returned counts exclude already cached primary instances. Failed
         evaluations have no cached groups and receive no extra allocation.
@@ -2465,7 +2473,7 @@ class RQEvolver:
         return counts
 
     def reevaluate_champions(self) -> None:
-        """Reassess champions, then collect extras using the updated fitness."""
+        """Reassess champions and cache their rollouts before mutation."""
         champions = list(self.archive.champions())
         if not champions:
             return
@@ -2558,9 +2566,12 @@ class RQEvolver:
                     }
                 )
 
-        # Allocate the training shortfall only after current fitness and archive
-        # membership are known. Extras append replay groups without changing the
-        # primary measurement used for eligibility, ranking, or cell competition.
+    def _collect_training_extras(self) -> None:
+        """Fill the training shortfall after mutation has updated the archive.
+
+        Extras append replay groups without changing the primary measurement
+        used for eligibility, ranking, or cell competition.
+        """
         retained = list(self.archive.champions())
         extra_counts = self._allocate_instances(retained)
         extra_programs = [p for p, count in zip(retained, extra_counts) if count > 0]
@@ -2736,18 +2747,11 @@ class RQEvolver:
         self,
         *,
         warmup: bool = False,
-        training_champions: list[ProblemProgram] | None = None,
     ) -> None:
-        # ``training_champions`` is captured immediately after incumbent
-        # re-scoring and before mutation.  Keeping it separate from the live
-        # archive makes the temporal contract explicit: children created in
-        # iteration t may train from t+1, while every row used now has a replay
-        # group sampled under the current theta_t.
-        champions = (
-            list(training_champions)
-            if training_champions is not None
-            else list(self.archive.champions())
-        )
+        # Only programs still in the archive can supply training groups.
+        # Reassessment and mutation both cache responses from the current
+        # theta_t, so retained children can participate in this update.
+        champions = list(self.archive.champions())
         # Record each champion's frontier decision (the learnability filter that
         # decides which problems feed training) with the SAME predicate
         # build_training_examples uses -- observability only, no behavior change.

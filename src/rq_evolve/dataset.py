@@ -527,15 +527,13 @@ def build_replay_training_examples(
 ) -> list[dict]:
     """Select this iteration's cached rollouts by current program fitness.
 
-    There is no sampling pass. Each elite contributes exactly the instances the
-    re-scoring already rolled out, so every instance trained on is an instance
-    that was measured -- a tail instance the evaluation never saw cannot reach
-    the batch, and nothing goes stale between scoring and the update.
+    There is no sampling pass. Each elite contributes the instances and responses
+    cached during reassessment or child evaluation under the current Solver.
 
-    Production ranks eligible programs by the current reassessment's R_Q;
+    Production ranks eligible programs by the current evaluation's R_Q;
     ``select_random_order`` instead applies a reproducible score-free shuffle.
-    The caller freezes the program pool before mutation, so newly admitted
-    children first become eligible in the following iteration.
+    The caller supplies the programs retained after mutation, including newly
+    admitted children whose rollout groups are already cached.
     """
     if replay.iteration != iteration:
         return []  # Checkpoint restoration has no current rollout groups yet.

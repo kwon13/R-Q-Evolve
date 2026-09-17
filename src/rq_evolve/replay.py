@@ -12,8 +12,9 @@ importantly, three mismatches with it:
   * every instance trained on is an instance that was measured -- a tail
     instance the evaluation never saw cannot reach the batch.
 
-Programs are ranked by the current reassessment's fitness. The training pool
-is captured before mutation; new children join it on the next iteration.
+Reassessment and child evaluation both cache their rollouts. After mutation,
+programs still in the archive are ranked by their current fitness, so newly
+admitted children can supply this update's training groups too.
 """
 
 from __future__ import annotations
@@ -61,7 +62,7 @@ class ReplayGroup:
 
 @dataclass
 class RolloutReplayBuffer:
-    """This iteration's re-scoring rollouts, grouped by program.
+    """This iteration's reassessment and child rollouts, grouped by program.
 
     Cleared at the start of every outer iteration: rollouts are on-policy for
     exactly one update, and reusing them across an iteration would need an

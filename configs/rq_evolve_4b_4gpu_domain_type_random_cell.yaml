@@ -7,7 +7,7 @@
 #   1. mutation parents are sampled uniformly across occupied cells (inherited),
 #   2. a valid challenger to an occupied cell replaces its champion with p=0.5,
 #   3. replay groups and extra fresh instances are allocated in seeded random
-#      order rather than by previous R_Q.
+#      order rather than by current R_Q.
 extends: rq_evolve_4b_4gpu_domain_type.yaml
 
 archive:

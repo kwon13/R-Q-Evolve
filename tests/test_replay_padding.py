@@ -13,7 +13,7 @@ from rq_evolve.dataset import (
     build_replay_training_examples,
 )
 from rq_evolve.program import ProblemInstance, ProblemProgram
-from rq_evolve.replay import PreviousRQScoreboard, RolloutReplayBuffer
+from rq_evolve.replay import RolloutReplayBuffer
 from rq_evolve.replay_hook import ReplayRolloutHook
 from rq_evolve.seed_stream import SeedStream
 
@@ -58,12 +58,9 @@ def _dataset(num_groups, *, iteration=1, seed_refresh=False, buffer=None):
         )
         buffer.store("p", instance, records, payload=payload)
 
-    previous_rq = PreviousRQScoreboard()
-    previous_rq.record("p", iteration - 1, 0.5)
     examples = build_replay_training_examples(
         [champion],
         replay=buffer,
-        previous_rq=previous_rq,
         iteration=iteration,
         frontier_s_hat_range=(0.0, 1.0),
     )
@@ -192,13 +189,9 @@ def test_frontier_filter_leaving_eleven_groups_preserves_balanced_replay():
                 for _ in range(GROUP_SIZE)
             ],
         )
-    previous_rq = PreviousRQScoreboard()
-    previous_rq.record("p", 0, 0.5)
-    previous_rq.record("dropped", 0, 0.9)
     examples = build_replay_training_examples(
         [degenerate, frontier],
         replay=buffer,
-        previous_rq=previous_rq,
         iteration=1,
         frontier_s_hat_range=(0.0, 1.0),
     )

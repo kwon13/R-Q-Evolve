@@ -166,7 +166,6 @@ class EvolvingSampler:
                 "used_seeds": {pid: sorted(s) for pid, s in ev.used_seeds.items()},
                 "current_iteration": ev.current_iteration,
                 "seed_cursor": ev.seed_stream.to_dict(),
-                "previous_rq_scores": ev.previous_rq.to_dict(),
                 "rejected_children": dict(ev.rejected_children),
                 "inspiration_draw_count": ev.inspiration_draw_count,
                 "mutation_prompt_draw_count": ev.mutation_prompt_draw_count,
@@ -200,10 +199,8 @@ class EvolvingSampler:
             )
             if payload.get("seed_cursor"):
                 ev.seed_stream = type(ev.seed_stream).from_dict(payload["seed_cursor"])
-            if "previous_rq_scores" in payload:
-                ev.previous_rq = type(ev.previous_rq).from_dict(
-                    payload["previous_rq_scores"]
-                )
+            # Older checkpoints may contain previous_rq_scores; current-fitness
+            # selection does not restore or consult that history.
             if "rejected_children" in payload:
                 ev.rejected_children = dict(payload.get("rejected_children") or {})
             ev.inspiration_draw_count = int(
@@ -1332,10 +1329,6 @@ class VerlTrainerAdapter:
             # valid on-policy warm-up batch. Without them refresh_dataset has
             # nothing to build from and the run dies on an empty dataset.
             result = evolver.evaluate_programs([program], store_replay=True)[0]
-            if result is not None:
-                # Bootstrap is iteration -1: without a previous score the seeds
-                # would all be ineligible at t=0 and the first batch empty.
-                evolver.previous_rq.record(program.program_id, -1, result.rq_score)
             if result is None:
                 print(
                     f"[RQ-Evolve] seed eval failed (all rollouts rejected): "

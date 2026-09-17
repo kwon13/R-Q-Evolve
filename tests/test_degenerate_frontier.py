@@ -21,7 +21,7 @@ from rq_evolve.config import EvolutionConfig, TrainingDataConfig
 from rq_evolve.dataset import build_replay_training_examples
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.program import ProblemInstance, ProblemProgram
-from rq_evolve.replay import PreviousRQScoreboard, RolloutReplayBuffer
+from rq_evolve.replay import RolloutReplayBuffer
 from rq_evolve.problem_type import (
     PROBLEM_TYPE_RULESET,
     problem_type_ruleset_sha256,
@@ -78,7 +78,8 @@ class _Replay:
             self.responses = ["a", "b"]
             self.rewards = [1.0, 0.0]
 
-    def __init__(self, pids):
+    def __init__(self, pids, iteration=2):
+        self.iteration = iteration
         self.pids = set(pids)
 
     def has(self, pid):
@@ -86,11 +87,6 @@ class _Replay:
 
     def get(self, pid):
         return [self._Group(pid)]
-
-
-class _PreviousRQ:
-    def selection_score(self, pid, iteration):
-        return 0.5
 
 
 # --- defect 1: the score freeze ------------------------------------------
@@ -115,7 +111,6 @@ def test_the_band_normally_excludes_degenerate_champions():
     rows = build_replay_training_examples(
         champs,
         replay=_Replay(c.program_id for c in champs),
-        previous_rq=_PreviousRQ(),
         iteration=2,
         frontier_s_hat_range=BAND,
     )
@@ -128,7 +123,6 @@ def test_an_all_degenerate_archive_yields_nothing_under_the_band():
     rows = build_replay_training_examples(
         champs,
         replay=_Replay(c.program_id for c in champs),
-        previous_rq=_PreviousRQ(),
         iteration=2,
         frontier_s_hat_range=BAND,
     )
@@ -140,7 +134,6 @@ def test_allow_degenerate_keeps_the_dataloader_non_empty():
     rows = build_replay_training_examples(
         champs,
         replay=_Replay(c.program_id for c in champs),
-        previous_rq=_PreviousRQ(),
         iteration=2,
         frontier_s_hat_range=BAND,
         allow_degenerate=True,
@@ -168,8 +161,7 @@ def _evolver_with(champs) -> RQEvolver:
     )
     for c in champs:
         archive.try_insert(c, c.u_score, c.rq_score)
-    ev.replay = _Replay(c.program_id for c in champs)
-    ev.previous_rq = _PreviousRQ()
+    ev.replay = _Replay((c.program_id for c in champs), iteration=5)
     ev.current_iteration = 5
     return ev
 

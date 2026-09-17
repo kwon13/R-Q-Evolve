@@ -289,7 +289,7 @@ class EvolutionConfig:
     rotate_few_shots: bool = True
     # Program fitness uncertainty factor. ``standard`` keeps R_Q=L*U;
     # ``reverse_u`` uses L*(C-U); and ``no_u`` fixes U=1, giving R_Q=L.
-    # This changes the score stored in MAP and the lagged training priority,
+    # This changes the score stored in MAP and the current training priority,
     # unlike ``select_ignores_uncertainty`` below, which changes priority only.
     rq_fitness_mode: str = "standard"
     # Fixed across every Reverse-U round. It is deliberately not estimated
@@ -479,9 +479,8 @@ class TrainingDataConfig:
     # theta_t the following update starts from, so they are on-policy for
     # exactly that update -- and the pass they replace cost the same again.
     replay_training_batch: bool = True
-    # Selection lag: an elite's place in the batch is decided by its exact raw
-    # R_Q from the previous iteration, never by the rollouts it is about to
-    # train on. Scores from different policies are deliberately not averaged.
+    # Replay selection ranks programs by the current reassessment's R_Q.
+    # instances_per_program applies only when replay_training_batch is disabled.
     instances_per_program: int = 8
     training_budget: int | None = None
     strict_anti_reuse: bool = True

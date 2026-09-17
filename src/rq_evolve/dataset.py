@@ -433,7 +433,7 @@ class VerlDynamicDataset:
         # drop_last=True with a fixed batch size, so when the replay set is
         # shorter than one batch the tail indices must wrap onto real rows --
         # and `item % len(rows)` alone always wraps onto rows 0, 1, ... which
-        # are the highest-previous-R_Q elite's first instances. Measured: 15 rows
+        # are the highest-R_Q elite's first instances. Measured: 15 rows
         # into a 32-row batch gave rows 0 and 1 three slots and every other row
         # two, every iteration, purely because 32 % 15 == 2. Rotating the start
         # spreads that surplus over the whole set instead of pinning it to one
@@ -459,6 +459,8 @@ class VerlDynamicDataset:
             "rq_score": row.get("rq_score"),
             "s_hat": row.get("s_hat"),
             "u_score": row.get("u_score"),
+            "selection_score": row.get("selection_score"),
+            "selection_iteration": row.get("selection_iteration"),
             "domain_bin": row.get("domain_bin"),
             "problem_type_bin": row.get("problem_type_bin"),
             "domain": row.get("domain"),
@@ -516,50 +518,35 @@ def build_replay_training_examples(
     champions,
     *,
     replay,
-    previous_rq,
     iteration: int,
     frontier_s_hat_range: tuple[float, float],
     training_budget: int | None = None,
-    warmup: bool = False,
     allow_degenerate: bool = False,
     select_random_order: bool = False,
     select_random_seed: int = 0,
 ) -> list[dict]:
-    """Current re-scoring rollouts selected by lagged eligibility and priority.
+    """Select this iteration's cached rollouts by current program fitness.
 
     There is no sampling pass. Each elite contributes exactly the instances the
     re-scoring already rolled out, so every instance trained on is an instance
     that was measured -- a tail instance the evaluation never saw cannot reach
     the batch, and nothing goes stale between scoring and the update.
 
-    WHICH elites contribute is decided by their score as of the previous
-    iteration. Production ranks eligible elites by that previous R_Q;
+    Production ranks eligible programs by the current reassessment's R_Q;
     ``select_random_order`` instead applies a reproducible score-free shuffle.
-    Ranking by the same rollouts that will be trained on conditions
-    the sample on the selection event: the elite whose measurement noise
-    happened to land high is the one kept, which biases the update even though
-    each per-instance baseline is individually unbiased. The lag breaks that at
-    first order and costs no extra rollouts. An elite with no previous score --
-    inserted this iteration -- simply waits one iteration.
+    The caller freezes the program pool before mutation, so newly admitted
+    children first become eligible in the following iteration.
     """
+    if replay.iteration != iteration:
+        return []  # Checkpoint restoration has no current rollout groups yet.
     low, high = frontier_s_hat_range
     ranked: list[tuple[float, object]] = []
     for champion in champions:
-        score = previous_rq.selection_score(champion.program_id, iteration)
-        if warmup and score is None:
-            # The one pass with nothing to lag against. Bootstrap scores every
-            # seed under theta_0, which is exactly the weights the first update
-            # starts from, so those rollouts are on-policy warm-up data -- and
-            # there is no earlier measurement to select on because there is no
-            # earlier iteration. Ranking falls back to the current score.
-            score = float(getattr(champion, "rq_score", 0.0) or 0.0)
-        if score is None:
-            continue
         if not replay.has(champion.program_id):
             continue
-        # The frontier band uses the CURRENT measurement: an elite selected on
-        # its past score but degenerate right now would contribute a batch of
-        # zero advantages.
+        score = float(champion.rq_score)
+        # Use the current success rate to exclude groups with zero reward
+        # advantage, except when the caller explicitly enables the fallback.
         #
         # ``allow_degenerate`` is the caller saying the band admitted nobody at
         # all. A batch of zero advantages is a wasted step; an empty dataloader
@@ -599,7 +586,8 @@ def build_replay_training_examples(
                     "problem_type_bin": int(
                         getattr(champion, "niche_problem_type", -1)
                     ),
-                    "previous_rq": score,
+                    "selection_score": score,
+                    "selection_iteration": iteration,
                     "replay_rollouts": group.size,
                     "replay_group_id": group.group_id,
                 }

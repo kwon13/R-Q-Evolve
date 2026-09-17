@@ -1,4 +1,4 @@
-"""Measurement-as-training, previous-R_Q selection, and the constancy gate."""
+"""Measurement-as-training, current-R_Q selection, and the constancy gate."""
 
 import hashlib
 from dataclasses import asdict
@@ -12,7 +12,7 @@ from rq_evolve.constancy import check_constancy, z_sensitive_fraction
 from rq_evolve.dataset import build_replay_training_examples
 from rq_evolve.evolution import RQEvolver
 from rq_evolve.program import ProblemInstance, ProblemProgram
-from rq_evolve.replay import PreviousRQScoreboard, RolloutReplayBuffer
+from rq_evolve.replay import RolloutReplayBuffer
 from rq_evolve.problem_type import (
     PROBLEM_TYPE_RULESET,
     problem_type_ruleset_sha256,
@@ -121,31 +121,6 @@ def test_degenerate_groups_are_counted_not_silently_carried():
     assert stats["replay_degenerate_frac"] == pytest.approx(0.5)
 
 
-# --- previous-iteration selection ------------------------------------------
-
-
-def test_a_program_first_scored_this_iteration_has_no_previous_score():
-    """Newly inserted elites wait one iteration; that IS the winner's-curse break."""
-    board = PreviousRQScoreboard()
-    board.record("p", 0, 1.0)
-    assert board.selection_score("p", 0) is None
-    assert board.selection_score("p", 1) == pytest.approx(1.0)
-
-
-def test_selection_uses_the_immediately_previous_raw_rq():
-    board = PreviousRQScoreboard()
-    board.record("p", 0, 1.0)
-    board.record("p", 1, 0.0)
-    assert board.selection_score("p", 2) == pytest.approx(0.0)
-
-
-def test_the_scoreboard_survives_a_round_trip():
-    board = PreviousRQScoreboard()
-    board.record("p", 3, 0.8)
-    restored = PreviousRQScoreboard.from_dict(board.to_dict())
-    assert restored.selection_score("p", 4) == pytest.approx(0.8)
-
-
 # --- the training batch -----------------------------------------------------
 
 
@@ -156,153 +131,121 @@ def _champion(pid, s_hat, rq):
 
 
 def test_the_batch_is_the_stored_rollouts_and_nothing_else():
-    """No sampling pass: every instance trained on is one that was measured."""
     buf = RolloutReplayBuffer()
     buf.begin_iteration(1)
-    board = PreviousRQScoreboard()
-    board.record("p", 0, 0.5)
     champ = _champion("p", 0.5, 0.5)
     for z in (11, 12, 13):
         buf.store("p", _inst(z), _rollouts(True, False))
-
     rows = build_replay_training_examples(
-        [champ],
-        replay=buf,
-        previous_rq=board,
-        iteration=1,
-        frontier_s_hat_range=(0.0, 1.0),
+        [champ], replay=buf, iteration=1, frontier_s_hat_range=(0.0, 1.0),
     )
     assert [r["seed"] for r in rows] == [11, 12, 13]
+    assert [r["replay_group_id"] for r in rows] == [g.group_id for g in buf.get("p")]
     assert all(r["replay_rollouts"] == 2 for r in rows)
 
 
-def test_an_elite_with_no_lagged_score_does_not_train_yet():
+def test_current_measurement_needs_no_score_history():
     buf = RolloutReplayBuffer()
     buf.begin_iteration(0)
     buf.store("fresh", _inst(0, "fresh"), _rollouts(True, False))
     rows = build_replay_training_examples(
-        [_champion("fresh", 0.5, 0.5)],
-        replay=buf,
-        previous_rq=PreviousRQScoreboard(),
-        iteration=0,
+        [_champion("fresh", 0.5, 0.5)], replay=buf, iteration=0,
         frontier_s_hat_range=(0.0, 1.0),
+    )
+    assert [r["program_id"] for r in rows] == ["fresh"]
+    assert rows[0]["selection_score"] == 0.5
+    assert rows[0]["selection_iteration"] == 0
+
+
+def test_stale_replay_cannot_supply_current_training():
+    buf = RolloutReplayBuffer()
+    buf.begin_iteration(0)
+    buf.store("p", _inst(0), _rollouts(True, False))
+    rows = build_replay_training_examples(
+        [_champion("p", 0.5, 1.0)], replay=buf, iteration=1,
+        frontier_s_hat_range=(0.0, 1.0), allow_degenerate=True,
     )
     assert rows == []
 
 
-def test_a_currently_degenerate_elite_is_dropped_even_with_a_good_past_score():
-    """Selected on the past, but the batch would be all-zero advantage now."""
+def test_a_currently_degenerate_program_is_dropped():
     buf = RolloutReplayBuffer()
     buf.begin_iteration(1)
     buf.store("p", _inst(0), _rollouts(True, True))
-    board = PreviousRQScoreboard()
-    board.record("p", 0, 9.0)
     rows = build_replay_training_examples(
-        [_champion("p", 1.0, 0.0)],  # s_hat = 1.0 -> outside the frontier band
-        replay=buf,
-        previous_rq=board,
-        iteration=1,
+        [_champion("p", 1.0, 0.0)], replay=buf, iteration=1,
         frontier_s_hat_range=(0.0, 1.0),
     )
     assert rows == []
 
 
-def test_the_batch_is_ordered_by_the_previous_raw_rq():
+def test_a_high_score_without_current_rollouts_is_not_selected():
     buf = RolloutReplayBuffer()
     buf.begin_iteration(1)
-    board = PreviousRQScoreboard()
-    champs = []
-    for pid, past in (("low", 0.1), ("high", 0.9), ("mid", 0.5)):
-        buf.store(pid, _inst(0, pid), _rollouts(True, False))
-        board.record(pid, 0, past)
-        champs.append(_champion(pid, 0.5, 0.5))
     rows = build_replay_training_examples(
-        champs,
-        replay=buf,
-        previous_rq=board,
-        iteration=1,
-        frontier_s_hat_range=(0.0, 1.0),
+        [_champion("failed", 0.5, 100.0)], replay=buf, iteration=1,
+        frontier_s_hat_range=(0.0, 1.0), allow_degenerate=True,
     )
-    assert [r["program_id"] for r in rows] == ["high", "mid", "low"]
+    assert rows == []
 
 
-def test_the_batch_budget_binds_before_dataloader_shuffle():
-    """An overfull frontier must be top-k by past R_Q, not random after shuffle."""
+@pytest.mark.parametrize("budget,expected", [(None, ["high", "mid", "low"]),
+                                           (2, ["high", "mid"])])
+def test_current_fitness_orders_and_limits_the_batch(budget, expected):
     buf = RolloutReplayBuffer()
     buf.begin_iteration(1)
-    board = PreviousRQScoreboard()
     champs = []
-    for pid, past in (("low", 0.1), ("high", 0.9), ("mid", 0.5)):
+    for pid, score in (("low", 0.1), ("high", 0.9), ("mid", 0.5)):
         buf.store(pid, _inst(0, pid), _rollouts(True, False))
-        board.record(pid, 0, past)
-        champs.append(_champion(pid, 0.5, 0.5))
+        champs.append(_champion(pid, 0.5, score))
     rows = build_replay_training_examples(
-        champs,
-        replay=buf,
-        previous_rq=board,
-        iteration=1,
-        frontier_s_hat_range=(0.0, 1.0),
-        training_budget=2,
+        champs, replay=buf, iteration=1, frontier_s_hat_range=(0.0, 1.0),
+        training_budget=budget,
     )
-    assert [r["program_id"] for r in rows] == ["high", "mid"]
+    assert [r["program_id"] for r in rows] == expected
+    assert [r["selection_score"] for r in rows] == sorted(
+        [r["rq_score"] for r in rows], reverse=True,
+    )
 
 
 def test_random_replay_order_is_seeded_and_independent_of_rq_values():
     buf = RolloutReplayBuffer()
     buf.begin_iteration(1)
-    champs = []
-    first_board = PreviousRQScoreboard()
-    second_board = PreviousRQScoreboard()
-    for index, pid in enumerate(("a", "b", "c", "d")):
+    pids = ("a", "b", "c", "d")
+    for index, pid in enumerate(pids):
         buf.store(pid, _inst(index, pid), _rollouts(True, False))
-        first_board.record(pid, 0, float(index + 1))
-        second_board.record(pid, 0, float(4 - index))
-        champs.append(_champion(pid, 0.5, float(index)))
 
-    def selected_ids(board):
-        return [
-            row["program_id"]
-            for row in build_replay_training_examples(
-                champs,
-                replay=buf,
-                previous_rq=board,
-                iteration=1,
-                frontier_s_hat_range=(0.0, 1.0),
-                training_budget=3,
-                select_random_order=True,
-                select_random_seed=23,
-            )
-        ]
+    def selected_ids(scores):
+        return [row["program_id"] for row in build_replay_training_examples(
+            [_champion(pid, 0.5, rq) for pid, rq in zip(pids, scores)],
+            replay=buf, iteration=1, frontier_s_hat_range=(0.0, 1.0),
+            training_budget=3, select_random_order=True, select_random_seed=23,
+        )]
 
-    assert selected_ids(first_board) == selected_ids(second_board)
-    assert selected_ids(first_board) == selected_ids(first_board)
+    assert selected_ids((1, 2, 3, 4)) == selected_ids((4, 3, 2, 1))
+    assert selected_ids((1, 2, 3, 4)) == selected_ids((1, 2, 3, 4))
 
 
 def test_random_extra_instance_allocation_is_independent_of_rq_values():
-    champions = [_champion(pid, 0.5, rq) for pid, rq in (("a", 1), ("b", 2), ("c", 3))]
-
     def allocation(scores):
+        champions = [_champion(pid, 0.5, rq) for pid, rq in zip(("a", "b", "c"), scores)]
         evolver = RQEvolver(
-            archive=MAPElitesArchive(),
-            backend=None,
+            archive=MAPElitesArchive(), backend=None,
             evolution_config=EvolutionConfig(
-                train_batch_target=8,
-                frontier_s_hat_range=(0.0, 1.0),
+                train_batch_target=8, frontier_s_hat_range=(0.0, 1.0),
             ),
-            training_config=TrainingDataConfig(
-                select_random_order=True,
-                select_random_seed=29,
-            ),
+            training_config=TrainingDataConfig(select_random_order=True, select_random_seed=29),
         )
         evolver.current_iteration = 1
-        for champion, score in zip(champions, scores):
-            evolver.previous_rq.record(champion.program_id, 0, score)
+        evolver.replay.begin_iteration(1)
+        for champion in champions:
+            evolver.replay.store(champion.program_id, _inst(0, champion.program_id),
+                                 _rollouts(True, False))
         return evolver._allocate_instances(champions)
 
     first = allocation((0.1, 0.2, 0.3))
-    second = allocation((100.0, -5.0, 0.0))
-    assert first == second
-    assert sum(first) == 8
+    assert first == allocation((100.0, -5.0, 0.0))
+    assert sum(first) == 5  # Three primary groups already occupy the other slots.
 
 
 # --- the constancy gate -----------------------------------------------------
@@ -457,21 +400,18 @@ def _loop_evolver(backend, group_size=2, batch=6):
     )
 
 
-def test_extra_instances_use_the_same_previous_raw_rq_as_batch_selection():
-    backend = _CountingBackend()
-    evolver = _loop_evolver(backend, batch=3)
-    low_past = _champion("low-past", 0.5, 99.0)
-    high_past = _champion("high-past", 0.5, 0.01)
+def test_extra_instances_use_current_fitness_and_available_groups():
+    evolver = _loop_evolver(_CountingBackend(), batch=3)
+    high = _champion("high", 0.5, 0.9)
+    low = _champion("low", 0.5, 0.1)
+    failed = _champion("failed", 0.5, 100.0)
     evolver.current_iteration = 2
-    evolver.previous_rq.record(low_past.program_id, 1, 0.1)
-    evolver.previous_rq.record(high_past.program_id, 1, 0.9)
-
-    counts = evolver._allocate_instances([low_past, high_past])
-
-    assert counts == [
-        1,
-        2,
-    ], "current rq_score and previous priority disagree; allocation must follow t-1 R_Q"
+    evolver.replay.begin_iteration(2)
+    for p in [high, low]:
+        evolver.replay.store(p.program_id, _inst(0, p.program_id), _rollouts(True, False))
+    assert evolver._allocate_instances([high, low, failed]) == [1, 0, 0]
+    evolver.replay.store("high", _inst(1, "high"), _rollouts(True, False))
+    assert evolver._allocate_instances([high, low, failed]) == [0, 0, 0]
 
 
 def test_training_pool_is_frozen_before_mutation_changes_the_archive():
@@ -485,7 +425,6 @@ def test_training_pool_is_frozen_before_mutation_changes_the_archive():
         _inst(7, incumbent.program_id),
         _rollouts(True, False),
     )
-    evolver.previous_rq.record(incumbent.program_id, 1, 0.4)
 
     # The live archive may no longer contain the incumbent after mutation.
     # The current update must still consume the rollout measured before that
@@ -527,7 +466,7 @@ def _seeded(evolver, tag, domain):
 
 
 def test_the_loop_trains_only_on_rollouts_it_already_paid_for():
-    """The budget claim: one re-scoring pass, no second sampling pass."""
+    """Primary and extra calls fill the budget; training reuses both sets."""
     backend = _CountingBackend()
     evolver = _loop_evolver(backend)
     _seeded(evolver, "A", "algebra")
@@ -544,30 +483,19 @@ def test_the_loop_trains_only_on_rollouts_it_already_paid_for():
     # Every iteration spends exactly train_batch_target x G and not a rollout
     # more: six instances filled from two champions, two rollouts each.
     assert {spend for spend, _ in per_iteration} == {6 * 2}
-    # ...and every one of them yields a batch (iteration 0 via the warm-up
-    # fallback, since nothing has a prior measurement to be selected on yet).
+    # Every iteration, including the first, selects by its current evaluation.
     assert [len(rows) for _, rows in per_iteration] == [6, 6, 6]
 
 
-def test_the_lag_is_in_force_once_anything_has_history():
-    """The fallback is for "no earlier iteration exists", not a general bypass.
-
-    A champion inserted at iteration t must not be selected on the rollouts it
-    is about to train on -- that is the winner's-curse coupling the lag breaks.
-    """
+def test_a_program_present_before_reassessment_can_train_without_history():
     backend = _CountingBackend()
     evolver = _loop_evolver(backend)
     _seeded(evolver, "A", "algebra")
     evolver.run_outer_iteration(0)
-
     newcomer = _seeded(evolver, "B", "geometry")
     evolver.run_outer_iteration(1)
-
-    # "A" has history, so the fallback does not fire and "B" -- first scored at
-    # iteration 1 -- is held back.
     trained = {row["program_id"] for row in evolver.dataset.snapshot()}
-    assert newcomer.program_id not in trained
-    assert trained
+    assert newcomer.program_id in trained
 
 
 def test_every_trained_instance_is_one_that_was_measured():
@@ -602,19 +530,187 @@ def test_instances_are_never_reused_across_iterations():
     assert not trained[0] & trained[1]
 
 
-def test_a_cold_resume_falls_back_to_warmup_rather_than_an_empty_batch():
-    """An archive restored without previous-score history needs a first batch.
+@pytest.mark.parametrize("legacy_key", ["previous_rq_scores", "lagged_scores"])
+def test_legacy_score_history_is_ignored_on_resume(tmp_path, legacy_key):
+    import json
 
-    Handing verl an empty dataloader kills the run; falling back to the current
-    scores is the same call bootstrap makes, and the lag re-engages as soon as
-    any champion carries history.
-    """
-    backend = _CountingBackend()
-    evolver = _loop_evolver(backend)
+    evolver = _loop_evolver(_CountingBackend())
     program = _seeded(evolver, "A", "algebra")
-    evolver.previous_rq.history.clear()  # what a pre-scoreboard snapshot looks like
-
     evolver.run_outer_iteration(0)
+    evolver.save_state(tmp_path)
+    state_path = tmp_path / evolver._USED_SEEDS_FILE
+    state = json.loads(state_path.read_text())
+    assert "previous_rq_scores" not in state
+    state[legacy_key] = {program.program_id: [0, 999.0, 999.0]}
+    state_path.write_text(json.dumps(state))
 
-    assert evolver.dataset.snapshot(), "cold resume produced an empty training set"
-    assert any(e["event"] == "replay_warmup_fallback" for e in evolver.events)
+    resumed = _loop_evolver(_CountingBackend())
+    assert resumed.load_state(tmp_path)
+    assert not resumed.dataset.snapshot()  # No rollout cache was restored.
+    resumed.run_outer_iteration(1)
+    assert resumed.dataset.snapshot()
+    assert all(row["selection_score"] == row["rq_score"] != 999.0
+               for row in resumed.dataset.snapshot())
+    assert not any(e["event"] == "replay_warmup_fallback" for e in resumed.events)
+
+
+class _ScriptedBackend(_CountingBackend):
+    """Control primary/extra outcomes without invoking an LLM."""
+
+    def __init__(self, specs):
+        super().__init__()
+        self.specs = specs
+        self.batches = []
+        self.payloads = []
+
+    def generate_rollouts(self, instances, n_rollouts):
+        spec = self.specs[len(self.batches)]
+        self.batches.append(list(instances))
+        self.rollouts_generated += len(instances) * n_rollouts
+        grouped = []
+        for inst in instances:
+            flags, entropy = spec[inst.program_id]
+            grouped.append([
+                RolloutRecord(
+                    response="x", predicted_answer="1",
+                    correct=bool(flags and flags[k % len(flags)]), entropy=entropy,
+                    status="accepted" if flags else "rejected",
+                    reject_reason=None if flags else "worker_error",
+                ) for k in range(n_rollouts)
+            ])
+        payloads = [object() for _ in instances]
+        self.payloads.extend(payloads)
+        return PendingRollouts(
+            instances=list(instances), n_rollouts=n_rollouts,
+            grouped=grouped, payloads=payloads,
+        )
+
+
+@pytest.mark.parametrize("budget", [1, 3])
+def test_reassessment_reverses_ranking_before_selection_and_extra_allocation(budget):
+    evolver = _loop_evolver(_CountingBackend(), batch=budget)
+    old_high = _seeded(evolver, "A", "algebra")
+    new_high = _seeded(evolver, "B", "geometry")
+    old_high.rq_score, new_high.rq_score = 10.0, 0.01
+    backend = _ScriptedBackend([
+        {old_high.program_id: ((True, False), 0.1),
+         new_high.program_id: ((True, False), 2.0)},
+        # Extra data must not overwrite the primary score or success rate.
+        {new_high.program_id: ((True, True), 100.0)},
+    ])
+    evolver.backend = backend
+    evolver.run_outer_iteration(2)
+
+    rows = evolver.dataset.snapshot()
+    assert rows[0]["program_id"] == new_high.program_id
+    assert new_high.rq_score == pytest.approx(1.0)
+    assert new_high.s_hat == pytest.approx(0.5)
+    assert new_high.u_score == pytest.approx(2.0)
+    assert new_high.metadata["num_seeds"] == 1
+    assert old_high.rq_score == pytest.approx(0.05)
+    assert len(rows) == budget
+    if budget == 3:
+        assert [inst.program_id for inst in backend.batches[1]] == [new_high.program_id]
+        assert [row["program_id"] for row in rows] == [
+            new_high.program_id, new_high.program_id, old_high.program_id,
+        ]
+        assert len({row["seed"] for row in rows if row["program_id"] == new_high.program_id}) == 2
+    else:
+        assert len(backend.batches) == 1  # No extra call for an already full pool.
+    for row in rows:
+        group = next(g for g in evolver.replay.get(row["program_id"])
+                     if g.group_id == row["replay_group_id"])
+        assert any(group.payload is payload for payload in backend.payloads)
+        assert row["selection_iteration"] == 2
+        assert row["selection_score"] == row["rq_score"]
+
+
+def test_failed_primary_cannot_use_an_old_score_for_selection_or_allocation():
+    evolver = _loop_evolver(_CountingBackend(), batch=3)
+    failed = _seeded(evolver, "A", "algebra")
+    healthy = _seeded(evolver, "B", "geometry")
+    failed.rq_score = 99.0
+    backend = _ScriptedBackend([
+        {failed.program_id: (None, 0.0), healthy.program_id: ((True, False), 1.0)},
+        {healthy.program_id: ((True, False), 2.0)},
+    ])
+    evolver.backend = backend
+    evolver.run_outer_iteration(2)
+    assert failed.rq_score == 99.0  # Archive failure handling remains intact.
+    assert not evolver.replay.has(failed.program_id)
+    assert [inst.program_id for inst in backend.batches[1]] == [healthy.program_id] * 2
+    assert {row["program_id"] for row in evolver.dataset.snapshot()} == {healthy.program_id}
+    assert healthy.u_score == 1.0  # Extras are training data, not a second score.
+
+
+def test_current_frontier_membership_controls_extra_allocation():
+    evolver = _loop_evolver(_CountingBackend(), batch=3)
+    no_longer_useful = _seeded(evolver, "A", "algebra")
+    now_useful = _seeded(evolver, "B", "geometry")
+    now_useful.s_hat = 0.0
+    backend = _ScriptedBackend([
+        {no_longer_useful.program_id: ((True, True), 1.0),
+         now_useful.program_id: ((True, False), 1.0)},
+        {now_useful.program_id: ((True, False), 1.0)},
+    ])
+    evolver.backend = backend
+    evolver.run_outer_iteration(2)
+    assert [inst.program_id for inst in backend.batches[1]] == [now_useful.program_id] * 2
+    assert {r["program_id"] for r in evolver.dataset.snapshot()} == {now_useful.program_id}
+
+
+def test_failed_extras_preserve_the_primary_fitness_and_cached_group():
+    evolver = _loop_evolver(_CountingBackend(), batch=3)
+    champion = _seeded(evolver, "A", "algebra")
+    backend = _ScriptedBackend([
+        {champion.program_id: ((True, False), 2.0)},
+        {champion.program_id: (None, 0.0)},
+    ])
+    evolver.backend = backend
+    evolver.run_outer_iteration(2)
+    assert champion.rq_score == 1.0
+    assert len(evolver.dataset.snapshot()) == 1
+    assert evolver.dataset.snapshot()[0]["selection_score"] == 1.0
+    assert len(evolver.replay.get(champion.program_id)) == 1
+    assert any(e["event"] == "replay_batch_short" for e in evolver.events)
+
+
+def test_mutation_child_waits_until_next_iteration_even_with_higher_current_score():
+    from rq_evolve.evolution import CandidateReport
+
+    evolver = _loop_evolver(_CountingBackend(), batch=1)
+    incumbent = _seeded(evolver, "A", "algebra")
+    evolver.evolution_config.inner_iterations = 1
+    evolver.evolution_config.adaptive_mutation_refill = False
+    children = []
+
+    def mutate(_batch_size):
+        child = _seeded(evolver, "B", "geometry")
+        child.rq_score = 100.0
+        # Even if future mutation code caches child rollouts, the frozen pool
+        # must keep this newly admitted program out of the current batch.
+        evolver.replay.store(child.program_id, _inst(20, child.program_id), _rollouts(True, False))
+        children.append(child)
+        return [CandidateReport(status="inserted", op="mutation", s_hat=0.5, rq_score=100.0)]
+
+    evolver.inner_iteration_batch = mutate
+    evolver.run_outer_iteration(2)
+    assert [row["program_id"] for row in evolver.dataset.snapshot()] == [incumbent.program_id]
+    evolver.evolution_config.inner_iterations = 0
+    evolver.evolution_config.train_batch_target = 2
+    evolver.run_outer_iteration(3)
+    assert children[0].program_id in {row["program_id"] for row in evolver.dataset.snapshot()}
+
+
+def test_evolution_log_records_the_actual_current_selection(tmp_path):
+    import json
+
+    evolver = _loop_evolver(_CountingBackend(), batch=1)
+    _seeded(evolver, "A", "algebra")
+    evolver.run_outer_iteration(2)
+    evolver.append_evolution_log(tmp_path, iteration=2, metrics={}, reports=[])
+    row = json.loads((tmp_path / "evolution_log.jsonl").read_text())
+    selected = row["training_selection"]
+    assert len(selected) == 1
+    assert selected[0]["selection_iteration"] == 2
+    assert selected[0]["selection_score"] == evolver.dataset.snapshot()[0]["rq_score"]

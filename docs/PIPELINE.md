@@ -34,13 +34,37 @@ archive는 시작할 때 35개 cell을 모두 생성합니다. 좌표는
 `(domain_bin, problem_type_bin)`이며 runtime supported mask나 benchmark 빈도
 threshold는 없습니다.
 
+## Current-fitness training selection
+
+Each iteration first evaluates one fresh instance per incumbent with the current
+Solver and caches its rollouts. The resulting fitness and success rate determine
+training priority and eligibility. If the cached eligible groups do not fill the
+training budget, additional fresh instances are allocated round-robin in
+**descending current fitness** and evaluated with the same Solver weights.
+Their rollouts are appended to the cache without overwriting the primary fitness.
+The Random variant shuffles allocation and training priority with its configured seed.
+
+The training pool is captured after reassessment and before mutation. Newly
+admitted children first train in the next iteration. Selected cached rollout groups
+supply the update directly; they are not sampled again for training. If no program
+passes the current success-rate gate, the existing cached-group fallback applies.
+Failed primary evaluations supply no cached group and cannot enter selection or
+receive extras using a stale score.
+
+Evolution logs record the selected program IDs, seeds, current selection scores,
+iteration, and replay group IDs. Legacy checkpoint fields `previous_rq_scores`
+and `lagged_scores` are ignored; a resumed run performs fresh reassessment before
+selecting training data. Historical experiment outputs are not rewritten by this
+implementation change.
+
 ## Outer iteration
 
 ```text
 sync solver weights into rollout backend
         │
         ├─ re-evaluate current champions on fresh instances
-        │    └─ refresh R_Q = s_hat(1-s_hat)U
+        │    ├─ refresh fitness and archive membership
+        │    └─ fill missing training slots using current fitness; cache extra rollouts
         │
         ├─ sample parents from occupied cells
         │
